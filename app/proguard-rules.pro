@@ -21,7 +21,7 @@
 #-renamesourcefileattribute SourceFile
 
 # ---------------------------------------------------------------------------
-# kotlinx.serialization (HeroQuoteDto, Navigation 3 GreetingNavKey)
+# kotlinx.serialization (Navigation 3 GreetingNavKey)
 # Official recommended rules: https://github.com/Kotlin/kotlinx.serialization
 # ---------------------------------------------------------------------------
 
@@ -78,8 +78,7 @@
 # ---------------------------------------------------------------------------
 # NOTE: no allowshrinking here — with it, R8 full mode still removes the
 # interface (it sees no subtypes, since the proxy is built at runtime).
--keep,allowobfuscation interface com.example.core.network.GreetingApi { *; }
--keep,allowobfuscation interface com.example.core.network.FontDownloadApi { *; }
+-keep,allowobfuscation interface com.lhzkml.jasmine.core.network.FontDownloadApi { *; }
 
 # Retain HTTP method/parameter annotations (@GET/@POST/@Query...) on all
 # service interfaces; Retrofit reads them reflectively at runtime.

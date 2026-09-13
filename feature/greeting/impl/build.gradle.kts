@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-  namespace = "com.example.feature.greeting.impl"
+  namespace = "com.lhzkml.jasmine.feature.greeting.impl"
   compileSdk { version = release(37) }
 
   defaultConfig { minSdk = 24 }

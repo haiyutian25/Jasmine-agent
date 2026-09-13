@@ -11,10 +11,12 @@
         android:fillColor="#15FFFFFF"
         android:pathData="M38,34 L70,34 A8,8 0 0,1 78,42 L78,66 A8,8 0 0,1 70,74 L38,74 A8,8 0 0,1 30,66 L30,42 A8,8 0 0,1 38,34 Z" />
     
-    <!-- Minimalist Typography H -->
+    <!-- Minimalist Typography J -->
     <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M44,43 L48,43 L48,51 L60,51 L60,43 L64,43 L64,65 L60,65 L60,55 L48,55 L48,65 L44,65 Z" />
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="4"
+        android:pathData="M62,43 L62,56 A8,8 0 0 1 46,56" />
     
     <!-- Minimal Accent Dot -->
     <path

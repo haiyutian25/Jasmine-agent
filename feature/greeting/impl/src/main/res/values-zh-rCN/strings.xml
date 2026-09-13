@@ -68,10 +68,10 @@
     <string name="font_label_mono">等宽体</string>
 
     <!-- 启动页 -->
-    <string name="splash_phrase_1">正在初始化极简工作室引擎…</string>
+    <string name="splash_phrase_1">正在初始化 Jasmine 引擎…</string>
     <string name="splash_phrase_2">正在加载 CSS 变量令牌…</string>
     <string name="splash_phrase_3">正在合成字体比例…</string>
-    <string name="splash_phrase_4">你好，世界。</string>
+    <string name="splash_phrase_4">Jasmine。</string>
     <string name="splash_enter">进入</string>
     <string name="splash_skip">跳过</string>
     <string name="splash_cd_skip">跳转至主页面</string>

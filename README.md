@@ -1,18 +1,18 @@
-# Minimal Hello
+# Jasmine
 
-A production-grade ultra-minimalist Hello World application with live CSS variable token theming. Built entirely with Jetpack Compose (no XML layouts), structured as a multi-module MVVM project.
+A production-grade ultra-minimalist application with live CSS variable token theming. Built entirely with Jetpack Compose (no XML layouts), structured as a multi-module MVVM project.
 
 ## Architecture
 
 ```
-minimal-hello/
+jasmine/
 ├── app/                        # App shell: single Activity + navigation assembly + theme
 ├── core/
-│   ├── data/                   # Data layer (Hilt): GreetingRepository, UserPreferencesRepository
+│   ├── data/                   # Data layer (Hilt): UserPreferencesRepository, CustomFontRepository
 │   ├── database/               # Room: reserved for structured local data (no active DAO yet)
 │   ├── navigation/             # Navigation 3 infrastructure (AppNavigator / NavigationState)
 │   ├── network/                # Retrofit / OkHttp (Hilt-provided, placeholder service)
-│   └── ui/                     # Design tokens, MinimalTheme, shared utilities
+│   └── ui/                     # Design tokens, JasmineTheme, shared utilities
 ├── feature/
 │   └── greeting/
 │       ├── api/                # Navigation contract (GreetingNavKey)
@@ -20,7 +20,7 @@ minimal-hello/
 └── gradle/libs.versions.toml   # Version catalog
 ```
 
-- **MVVM**: `GreetingViewModel` owns all feature state (theme, typography, fonts, tab, sidebar, inspector, greeting content) as `StateFlow`s; user preferences (theme, color mode, typography, font scale, active custom font) are persisted through Preferences DataStore via the data layer. Navigation chrome state (tab/sidebar) is session-transient and deliberately not persisted; the settings flow lives on the Navigation 3 back stack and is restored by the navigation library.
+- **MVVM**: `GreetingViewModel` owns all feature state (theme, typography, fonts, tab, sidebar) as `StateFlow`s; user preferences (theme, color mode, typography, font scale, active custom font) are persisted through Preferences DataStore via the data layer. Navigation chrome state (tab/sidebar) is session-transient and deliberately not persisted; the settings flow lives on the Navigation 3 back stack and is restored by the navigation library.
 - **Navigation 3**: destinations are declared as a serializable `NavKey` contract in `feature:greeting:api`; the app shell assembles them through `NavDisplay` + `entryProvider`.
 - **DI**: Hilt 2.x wires the database, network, data and ViewModel layers.
 

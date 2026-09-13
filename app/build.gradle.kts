@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-  namespace = "com.example"
+  namespace = "com.lhzkml.jasmine"
   compileSdk { version = release(37) }
 
   defaultConfig {
-    applicationId = "com.example"
+    applicationId = "com.lhzkml.jasmine"
     minSdk = 24
     targetSdk = 37
     versionCode = 1

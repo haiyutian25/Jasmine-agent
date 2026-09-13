@@ -19,7 +19,7 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "minimal-hello"
+rootProject.name = "jasmine"
 include(":app")
 include(":core:data")
 include(":core:database")

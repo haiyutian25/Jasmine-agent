@@ -68,10 +68,10 @@
     <string name="font_label_mono">Mono</string>
 
     <!-- Splash screen -->
-    <string name="splash_phrase_1">Initializing Minimal Studio Engine...</string>
+    <string name="splash_phrase_1">Initializing Jasmine Engine...</string>
     <string name="splash_phrase_2">Loading CSS Variable Tokens...</string>
     <string name="splash_phrase_3">Synthesizing Typographic Scale...</string>
-    <string name="splash_phrase_4">Hello, World.</string>
+    <string name="splash_phrase_4">Jasmine.</string>
     <string name="splash_enter">Enter</string>
     <string name="splash_skip">Skip</string>
     <string name="splash_cd_skip">Skip to main page</string>

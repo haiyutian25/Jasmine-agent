@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-  namespace = "com.example.core.database"
+  namespace = "com.lhzkml.jasmine.core.database"
   compileSdk { version = release(37) }
 
   defaultConfig { minSdk = 24 }

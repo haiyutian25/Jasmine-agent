@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-  namespace = "com.example.core.ui"
+  namespace = "com.lhzkml.jasmine.core.ui"
   compileSdk { version = release(37) }
 
   defaultConfig { minSdk = 24 }

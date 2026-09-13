@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-  namespace = "com.example.core.navigation"
+  namespace = "com.lhzkml.jasmine.core.navigation"
   compileSdk { version = release(37) }
 
   defaultConfig { minSdk = 24 }

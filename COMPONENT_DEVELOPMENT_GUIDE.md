@@ -1,8 +1,8 @@
-# Minimal Studio 多模块架构与核心功能开发完全指南
+# Jasmine 多模块架构与核心功能开发完全指南
 
 > 本文档详细剖析项目的多模块工程结构、MVVM 状态管理、Navigation 3 导航、Hilt 依赖注入，以及所有 UI 组件、多主题切换、推拽式侧边栏、打字机启动页的开发原理、核心实现与调参指南。
 >
-> **本版本已按当前源码逐项核验（核验日期：2026-09-12）**，所有参数、路径与功能描述均与当前源码一致。
+> **本版本已按当前源码逐项核验（核验日期：2026-09-13）**，所有参数、路径与功能描述均与当前源码一致。
 
 ---
 
@@ -33,17 +33,16 @@
 ### 1.1 模块结构与职责
 
 ```
-minimal-hello/
+jasmine/
 ├── app/                          # 应用壳：单 Activity + 导航组装 + 主题应用
-│   ├── MinimalHelloApplication   # @HiltAndroidApp 入口
-│   └── MainActivity              # @AndroidEntryPoint：hiltViewModel() + MinimalTheme + GreetingNavHost
+│   ├── JasmineApplication   # @HiltAndroidApp 入口
+│   └── MainActivity              # @AndroidEntryPoint：hiltViewModel() + JasmineTheme + GreetingNavHost
 ├── core/
 │   ├── data/                     # 数据层：仓库接口/实现 + Hilt 装配
 │   │   ├── model/UserPreferences             # 领域模型（themeId / typographyChoice / colorMode / fontScale / activeCustomFontId）
 │   │   ├── datastore/UserPreferencesDataStore  # Preferences DataStore 读写（偏好唯一存储）
-│   │   ├── repository/GreetingRepository     # 策展文案数据源（6 组语录 + 5 条说明，远程就绪）
 │   │   ├── repository/UserPreferencesRepository  # 偏好读写（DataStore 支撑）
-│   │   ├── datasource/GreetingRemoteDataSource   # 远程数据源（对接 core:network）
+│   │   ├── datasource/FontRemoteDataSource       # 字体远端数据源（对接 core:network）
 │   │   ├── manager/dispatcher/DispatcherManager  # 可注入协程调度器
 │   │   └── di/DataModule                     # @Provides 装配
 │   ├── database/                 # Room：预留给结构化本地数据（仅保留 legacy 实体，无 DAO）
@@ -53,17 +52,16 @@ minimal-hello/
 │   │   └── AppNavigator                      # NavBackStack 包装（navigate/replace/goBack）
 │   ├── network/                  # Retrofit/OkHttp/kotlinx.serialization（Hilt 提供，baseUrl 占位）
 │   └── ui/                       # 设计系统
-│       ├── theme/CssTokens       # CssVariables 模型、12 套预设、ThemeResolver（含 families 目录）、:root 导出
-│       ├── theme/Theme           # MinimalTheme + LocalCssVariables + M3 ColorScheme 映射
+│       ├── theme/CssTokens       # CssVariables 模型、12 套预设、ThemeResolver（含 families 目录）
+│       ├── theme/Theme           # JasmineTheme + LocalCssVariables + M3 ColorScheme 映射
 │       ├── theme/Type            # AppTypography（Material3 Typography）+ LocalContentFontFamily
-│       ├── base/                 # BaseViewModel（UDF 三要素）+ EventsEffect（生命周期感知事件消费）
-│       └── util/Clipboard        # Context.copyToClipboard 共享扩展
+│       └── base/                 # BaseViewModel（UDF 三要素）+ EventsEffect（生命周期感知事件消费）
 └── feature/
     └── greeting/
         ├── api/                  # 导航契约：@Serializable GreetingNavKey（Splash / Main / 5 个设置目的地）
         └── impl/                 # UI + ViewModel
             ├── GreetingViewModel             # @HiltViewModel，功能唯一状态源
-            ├── GreetingNavHost               # NavDisplay + entryProvider 组装（含设置流目的地）；全局托管 Toast 事件与 CSS 审查器
+            ├── GreetingNavHost               # NavDisplay + entryProvider 组装（含设置流目的地）；全局托管 Toast 一次性事件
             ├── MainScreen                    # 推拽侧边栏 + 4 标签 Scaffold
             ├── fonts/                        # CustomFontFamilyCache（FontFamily 内存缓存，主线程零磁盘 IO）
             ├── screens/CanvasScreen          # 主画布工作台（原 MainActivity 内联代码抽取）
@@ -90,13 +88,13 @@ app ──► feature:greeting:impl ──► feature:greeting:api
 
 ### 2.1 GreetingViewModel（feature:greeting:impl）
 
-`@HiltViewModel` 注入 `UserPreferencesRepository`、`CustomFontRepository`、`CustomFontFamilyCache`、`GreetingRepository` 与 `@ApplicationContext`，继承 `core:ui` 的
+`@HiltViewModel` 注入 `UserPreferencesRepository`、`CustomFontRepository`、`CustomFontFamilyCache` 与 `@ApplicationContext`，继承 `core:ui` 的
 `BaseViewModel<GreetingState, GreetingEvent, GreetingAction>`，以 UDF 三要素对外：
 
-- **State**：单一不可变 `GreetingState`（`stateFlow`），聚合主题/排版/字体（含自定义字体列表与下载进度）/标签页/侧栏/审查器/
-  问候等全部状态；`theme` 与 `activeContentFont` 为派生字段，每次更新自动重算。设置流的页面位置**不在**此状态内——它由 Navigation 3 回退栈承载（见第 4 节）。
+- **State**：单一不可变 `GreetingState`（`stateFlow`），聚合主题/排版/字体（含自定义字体列表与下载进度）/标签页/侧栏等全部状态；
+  `theme` 与 `activeContentFont` 为派生字段，每次更新自动重算。设置流的页面位置**不在**此状态内——它由 Navigation 3 回退栈承载（见第 4 节）。
 - **Action**：所有用户意图收敛为 `GreetingAction` sealed interface（如 `TabSelected`、
-  `ThemeSelected`、`NextGreetingClicked`、`FontDownloadClicked`），UI 一律 `trySendAction(...)` 发送。页面间导航不走 action——由 `AppNavigator` 直接操作回退栈。
+  `ThemeSelected`、`FontScaleSaved`、`FontDownloadClicked`），UI 一律 `trySendAction(...)` 发送。页面间导航不走 action——由 `AppNavigator` 直接操作回退栈。
 - **Event**：一次性反馈（Toast）走 `GreetingEvent`（`eventFlow`），UI 经 `EventsEffect` 消费。
 
 异步结果（偏好读取、字体下载/导入）通过 `GreetingAction.Internal.*` 回流 action 管道，
@@ -112,8 +110,7 @@ app ──► feature:greeting:impl ──► feature:greeting:api
     → preferencesStateFlow 发射 → Internal.PreferencesReceived action → 同步回填 GreetingState
 ```
 
-- 主题解析集中在 `core:ui` 的 `ThemeResolver`（`fromThemeId` / `familyOf` / `resolveFamily`，未知 ID 兜底 EditorialLight）。
-- 审查器的 `--primary` 实时覆盖是**瞬态**的（`GreetingState.primaryOverride`），不入库，与旧版行为一致。
+- 主题解析集中在 `core:ui` 的 `ThemeResolver`（`familyOf` / `resolveFamily`，未知 ID 兜底 EditorialLight）。
 - 导航界面状态（currentTab / isSidebarOpen）**不持久化**：它属于会话瞬态 UI 位置，持久化会导致恢复/写入反馈环（侧栏闪烁），并会在进程死亡后把用户带回旧页面而非启动页。设置流的页面位置由 Navigation 3 回退栈序列化、进程死亡后由导航库恢复，不属于偏好存储。
 
 ### 2.3 View 层观察方式
@@ -136,15 +133,15 @@ onTabSelected = { viewModel.trySendAction(GreetingAction.TabSelected(it)) }
 
 | 模块 | 注入内容 | 作用域 |
 | :--- | :--- | :--- |
-| `app` | `@HiltAndroidApp MinimalHelloApplication`、`@AndroidEntryPoint MainActivity` | — |
-| `core:database` | `DatabaseModule`：`AppDatabase`（Room.databaseBuilder，`minimal-hello.db`，含 1→4 迁移链；当前无 DAO，为结构化数据预留） | Singleton |
-| `core:network` | `NetworkModule`：`OkHttpClient`（debug BASIC 日志 / release 静默）、`Retrofit`（kotlinx.serialization 转换器）、`@BaseUrl`、`GreetingApi`、`FontDownloadApi`（独立 Retrofit 实例，长超时裸流下载） | Singleton |
-| `core:data` | `DataModule`：`@Provides` DispatcherManager 与两个仓库实现 | Singleton |
+| `app` | `@HiltAndroidApp JasmineApplication`、`@AndroidEntryPoint MainActivity` | — |
+| `core:database` | `DatabaseModule`：`AppDatabase`（Room.databaseBuilder，`jasmine.db`，含 1→4 迁移链；当前无 DAO，为结构化数据预留） | Singleton |
+| `core:network` | `NetworkModule`：`OkHttpClient`（debug BASIC 日志 / release 静默）、`Retrofit`（kotlinx.serialization 转换器）、`@BaseUrl`、`FontDownloadApi`（独立 Retrofit 实例，长超时裸流下载） | Singleton |
+| `core:data` | `DataModule`：`@Provides` DispatcherManager 与 `UserPreferencesRepository`；`CustomFontRepository`（`@Singleton` 构造注入） | Singleton |
 | `feature:greeting:impl` | `@HiltViewModel GreetingViewModel`、@Singleton `CustomFontRepository`、@Singleton `CustomFontFamilyCache` | ViewModel / Singleton |
 
-`MainActivity` 中通过 `hiltViewModel()`（`androidx.hilt.lifecycle.viewmodel.compose` 包）获取 VM，`MinimalTheme(cssVars = currentTheme)` 包裹 `GreetingNavHost`。
+`MainActivity` 中通过 `hiltViewModel()`（`androidx.hilt.lifecycle.viewmodel.compose` 包）获取 VM，`JasmineTheme(cssVars = currentTheme)` 包裹 `GreetingNavHost`。
 
-> `core:network` 的 baseUrl 是占位（`https://api.example.com/`），但栈已完整就绪：`GreetingApi` 声明了 `@GET("greetings")` 契约，`core:data` 的 `GreetingRemoteDataSource` 负责 DTO → 领域模型映射，`GreetingRepository.fetchRemoteHeroQuotes()` 失败时降级为空列表（本地策展语录始终兜底）。接真实后端只需替换 `NetworkModule.provideBaseUrl()`。
+> `core:network` 当前只承载字体下载：`FontDownloadApi` 以 `@Streaming` 裸流拉取 GitHub Releases 上的预设字体（SHA-256 校验后落盘），`core:data` 的 `FontRemoteDataSource` 负责流式写盘与校验。baseUrl 仍是占位（`https://api.example.com/`），接真实后端只需替换 `NetworkModule.provideBaseUrl()` 并新增 service 接口。
 
 ---
 
@@ -201,7 +198,7 @@ NavDisplay(
 - Splash 完成/跳过 → `replace(Main)`（栈内只剩 Main，系统返回键直接退出应用）。
 - 侧边栏打开时的返回键由 `MainScreen` 内的 `BackHandler(enabled = isSidebarOpen)` 优先拦截（先收侧边栏，再交给导航）。
 - 设置目的地的返回统一走 `navigator.goBack()` 逐级弹栈（顶栏返回键与系统返回键/手势同一通道），由 NavDisplay 的 `onBack` 接管，天然支持预测返回。
-- `GreetingNavHost` 全局托管两样东西：Toast 一次性事件（`EventsEffect` 消费 `GreetingEvent.ShowToast`，集中在此弹 Toast）与 CSS 变量审查器 BottomSheet——因此它们在设置页上同样可用。
+- `GreetingNavHost` 全局托管 Toast 一次性事件（`EventsEffect` 消费 `GreetingEvent.ShowToast`，集中在此弹 Toast），因此在设置页上同样可用。
 
 ---
 
@@ -211,7 +208,7 @@ NavDisplay(
 
 `core/ui/theme/CssTokens.kt` 定义 **13 个颜色令牌 + 3 个圆角令牌**，一一对应 CSS Custom Properties：`background(--bg) / foreground(--text) / card(--surface) / cardForeground / border / primary(--accent) / primaryForeground / muted(--muted) / mutedForeground(--muted-foreground) / accent / accentForeground / ring / subtleSurface` + `radiusSm=10dp / radiusMd=16dp / radiusLg=24dp`。
 
-> ✅ `toCssString()` 遵循 shadcn 约定导出：`--muted` 为背景色、`--muted-foreground` 为文字色，可直接用于 Web 端。
+> ℹ️ 令牌目前只在 Compose 内消费（`CssVariables` → Material 3 `ColorScheme`）；原先的 `:root` CSS 文本导出已随 CSS 变量审查器一并移除。
 
 ### 5.2 12 套预设（ProductionPalettes）
 
@@ -228,7 +225,7 @@ NavDisplay(
 
 ### 5.3 主题注入与切换动画
 
-`MinimalTheme(cssVars)` 经 `CompositionLocalProvider(LocalCssVariables provides cssVars)` 注入令牌，同时映射为 Material 3 `ColorScheme`。`MainScreen` 对背景色做 280ms `FastOutSlowInEasing` 全局插值过渡：
+`JasmineTheme(cssVars)` 经 `CompositionLocalProvider(LocalCssVariables provides cssVars)` 注入令牌，同时映射为 Material 3 `ColorScheme`。`MainScreen` 对背景色做 280ms `FastOutSlowInEasing` 全局插值过渡：
 
 ```kotlin
 val animatedBg by animateColorAsState(
@@ -238,11 +235,7 @@ val animatedBg by animateColorAsState(
 )
 ```
 
-主题家族识别与目录集中在 `ThemeResolver`（core:ui）：`familyOf(themeId)`（去除 `-light`/`-dark` 后缀）、`familyDisplayNameOf`（家族显示名唯一来源）、`families`（`PaletteFamily(key, light, dark)` 有序目录，画布快切条与设置页调色板列表共用）。**新增家族只需：① `families` 加一条 ② `familyDisplayNameOf` 加一个分支**（设置页如需本地化名称/副标题再加一对字符串资源），两个选择器会自动出现新家族，无需再改屏幕代码。
-
-### 5.4 共享剪贴板工具
-
-`core/ui/util/Clipboard.kt` 提供 `Context.copyToClipboard(text, label)`，取代了旧版 6 处内联 ClipboardManager 样板代码（画布、审查器、设置页、侧边栏、令牌面板、排印工作室统一调用）。
+主题家族识别与目录集中在 `ThemeResolver`（core:ui）：`familyOf(themeId)`（先按 `families` 精确匹配，再回退去除 `-light`/`-dark` 后缀）、`families`（`PaletteFamily(key, light, dark)` 有序目录，设置页调色板列表使用）。**新增家族只需在 `families` 加一条**（设置页如需本地化名称/副标题再加一对字符串资源），选择器会自动出现新家族，无需再改屏幕代码。
 
 ---
 
@@ -266,7 +259,7 @@ Column(modifier = modifier.fillMaxWidth().background(currentTheme.background).st
 - **主界面形态**（`pageTitle == null`，由 `MainScreen` 使用）：仅左侧侧边栏开关按钮（28dp 纯 Menu 图标，无底色/边框/水波纹，`testTag = "top_nav_sidebar_btn"`）。
 - **子页面形态**（`pageTitle != null`，由设置目的地的 `SettingsPage` 脚手架使用）：左侧按钮自动变为**返回键**（ArrowBack，`testTag = "top_nav_back_btn"`，点击 → `navigator.goBack()`），**居中显示当前页面标题**——菜单页显示 "Settings"，外观/字体/字号/语言页显示对应菜单名。
 
-两种形态均保留底部 1px 分割线。原 Monogram 徽标、HELLO 标题、呼吸脉冲药丸、右侧主题家族徽标均已移除；设置入口在侧边栏底部，主题切换在设置页/画布快切条完成。
+两种形态均保留底部 1px 分割线。原 Monogram 徽标、品牌标题、呼吸脉冲药丸、右侧主题家族徽标均已移除；设置入口在侧边栏底部，主题切换仅在设置页完成。
 
 **粗细调整**：
 - **整条栏高度**：改常量 `TopNavBarHeight`（当前 47.dp，两种形态共用一处定义）——细：36~40dp；粗：56/64dp（Material 3 标准），同步微调内部按钮（28dp）。
@@ -301,7 +294,7 @@ val panelOffset = -SidebarWidth * (1f - p)
 
 ### 7.3 侧边栏内容（AppSidebarContent）
 
-极简两段式结构：**顶部工作区头部**（34dp 衬线斜体 "H" 头像 + "Hello Studio" + PRO 徽标 + "Design Systems Lab" 副标题，无关闭按钮），中间弹性留白，**底部固定设置入口**（右对齐的 32dp 纯齿轮图标按钮，点击 → `GreetingAction.SidebarClosed` + `navigator.navigate(GreetingNavKey.SettingsMenu)` 打开设置菜单目的地——该入口从顶栏迁移而来）。原导航组、调色板快切、快捷工具与引擎页脚均已移除；标签切换由底部导航栏承担，主题切换在设置页/画布快切条完成。
+极简两段式结构：**顶部工作区头部**（34dp 衬线斜体 "J" 头像 + "Jasmine Studio" + PRO 徽标 + "Design Systems Lab" 副标题，无关闭按钮），中间弹性留白，**底部固定设置入口**（右对齐的 32dp 纯齿轮图标按钮，点击 → `GreetingAction.SidebarClosed` + `navigator.navigate(GreetingNavKey.SettingsMenu)` 打开设置菜单目的地——该入口从顶栏迁移而来）。原导航组、调色板快切、快捷工具与引擎页脚均已移除；标签切换由底部导航栏承担，主题切换仅在设置页完成。
 
 ---
 
@@ -325,27 +318,19 @@ val panelOffset = -SidebarWidth * (1f - p)
 
 ## 10. 主画布工作台 (CanvasScreen)
 
-`screens/CanvasScreen.kt`——重构时从旧 `MainActivity`（1077 行）抽取的独立屏幕，观察 `GreetingViewModel`。
+`screens/CanvasScreen.kt` 目前是**一张刻意留空的表面**（仅 `Box(Modifier.fillMaxSize())`），用于承接底部导航栏的 CANVAS 标签页。
 
-### 10.1 区块构成
-
-1. **遥测头**：`DESIGN TOKENS` 徽标 + 真实延迟药丸（`renderLatencyMs`：`System.nanoTime()` + `withFrameNanos` 实测组合到帧延迟，主题变化时刷新）+ "Inspect CSS" 快捷入口。
-2. **预设快切条**：6 家族药丸（明暗随当前主题），目录来自 `ThemeResolver.families`（见 5.3），点击 → `GreetingAction.ThemeSelected(targetVariant)`（持久化）。
-3. **英雄卡片**：6 组策展语录（`GreetingRepository.heroQuotes`，轻斜体 + 粗体双段）循环，点按弹簧缩放 0.985f（`Spring.DampingRatioMediumBouncy`），tap → `GreetingAction.NextGreetingClicked`；自定义问候激活时优先显示 `customGreeting`。
-4. **交错入场动画**：卡片/眉题/双段文字/分割线/说明文字按 60/120/180/300/420/480ms 延迟级联，650~750ms `CubicBezierEasing(0.16,1,0.3,1)`。
-5. **自定义问候编辑器**：`AnimatedVisibility` 展开双 `BasicTextField`（part1 衬线斜体 / part2 无衬线粗体），输入即 `GreetingAction.CustomGreetingChanged` 实时上屏。
-6. **排版引擎选择器**：Serif / Sans / Mono 三段，→ `GreetingAction.TypographySelected`（持久化）。
-7. **CSS Variables 速览卡**：7 行令牌（`--bg/--text/--surface/--accent/--muted/--border/--radius`）+ Copy CSS 按钮（1.8s 复制成功态）。
+原先位于此处的遥测头、预设快切条、英雄卡片（策展语录循环）、自定义问候编辑器、排版引擎选择器与 CSS Variables 速览卡**均已从主页移除**；对应的主题切换与字体切换能力**并未删除**，而是整体迁移到设置流（AppearanceSettings / FontSettings），因此 `ThemeResolver`、`AppTypographyChoice` 等共享实现仍在被使用。
 
 ---
 
-## 11. 功能屏幕：排印工作室 / 令牌面板 / 设置页 / CSS 审查器
+## 11. 功能屏幕：排印工作室 / 令牌面板 / 设置流程
 
 ### 11.1 排印工作室（TypeStudioScreen）
-3 字体族卡片 + Italic 开关 + 双滑块：**字号 24~64sp（默认 42）**、**字距 -2.0~4.0sp（默认 -0.5）**，样张行高 = 字号 × 1.15；样张短语可复制（`copyToClipboard(label = "Typography Sample")`）。
+与 CanvasScreen 同为**留空表面**（原 3 字体族卡片、Italic 开关、字号/字距双滑块与样张复制均已移除）；字体能力迁移至设置流的 FontScreen / FontSizeScreen。
 
 ### 11.2 令牌面板（TokensScreen）
-令牌搜索过滤 + 色卡矩阵（点击复制 Hex，Toast 反馈）+ 令牌化组件演练场 + 审查器入口。
+同为**留空表面**（原令牌搜索过滤、色卡矩阵、组件演练场与审查器入口均已移除）。`GreetingScreenshotTest` 仍渲染它作为"首页可组合渲染"的冒烟基准。
 
 ### 11.3 设置流程（菜单页 + 外观/字体/字号/语言子页）
 
@@ -372,11 +357,6 @@ Main → SettingsMenu（设置菜单列表）→ AppearanceSettings（外观设�
 - **导入（importFont）**：支持用户选择本地 .ttf/.otf，文件名规范化（非法字符→`_`）并以 `upload_` 前缀落盘，自动去重加序号。
 - **热路径零磁盘 IO**：`installedIds` 内存快照（AtomicReference）+ `fontFamilyCache`（ConcurrentHashMap，impl/fonts/ 的 CustomFontFamilyCache）回答成员与 FontFamily 查询；字体目录经一次性 `ensureFontsDir`（AtomicBoolean）创建，`installedVersion` 变更触发重新扫描自愈。
 - 选中自定义字体会清空系统排版引擎选择（互斥），反之亦然；选择持久化于 `activeCustomFontId`。
-
-### 11.5 CSS 变量审查器（CssVariableInspectorSheet）
-全局 `ModalBottomSheet`，双标签：
-- **CSS Code**：完整 `:root` 导出 + 复制按钮（1.8s 成功态）。
-- **Tokens**：9 个预设色样实时覆盖 `--primary`（`onCustomPrimarySelected` → `GreetingAction.PrimaryColorOverridden`，瞬态不持久化）。
 
 ---
 
@@ -413,24 +393,20 @@ gradle :app:testDebugUnitTest     # 单元测试 + 截图测试
 | 推拽动画 | 320ms，CubicBezier(0.16,1,0.3,1) | SidebarDrawer |
 | 底栏分页滑动 | 320ms；快滑 180px/s，慢拖 28% 页宽 | BottomNavBar |
 | 背景色过渡 | 280ms FastOutSlowIn | MainScreen |
-| 英雄卡片按压 | 0.985f 弹簧 | CanvasScreen |
-| 入场级联延迟 | 60/120/180/300/420/480ms | CanvasScreen |
 | 打字机 | 起始 350ms，逐字 28ms（末句 42ms），行间 400ms，收尾 850ms | SplashScreen |
 | 光标 / 光环 / 自转环 | 480ms / 1800ms / 12000ms | SplashScreen |
-| 字号 / 字距滑块 | 24~64sp（默认 42）/ -2.0~4.0sp（默认 -0.5） | TypeStudioScreen |
-| 复制成功态 | 1.8s | CanvasScreen / 审查器 |
 | 偏好存储 | Preferences DataStore（`user_preferences`） | core:data |
-| 结构化数据库 | `minimal-hello.db`（预留，含 1→4 迁移链，无 DAO） | core:database |
+| 结构化数据库 | `jasmine.db`（预留，含 1→4 迁移链，无 DAO） | core:database |
 | 字体下载源 | GitHub Releases 直链 + SHA-256 校验 | feature:greeting:impl/fonts |
 
 ---
 
 ## 14. 已知局限与工程问题
 
-1. **网络层为占位**：`core:network` 栈已就绪（Retrofit + kotlinx.serialization + Hilt），但 baseUrl 是 `https://api.example.com/` 占位，无真实端点；`fetchRemoteHeroQuotes()` 目前只会走失败降级路径。
+1. **网络层仅用于字体下载**：`core:network` 栈已就绪（Retrofit + kotlinx.serialization + Hilt），但当前只有 `FontDownloadApi` 一个 service，实际指向 GitHub Releases 的绝对 URL；baseUrl 仍是 `https://api.example.com/` 占位，接真实后端需新增 service 接口并替换 `NetworkModule.provideBaseUrl()`。
 2. **Room 空转**：`core:database` 仅为满足 Room 至少一个实体的要求保留 legacy 表，无 DAO；该模块是项目硬性保留的预留位（曾摘除后被回退），接结构化数据时加 `@Entity` + `@Dao` 并递增版本即可。
 3. **家族文案为可选本地化**：设置页族名/副标题经 `SettingsScreen.paletteStrings` 按家族 key 查本地化资源；未配置的新家族自动回退到该家族自身的 `displayName` + `description`（英文），不会错标为其它家族；需要本地化时补一对字符串资源即可。
-4. **截图基准未入库**：`tokens.png` 尚未提交。默认 `testDebugUnitTest` 下 Roborazzi 未激活任何模式（record/verify/compare 均未开），`captureRoboImage` 空转通过、不做校验；生成基准用 `gradle :app:testDebugUnitTest -Proborazzi.test.record=true`，CI 校验用 `-Proborazzi.test.verify=true`（基准缺失时 verify 会失败）。
+4. **截图基准已入库**：`app/src/test/screenshots/tokens.png` 已提交。默认 `testDebugUnitTest` 下 Roborazzi 未激活任何模式（record/verify/compare 均未开），`captureRoboImage` 空转通过、不做校验；重新生成基准用 `gradle :app:testDebugUnitTest -Proborazzi.test.record=true`，CI 校验用 `-Proborazzi.test.verify=true`。
 5. **debug 密钥库**：`debug.keystore` 被 gitignore，新环境需按 README 用 keytool 生成。
 6. **release 签名依赖环境**：`KEYSTORE_PATH` / `STORE_PASSWORD` / `KEY_PASSWORD` 三个环境变量（或根目录 `my-upload-key.jks`）必须存在，否则 `assembleRelease` 失败；CI/新机器需先注入。
 7. **字体不参与备份**：`filesDir/custom_fonts/` 在 `backup_rules.xml` 与 `data_extraction_rules.xml` 中均被排除（云备份 + 设备迁移）——单款 CJK 预设约 25MB，超过 25MB 应用云备份配额会导致整体备份静默失败；预设字体可从 GitHub Releases 重新下载（SHA-256 校验），导入字体由用户重新选择。
