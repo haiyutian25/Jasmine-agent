@@ -15,7 +15,6 @@ import com.example.core.data.repository.UserPreferencesRepository
 import com.example.core.ui.base.BaseViewModel
 import com.example.core.ui.theme.CssVariables
 import com.example.core.ui.theme.ThemeResolver
-import com.example.core.ui.util.copyToClipboard
 import com.example.feature.greeting.impl.components.NavigationTab
 import com.example.feature.greeting.impl.fonts.CustomFontFamilyCache
 import com.example.feature.greeting.impl.screens.AppTypographyChoice
@@ -74,17 +73,6 @@ sealed interface GreetingAction {
     data object SidebarOpened : GreetingAction
     data object SidebarClosed : GreetingAction
     data object SidebarToggled : GreetingAction
-
-    /**
-     * User asked to copy [text] to the clipboard. The ViewModel performs the
-     * copy (via the Application context) and confirms through
-     * [GreetingEvent.ShowToast] — screens never show toasts directly.
-     */
-    data class CopyTextToClipboard(
-        val text: String,
-        @StringRes val toastRes: Int,
-        val toastArgs: List<Any> = emptyList(),
-    ) : GreetingAction
 
     data class ThemeSelected(val palette: CssVariables) : GreetingAction
     data class ColorModeChanged(val mode: ColorMode) : GreetingAction
@@ -194,8 +182,6 @@ class GreetingViewModel @Inject constructor(
             GreetingAction.SidebarClosed -> updateState { copy(isSidebarOpen = false) }
             GreetingAction.SidebarToggled -> updateState { copy(isSidebarOpen = !isSidebarOpen) }
 
-            is GreetingAction.CopyTextToClipboard -> handleCopyTextToClipboard(action)
-
             is GreetingAction.ThemeSelected -> handleThemeSelected(action)
             is GreetingAction.ColorModeChanged -> handleColorModeChanged(action)
             is GreetingAction.SystemDarkModeChanged -> {
@@ -277,12 +263,6 @@ class GreetingViewModel @Inject constructor(
         updateState { copy(fontScale = action.scale) }
         viewModelScope.launch { userPreferencesRepository.updateFontScale(action.scale) }
         sendEvent(GreetingEvent.ShowToast(R.string.font_size_saved_toast))
-    }
-
-    /** Copies the requested text and confirms via the UDF toast event. */
-    private fun handleCopyTextToClipboard(action: GreetingAction.CopyTextToClipboard) {
-        appContext.copyToClipboard(action.text)
-        sendEvent(GreetingEvent.ShowToast(action.toastRes, action.toastArgs))
     }
 
     // endregion

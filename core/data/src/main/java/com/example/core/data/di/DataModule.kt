@@ -1,11 +1,8 @@
 package com.example.core.data.di
 
 import com.example.core.data.datastore.UserPreferencesDataStore
-import com.example.core.data.datasource.GreetingRemoteDataSource
 import com.example.core.data.manager.dispatcher.DispatcherManager
 import com.example.core.data.manager.dispatcher.DispatcherManagerImpl
-import com.example.core.data.repository.GreetingRepository
-import com.example.core.data.repository.GreetingRepositoryImpl
 import com.example.core.data.repository.UserPreferencesRepository
 import com.example.core.data.repository.UserPreferencesRepositoryImpl
 import dagger.Module
@@ -30,13 +27,5 @@ object DataModule {
     ): UserPreferencesRepository = UserPreferencesRepositoryImpl(
         userPreferencesDataStore = userPreferencesDataStore,
         dispatcherManager = dispatcherManager,
-    )
-
-    @Provides
-    @Singleton
-    fun provideGreetingRepository(
-        remoteDataSource: GreetingRemoteDataSource,
-    ): GreetingRepository = GreetingRepositoryImpl(
-        remoteDataSource = remoteDataSource,
     )
 }

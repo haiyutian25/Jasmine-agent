@@ -2,7 +2,6 @@ package com.example.core.network.di
 
 import com.example.core.network.BuildConfig
 import com.example.core.network.FontDownloadApi
-import com.example.core.network.GreetingApi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -58,11 +57,6 @@ object NetworkModule {
             .client(okHttpClient)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
-
-    @Provides
-    @Singleton
-    fun provideGreetingApi(retrofit: Retrofit): GreetingApi =
-        retrofit.create(GreetingApi::class.java)
 
     /**
      * Font downloads ride on a dedicated Retrofit instance whose client is

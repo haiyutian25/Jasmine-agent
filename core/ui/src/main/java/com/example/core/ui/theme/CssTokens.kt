@@ -1,12 +1,9 @@
 package com.example.core.ui.theme
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import java.util.Locale
 
 /**
  * Production-grade CSS Variables model with Editorial Aesthetic tokens:
@@ -38,47 +35,7 @@ data class CssVariables(
     val radiusSm: Dp = 10.dp,
     val radiusMd: Dp = 16.dp,
     val radiusLg: Dp = 24.dp
-) {
-    /**
-     * Formats the current theme tokens as standard CSS :root block
-     */
-    fun toCssString(): String {
-        val modeSelector = if (isDark) ".dark-theme, [data-theme=\"${themeId}\"]" else ":root, [data-theme=\"${themeId}\"]"
-        return """
-$modeSelector {
-  /* Editorial Aesthetic Design System: $name */
-  --bg: #${background.toHex()};
-  --text: #${foreground.toHex()};
-  --fg: #${foreground.toHex()};
-  --surface: #${card.toHex()};
-  --card: #${card.toHex()};
-  --card-fg: #${cardForeground.toHex()};
-  --border: #${border.toHex()};
-  --accent: #${primary.toHex()};
-  --primary: #${primary.toHex()};
-  --primary-fg: #${primaryForeground.toHex()};
-  --muted: #${muted.toHex()};
-  --muted-foreground: #${mutedForeground.toHex()};
-  --ring: #${ring.toHex()};
-  --radius: ${radiusLg.value.toInt()}px;
-}
-        """.trimIndent()
-    }
-}
-
-fun Color.toHex(): String {
-    val alpha = (this.alpha * 255).toInt()
-    val red = (this.red * 255).toInt()
-    val green = (this.green * 255).toInt()
-    val blue = (this.blue * 255).toInt()
-    // Locale.ROOT pins ASCII digits: digit-localizing locales (e.g. ar, fa)
-    // would otherwise emit non-ASCII digits and corrupt the exported CSS hex.
-    return if (alpha == 255) {
-        String.format(Locale.ROOT, "%02X%02X%02X", red, green, blue)
-    } else {
-        String.format(Locale.ROOT, "%02X%02X%02X%02X", red, green, blue, alpha)
-    }
-}
+)
 
 /**
  * Editorial Aesthetic and Top Industry Minimalist Color Palettes
@@ -366,35 +323,10 @@ object ProductionPalettes {
         radiusMd = 16.dp,
         radiusLg = 24.dp
     )
-
-    val AllPresets = listOf(
-        EditorialLight,
-        EditorialDark,
-        GeistLight,
-        GeistDark,
-        LinearLight,
-        LinearDark,
-        ShadcnZincLight,
-        ShadcnZincDark,
-        NotionWarmLight,
-        NotionWarmDark,
-        DieterRamsLight,
-        DieterRamsDark
-    )
 }
 
 val LocalCssVariables = compositionLocalOf<CssVariables> {
     ProductionPalettes.EditorialLight
-}
-
-/**
- * Access the active CSS variables in any Composable
- */
-object CssTheme {
-    val vars: CssVariables
-        @Composable
-        @ReadOnlyComposable
-        get() = LocalCssVariables.current
 }
 
 /**
@@ -410,14 +342,9 @@ val CssVariables.isBraun: Boolean
     get() = themeId.startsWith(ThemeResolver.Braun.key)
 
 /**
- * Central resolution from a persisted themeId back to a concrete
- * [CssVariables] palette.
+ * Palette-family resolution from a persisted themeId.
  */
 object ThemeResolver {
-    fun fromThemeId(themeId: String): CssVariables =
-        ProductionPalettes.AllPresets.firstOrNull { it.themeId == themeId }
-            ?: ProductionPalettes.EditorialLight
-
     /**
      * Palette family key of a concrete themeId ("editorial-light" -> "editorial").
      *
@@ -470,15 +397,6 @@ object ThemeResolver {
         PaletteFamily("notion", "Notion", ProductionPalettes.NotionWarmLight, ProductionPalettes.NotionWarmDark),
         Braun,
     )
-
-    /**
-     * User-facing display name for a palette family ("editorial-light" -> "Editorial").
-     * Resolved from [families] so a new family only needs a new list entry —
-     * there is no separate when-branch to keep in sync.
-     */
-    fun familyDisplayNameOf(themeId: String): String =
-        families.firstOrNull { it.key == familyOf(themeId) }?.displayName
-            ?: families.first().displayName
 
     /** Resolves a palette family to its light or dark variant. */
     fun resolveFamily(family: String, isDark: Boolean): CssVariables =
