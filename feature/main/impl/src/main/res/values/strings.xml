@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Settings menu -->
+
+    <!-- Settings section headers -->
+    <string name="font_size_saved_toast">Font size saved</string>
+
+    <!-- Color mode cards -->
+
+    <!-- Curated palettes -->
+
+    <!-- Typography choices -->
+
+    <!-- Custom fonts -->
+    <string name="font_imported_toast">Font imported</string>
+    <string name="font_import_failed_toast">Font import failed</string>
+    <string name="font_deleted_toast">Font deleted</string>
+    <string name="font_download_complete_toast">Font downloaded</string>
+    <string name="font_download_failed_toast">Font download failed</string>
+
+    <!-- Font size -->
+
+    <!-- Shared font family labels -->
+
+    <!-- Splash screen -->
+    <string name="splash_phrase_1">Initializing Jasmine Engine...</string>
+    <string name="splash_phrase_2">Loading CSS Variable Tokens...</string>
+    <string name="splash_phrase_3">Synthesizing Typographic Scale...</string>
+    <string name="splash_phrase_4">Jasmine.</string>
+    <string name="splash_enter">Enter</string>
+    <string name="splash_skip">Skip</string>
+    <string name="splash_cd_skip">Skip to main page</string>
+    <string name="splash_bootloader">STUDIO BOOTLOADER v2.4</string>
+    <string name="splash_phase_format">PHASE %1$02d / %2$02d</string>
+    <string name="splash_ready">READY</string>
+    <string name="splash_exec">EXEC</string>
+    <string name="splash_launch_canvas">Launch Studio Canvas</string>
+
+    <!-- Bottom navigation tabs -->
+    <string name="nav_tab_canvas">Canvas</string>
+
+    <!-- Top navigation bar -->
+    <string name="top_nav_cd_back">Back</string>
+    <string name="top_nav_cd_open_sidebar">Open Sidebar Menu</string>
+
+    <!-- Settings page titles (top nav bar) -->
+    <string name="settings_page_title">Settings</string>
+
+    <!-- Sidebar drawer -->
+    <string name="sidebar_subtitle">Design Systems Lab</string>
+    <string name="sidebar_cd_settings">Settings</string>
+
+    <!-- Language settings -->
+</resources>

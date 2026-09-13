@@ -1,4 +1,4 @@
-# Add project specific ProGuard rules here.
+﻿# Add project specific ProGuard rules here.
 # You can control the set of applied configuration files using the
 # proguardFiles setting in build.gradle.
 #
@@ -21,7 +21,7 @@
 #-renamesourcefileattribute SourceFile
 
 # ---------------------------------------------------------------------------
-# kotlinx.serialization (Navigation 3 GreetingNavKey)
+# kotlinx.serialization (Navigation 3 MainNavKey)
 # Official recommended rules: https://github.com/Kotlin/kotlinx.serialization
 # ---------------------------------------------------------------------------
 

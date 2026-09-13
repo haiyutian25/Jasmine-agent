@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 设置菜单 -->
+
+    <!-- 设置区块标题 -->
+    <string name="font_size_saved_toast">字体大小已保存</string>
+
+    <!-- 明暗模式卡片 -->
+
+    <!-- 精选调色板 -->
+
+    <!-- 字体选择 -->
+
+    <!-- 自定义字体 -->
+    <string name="font_imported_toast">字体已导入</string>
+    <string name="font_import_failed_toast">字体导入失败</string>
+    <string name="font_deleted_toast">字体已删除</string>
+    <string name="font_download_complete_toast">字体下载完成</string>
+    <string name="font_download_failed_toast">字体下载失败</string>
+
+    <!-- 字体大小 -->
+
+    <!-- 共享字体族标签 -->
+
+    <!-- 启动页 -->
+    <string name="splash_phrase_1">正在初始化 Jasmine 引擎…</string>
+    <string name="splash_phrase_2">正在加载 CSS 变量令牌…</string>
+    <string name="splash_phrase_3">正在合成字体比例…</string>
+    <string name="splash_phrase_4">Jasmine。</string>
+    <string name="splash_enter">进入</string>
+    <string name="splash_skip">跳过</string>
+    <string name="splash_cd_skip">跳转至主页面</string>
+    <string name="splash_bootloader">工作室引导程序 v2.4</string>
+    <string name="splash_phase_format">阶段 %1$02d / %2$02d</string>
+    <string name="splash_ready">就绪</string>
+    <string name="splash_exec">执行</string>
+    <string name="splash_launch_canvas">启动工作室画布</string>
+
+    <!-- 底部导航标签 -->
+    <string name="nav_tab_canvas">画布</string>
+
+    <!-- 顶部导航栏 -->
+    <string name="top_nav_cd_back">返回</string>
+    <string name="top_nav_cd_open_sidebar">打开侧边栏菜单</string>
+
+    <!-- 设置页标题（顶部导航栏） -->
+    <string name="settings_page_title">设置</string>
+
+    <!-- 侧边栏抽屉 -->
+    <string name="sidebar_subtitle">设计系统实验室</string>
+    <string name="sidebar_cd_settings">设置</string>
+
+    <!-- 语言设置 -->
+    <!-- 语言名以其母语显示（与默认资源一致），不随界面语言翻译 -->
+</resources>

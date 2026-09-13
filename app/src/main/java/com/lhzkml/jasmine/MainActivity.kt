@@ -1,4 +1,4 @@
-package com.lhzkml.jasmine
+﻿package com.lhzkml.jasmine
 
 import android.os.Bundle
 import androidx.activity.SystemBarStyle
@@ -15,16 +15,16 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lhzkml.jasmine.core.ui.theme.LocalContentFontFamily
 import com.lhzkml.jasmine.core.ui.theme.JasmineTheme
-import com.lhzkml.jasmine.feature.greeting.impl.GreetingAction
-import com.lhzkml.jasmine.feature.greeting.impl.GreetingNavHost
-import com.lhzkml.jasmine.feature.greeting.impl.GreetingViewModel
+import com.lhzkml.jasmine.feature.main.impl.MainAction
+import com.lhzkml.jasmine.feature.main.impl.MainNavHost
+import com.lhzkml.jasmine.feature.main.impl.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
 /**
- * App shell: single Activity, theme application and navigation assembly.
- * All feature state lives in [GreetingViewModel] (MVVM + unidirectional data
- * flow): the UI collects [GreetingViewModel.stateFlow] and reports every
- * change back through [GreetingViewModel.trySendAction].
+ * App main: single Activity, theme application and navigation assembly.
+ * All feature state lives in [MainViewModel] (MVVM + unidirectional data
+ * flow): the UI collects [MainViewModel.stateFlow] and reports every
+ * change back through [MainViewModel.trySendAction].
  */
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
@@ -39,14 +39,14 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val viewModel: GreetingViewModel = hiltViewModel()
+            val viewModel: MainViewModel = hiltViewModel()
             val state by viewModel.stateFlow.collectAsStateWithLifecycle()
 
             // Keep the view model's system dark-mode state in sync so the
             // SYSTEM color mode follows the OS setting live.
             val isSystemDark = isSystemInDarkTheme()
             LaunchedEffect(isSystemDark) {
-                viewModel.trySendAction(GreetingAction.SystemDarkModeChanged(isSystemDark))
+                viewModel.trySendAction(MainAction.SystemDarkModeChanged(isSystemDark))
             }
 
             // Re-apply system bar styles whenever the resolved in-app theme
@@ -82,7 +82,7 @@ class MainActivity : AppCompatActivity() {
                 LocalDensity provides Density(density = baseDensity.density, fontScale = state.fontScale)
             ) {
                 JasmineTheme(cssVars = state.theme) {
-                    GreetingNavHost(viewModel = viewModel, state = state)
+                    MainNavHost(viewModel = viewModel, state = state)
                 }
             }
         }

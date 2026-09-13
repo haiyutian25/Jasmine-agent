@@ -1,4 +1,4 @@
-pluginManagement {
+﻿pluginManagement {
   repositories {
     google {
       content {
@@ -26,5 +26,7 @@ include(":core:database")
 include(":core:navigation")
 include(":core:network")
 include(":core:ui")
-include(":feature:greeting:api")
-include(":feature:greeting:impl")
+include(":feature:main:api")
+include(":feature:main:impl")
+include(":feature:settings:api")
+include(":feature:settings:impl")

@@ -1,4 +1,4 @@
-plugins {
+﻿plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.google.devtools.ksp)
@@ -63,7 +63,7 @@ android {
 
 dependencies {
   implementation(project(":core:ui"))
-  implementation(project(":feature:greeting:impl"))
+  implementation(project(":feature:main:impl"))
 
   implementation(platform(libs.androidx.compose.bom))
   implementation(libs.androidx.activity.compose)

@@ -1,4 +1,4 @@
-# Jasmine
+﻿# Jasmine
 
 A production-grade ultra-minimalist application with live CSS variable token theming. Built entirely with Jetpack Compose (no XML layouts), structured as a multi-module MVVM project.
 
@@ -6,7 +6,7 @@ A production-grade ultra-minimalist application with live CSS variable token the
 
 ```
 jasmine/
-├── app/                        # App shell: single Activity + navigation assembly + theme
+├── app/                        # App main: single Activity + navigation assembly + theme
 ├── core/
 │   ├── data/                   # Data layer (Hilt): UserPreferencesRepository, CustomFontRepository
 │   ├── database/               # Room: reserved for structured local data (no active DAO yet)
@@ -14,14 +14,17 @@ jasmine/
 │   ├── network/                # Retrofit / OkHttp (Hilt-provided, placeholder service)
 │   └── ui/                     # Design tokens, JasmineTheme, shared utilities
 ├── feature/
-│   └── greeting/
-│       ├── api/                # Navigation contract (GreetingNavKey)
-│       └── impl/               # UI + GreetingViewModel (MVVM)
+│   ├── settings/
+│   │   ├── api/                # Settings nav contract (SettingsNavKey)
+│   │   └── impl/               # Settings screens (menu / appearance / font / size / language)
+│   └── main/
+│       ├── api/                # Main nav contract (MainNavKey: Splash / Main)
+│       └── impl/               # Splash + home + chrome, MainViewModel (MVVM)
 └── gradle/libs.versions.toml   # Version catalog
 ```
 
-- **MVVM**: `GreetingViewModel` owns all feature state (theme, typography, fonts, tab, sidebar) as `StateFlow`s; user preferences (theme, color mode, typography, font scale, active custom font) are persisted through Preferences DataStore via the data layer. Navigation chrome state (tab/sidebar) is session-transient and deliberately not persisted; the settings flow lives on the Navigation 3 back stack and is restored by the navigation library.
-- **Navigation 3**: destinations are declared as a serializable `NavKey` contract in `feature:greeting:api`; the app shell assembles them through `NavDisplay` + `entryProvider`.
+- **MVVM**: `MainViewModel` owns all feature state (theme, typography, fonts, tab, sidebar) as `StateFlow`s; user preferences (theme, color mode, typography, font scale, active custom font) are persisted through Preferences DataStore via the data layer. Navigation chrome state (tab/sidebar) is session-transient and deliberately not persisted; the settings flow lives on the Navigation 3 back stack and is restored by the navigation library.
+- **Navigation 3**: destinations are declared as a serializable `NavKey` contract in `feature:main:api`; the app main assembles them through `NavDisplay` + `entryProvider`.
 - **DI**: Hilt 2.x wires the database, network, data and ViewModel layers.
 
 ## Tech Stack
@@ -62,7 +65,7 @@ gradle :app:testDebugUnitTest
 ```
 
 - Robolectric tests run against **SDK 36** (see `app/src/test/resources/robolectric.properties`), which requires Java 21.
-- `GreetingScreenshotTest` renders the home `CanvasScreen` via Roborazzi. To (re)generate the golden image, run once with `-Proborazzi.test.record=true`.
+- `MainScreenshotTest` renders the home `CanvasScreen` via Roborazzi. To (re)generate the golden image, run once with `-Proborazzi.test.record=true`.
 
 ## Release Build
 
