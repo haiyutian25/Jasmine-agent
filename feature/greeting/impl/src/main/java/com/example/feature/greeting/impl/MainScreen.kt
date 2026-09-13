@@ -96,59 +96,14 @@ fun MainScreen(
                     )
                 ) { tab ->
                     when (tab) {
-                        NavigationTab.CANVAS -> CanvasScreen(
-                            currentTheme = state.theme,
-                            typographyChoice = state.typographyChoice,
-                            greetingIndex = state.greetingIndex,
-                            customGreeting = state.customGreeting,
-                            heroQuotes = state.heroQuotes,
-                            heroCaptions = state.heroCaptions,
-                            onNextGreeting = { onAction(GreetingAction.NextGreetingClicked) },
-                            onCustomGreetingChanged = { part1, part2 ->
-                                onAction(GreetingAction.CustomGreetingChanged(part1, part2))
-                            },
-                            onThemeSelected = { onAction(GreetingAction.ThemeSelected(it)) },
-                            onTypographySelected = { onAction(GreetingAction.TypographySelected(it)) },
-                            onOpenInspector = { onAction(GreetingAction.InspectorShown) },
-                            onCopyCss = {
-                                onAction(
-                                    GreetingAction.CopyTextToClipboard(
-                                        text = state.theme.toCssString(),
-                                        toastRes = R.string.canvas_css_copied_toast,
-                                    )
-                                )
-                            },
-                        )
-                        NavigationTab.TYPOGRAPHY -> TypeStudioScreen(
-                            currentTheme = state.theme,
-                            selectedTypography = state.typographyChoice,
-                            onTypographyChange = {
-                                onAction(GreetingAction.TypographySelected(it))
-                            },
-                            onSpecimenCopy = { text ->
-                                onAction(
-                                    GreetingAction.CopyTextToClipboard(
-                                        text = text,
-                                        toastRes = R.string.type_studio_specimen_copied,
-                                    )
-                                )
-                            }
-                        )
-                        NavigationTab.TOKENS -> TokensScreen(
-                            currentTheme = state.theme,
-                            onOpenInspector = {
-                                onAction(GreetingAction.InspectorShown)
-                            },
-                            onTokenCopy = { prop, hex ->
-                                onAction(
-                                    GreetingAction.CopyTextToClipboard(
-                                        text = hex,
-                                        toastRes = R.string.tokens_copied_toast,
-                                        toastArgs = listOf(prop, hex),
-                                    )
-                                )
-                            }
-                        )
+                        // All three craft tabs are intentionally blank surfaces:
+                        // their content was cleared from the home page. Theme and
+                        // font switching now live only in the settings flow
+                        // (AppearanceSettings / FontSettings), which keeps their
+                        // shared implementations in use.
+                        NavigationTab.CANVAS -> CanvasScreen()
+                        NavigationTab.TYPOGRAPHY -> TypeStudioScreen()
+                        NavigationTab.TOKENS -> TokensScreen()
                         // 4th tab is intentionally blank (settings moved to the sidebar flow)
                         NavigationTab.SETTINGS -> Box(modifier = Modifier.fillMaxSize())
                     }

@@ -19,7 +19,6 @@ import com.example.core.navigation.rememberAppNavigator
 import com.example.core.ui.base.util.EventsEffect
 import com.example.core.ui.theme.CssVariables
 import com.example.feature.greeting.api.GreetingNavKey
-import com.example.feature.greeting.impl.components.CssVariableInspectorSheet
 import com.example.feature.greeting.impl.components.ProductionTopNavBar
 import com.example.feature.greeting.impl.screens.FontScreen
 import com.example.feature.greeting.impl.screens.FontSizeScreen
@@ -170,25 +169,6 @@ fun GreetingNavHost(
                 }
             }
         )
-
-        // CSS Variables Inspector Bottom Sheet (accessible from every destination)
-        if (state.isInspectorVisible) {
-            CssVariableInspectorSheet(
-                currentTheme = state.theme,
-                onDismiss = { viewModel.trySendAction(GreetingAction.InspectorDismissed) },
-                onCustomPrimarySelected = {
-                    viewModel.trySendAction(GreetingAction.PrimaryColorOverridden(it))
-                },
-                onCopyCss = {
-                    viewModel.trySendAction(
-                        GreetingAction.CopyTextToClipboard(
-                            text = state.theme.toCssString(),
-                            toastRes = R.string.inspector_copied_toast,
-                        )
-                    )
-                }
-            )
-        }
     }
 }
 

@@ -18,10 +18,6 @@
     <string name="font_size_saved_toast">字体大小已保存</string>
 
     <!-- 明暗模式卡片 -->
-    <string name="settings_mode_light_title">浅色画布</string>
-    <string name="settings_mode_light_subtitle">干净的纸感色调</string>
-    <string name="settings_mode_dark_title">深色 / OLED</string>
-    <string name="settings_mode_dark_subtitle">深邃高对比</string>
     <string name="settings_mode_system_title">跟随系统</string>
     <string name="settings_mode_light_short">浅色</string>
     <string name="settings_mode_dark_short">深色</string>
@@ -55,7 +51,6 @@
     <string name="settings_custom_fonts_upload_subtitle">导入 .ttf 或 .otf 文件</string>
     <string name="settings_custom_fonts_empty">暂无自定义字体，可从字体库下载或上传自己的字体。</string>
     <string name="settings_font_download">下载</string>
-    <string name="settings_font_downloading">下载中…</string>
     <string name="settings_font_delete_cd">删除字体</string>
     <string name="settings_font_badge_uploaded">已上传</string>
     <string name="font_imported_toast">字体已导入</string>
@@ -71,53 +66,6 @@
     <string name="font_label_serif">衬线体</string>
     <string name="font_label_sans">无衬线体</string>
     <string name="font_label_mono">等宽体</string>
-
-    <!-- 画布页 -->
-    <string name="canvas_section_design_tokens">设计令牌</string>
-    <string name="canvas_inspect_css">检查 CSS</string>
-    <string name="canvas_sample_application">示例应用</string>
-    <string name="canvas_tap_to_cycle">点击画布切换语句</string>
-    <string name="canvas_close_edit">关闭编辑</string>
-    <string name="canvas_custom_text">自定义文本</string>
-    <string name="canvas_custom_greeting">自定义问候语</string>
-    <string name="canvas_css_variables">CSS 变量</string>
-    <string name="canvas_css_copied_toast">CSS 变量已复制</string>
-    <string name="canvas_copy_css">复制 CSS</string>
-    <string name="canvas_copied">已复制</string>
-    <string name="canvas_cd_copy">复制</string>
-
-    <!-- 字体工作室 -->
-    <string name="type_studio_type_engine">字体引擎</string>
-    <string name="type_studio_italic">斜体</string>
-    <string name="type_studio_specimen_copied">样张已复制</string>
-    <string name="type_studio_cd_copy_text">复制文本</string>
-    <string name="type_studio_font_size">字号</string>
-    <string name="type_studio_letter_spacing">字间距（字偶距）</string>
-    <string name="type_studio_glyph_specimen">字形样张</string>
-    <string name="type_studio_sample_1">形式追随功能。</string>
-    <string name="type_studio_sample_2">至简，方为至臻。</string>
-    <string name="type_studio_sample_3">好的设计，是尽可能少的设计。</string>
-    <string name="type_studio_sample_4">细节并非细节，它们成就了设计。</string>
-
-    <!-- 令牌页 -->
-    <string name="tokens_live_components">实时令牌化 UI 组件</string>
-    <string name="tokens_badge_active">徽标激活</string>
-    <string name="tokens_radius">圆角</string>
-    <string name="tokens_active_css_tokens">当前 CSS 令牌（%1$d）</string>
-    <string name="tokens_tap_hex_copy">点击十六进制色值即可复制</string>
-    <string name="tokens_copied_toast">%1$s（%2$s）已复制</string>
-    <string name="tokens_cd_copy">复制</string>
-    <string name="tokens_search_placeholder">筛选 CSS 变量令牌…</string>
-    <string name="tokens_cd_search">搜索</string>
-    <string name="tokens_desc_background">主屏幕表面画布</string>
-    <string name="tokens_desc_foreground">主要高对比度文字</string>
-    <string name="tokens_desc_primary">品牌强调色与行动号召色</string>
-    <string name="tokens_desc_primary_foreground">主按钮内的对比文本</string>
-    <string name="tokens_desc_card">抬升的容器表面</string>
-    <string name="tokens_desc_muted">次要元素的微妙背景填充</string>
-    <string name="tokens_desc_muted_foreground">次级编辑式说明文字与标签</string>
-    <string name="tokens_desc_border">1px 结构性发丝分割线</string>
-    <string name="tokens_desc_ring">焦点与激活光晕指示</string>
 
     <!-- 启动页 -->
     <string name="splash_phrase_1">正在初始化极简工作室引擎…</string>
@@ -145,29 +93,6 @@
 
     <!-- 设置页标题（顶部导航栏） -->
     <string name="settings_page_title">设置</string>
-
-    <!-- CSS 变量检查器 -->
-    <string name="inspector_title">CSS 变量检查器</string>
-    <string name="inspector_subtitle">令牌化设计系统 • %1$s</string>
-    <string name="inspector_cd_close">关闭</string>
-    <string name="inspector_tab_css_code">CSS 代码</string>
-    <string name="inspector_tab_tokens">令牌（%1$s）</string>
-    <string name="inspector_copied_toast">CSS 变量已复制到剪贴板！</string>
-    <string name="inspector_cd_copy_css">复制 CSS</string>
-    <string name="inspector_css_copied">CSS 已复制！</string>
-    <string name="inspector_copy_css_variables">复制 CSS 变量</string>
-    <string name="inspector_css_color_tokens">CSS 颜色令牌</string>
-    <string name="inspector_live_override">实时覆盖 --primary 强调色</string>
-    <string name="inspector_cd_selected">已选中</string>
-    <string name="inspector_desc_bg">画布背景</string>
-    <string name="inspector_desc_fg">主要文本与元素</string>
-    <string name="inspector_desc_card">表面 / 卡片抬升</string>
-    <string name="inspector_desc_border">微妙结构边框</string>
-    <string name="inspector_desc_primary">关键焦点 / 交互强调色</string>
-    <string name="inspector_desc_muted">微妙背景容器</string>
-    <string name="inspector_desc_muted_fg">次级 / 标签文本</string>
-    <string name="inspector_desc_accent">交互悬停 / 次级状态</string>
-    <string name="inspector_desc_ring">焦点环与激活指示</string>
 
     <!-- 侧边栏抽屉 -->
     <string name="sidebar_subtitle">设计系统实验室</string>

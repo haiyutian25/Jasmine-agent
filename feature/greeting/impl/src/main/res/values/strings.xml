@@ -18,10 +18,6 @@
     <string name="font_size_saved_toast">Font size saved</string>
 
     <!-- Color mode cards -->
-    <string name="settings_mode_light_title">Light Canvas</string>
-    <string name="settings_mode_light_subtitle">Clean paper tone</string>
-    <string name="settings_mode_dark_title">Dark / OLED</string>
-    <string name="settings_mode_dark_subtitle">Deep contrast</string>
     <string name="settings_mode_system_title">Follow System</string>
     <string name="settings_mode_light_short">Light</string>
     <string name="settings_mode_dark_short">Dark</string>
@@ -55,7 +51,6 @@
     <string name="settings_custom_fonts_upload_subtitle">Import a .ttf or .otf file</string>
     <string name="settings_custom_fonts_empty">No custom fonts yet. Download from the library or upload your own.</string>
     <string name="settings_font_download">Download</string>
-    <string name="settings_font_downloading">Downloading…</string>
     <string name="settings_font_delete_cd">Delete font</string>
     <string name="settings_font_badge_uploaded">Uploaded</string>
     <string name="font_imported_toast">Font imported</string>
@@ -71,53 +66,6 @@
     <string name="font_label_serif">Serif</string>
     <string name="font_label_sans">Sans</string>
     <string name="font_label_mono">Mono</string>
-
-    <!-- Canvas screen -->
-    <string name="canvas_section_design_tokens">DESIGN TOKENS</string>
-    <string name="canvas_inspect_css">Inspect CSS</string>
-    <string name="canvas_sample_application">SAMPLE APPLICATION</string>
-    <string name="canvas_tap_to_cycle">Tap canvas to cycle statements</string>
-    <string name="canvas_close_edit">Close edit</string>
-    <string name="canvas_custom_text">Custom text</string>
-    <string name="canvas_custom_greeting">CUSTOM GREETING</string>
-    <string name="canvas_css_variables">CSS Variables</string>
-    <string name="canvas_css_copied_toast">CSS Variables Copied</string>
-    <string name="canvas_copy_css">Copy CSS</string>
-    <string name="canvas_copied">Copied</string>
-    <string name="canvas_cd_copy">Copy</string>
-
-    <!-- Type studio screen -->
-    <string name="type_studio_type_engine">TYPE ENGINE</string>
-    <string name="type_studio_italic">Italic</string>
-    <string name="type_studio_specimen_copied">Specimen Copied</string>
-    <string name="type_studio_cd_copy_text">Copy text</string>
-    <string name="type_studio_font_size">Font Size</string>
-    <string name="type_studio_letter_spacing">Letter Spacing (Tracking)</string>
-    <string name="type_studio_glyph_specimen">GLYPH SPECIMEN</string>
-    <string name="type_studio_sample_1">Form follows function.</string>
-    <string name="type_studio_sample_2">Simplicity is the ultimate sophistication.</string>
-    <string name="type_studio_sample_3">Good design is as little design as possible.</string>
-    <string name="type_studio_sample_4">The details are not the details. They make the design.</string>
-
-    <!-- Tokens screen -->
-    <string name="tokens_live_components">LIVE TOKENIZED UI COMPONENTS</string>
-    <string name="tokens_badge_active">Badge Active</string>
-    <string name="tokens_radius">Radius</string>
-    <string name="tokens_active_css_tokens">ACTIVE CSS TOKENS (%1$d)</string>
-    <string name="tokens_tap_hex_copy">Tap hex to copy</string>
-    <string name="tokens_copied_toast">%1$s (%2$s) Copied</string>
-    <string name="tokens_cd_copy">Copy</string>
-    <string name="tokens_search_placeholder">Filter CSS variable tokens...</string>
-    <string name="tokens_cd_search">Search</string>
-    <string name="tokens_desc_background">Main screen surface canvas</string>
-    <string name="tokens_desc_foreground">Primary high-contrast typography</string>
-    <string name="tokens_desc_primary">Brand accent &amp; call-to-action color</string>
-    <string name="tokens_desc_primary_foreground">Contrast text inside primary buttons</string>
-    <string name="tokens_desc_card">Elevated container surface</string>
-    <string name="tokens_desc_muted">Subtle background fill for secondary items</string>
-    <string name="tokens_desc_muted_foreground">Secondary editorial captions &amp; labels</string>
-    <string name="tokens_desc_border">1px structural hairline divider</string>
-    <string name="tokens_desc_ring">Focus and active halo indicator</string>
 
     <!-- Splash screen -->
     <string name="splash_phrase_1">Initializing Minimal Studio Engine...</string>
@@ -145,29 +93,6 @@
 
     <!-- Settings page titles (top nav bar) -->
     <string name="settings_page_title">Settings</string>
-
-    <!-- CSS variable inspector -->
-    <string name="inspector_title">CSS Variables Inspector</string>
-    <string name="inspector_subtitle">Tokenized Design System • %1$s</string>
-    <string name="inspector_cd_close">Close</string>
-    <string name="inspector_tab_css_code">CSS Code</string>
-    <string name="inspector_tab_tokens">Tokens (%1$s)</string>
-    <string name="inspector_copied_toast">CSS Variables Copied to Clipboard!</string>
-    <string name="inspector_cd_copy_css">Copy CSS</string>
-    <string name="inspector_css_copied">CSS Copied!</string>
-    <string name="inspector_copy_css_variables">Copy CSS Variables</string>
-    <string name="inspector_css_color_tokens">CSS Color Tokens</string>
-    <string name="inspector_live_override">Live Override --primary Accent</string>
-    <string name="inspector_cd_selected">Selected</string>
-    <string name="inspector_desc_bg">Canvas background</string>
-    <string name="inspector_desc_fg">Primary text &amp; elements</string>
-    <string name="inspector_desc_card">Surface / card elevation</string>
-    <string name="inspector_desc_border">Subtle structural border</string>
-    <string name="inspector_desc_primary">Key focal / interactive accent</string>
-    <string name="inspector_desc_muted">Subtle background container</string>
-    <string name="inspector_desc_muted_fg">Secondary / label text</string>
-    <string name="inspector_desc_accent">Interactive hover / secondary state</string>
-    <string name="inspector_desc_ring">Focus ring &amp; active indicator</string>
 
     <!-- Sidebar drawer -->
     <string name="sidebar_subtitle">Design Systems Lab</string>

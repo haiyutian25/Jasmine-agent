@@ -25,11 +25,9 @@ class GreetingScreenshotTest {
   fun tokens_screenshot() {
     composeTestRule.setContent {
       MinimalTheme(cssVars = ProductionPalettes.GeistDark) {
-        TokensScreen(
-          currentTheme = ProductionPalettes.GeistDark,
-          onOpenInspector = {},
-          onTokenCopy = { _, _ -> }
-        )
+        // The tokens tab is intentionally blank now (its content was cleared
+        // from the home page), so this captures an empty surface.
+        TokensScreen()
       }
     }
 

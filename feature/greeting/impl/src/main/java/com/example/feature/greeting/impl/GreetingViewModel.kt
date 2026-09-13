@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.res.Configuration
 import android.net.Uri
 import androidx.annotation.StringRes
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.lifecycle.viewModelScope
 import com.example.core.data.model.ColorMode
@@ -12,8 +11,6 @@ import com.example.core.data.model.InstalledFont
 import com.example.core.data.model.PresetFont
 import com.example.core.data.model.UserPreferences
 import com.example.core.data.repository.CustomFontRepository
-import com.example.core.data.repository.GreetingRepository
-import com.example.core.data.repository.HeroQuote
 import com.example.core.data.repository.UserPreferencesRepository
 import com.example.core.ui.base.BaseViewModel
 import com.example.core.ui.theme.CssVariables
@@ -32,15 +29,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * User-defined greeting overlay state (MVVM lifted from the canvas UI).
- */
-data class CustomGreetingState(
-    val part1: String = "Hello",
-    val part2: String = "World.",
-    val isActive: Boolean = false,
-)
-
-/**
  * Single immutable UI state for the greeting feature (UDF).
  *
  * [theme] and [activeContentFont] are derived from the raw preference fields by the
@@ -54,7 +42,6 @@ data class GreetingState(
     // Raw preference inputs
     val themeId: String,
     val colorMode: ColorMode,
-    val primaryOverride: Color?,
     val isSystemDark: Boolean,
     // Derived
     val theme: CssVariables,
@@ -62,18 +49,12 @@ data class GreetingState(
     // Navigation / chrome
     val currentTab: NavigationTab,
     val isSidebarOpen: Boolean,
-    val isInspectorVisible: Boolean,
     // Typography
     val typographyChoice: AppTypographyChoice,
     val fontScale: Float,
     val activeCustomFontId: String,
     val installedFonts: List<InstalledFont>,
     val downloadProgress: Map<String, Float>,
-    // Content
-    val greetingIndex: Int,
-    val customGreeting: CustomGreetingState,
-    val heroQuotes: List<HeroQuote>,
-    val heroCaptions: List<Int>,
 )
 
 /**
@@ -93,13 +74,6 @@ sealed interface GreetingAction {
     data object SidebarOpened : GreetingAction
     data object SidebarClosed : GreetingAction
     data object SidebarToggled : GreetingAction
-
-    data object InspectorShown : GreetingAction
-    data object InspectorDismissed : GreetingAction
-    data class PrimaryColorOverridden(val color: Color) : GreetingAction
-
-    data object NextGreetingClicked : GreetingAction
-    data class CustomGreetingChanged(val part1: String, val part2: String) : GreetingAction
 
     /**
      * User asked to copy [text] to the clipboard. The ViewModel performs the
@@ -142,7 +116,6 @@ sealed interface GreetingAction {
 private fun resolveTheme(
     themeId: String,
     colorMode: ColorMode,
-    primaryOverride: Color?,
     isSystemDark: Boolean,
 ): CssVariables {
     val family = ThemeResolver.familyOf(themeId)
@@ -151,12 +124,7 @@ private fun resolveTheme(
         ColorMode.DARK -> true
         ColorMode.SYSTEM -> isSystemDark
     }
-    val base = ThemeResolver.resolveFamily(family, effectiveIsDark)
-    return if (primaryOverride != null) {
-        base.copy(primary = primaryOverride, ring = primaryOverride, accent = primaryOverride)
-    } else {
-        base
-    }
+    return ThemeResolver.resolveFamily(family, effectiveIsDark)
 }
 
 /**
@@ -173,7 +141,6 @@ class GreetingViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val customFontRepository: CustomFontRepository,
     private val customFontFamilyCache: CustomFontFamilyCache,
-    greetingRepository: GreetingRepository,
 ) : BaseViewModel<GreetingState, GreetingEvent, GreetingAction>(
     initialState = run {
         val isSystemDark =
@@ -182,27 +149,20 @@ class GreetingViewModel @Inject constructor(
         GreetingState(
             themeId = UserPreferences.DEFAULT.themeId,
             colorMode = ColorMode.fromId(UserPreferences.DEFAULT.colorMode),
-            primaryOverride = null,
             isSystemDark = isSystemDark,
             theme = resolveTheme(
                 themeId = UserPreferences.DEFAULT.themeId,
                 colorMode = ColorMode.fromId(UserPreferences.DEFAULT.colorMode),
-                primaryOverride = null,
                 isSystemDark = isSystemDark,
             ),
             activeContentFont = AppTypographyChoice.EDITORIAL.font,
             currentTab = NavigationTab.CANVAS,
             isSidebarOpen = false,
-            isInspectorVisible = false,
             typographyChoice = AppTypographyChoice.EDITORIAL,
             fontScale = UserPreferences.DEFAULT.fontScale,
             activeCustomFontId = UserPreferences.DEFAULT.activeCustomFontId,
             installedFonts = emptyList(),
             downloadProgress = emptyMap(),
-            greetingIndex = 0,
-            customGreeting = CustomGreetingState(),
-            heroQuotes = greetingRepository.heroQuotes,
-            heroCaptions = greetingRepository.heroCaptions,
         )
     },
 ) {
@@ -234,24 +194,6 @@ class GreetingViewModel @Inject constructor(
             GreetingAction.SidebarClosed -> updateState { copy(isSidebarOpen = false) }
             GreetingAction.SidebarToggled -> updateState { copy(isSidebarOpen = !isSidebarOpen) }
 
-            GreetingAction.InspectorShown -> updateState { copy(isInspectorVisible = true) }
-            GreetingAction.InspectorDismissed -> updateState { copy(isInspectorVisible = false) }
-            is GreetingAction.PrimaryColorOverridden -> {
-                updateState { copy(primaryOverride = action.color) }
-            }
-
-            GreetingAction.NextGreetingClicked -> handleNextGreetingClicked()
-            is GreetingAction.CustomGreetingChanged -> {
-                updateState {
-                    copy(
-                        customGreeting = CustomGreetingState(
-                            part1 = action.part1,
-                            part2 = action.part2,
-                            isActive = true,
-                        ),
-                    )
-                }
-            }
             is GreetingAction.CopyTextToClipboard -> handleCopyTextToClipboard(action)
 
             is GreetingAction.ThemeSelected -> handleThemeSelected(action)
@@ -283,25 +225,8 @@ class GreetingViewModel @Inject constructor(
 
     // region Action handlers
 
-    /** Cycles to the next curated statement, deactivating any custom greeting. */
-    private fun handleNextGreetingClicked() {
-        // heroQuotes is repository-provided; an empty list (e.g. a future
-        // remote-backed source) must not reach the modulo below.
-        if (state.heroQuotes.isEmpty()) return
-        updateState {
-            copy(
-                customGreeting = if (customGreeting.isActive) {
-                    customGreeting.copy(isActive = false)
-                } else {
-                    customGreeting
-                },
-                greetingIndex = (greetingIndex + 1) % heroQuotes.size,
-            )
-        }
-    }
-
     private fun handleThemeSelected(action: GreetingAction.ThemeSelected) {
-        updateState { copy(primaryOverride = null, themeId = action.palette.themeId) }
+        updateState { copy(themeId = action.palette.themeId) }
         viewModelScope.launch { userPreferencesRepository.updateTheme(action.palette.themeId) }
     }
 
@@ -423,7 +348,6 @@ class GreetingViewModel @Inject constructor(
                 theme = resolveTheme(
                     themeId = next.themeId,
                     colorMode = next.colorMode,
-                    primaryOverride = next.primaryOverride,
                     isSystemDark = next.isSystemDark,
                 ),
                 activeContentFont = customFontFamilyCache.fontFamilyFor(next.activeCustomFontId)
