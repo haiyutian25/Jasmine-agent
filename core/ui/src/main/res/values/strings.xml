@@ -4,6 +4,5 @@
     <string name="nav_tab_canvas">Canvas</string>
     <string name="top_nav_cd_back">Back</string>
     <string name="top_nav_cd_open_sidebar">Open Sidebar Menu</string>
-    <string name="sidebar_subtitle">Design Systems Lab</string>
     <string name="sidebar_cd_settings">Settings</string>
 </resources>

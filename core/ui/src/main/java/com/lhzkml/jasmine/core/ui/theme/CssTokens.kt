@@ -13,7 +13,6 @@ import androidx.compose.ui.unit.dp
 data class CssVariables(
     val themeId: String,
     val name: String,
-    val description: String,
     val isDark: Boolean,
     
     // Core CSS Color Variables
@@ -46,7 +45,6 @@ object ProductionPalettes {
     val EditorialLight = CssVariables(
         themeId = "editorial-light",
         name = "Editorial Aesthetic (Light)",
-        description = "Refined warm paper canvas (#FAFAFA) with high-contrast typography, Georgia serif accents, and pure black focal points.",
         isDark = false,
         background = Color(0xFFFAFAFA),
         foreground = Color(0xFF111111),
@@ -69,7 +67,6 @@ object ProductionPalettes {
     val EditorialDark = CssVariables(
         themeId = "editorial-dark",
         name = "Editorial Aesthetic (Dark)",
-        description = "Deep carbon black (#0A0A0A) editorial surface with crisp ivory text (#F5F5F5) and pure white accents.",
         isDark = true,
         background = Color(0xFF0A0A0A),
         foreground = Color(0xFFF5F5F5),
@@ -93,7 +90,6 @@ object ProductionPalettes {
     val GeistDark = CssVariables(
         themeId = "geist-dark",
         name = "Geist Minimal (Dark)",
-        description = "Vercel's hyper-clean monochrome canvas with precision electric blue accent.",
         isDark = true,
         background = Color(0xFF000000),
         foreground = Color(0xFFEDEDED),
@@ -116,7 +112,6 @@ object ProductionPalettes {
     val GeistLight = CssVariables(
         themeId = "geist-light",
         name = "Geist Minimal (Light)",
-        description = "Pure white studio canvas with razor-sharp typography and micro-contrast.",
         isDark = false,
         background = Color(0xFFFFFFFF),
         foreground = Color(0xFF171717),
@@ -140,7 +135,6 @@ object ProductionPalettes {
     val LinearDark = CssVariables(
         themeId = "linear-dark",
         name = "Linear Obsidian (Dark)",
-        description = "Linear's iconic deep obsidian dark surface with desaturated indigo focal points.",
         isDark = true,
         background = Color(0xFF08090A),
         foreground = Color(0xFFF2F3F5),
@@ -163,7 +157,6 @@ object ProductionPalettes {
     val LinearLight = CssVariables(
         themeId = "linear-light",
         name = "Linear Slate (Light)",
-        description = "Muted slate-neutral light palette with soft indigo highlights.",
         isDark = false,
         background = Color(0xFFF7F8F9),
         foreground = Color(0xFF1A1B1E),
@@ -187,7 +180,6 @@ object ProductionPalettes {
     val ShadcnZincDark = CssVariables(
         themeId = "shadcn-zinc-dark",
         name = "Shadcn Zinc (Dark)",
-        description = "The industry benchmark neutral zinc grayscale with inverted high-contrast primary.",
         isDark = true,
         background = Color(0xFF09090B),
         foreground = Color(0xFFFAFAFA),
@@ -210,7 +202,6 @@ object ProductionPalettes {
     val ShadcnZincLight = CssVariables(
         themeId = "shadcn-zinc-light",
         name = "Shadcn Zinc (Light)",
-        description = "Pure zinc paper aesthetic with deep carbon elements.",
         isDark = false,
         background = Color(0xFFFFFFFF),
         foreground = Color(0xFF09090B),
@@ -234,7 +225,6 @@ object ProductionPalettes {
     val NotionWarmDark = CssVariables(
         themeId = "notion-warm-dark",
         name = "Notion Sepia (Dark)",
-        description = "Warm organic dark tone inspired by Japanese minimalism and matte paper.",
         isDark = true,
         background = Color(0xFF191919),
         foreground = Color(0xFFEFEFEF),
@@ -257,7 +247,6 @@ object ProductionPalettes {
     val NotionWarmLight = CssVariables(
         themeId = "notion-warm-light",
         name = "Notion Oat (Light)",
-        description = "Warm off-white rice paper background with soft charcoal typography.",
         isDark = false,
         background = Color(0xFFFBFBFA),
         foreground = Color(0xFF37352F),
@@ -281,7 +270,6 @@ object ProductionPalettes {
     val DieterRamsDark = CssVariables(
         themeId = "dieter-rams-dark",
         name = "Braun Dieter Rams (Dark)",
-        description = "Functional industrial matte black with legendary Braun international signal orange.",
         isDark = true,
         background = Color(0xFF111111),
         foreground = Color(0xFFF5F5F0),
@@ -304,7 +292,6 @@ object ProductionPalettes {
     val DieterRamsLight = CssVariables(
         themeId = "dieter-rams-light",
         name = "Braun Dieter Rams (Light)",
-        description = "Matte anodized aluminum and warm functional gray with safety orange focus point.",
         isDark = false,
         background = Color(0xFFE8E8E3),
         foreground = Color(0xFF1A1A1A),

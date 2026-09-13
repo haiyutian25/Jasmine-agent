@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="settings_menu_appearance_title">Appearance &amp; Themes</string>
-    <string name="settings_menu_appearance_subtitle">Color modes &amp; palettes</string>
     <string name="settings_menu_font_title">Font</string>
-    <string name="settings_menu_font_subtitle">Typeface engine &amp; font size</string>
     <string name="settings_section_color_mode">COLOR SCHEME &amp; MODE</string>
     <string name="settings_section_palettes">CURATED DESIGN PALETTES</string>
     <string name="settings_section_typography">TYPOGRAPHY ENGINE</string>
@@ -16,23 +14,14 @@
     <string name="settings_mode_light_short">Light</string>
     <string name="settings_mode_dark_short">Dark</string>
     <string name="settings_palette_editorial_name">Editorial Aesthetic</string>
-    <string name="settings_palette_editorial_subtitle">Warm paper &amp; classical serif elegance</string>
     <string name="settings_palette_geist_name">Geist Minimal</string>
-    <string name="settings_palette_geist_subtitle">Vercel high-contrast pure monochrome</string>
     <string name="settings_palette_linear_name">Linear Obsidian</string>
-    <string name="settings_palette_linear_subtitle">Deep space indigo &amp; precise engineering</string>
     <string name="settings_palette_shadcn_name">Shadcn Zinc</string>
-    <string name="settings_palette_shadcn_subtitle">Balanced zinc neutrals &amp; modern UI</string>
     <string name="settings_palette_notion_name">Notion Warm</string>
-    <string name="settings_palette_notion_subtitle">Wabi-sabi oat tone &amp; quiet clarity</string>
     <string name="settings_palette_braun_name">Braun Dieter Rams</string>
-    <string name="settings_palette_braun_subtitle">Industrial orange accent &amp; honest design</string>
     <string name="settings_typography_editorial_title">Editorial Serif</string>
-    <string name="settings_typography_editorial_subtitle">Playfair / Georgia style</string>
     <string name="settings_typography_sans_title">Modern Sans</string>
-    <string name="settings_typography_sans_subtitle">Inter / SF Pro style</string>
     <string name="settings_typography_mono_title">Technical Mono</string>
-    <string name="settings_typography_mono_subtitle">Geist Mono / Fira style</string>
     <string name="settings_section_custom_fonts">CUSTOM FONTS</string>
     <string name="settings_section_font_library">FONT LIBRARY</string>
     <string name="settings_custom_fonts_upload">Upload Font</string>
@@ -46,7 +35,6 @@
     <string name="font_label_sans">Sans</string>
     <string name="font_label_mono">Mono</string>
     <string name="language_title">Language</string>
-    <string name="language_menu_subtitle">App display language</string>
     <string name="language_section">DISPLAY LANGUAGE</string>
     <string name="language_follow_system">Follow system</string>
     <string name="language_english" translatable="false">English</string>

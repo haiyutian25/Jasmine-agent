@@ -310,7 +310,7 @@ val panelOffset = -SidebarWidth * (1f - p)
 
 ### 7.3 侧边栏内容（AppSidebarContent）
 
-极简两段式结构：**顶部工作区头部**（34dp 衬线斜体 "J" 头像 + "Jasmine Studio" + PRO 徽标 + "Design Systems Lab" 副标题，无关闭按钮），中间弹性留白，**底部固定设置入口**（右对齐的 32dp 纯齿轮图标按钮，点击 → `MainAction.SidebarClosed` + `navigator.navigate(MainNavKey.SettingsMenu)` 打开设置菜单目的地——该入口从顶栏迁移而来）。原导航组、调色板快切、快捷工具与引擎页脚均已移除；标签切换由底部导航栏承担，主题切换仅在设置页完成。
+极简两段式结构：**顶部为空**（原品牌工作区头部——"J" 头像、"Jasmine Studio"、PRO 徽标与 "Design Systems Lab" 副标题——已整体移除，无关闭按钮），中间弹性留白，**底部固定设置入口**（右对齐的 32dp 纯齿轮图标按钮，点击 → `MainAction.SidebarClosed` + `navigator.navigate(MainNavKey.SettingsMenu)` 打开设置菜单目的地——该入口从顶栏迁移而来）。原导航组、调色板快切、快捷工具与引擎页脚均已移除；标签切换由底部导航栏承担，主题切换仅在设置页完成。
 
 ---
 
@@ -360,9 +360,9 @@ Main → SettingsMenu（设置菜单列表）→ AppearanceSettings（外观设�
 ```
 
 - **入口**：侧边栏底部齿轮按钮 → `MainAction.SidebarClosed` + `navigator.navigate(MainNavKey.SettingsMenu)`。
-- **菜单页（SettingsMenuScreen）**：三个入口——**Appearance & Themes**（外观与主题）、**Font**（字体：字型引擎与字体大小）、**Language**（应用显示语言）。
-- **外观设置页（SettingsScreen）**：明暗/跟随系统三卡选择器 + 12 调色板列表（家族目录来自 `ThemeResolver.families`，当前选中高亮）。
-- **字体页（FontScreen）**：3 排版引擎（Serif/Sans/Mono）、字号入口、自定义字体管理（见 11.2）。
+- **菜单页（SettingsMenuScreen）**：分组卡片列表样式（iOS 式 list section）——单个圆角 `card` 容器内放三个入口行，行与行之间用 1dp `border` 发丝分割线；每行 = 前置单色图标（`foreground`，20dp）+ 标题（14sp Medium），**无副标题、无右侧箭头**，整行即点击目标。三个入口：**Appearance & Themes**（外观与主题）、**Font**（字体：字型引擎与字体大小）、**Language**（应用显示语言）。
+- **外观设置页（SettingsScreen）**：明暗/跟随系统三卡选择器 + 12 调色板列表（家族目录来自 `ThemeResolver.families`，当前选中高亮）。调色板行只显示**双色样点 + 本地化族名**，无描述副标题（描述文案与 `CssVariables.description` 字段已整链删除）。
+- **字体页（FontScreen）**：3 排版引擎（Serif/Sans/Mono，行内只有 "Aa" 样例 + 引擎名，无风格描述副标题）、字号入口、自定义字体管理（见 11.2）。
 - **字号页（FontSizeScreen）**：全局字体缩放滑块 + 实时预览，保存 → `MainAction.FontScaleSaved`（持久化；`MainActivity` 通过 `LocalDensity` 的 `fontScale` 全局生效）。
 - **语言页（LanguageScreen）**：跟随系统 / English / 中文，经 `AppCompatDelegate.setApplicationLocales` 持久化并即时重建 Activity（`locales_config.xml` 声明 en、zh-CN，支持 Android 13+ 系统级应用语言列表）。
 - **返回**：系统返回键/手势与顶栏返回键统一走 `navigator.goBack()` 逐级弹栈（FontSize→Font→Menu→Main），由 NavDisplay 的 `onBack` 接管，天然支持预测返回与进程死亡恢复。设置目的地不经过 `MainScreen`，因此**天然不渲染底部导航栏与侧栏**，页面视觉只保留全局顶栏 + 内容区。
@@ -422,7 +422,7 @@ gradle :app:testDebugUnitTest     # 单元测试 + 截图测试
 
 1. **网络层仅用于字体下载**：`core:network` 栈已就绪（Retrofit + kotlinx.serialization + Hilt），但当前只有 `FontDownloadApi` 一个 service，实际指向 GitHub Releases 的绝对 URL；baseUrl 仍是 `https://api.example.com/` 占位，接真实后端需新增 service 接口并替换 `NetworkModule.provideBaseUrl()`。
 2. **Room 空转**：`core:database` 仅为满足 Room 至少一个实体的要求保留 legacy 表，无 DAO；该模块是项目硬性保留的预留位（曾摘除后被回退），接结构化数据时加 `@Entity` + `@Dao` 并递增版本即可。
-3. **家族文案为可选本地化**：设置页族名/副标题经 `SettingsScreen.paletteStrings` 按家族 key 查本地化资源；未配置的新家族自动回退到该家族自身的 `displayName` + `description`（英文），不会错标为其它家族；需要本地化时补一对字符串资源即可。
+3. **家族文案为可选本地化**：设置页族名经 `SettingsScreen.paletteNameRes` 按家族 key 查本地化资源；未配置的新家族自动回退到该家族自身的 `displayName`（英文），不会错标为其它家族；需要本地化时补一条字符串资源即可。（描述副标题已整体移除，`CssVariables` 不再携带 `description` 字段。）
 4. **截图基准已入库**：`app/src/test/screenshots/canvas.png` 已提交。默认 `testDebugUnitTest` 下 Roborazzi 未激活任何模式（record/verify/compare 均未开），`captureRoboImage` 空转通过、不做校验；重新生成基准用 `gradle :app:testDebugUnitTest -Proborazzi.test.record=true`，CI 校验用 `-Proborazzi.test.verify=true`。
 5. **debug 密钥库**：`debug.keystore` 被 gitignore，新环境需按 README 用 keytool 生成。
 6. **release 签名依赖环境**：`KEYSTORE_PATH` / `STORE_PASSWORD` / `KEY_PASSWORD` 三个环境变量（或根目录 `my-upload-key.jks`）必须存在，否则 `assembleRelease` 失败；CI/新机器需先注入。

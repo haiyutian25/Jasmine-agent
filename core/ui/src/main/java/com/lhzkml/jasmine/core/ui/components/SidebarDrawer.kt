@@ -23,11 +23,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,18 +34,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -77,18 +70,6 @@ private const val SidebarFlingVelocityThreshold = 300f
 /** Inner padding of the sidebar content column. */
 private val SidebarContentPaddingHorizontal = 16.dp
 private val SidebarContentPaddingVertical = 14.dp
-
-/** Workspace header: avatar, texts and spacing. */
-private val SidebarAvatarSize = 34.dp
-private val SidebarAvatarLetterFontSize = 17.sp
-private val SidebarHeaderSpacing = 10.dp
-private val SidebarWorkspaceNameFontSize = 14.sp
-private val SidebarNameBadgeSpacing = 6.dp
-private val SidebarProBadgeFontSize = 8.5.sp
-private val SidebarProBadgeCornerRadius = 3.dp
-private val SidebarProBadgePaddingHorizontal = 4.dp
-private val SidebarProBadgePaddingVertical = 1.dp
-private val SidebarSubtitleFontSize = 11.sp
 
 /** Settings entry: icon size. */
 private val SidebarSettingsIconSize = 32.dp
@@ -286,8 +267,8 @@ fun SidebarDrawer(
 
 /**
  * Minimal sidebar content:
- * - Workspace / Profile header (top)
- * - Settings entry pinned to the bottom (moved here from the top nav bar)
+ * - Settings entry pinned to the bottom (moved here from the top nav bar).
+ * The former workspace/brand header was intentionally removed.
  */
 @Composable
 fun AppSidebarContent(
@@ -307,62 +288,7 @@ fun AppSidebarContent(
             .testTag("app_sidebar_drawer")
     ) {
         // 1. Workspace / Profile Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(SidebarHeaderSpacing)
-        ) {
-            // Workspace Avatar
-            Box(
-                modifier = Modifier
-                    .size(SidebarAvatarSize)
-                    .clip(RoundedCornerShape(currentTheme.radiusSm))
-                    .background(currentTheme.subtleSurface)
-                    .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusSm)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "J",
-                    fontFamily = FontFamily.Serif,
-                    fontStyle = FontStyle.Italic,
-                    fontSize = SidebarAvatarLetterFontSize,
-                    fontWeight = FontWeight.Bold,
-                    color = currentTheme.foreground
-                )
-            }
-
-            Column {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(SidebarNameBadgeSpacing)
-                ) {
-                    Text(
-                        text = "Jasmine Studio",
-                        fontSize = SidebarWorkspaceNameFontSize,
-                        fontWeight = FontWeight.Bold,
-                        color = currentTheme.foreground
-                    )
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(SidebarProBadgeCornerRadius))
-                            .background(currentTheme.primary.copy(alpha = 0.15f))
-                            .padding(horizontal = SidebarProBadgePaddingHorizontal, vertical = SidebarProBadgePaddingVertical)
-                    ) {
-                        Text(
-                            text = "PRO",
-                            fontSize = SidebarProBadgeFontSize,
-                            fontWeight = FontWeight.Bold,
-                            color = currentTheme.primary
-                        )
-                    }
-                }
-                Text(
-                    text = stringResource(R.string.sidebar_subtitle),
-                    fontSize = SidebarSubtitleFontSize,
-                    color = currentTheme.mutedForeground
-                )
-            }
-        }
+        // （已按需求整体移除：品牌头像、名称、徽章与副标题）
 
         Spacer(modifier = Modifier.weight(1f))
 
