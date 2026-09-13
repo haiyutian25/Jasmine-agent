@@ -17,7 +17,7 @@
 8. [底部导航栏 (BottomNavBar)](#8-底部导航栏-bottomnavbar)
 9. [启动页打字机引擎 (SplashScreen)](#9-启动页打字机引擎-splashscreen)
 10. [主画布工作台 (CanvasScreen)](#10-主画布工作台-canvasscreen)
-11. [功能屏幕：排印工作室 / 令牌面板 / 设置页 / CSS 审查器](#11-功能屏幕排印工作室--令牌面板--设置页--css-审查器)
+11. [设置流程](#11-设置流程)
 12. [共享工具与测试体系](#12-共享工具与测试体系)
 13. [核心组件参数速查](#13-核心组件参数速查)
 14. [已知局限与工程问题](#14-已知局限与工程问题)
@@ -62,10 +62,10 @@ jasmine/
         └── impl/                 # UI + ViewModel
             ├── GreetingViewModel             # @HiltViewModel，功能唯一状态源
             ├── GreetingNavHost               # NavDisplay + entryProvider 组装（含设置流目的地）；全局托管 Toast 一次性事件
-            ├── MainScreen                    # 推拽侧边栏 + 4 标签 Scaffold
+            ├── MainScreen                    # 推拽侧边栏 + 单标签（CANVAS）Scaffold
             ├── fonts/                        # CustomFontFamilyCache（FontFamily 内存缓存，主线程零磁盘 IO）
-            ├── screens/CanvasScreen          # 主画布工作台（原 MainActivity 内联代码抽取）
-            └── screens/{Splash,TypeStudio,Tokens,Settings,SettingsMenu,Language,Font,FontSize}Screen
+            ├── screens/CanvasScreen          # 画布标签页（刻意留空的表面）
+            └── screens/{Splash,Settings,SettingsMenu,Language,Font,FontSize}Screen
 ```
 
 ### 1.2 模块依赖方向（只能向下依赖）
@@ -153,7 +153,7 @@ onTabSelected = { viewModel.trySendAction(GreetingAction.TabSelected(it)) }
 @Serializable
 sealed interface GreetingNavKey : NavKey {
     @Serializable data object Splash : GreetingNavKey              // 打字机启动页
-    @Serializable data object Main : GreetingNavKey                // 主界面（侧栏 + 4 标签）
+    @Serializable data object Main : GreetingNavKey                // 主界面（侧栏 + CANVAS 单标签）
     @Serializable data object SettingsMenu : GreetingNavKey        // 设置菜单列表（设置流入口）
     @Serializable data object AppearanceSettings : GreetingNavKey  // 外观（明暗模式 + 调色板）
     @Serializable data object LanguageSettings : GreetingNavKey    // 语言
@@ -300,7 +300,7 @@ val panelOffset = -SidebarWidth * (1f - p)
 
 ## 8. 底部导航栏 (BottomNavBar)
 
-`components/BottomNavBar.kt`（`ProductionBottomNavBar`）：4 标签（CANVAS/TYPOGRAPHY/TOKENS/SETTINGS），激活态为微胶囊背景 + 颜色过渡，`.navigationBarsPadding()` 避让手势条。内容区由底栏自身托管为可滑动分页：**左右滑动可切换标签**（320ms 分页动画；快滑阈值 180px/s，慢拖阈值 28% 页宽），侧栏展开时滑动禁用，左缘 32dp（`SidebarEdgeZone`）保留给侧栏滑出。**底部导航栏只存在于 Main 目的地**——设置菜单页与各设置子页是回退栈上的独立目的地，天然不渲染底栏；**第 4 标签（SETTINGS）内容区为空白占位**，设置功能已整体迁移至侧边栏触发的设置流程。
+`components/BottomNavBar.kt`（`ProductionBottomNavBar`）：**目前只有 CANVAS 一个标签**（`NavigationTab` 枚举仅剩 `CANVAS`；原 `TYPOGRAPHY` / `TOKENS` / `SETTINGS` 及其屏幕已删除，设置功能整体在侧边栏触发的设置流程中）。激活态为微胶囊背景 + 颜色过渡，`.navigationBarsPadding()` 避让手势条。内容区仍由底栏自身托管为可滑动分页（320ms 分页动画；快滑阈值 180px/s，慢拖阈值 28% 页宽），单标签下不会产生实际翻页；侧栏展开时滑动禁用，左缘 32dp（`SidebarEdgeZone`）保留给侧栏滑出。**底部导航栏只存在于 Main 目的地**——设置菜单页与各设置子页是回退栈上的独立目的地，天然不渲染底栏。
 
 ---
 
@@ -324,15 +324,13 @@ val panelOffset = -SidebarWidth * (1f - p)
 
 ---
 
-## 11. 功能屏幕：排印工作室 / 令牌面板 / 设置流程
+## 11. 设置流程
 
-### 11.1 排印工作室（TypeStudioScreen）
-与 CanvasScreen 同为**留空表面**（原 3 字体族卡片、Italic 开关、字号/字距双滑块与样张复制均已移除）；字体能力迁移至设置流的 FontScreen / FontSizeScreen。
+> 原先的「排印工作室（TypeStudioScreen）」与「令牌面板（TokensScreen）」两个标签页，
+> **已连同 `NavigationTab.TYPOGRAPHY` / `NavigationTab.TOKENS` / `NavigationTab.SETTINGS` 一并删除**，
+> 底部导航栏现在只剩 CANVAS 一个标签。主题与字体能力并未删除，仍完整保留在下面的设置流中。
 
-### 11.2 令牌面板（TokensScreen）
-同为**留空表面**（原令牌搜索过滤、色卡矩阵、组件演练场与审查器入口均已移除）。`GreetingScreenshotTest` 仍渲染它作为"首页可组合渲染"的冒烟基准。
-
-### 11.3 设置流程（菜单页 + 外观/字体/字号/语言子页）
+### 11.1 目的地与入口
 
 设置流是 Navigation 3 回退栈上的**平级目的地序列**（早期版本的 `settingsLevel` 状态机已整体移除）。每个目的地共享 `GreetingNavHost` 内的私有脚手架 `SettingsPage`：与主壳相同的 280ms 背景色过渡 + `ProductionTopNavBar` 子页形态（返回键 + 居中标题），仅内容区随目的地切换。
 
@@ -345,12 +343,12 @@ Main → SettingsMenu（设置菜单列表）→ AppearanceSettings（外观设�
 - **入口**：侧边栏底部齿轮按钮 → `GreetingAction.SidebarClosed` + `navigator.navigate(GreetingNavKey.SettingsMenu)`。
 - **菜单页（SettingsMenuScreen）**：三个入口——**Appearance & Themes**（外观与主题）、**Font**（字体：字型引擎与字体大小）、**Language**（应用显示语言）。
 - **外观设置页（SettingsScreen）**：明暗/跟随系统三卡选择器 + 12 调色板列表（家族目录来自 `ThemeResolver.families`，当前选中高亮）。
-- **字体页（FontScreen）**：3 排版引擎（Serif/Sans/Mono）、字号入口、自定义字体管理（见 11.4）。
+- **字体页（FontScreen）**：3 排版引擎（Serif/Sans/Mono）、字号入口、自定义字体管理（见 11.2）。
 - **字号页（FontSizeScreen）**：全局字体缩放滑块 + 实时预览，保存 → `GreetingAction.FontScaleSaved`（持久化；`MainActivity` 通过 `LocalDensity` 的 `fontScale` 全局生效）。
 - **语言页（LanguageScreen）**：跟随系统 / English / 中文，经 `AppCompatDelegate.setApplicationLocales` 持久化并即时重建 Activity（`locales_config.xml` 声明 en、zh-CN，支持 Android 13+ 系统级应用语言列表）。
 - **返回**：系统返回键/手势与顶栏返回键统一走 `navigator.goBack()` 逐级弹栈（FontSize→Font→Menu→Main），由 NavDisplay 的 `onBack` 接管，天然支持预测返回与进程死亡恢复。设置目的地不经过 `MainScreen`，因此**天然不渲染底部导航栏与侧栏**，页面视觉只保留全局顶栏 + 内容区。
 
-### 11.4 自定义字体系统（core:data + impl/fonts/）
+### 11.2 自定义字体系统（core:data + impl/fonts/）
 
 - **预设库（PresetFontCatalog，core:data/model）**：3 款字体（Source Han Serif SC / LXGW WenKai / JetBrains Mono）托管于 GitHub Releases（`releases/latest/download/<file>` HTTPS 直链），每条记录含 `sha256` 校验和。
 - **下载（CustomFontRepository.downloadPreset，core:data）**：IO 调度器流式写入 `.part` 临时文件，完成后做 **SHA-256 校验**，不匹配即删除拒绝安装；校验通过原子改名入库。下载进度经 `downloadProgress: StateFlow` 实时回流 UI。
@@ -368,7 +366,7 @@ Main → SettingsMenu（设置菜单列表）→ AppearanceSettings（外观设�
 | :--- | :--- | :--- |
 | `ExampleUnitTest` | 2+2 | 模板级 |
 | `ExampleRobolectricTest` | 读取 `app_name` 资源 | Robolectric |
-| `GreetingScreenshotTest` | Roborazzi 渲染 `TokensScreen` | 验证迁移后 UI 可组合渲染 |
+| `GreetingScreenshotTest` | Roborazzi 渲染 `CanvasScreen` | 验证首页 UI 可组合渲染 |
 
 - Robolectric 基线 **SDK 36**（`app/src/test/resources/robolectric.properties`），**要求 JDK 21**（SDK 36 沙盒硬性要求；SDK 37 需 Robolectric 4.17-beta，暂不采用）。
 - 截图基准图生成：`gradle :app:testDebugUnitTest -Proborazzi.test.record=true`。
@@ -406,7 +404,7 @@ gradle :app:testDebugUnitTest     # 单元测试 + 截图测试
 1. **网络层仅用于字体下载**：`core:network` 栈已就绪（Retrofit + kotlinx.serialization + Hilt），但当前只有 `FontDownloadApi` 一个 service，实际指向 GitHub Releases 的绝对 URL；baseUrl 仍是 `https://api.example.com/` 占位，接真实后端需新增 service 接口并替换 `NetworkModule.provideBaseUrl()`。
 2. **Room 空转**：`core:database` 仅为满足 Room 至少一个实体的要求保留 legacy 表，无 DAO；该模块是项目硬性保留的预留位（曾摘除后被回退），接结构化数据时加 `@Entity` + `@Dao` 并递增版本即可。
 3. **家族文案为可选本地化**：设置页族名/副标题经 `SettingsScreen.paletteStrings` 按家族 key 查本地化资源；未配置的新家族自动回退到该家族自身的 `displayName` + `description`（英文），不会错标为其它家族；需要本地化时补一对字符串资源即可。
-4. **截图基准已入库**：`app/src/test/screenshots/tokens.png` 已提交。默认 `testDebugUnitTest` 下 Roborazzi 未激活任何模式（record/verify/compare 均未开），`captureRoboImage` 空转通过、不做校验；重新生成基准用 `gradle :app:testDebugUnitTest -Proborazzi.test.record=true`，CI 校验用 `-Proborazzi.test.verify=true`。
+4. **截图基准已入库**：`app/src/test/screenshots/canvas.png` 已提交。默认 `testDebugUnitTest` 下 Roborazzi 未激活任何模式（record/verify/compare 均未开），`captureRoboImage` 空转通过、不做校验；重新生成基准用 `gradle :app:testDebugUnitTest -Proborazzi.test.record=true`，CI 校验用 `-Proborazzi.test.verify=true`。
 5. **debug 密钥库**：`debug.keystore` 被 gitignore，新环境需按 README 用 keytool 生成。
 6. **release 签名依赖环境**：`KEYSTORE_PATH` / `STORE_PASSWORD` / `KEY_PASSWORD` 三个环境变量（或根目录 `my-upload-key.jks`）必须存在，否则 `assembleRelease` 失败；CI/新机器需先注入。
 7. **字体不参与备份**：`filesDir/custom_fonts/` 在 `backup_rules.xml` 与 `data_extraction_rules.xml` 中均被排除（云备份 + 设备迁移）——单款 CJK 预设约 25MB，超过 25MB 应用云备份配额会导致整体备份静默失败；预设字体可从 GitHub Releases 重新下载（SHA-256 校验），导入字体由用户重新选择。

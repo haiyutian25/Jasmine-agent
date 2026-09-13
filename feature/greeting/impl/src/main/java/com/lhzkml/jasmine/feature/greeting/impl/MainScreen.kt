@@ -20,8 +20,6 @@ import com.lhzkml.jasmine.feature.greeting.impl.components.ProductionTopNavBar
 import com.lhzkml.jasmine.feature.greeting.impl.components.SidebarDrawer
 import com.lhzkml.jasmine.feature.greeting.impl.components.SidebarEdgeZone
 import com.lhzkml.jasmine.feature.greeting.impl.screens.CanvasScreen
-import com.lhzkml.jasmine.feature.greeting.impl.screens.TokensScreen
-import com.lhzkml.jasmine.feature.greeting.impl.screens.TypeStudioScreen
 
 /**
  * Main destination: push-canvas sidebar + 4-tab scaffold. Stateless renderer of
@@ -96,16 +94,7 @@ fun MainScreen(
                     )
                 ) { tab ->
                     when (tab) {
-                        // All three craft tabs are intentionally blank surfaces:
-                        // their content was cleared from the home page. Theme and
-                        // font switching now live only in the settings flow
-                        // (AppearanceSettings / FontSettings), which keeps their
-                        // shared implementations in use.
                         NavigationTab.CANVAS -> CanvasScreen()
-                        NavigationTab.TYPOGRAPHY -> TypeStudioScreen()
-                        NavigationTab.TOKENS -> TokensScreen()
-                        // 4th tab is intentionally blank (settings moved to the sidebar flow)
-                        NavigationTab.SETTINGS -> Box(modifier = Modifier.fillMaxSize())
                     }
                 }
             }

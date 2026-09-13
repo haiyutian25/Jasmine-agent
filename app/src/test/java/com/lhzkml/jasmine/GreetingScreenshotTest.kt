@@ -4,7 +4,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import com.lhzkml.jasmine.core.ui.theme.JasmineTheme
 import com.lhzkml.jasmine.core.ui.theme.ProductionPalettes
-import com.lhzkml.jasmine.feature.greeting.impl.screens.TokensScreen
+import com.lhzkml.jasmine.feature.greeting.impl.screens.CanvasScreen
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Rule
@@ -22,15 +22,15 @@ class GreetingScreenshotTest {
   @get:Rule val composeTestRule = createComposeRule()
 
   @Test
-  fun tokens_screenshot() {
+  fun canvas_screenshot() {
     composeTestRule.setContent {
       JasmineTheme(cssVars = ProductionPalettes.GeistDark) {
-        // The tokens tab is intentionally blank now (its content was cleared
-        // from the home page), so this captures an empty surface.
-        TokensScreen()
+        // The remaining home tab is intentionally blank now (its content was
+        // cleared), so this captures an empty surface.
+        CanvasScreen()
       }
     }
 
-    composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/tokens.png")
+    composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/canvas.png")
   }
 }

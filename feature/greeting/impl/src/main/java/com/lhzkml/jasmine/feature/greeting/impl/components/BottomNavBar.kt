@@ -76,9 +76,6 @@ enum class NavigationTab(
     val testTag: String
 ) {
     CANVAS(R.string.nav_tab_canvas, Icons.Filled.Home, Icons.Outlined.Home, "bottom_tab_canvas"),
-    TYPOGRAPHY(R.string.nav_tab_typography, Icons.Filled.FormatSize, Icons.Outlined.FormatSize, "bottom_tab_typography"),
-    TOKENS(R.string.nav_tab_tokens, Icons.Filled.Code, Icons.Outlined.Code, "bottom_tab_tokens"),
-    SETTINGS(R.string.nav_tab_settings, Icons.Filled.Settings, Icons.Outlined.Settings, "bottom_tab_settings")
 }
 
 /** Page settle animation timing for swipe tab switching. */

@@ -83,9 +83,6 @@
 
     <!-- 底部导航标签 -->
     <string name="nav_tab_canvas">画布</string>
-    <string name="nav_tab_typography">字体</string>
-    <string name="nav_tab_tokens">令牌</string>
-    <string name="nav_tab_settings">设置</string>
 
     <!-- 顶部导航栏 -->
     <string name="top_nav_cd_back">返回</string>

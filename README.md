@@ -62,7 +62,7 @@ gradle :app:testDebugUnitTest
 ```
 
 - Robolectric tests run against **SDK 36** (see `app/src/test/resources/robolectric.properties`), which requires Java 21.
-- `GreetingScreenshotTest` renders the migrated `TokensScreen` via Roborazzi. To (re)generate the golden image, run once with `-Proborazzi.test.record=true`.
+- `GreetingScreenshotTest` renders the home `CanvasScreen` via Roborazzi. To (re)generate the golden image, run once with `-Proborazzi.test.record=true`.
 
 ## Release Build
 

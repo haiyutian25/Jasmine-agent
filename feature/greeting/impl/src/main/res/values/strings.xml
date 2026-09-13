@@ -83,9 +83,6 @@
 
     <!-- Bottom navigation tabs -->
     <string name="nav_tab_canvas">Canvas</string>
-    <string name="nav_tab_typography">Type</string>
-    <string name="nav_tab_tokens">Tokens</string>
-    <string name="nav_tab_settings">Settings</string>
 
     <!-- Top navigation bar -->
     <string name="top_nav_cd_back">Back</string>
