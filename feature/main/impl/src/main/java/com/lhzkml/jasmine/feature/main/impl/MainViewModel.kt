@@ -1,4 +1,4 @@
-﻿package com.lhzkml.jasmine.feature.main.impl
+package com.lhzkml.jasmine.feature.main.impl
 
 import android.content.Context
 import android.content.res.Configuration
@@ -15,7 +15,7 @@ import com.lhzkml.jasmine.core.data.repository.UserPreferencesRepository
 import com.lhzkml.jasmine.core.ui.base.BaseViewModel
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.core.ui.theme.ThemeResolver
-import com.lhzkml.jasmine.feature.main.impl.components.NavigationTab
+import com.lhzkml.jasmine.core.ui.components.NavigationTab
 import com.lhzkml.jasmine.feature.main.impl.fonts.CustomFontFamilyCache
 import com.lhzkml.jasmine.feature.settings.impl.screens.AppTypographyChoice
 import dagger.hilt.android.lifecycle.HiltViewModel

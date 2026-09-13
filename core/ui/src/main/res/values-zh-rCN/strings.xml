@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 组件自用文案（随组件从 feature:main:impl 下沉到 core:ui） -->
+    <string name="nav_tab_canvas">画布</string>
+    <string name="top_nav_cd_back">返回</string>
+    <string name="top_nav_cd_open_sidebar">打开侧边栏菜单</string>
+    <string name="sidebar_subtitle">设计系统实验室</string>
+    <string name="sidebar_cd_settings">设置</string>
+</resources>

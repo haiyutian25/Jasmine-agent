@@ -1,4 +1,4 @@
-﻿package com.lhzkml.jasmine.feature.main.impl
+package com.lhzkml.jasmine.feature.main.impl
 
 import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
@@ -19,7 +19,7 @@ import com.lhzkml.jasmine.core.navigation.rememberAppNavigator
 import com.lhzkml.jasmine.core.ui.base.util.EventsEffect
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.feature.main.api.MainNavKey
-import com.lhzkml.jasmine.feature.main.impl.components.ProductionTopNavBar
+import com.lhzkml.jasmine.core.ui.components.ProductionTopNavBar
 import com.lhzkml.jasmine.feature.main.impl.screens.SplashScreen
 import com.lhzkml.jasmine.feature.settings.api.SettingsNavKey
 import com.lhzkml.jasmine.feature.settings.impl.R as SettingsR

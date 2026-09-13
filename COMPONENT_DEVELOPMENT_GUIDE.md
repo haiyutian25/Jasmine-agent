@@ -63,9 +63,8 @@ jasmine/
     │       ├── MainViewModel           # @HiltViewModel，功能唯一状态源
     │       ├── MainNavHost             # NavDisplay + entryProvider（含设置流目的地）；全局托管 Toast 事件
     │       ├── MainScreen               # 推拽侧边栏 + 单标签（CANVAS）Scaffold
-    │       ├── components/              # ProductionTopNavBar / ProductionBottomNavBar / SidebarDrawer
     │       ├── fonts/                   # CustomFontFamilyCache（FontFamily 内存缓存，主线程零磁盘 IO）
-    │       └── screens/{Splash,Canvas}Screen
+    │       └── screens/{Splash,Canvas}Screen   # chrome 组件已统一下沉 core/ui/components/
     └── settings/                # 设置流
         ├── api/                 # 导航契约：@Serializable SettingsNavKey（5 个设置目的地）
         └── impl/                # 设置屏幕（无状态：只接收基元与回调）
@@ -258,7 +257,7 @@ val animatedBg by animateColorAsState(
 
 ## 6. 顶部导航栏 (TopNavBar) 与高度调控
 
-位于 `feature/main/impl/components/TopNavBar.kt`（`ProductionTopNavBar`）。
+位于 `core/ui/components/TopNavBar.kt`（`ProductionTopNavBar`）。
 
 ### 6.1 结构与高度
 
@@ -288,7 +287,7 @@ Column(modifier = modifier.fillMaxWidth().background(currentTheme.background).st
 
 ## 7. 推拽式侧边栏 (Push Canvas Sidebar) 动画架构
 
-侧边栏展开时**主画布被同步推开**（非浮动蒙层），实现位于 `components/SidebarDrawer.kt`（`MainScreen` 负责组装并喂入状态）。
+侧边栏展开时**主画布被同步推开**（非浮动蒙层），实现位于 `core/ui/components/SidebarDrawer.kt`（`MainScreen` 负责组装并喂入状态）。
 
 ### 7.1 双层平移动画
 
@@ -317,7 +316,7 @@ val panelOffset = -SidebarWidth * (1f - p)
 
 ## 8. 底部导航栏 (BottomNavBar)
 
-`components/BottomNavBar.kt`（`ProductionBottomNavBar`）：**目前只有 CANVAS 一个标签**（`NavigationTab` 枚举仅剩 `CANVAS`；原 `TYPOGRAPHY` / `TOKENS` / `SETTINGS` 及其屏幕已删除，设置功能整体在侧边栏触发的设置流程中）。激活态为微胶囊背景 + 颜色过渡，`.navigationBarsPadding()` 避让手势条。内容区仍由底栏自身托管为可滑动分页（320ms 分页动画；快滑阈值 180px/s，慢拖阈值 28% 页宽），单标签下不会产生实际翻页；侧栏展开时滑动禁用，左缘 32dp（`SidebarEdgeZone`）保留给侧栏滑出。**底部导航栏只存在于 Main 目的地**——设置菜单页与各设置子页是回退栈上的独立目的地，天然不渲染底栏。
+`core/ui/components/BottomNavBar.kt`（`ProductionBottomNavBar`）：**目前只有 CANVAS 一个标签**（`NavigationTab` 枚举仅剩 `CANVAS`；原 `TYPOGRAPHY` / `TOKENS` / `SETTINGS` 及其屏幕已删除，设置功能整体在侧边栏触发的设置流程中）。激活态为微胶囊背景 + 颜色过渡，`.navigationBarsPadding()` 避让手势条。内容区仍由底栏自身托管为可滑动分页（320ms 分页动画；快滑阈值 180px/s，慢拖阈值 28% 页宽），单标签下不会产生实际翻页；侧栏展开时滑动禁用，左缘 32dp（`SidebarEdgeZone`）保留给侧栏滑出。**底部导航栏只存在于 Main 目的地**——设置菜单页与各设置子页是回退栈上的独立目的地，天然不渲染底栏。
 
 ---
 

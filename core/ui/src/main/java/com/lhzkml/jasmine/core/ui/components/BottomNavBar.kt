@@ -1,4 +1,4 @@
-﻿package com.lhzkml.jasmine.feature.main.impl.components
+package com.lhzkml.jasmine.core.ui.components
 
 import androidx.annotation.StringRes
 import androidx.compose.animation.animateColorAsState
@@ -61,7 +61,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
-import com.lhzkml.jasmine.feature.main.impl.R
+import com.lhzkml.jasmine.core.ui.R
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor

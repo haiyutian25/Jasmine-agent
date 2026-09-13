@@ -1,4 +1,4 @@
-﻿package com.lhzkml.jasmine.feature.main.impl
+package com.lhzkml.jasmine.feature.main.impl
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
@@ -14,11 +14,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
-import com.lhzkml.jasmine.feature.main.impl.components.NavigationTab
-import com.lhzkml.jasmine.feature.main.impl.components.ProductionBottomNavBar
-import com.lhzkml.jasmine.feature.main.impl.components.ProductionTopNavBar
-import com.lhzkml.jasmine.feature.main.impl.components.SidebarDrawer
-import com.lhzkml.jasmine.feature.main.impl.components.SidebarEdgeZone
+import com.lhzkml.jasmine.core.ui.components.NavigationTab
+import com.lhzkml.jasmine.core.ui.components.ProductionBottomNavBar
+import com.lhzkml.jasmine.core.ui.components.ProductionTopNavBar
+import com.lhzkml.jasmine.core.ui.components.SidebarDrawer
+import com.lhzkml.jasmine.core.ui.components.SidebarEdgeZone
 import com.lhzkml.jasmine.feature.main.impl.screens.CanvasScreen
 
 /**

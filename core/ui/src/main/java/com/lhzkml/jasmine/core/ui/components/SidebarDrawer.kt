@@ -1,4 +1,4 @@
-﻿package com.lhzkml.jasmine.feature.main.impl.components
+package com.lhzkml.jasmine.core.ui.components
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
@@ -51,9 +51,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.lhzkml.jasmine.core.ui.components.Button
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
-import com.lhzkml.jasmine.feature.main.impl.R
+import com.lhzkml.jasmine.core.ui.R
 import kotlin.math.abs
 import kotlinx.coroutines.launch
 

@@ -1,4 +1,4 @@
-﻿package com.lhzkml.jasmine.feature.main.impl.components
+package com.lhzkml.jasmine.core.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -22,9 +22,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.lhzkml.jasmine.core.ui.components.Button
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
-import com.lhzkml.jasmine.feature.main.impl.R
+import com.lhzkml.jasmine.core.ui.R
 
 // ── Top nav bar dimensions ─────────────────────────────────────────────
 

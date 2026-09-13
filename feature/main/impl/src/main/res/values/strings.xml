@@ -37,18 +37,13 @@
     <string name="splash_launch_canvas">Launch Studio Canvas</string>
 
     <!-- Bottom navigation tabs -->
-    <string name="nav_tab_canvas">Canvas</string>
 
     <!-- Top navigation bar -->
-    <string name="top_nav_cd_back">Back</string>
-    <string name="top_nav_cd_open_sidebar">Open Sidebar Menu</string>
 
     <!-- Settings page titles (top nav bar) -->
     <string name="settings_page_title">Settings</string>
 
     <!-- Sidebar drawer -->
-    <string name="sidebar_subtitle">Design Systems Lab</string>
-    <string name="sidebar_cd_settings">Settings</string>
 
     <!-- Language settings -->
 </resources>

@@ -37,18 +37,13 @@
     <string name="splash_launch_canvas">启动工作室画布</string>
 
     <!-- 底部导航标签 -->
-    <string name="nav_tab_canvas">画布</string>
 
     <!-- 顶部导航栏 -->
-    <string name="top_nav_cd_back">返回</string>
-    <string name="top_nav_cd_open_sidebar">打开侧边栏菜单</string>
 
     <!-- 设置页标题（顶部导航栏） -->
     <string name="settings_page_title">设置</string>
 
     <!-- 侧边栏抽屉 -->
-    <string name="sidebar_subtitle">设计系统实验室</string>
-    <string name="sidebar_cd_settings">设置</string>
 
     <!-- 语言设置 -->
     <!-- 语言名以其母语显示（与默认资源一致），不随界面语言翻译 -->
