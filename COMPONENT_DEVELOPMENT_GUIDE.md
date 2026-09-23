@@ -28,7 +28,7 @@
 
 本应用基于 **Jetpack Compose**（无任何 XML 布局），采用 **多模块 + MVVM + UDF（单向数据流）** 架构。
 
-构建基线：AGP 9.1.1、Kotlin 2.2.10、Compose BOM 2026.08.00、Navigation 3 1.1.7、Hilt 2.60.1、Room 2.7.0、compileSdk 37、minSdk 24 / targetSdk 37、JDK 21。
+构建基线：AGP 9.4.1、Kotlin 2.4.20、Compose BOM 2026.09.00（Compose 1.12.1 / Material 3 1.4.0）、Navigation 3 1.1.7、Hilt 2.60.1、Lifecycle 2.11.0、Room 2.7.0、compileSdk 37、minSdk 24 / targetSdk 37、JDK 21。
 
 ### 1.1 模块结构与职责
 
@@ -42,6 +42,9 @@ jasmine/
 │   │   ├── model/UserPreferences             # 领域模型（themeId / typographyChoice / colorMode / fontScale / activeCustomFontId）
 │   │   ├── datastore/UserPreferencesDataStore  # Preferences DataStore 读写（偏好唯一存储）
 │   │   ├── repository/UserPreferencesRepository  # 偏好读写（DataStore 支撑）
+│   │   ├── model/ProviderConfig          # 模型提供商配置（含 DeepSeek 预置 + ProviderApiType）
+│   │   ├── datastore/ProviderDataStore   # 提供商列表 JSON 整体存取（独立 DataStore 文件）
+│   │   ├── repository/ProviderRepository # 提供商增删改查（StateFlow 读 + 原子写）
 │   │   ├── datasource/FontRemoteDataSource       # 字体远端数据源（对接 core:network）
 │   │   ├── manager/dispatcher/DispatcherManager  # 可注入协程调度器
 │   │   └── di/DataModule                     # @Provides 装配
@@ -65,10 +68,13 @@ jasmine/
     │       ├── MainScreen               # 推拽侧边栏 + 单标签（CANVAS）Scaffold
     │       ├── fonts/                   # CustomFontFamilyCache（FontFamily 内存缓存，主线程零磁盘 IO）
     │       └── screens/{Splash,Canvas}Screen   # chrome 组件已统一下沉 core/ui/components/
-    └── settings/                # 设置流
-        ├── api/                 # 导航契约：@Serializable SettingsNavKey（5 个设置目的地）
-        └── impl/                # 设置屏幕（无状态：只接收基元与回调）
-            └── screens/{SettingsMenu,Settings,Language,Font,FontSize}Screen
+    ├── settings/                # 设置流
+    │   ├── api/                 # 导航契约：@Serializable SettingsNavKey（5 个设置目的地）
+    │   └── impl/                # 设置屏幕（无状态：只接收基元与回调）
+    │       └── screens/{SettingsMenu,Settings,Language,Font,FontSize}Screen
+    └── provider/                # 模型提供商流
+        ├── api/                 # 导航契约：@Serializable ProviderNavKey（ProviderList）
+        └── impl/                # ProviderViewModel（独立 UDF 三件套）+ ProviderScreen（列表 + 页内增改表单）
 ```
 
 ### 1.2 模块依赖方向（只能向下依赖）
@@ -80,15 +86,17 @@ app ──► feature:main:impl ──► feature:main:api
  │              │  │  ├► core:data ──► core:database ──► Room（预留，无 DAO）
  │              │  │  │            └─► core:network ──► Retrofit/OkHttp
  │              │  │  ├► core:ui
- │              │  │  └► feature:settings:impl ──► feature:settings:api
- │              │  │                          └──► core:ui / core:data
- │              │  └► feature:settings:api
+ │              │  │  ├► feature:settings:impl ──► feature:settings:api
+ │              │  │  │                        └──► core:ui / core:data
+ │              │  │  └► feature:provider:impl ──► feature:provider:api
+ │              │  │                           └──► core:ui / core:data
+ │              │  └► feature:settings:api / feature:provider:api
  └► core:ui
 ```
 
 > 规则：feature 之间不互相依赖；跨 feature 导航只允许依赖对方的 `:api` 模块；主题令牌放在 `core:ui` 保证所有模块可用。
 >
-> 例外：外壳 `feature:main:impl` 要在同一个 `NavDisplay` 里**组装**设置流的目的地，所以额外依赖 `feature:settings:impl`；反向不成立（设置模块不认识外壳）。因为设置屏幕全部是**无状态**的（只接收基元与回调，不引用 `MainState` / `MainAction`），这不会形成循环依赖。设置页标题等被两边共用的文案放在 `feature:settings:impl`，外壳通过 `SettingsR`（R 别名）引用。
+> 例外：外壳 `feature:main:impl` 要在同一个 `NavDisplay` 里**组装**设置流与提供商流的目的地，所以额外依赖 `feature:settings:impl` 与 `feature:provider:impl`；反向不成立（两个特性模块都不认识外壳）。设置屏幕全部是**无状态**的（只接收基元与回调，不引用 `MainState` / `MainAction`），不会形成循环依赖。设置页标题等被两边共用的文案放在 `feature:settings:impl`，外壳通过 `SettingsR`（R 别名）引用；提供商页标题同理走 `ProviderR` 别名。**`feature:provider` 是唯一自带 ViewModel 的非外壳特性**（独立 UDF 三件套，`MainNavHost` 内经 `hiltViewModel()` 获取，activity 作用域）。
 
 ---
 
@@ -175,6 +183,12 @@ sealed interface SettingsNavKey : NavKey {
     @Serializable data object LanguageSettings : SettingsNavKey    // 语言
     @Serializable data object FontSettings : SettingsNavKey        // 字体（排版引擎 + 自定义字体）
     @Serializable data object FontSizeSettings : SettingsNavKey    // 字号（全局缩放）
+}
+
+// feature:provider:api —— 模型提供商流目的地
+@Serializable
+sealed interface ProviderNavKey : NavKey {
+    @Serializable data object ProviderList : ProviderNavKey   // 提供商管理（列表 + 页内增改表单）
 }
 ```
 
@@ -360,7 +374,11 @@ Main → SettingsMenu（设置菜单列表）→ AppearanceSettings（外观设�
 ```
 
 - **入口**：侧边栏底部齿轮按钮 → `MainAction.SidebarClosed` + `navigator.navigate(MainNavKey.SettingsMenu)`。
-- **菜单页（SettingsMenuScreen）**：分组卡片列表样式（iOS 式 list section）——单个圆角 `card` 容器内放三个入口行，行与行之间用 1dp `border` 发丝分割线；每行 = 前置单色图标（`foreground`，20dp）+ 标题（14sp Medium），**无副标题、无右侧箭头**，整行即点击目标。三个入口：**Appearance & Themes**（外观与主题）、**Font**（字体：字型引擎与字体大小）、**Language**（应用显示语言）。
+- **菜单页（SettingsMenuScreen）**：分组卡片列表样式（iOS 式 list section），**两张独立卡片**：第一张 = Appearance & Themes / Font / Language 三行（行间 1dp `border` 发丝分割线）；第二张 = **Model Providers 单独成卡**（SmartToy 图标 → `ProviderNavKey.ProviderList`，模型提供商是独立特性，不与外观/字体/语言同卡）。每行 = 前置单色图标（`foreground`，20dp）+ 标题（14sp Medium），**无副标题、无右侧箭头**，整行即点击目标。
+- **模型提供商页（feature:provider，ProviderScreen + ProviderViewModel）**：独立 UDF 特性模块。列表模式 = 分组卡片列出全部供应商（**DeepSeek 预置**在首位，可编辑不可删除；用户可自由添加 OpenAI 协议兼容供应商）+「添加供应商」入口行；编辑模式 = 名称 / 接口地址 / API 密钥三个主题化输入框 + API 类型二选一卡片（**Chat Completions / Responses API**）+ **模型区** + 取消/保存。
+- **模型目录（无硬编码）**：模型区提供「获取模型列表」与「自定义模型 ID」两个入口。获取走 `core:data` 的 `ProviderModelDataSource`（注入共享 `OkHttpClient`，`GET {baseUrl}/v1/models` + Bearer 鉴权，宽容解析 OpenAI `data[]` 与 DeepSeek `models[]` 两种响应形状；baseUrl 以 `/v1` 结尾不重复拼接），在 IO 调度器执行，结果经 `Internal.ModelsFetched/ModelsFetchFailed` 回注。目录用 **`core:ui` 的 `BottomSheet` 组件**展示（Fetching 转圈 / 列表点选 / 失败态含重试与自定义入口；列表顶部恒有「自定义模型 ID」行，保证 /models 不可用的供应商也能配置）。
+- **模型参数**：点选或自定义后进入第二个 `BottomSheet` 参数表单——模型 ID（目录点选预填、自定义可自由输入）+ **上下文长度 / 输出长度**（tokens，数字键盘，留空 = 0 未设置）；保存进 `ModelConfig(id, modelId, contextLength, maxOutputLength)` 挂在供应商草稿上，随供应商一起持久化（模型行支持再编辑/删除）。
+- 持久化走 `core:data` 的 `ProviderRepository`（`ProviderDataStore`，整表 JSON 存于独立 DataStore 文件 `model_providers`）；保存前校验三字段非空（Toast 提示），删除/保存均为乐观更新 + 仓库 StateFlow 回显对账。
 - **外观设置页（SettingsScreen）**：明暗/跟随系统三卡选择器 + 12 调色板列表（家族目录来自 `ThemeResolver.families`，当前选中高亮）。调色板行只显示**双色样点 + 本地化族名**，无描述副标题（描述文案与 `CssVariables.description` 字段已整链删除）。
 - **字体页（FontScreen）**：3 排版引擎（Serif/Sans/Mono，行内只有 "Aa" 样例 + 引擎名，无风格描述副标题）、字号入口、自定义字体管理（见 11.2）。
 - **字号页（FontSizeScreen）**：全局字体缩放滑块 + 实时预览，保存 → `MainAction.FontScaleSaved`（持久化；`MainActivity` 通过 `LocalDensity` 的 `fontScale` 全局生效）。
@@ -426,8 +444,7 @@ gradle :app:testDebugUnitTest     # 单元测试 + 截图测试
 4. **截图基准已入库**：`app/src/test/screenshots/canvas.png` 已提交。默认 `testDebugUnitTest` 下 Roborazzi 未激活任何模式（record/verify/compare 均未开），`captureRoboImage` 空转通过、不做校验；重新生成基准用 `gradle :app:testDebugUnitTest -Proborazzi.test.record=true`，CI 校验用 `-Proborazzi.test.verify=true`。
 5. **debug 密钥库**：`debug.keystore` 被 gitignore，新环境需按 README 用 keytool 生成。
 6. **release 签名依赖环境**：`KEYSTORE_PATH` / `STORE_PASSWORD` / `KEY_PASSWORD` 三个环境变量（或根目录 `my-upload-key.jks`）必须存在，否则 `assembleRelease` 失败；CI/新机器需先注入。
-7. **字体不参与备份**：`filesDir/custom_fonts/` 在 `backup_rules.xml` 与 `data_extraction_rules.xml` 中均被排除（云备份 + 设备迁移）——单款 CJK 预设约 25MB，超过 25MB 应用云备份配额会导致整体备份静默失败；预设字体可从 GitHub Releases 重新下载（SHA-256 校验），导入字体由用户重新选择。
 
 ---
 
-> 本文档已按当前源码逐项核验（核验日期：2026-09-13），覆盖多模块化重构后的全部演进：偏好存储 Room→DataStore 迁移、序列化 Moshi→kotlinx.serialization、自定义字体系统、设置流程从 ViewModel 状态机迁移至 Navigation 3 回退栈、主题家族目录单源化（`ThemeResolver.families`）、侧栏/底栏手势体系、字体目录备份排除、**设置流独立为 `feature:settings:{api,impl}` 模块（共用组件 `Button` / `Slider` 下沉到 `core:ui`）**。后续修改组件参数时，请同步更新第 13 节速查表。
+> 本文档已按当前源码逐项核验（核验日期：2026-09-13），覆盖多模块化重构后的全部演进：偏好存储 Room→DataStore 迁移、序列化 Moshi→kotlinx.serialization、自定义字体系统、设置流程从 ViewModel 状态机迁移至 Navigation 3 回退栈、主题家族目录单源化（`ThemeResolver.families`）、侧栏/底栏手势体系、**设置流独立为 `feature:settings:{api,impl}` 模块（共用组件 `Button` / `Slider` 下沉到 `core:ui`）**。后续修改组件参数时，请同步更新第 13 节速查表。

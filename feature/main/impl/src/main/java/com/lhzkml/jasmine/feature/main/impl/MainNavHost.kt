@@ -13,7 +13,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.lhzkml.jasmine.core.navigation.rememberAppNavigator
 import com.lhzkml.jasmine.core.ui.base.util.EventsEffect
@@ -21,6 +25,11 @@ import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.feature.main.api.MainNavKey
 import com.lhzkml.jasmine.core.ui.components.ProductionTopNavBar
 import com.lhzkml.jasmine.feature.main.impl.screens.SplashScreen
+import com.lhzkml.jasmine.feature.provider.api.ProviderNavKey
+import com.lhzkml.jasmine.feature.provider.impl.ProviderAction
+import com.lhzkml.jasmine.feature.provider.impl.ProviderEvent
+import com.lhzkml.jasmine.feature.provider.impl.ProviderScreen
+import com.lhzkml.jasmine.feature.provider.impl.ProviderViewModel
 import com.lhzkml.jasmine.feature.settings.api.SettingsNavKey
 import com.lhzkml.jasmine.feature.settings.impl.R as SettingsR
 import com.lhzkml.jasmine.feature.settings.impl.screens.FontScreen
@@ -28,6 +37,7 @@ import com.lhzkml.jasmine.feature.settings.impl.screens.FontSizeScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.LanguageScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.SettingsMenuScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.SettingsScreen
+import com.lhzkml.jasmine.feature.provider.impl.R as ProviderR
 
 /**
  * Navigation 3 host of the main feature.
@@ -71,6 +81,16 @@ fun MainNavHost(
         NavDisplay(
             backStack = navigator.navigationState,
             onBack = { navigator.goBack() },
+            // 一旦显式传入装饰器列表，NavDisplay 的默认列表即被覆盖，因此
+            // 必须手动保留默认的状态保存装饰器，再叠加条目级 ViewModel store：
+            entryDecorators = listOf(
+                // 默认装饰器：管理场景与保存状态（进程死亡/配置变更恢复）。
+                rememberSaveableStateHolderNavEntryDecorator(),
+                // 为每个 NavEntry 提供独立的 ViewModelStoreOwner：条目弹出时
+                // 清除其 ViewModel，使 entry 内 hiltViewModel() 的作用域限定
+                // 到该条目（而非 Activity）。
+                rememberViewModelStoreNavEntryDecorator(),
+            ),
             entryProvider = entryProvider {
                 entry<MainNavKey.Splash> {
                     SplashScreen(
@@ -99,6 +119,47 @@ fun MainNavHost(
                             onOpenAppearance = { navigator.navigate(SettingsNavKey.AppearanceSettings) },
                             onOpenFont = { navigator.navigate(SettingsNavKey.FontSettings) },
                             onOpenLanguage = { navigator.navigate(SettingsNavKey.LanguageSettings) },
+                            onOpenProviders = { navigator.navigate(ProviderNavKey.ProviderList) },
+                            modifier = contentModifier,
+                        )
+                    }
+                }
+                entry<ProviderNavKey.ProviderList> {
+                    // 条目作用域的 ViewModel（由上方 ViewModelStoreNavEntryDecorator
+                    // 提供 owner）：离开提供商页即销毁，编辑器草稿不再残留。
+                    // 状态收集同步下沉到此处，避免表单击键触发 NavHost 全树重组。
+                    val providerViewModel: ProviderViewModel = hiltViewModel()
+                    val providerState by providerViewModel.stateFlow.collectAsStateWithLifecycle()
+
+                    // 一次性事件（toast）在该条目内消费，生命周期感知。
+                    EventsEffect(viewModel = providerViewModel) { event ->
+                        when (event) {
+                            is ProviderEvent.ShowToast -> {
+                                Toast.makeText(
+                                    eventContext,
+                                    eventContext.getString(event.messageRes),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    }
+
+                    SettingsPage(
+                        currentTheme = state.theme,
+                        title = stringResource(ProviderR.string.provider_page_title),
+                        onBack = {
+                            // 编辑态下先关闭表单回到列表，而不是直接退出页面丢失草稿。
+                            if (providerViewModel.stateFlow.value.editor != null) {
+                                providerViewModel.trySendAction(ProviderAction.CancelClicked)
+                            } else {
+                                navigator.goBack()
+                            }
+                        },
+                    ) { contentModifier ->
+                        ProviderScreen(
+                            state = providerState,
+                            onAction = providerViewModel::trySendAction,
+                            currentTheme = state.theme,
                             modifier = contentModifier,
                         )
                     }

@@ -8,12 +8,15 @@ A production-grade ultra-minimalist application with live CSS variable token the
 jasmine/
 ├── app/                        # App main: single Activity + navigation assembly + theme
 ├── core/
-│   ├── data/                   # Data layer (Hilt): UserPreferencesRepository, CustomFontRepository
+│   ├── data/                   # Data layer (Hilt): UserPreferencesRepository, CustomFontRepository, ProviderRepository
 │   ├── database/               # Room: reserved for structured local data (no active DAO yet)
 │   ├── navigation/             # Navigation 3 infrastructure (AppNavigator / NavigationState)
 │   ├── network/                # Retrofit / OkHttp (Hilt-provided, placeholder service)
 │   └── ui/                     # Design tokens, JasmineTheme, shared utilities
 ├── feature/
+│   ├── provider/
+│   │   ├── api/                # Provider nav contract (ProviderNavKey)
+│   │   └── impl/               # Model-provider management (DeepSeek preset + custom OpenAI-protocol providers)
 │   ├── settings/
 │   │   ├── api/                # Settings nav contract (SettingsNavKey)
 │   │   └── impl/               # Settings screens (menu / appearance / font / size / language)
@@ -31,11 +34,12 @@ jasmine/
 
 | Item | Version |
 | :--- | :--- |
-| AGP | 9.1.1 (compileSdk 37) |
-| Kotlin | 2.2.10 |
-| Compose BOM | 2026.08.00 (Material 3) |
+| AGP | 9.4.1 (compileSdk 37) |
+| Kotlin | 2.4.20 |
+| Compose BOM | 2026.09.00 (Compose 1.12.1 / Material 3 1.4.0) |
 | Navigation 3 | 1.1.7 |
 | Hilt | 2.60.1 |
+| Lifecycle | 2.11.0 |
 | Room | 2.7.0 |
 | minSdk / targetSdk | 24 / 37 |
 | JDK | 21 (required by Robolectric SDK 36) |

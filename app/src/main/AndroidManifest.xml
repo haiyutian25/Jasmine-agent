@@ -5,11 +5,10 @@
     <!-- Preset fonts are downloaded over HTTPS from GitHub Releases. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- 禁用备份功能 -->
     <application
         android:name=".JasmineApplication"
-        android:allowBackup="true"
-        android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="@xml/backup_rules"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -39,6 +38,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.MyApplication">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

@@ -2,12 +2,17 @@ package com.lhzkml.jasmine.core.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -32,14 +37,31 @@ private val BottomSheetHandleBottomInset = 8.dp
  * content and a themed drag handle. Stateless: the caller shows or hides it
  * simply by including or omitting it.
  *
+ * IME handling — the official recipe (Android "Window insets in Compose" +
+ * M3 troubleshooting): a ModalBottomSheet's own layout does NOT include the
+ * IME inset by default, so `contentWindowInsets` is set to
+ * `ime ∪ navigationBars` here. M3 then sizes/anchors the sheet against the
+ * keyboard and consumes those insets for the content. Sheet content
+ * composables must NOT add their own `imePadding()` / `navigationBarsPadding()`
+ * — nested inset modifiers would see them already consumed (no double padding)
+ * but keeping a single source of truth here avoids per-frame anchor churn.
+ *
+ * Prerequisite (app level): `android:windowSoftInputMode="adjustResize"` plus
+ * `enableEdgeToEdge()`, otherwise no IME inset is ever dispatched to Compose.
+ *
  * Note: this is the feature's own bottom-sheet wrapper, distinct from Material
  * 3's `androidx.compose.material3.ModalBottomSheet` (used internally).
  *
- * @param onDismiss             called when the user dismisses the sheet
- * @param currentTheme          drives container / content / handle colors
+ * @param onDismiss           called when the user dismisses the sheet
+ * @param currentTheme        drives container / content / handle colors
  * @param skipPartiallyExpanded expand straight to full height when true
- * @param showDragHandle        draw the themed grab handle at the top
- * @param content               the sheet body
+ * @param showDragHandle      draw the themed grab handle at the top
+ * @param allowDismissByDrag  set false for form-style sheets: the whole sheet
+ *   surface is draggable by default, so a finger slip while switching text
+ *   fields would drag the sheet down, drop focus and bounce the keyboard.
+ *   With false, drags can never settle to [SheetValue.Hidden]; scrim tap and
+ *   system back still dismiss through [onDismiss].
+ * @param content             the sheet body
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,6 +71,7 @@ fun BottomSheet(
     modifier: Modifier = Modifier,
     skipPartiallyExpanded: Boolean = true,
     showDragHandle: Boolean = true,
+    allowDismissByDrag: Boolean = true,
     content: @Composable () -> Unit
 ) {
     // The sheet renders in its own popup window, which resets LocalDensity to
@@ -56,7 +79,10 @@ fun BottomSheet(
     // ambient density (carrying the font scale) and restore it inside.
     val ambientDensity = LocalDensity.current
 
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = skipPartiallyExpanded)
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = skipPartiallyExpanded,
+        confirmValueChange = { target -> allowDismissByDrag || target != SheetValue.Hidden },
+    )
     val dragHandle: @Composable (() -> Unit)? = if (showDragHandle) {
         { BottomSheetDragHandle(currentTheme) }
     } else {
@@ -69,6 +95,7 @@ fun BottomSheet(
         containerColor = currentTheme.card,
         contentColor = currentTheme.cardForeground,
         dragHandle = dragHandle,
+        contentWindowInsets = { WindowInsets.ime.union(WindowInsets.navigationBars) },
         modifier = modifier
     ) {
         CompositionLocalProvider(LocalDensity provides ambientDensity) {

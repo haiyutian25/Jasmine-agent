@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="provider_page_title">Model Providers</string>
+    <string name="provider_add">Add Provider</string>
+    <string name="provider_field_name">Name</string>
+    <string name="provider_field_base_url">Base URL</string>
+    <string name="provider_field_api_key">API Key</string>
+    <string name="provider_api_type_label">API Type</string>
+    <string name="provider_api_type_chat">Chat Completions</string>
+    <string name="provider_api_type_responses">Responses API</string>
+    <string name="provider_save">Save</string>
+    <string name="provider_cancel">Cancel</string>
+    <string name="provider_edit_cd">Edit provider</string>
+    <string name="provider_delete_cd">Delete provider</string>
+    <string name="provider_saved_toast">Provider saved</string>
+    <string name="provider_deleted_toast">Provider deleted</string>
+    <string name="provider_incomplete_toast">Please complete all fields</string>
+    <string name="provider_models_label">Models</string>
+    <string name="provider_fetch_models">Fetch Model List</string>
+    <string name="provider_custom_model">Custom Model ID</string>
+    <string name="provider_select_model">Select Model</string>
+    <string name="provider_fetching">Fetching…</string>
+    <string name="provider_fetch_failed">Could not load the model list</string>
+    <string name="provider_fetch_failed_toast">Failed to fetch model list</string>
+    <string name="provider_fetch_needs_endpoint_toast">Fill in Base URL and API Key first</string>
+    <string name="provider_fetch_empty">No models returned</string>
+    <string name="provider_retry">Retry</string>
+    <string name="provider_model_id">Model ID</string>
+    <string name="provider_model_id_required_toast">Model ID is required</string>
+    <string name="provider_context_length">Context Length (tokens)</string>
+    <string name="provider_max_output_length">Max Output Length (tokens)</string>
+    <string name="provider_model_edit_cd">Edit model</string>
+    <string name="provider_model_delete_cd">Delete model</string>
+    <string name="provider_model_params">Context %1$d · Output %2$d</string>
+</resources>

@@ -1,8 +1,12 @@
 package com.lhzkml.jasmine.core.data.di
 
+import com.lhzkml.jasmine.core.data.datasource.ProviderModelDataSource
+import com.lhzkml.jasmine.core.data.datastore.ProviderDataStore
 import com.lhzkml.jasmine.core.data.datastore.UserPreferencesDataStore
 import com.lhzkml.jasmine.core.data.manager.dispatcher.DispatcherManager
 import com.lhzkml.jasmine.core.data.manager.dispatcher.DispatcherManagerImpl
+import com.lhzkml.jasmine.core.data.repository.ProviderRepository
+import com.lhzkml.jasmine.core.data.repository.ProviderRepositoryImpl
 import com.lhzkml.jasmine.core.data.repository.UserPreferencesRepository
 import com.lhzkml.jasmine.core.data.repository.UserPreferencesRepositoryImpl
 import dagger.Module
@@ -26,6 +30,18 @@ object DataModule {
         dispatcherManager: DispatcherManager,
     ): UserPreferencesRepository = UserPreferencesRepositoryImpl(
         userPreferencesDataStore = userPreferencesDataStore,
+        dispatcherManager = dispatcherManager,
+    )
+
+    @Provides
+    @Singleton
+    fun provideProviderRepository(
+        providerDataStore: ProviderDataStore,
+        providerModelDataSource: ProviderModelDataSource,
+        dispatcherManager: DispatcherManager,
+    ): ProviderRepository = ProviderRepositoryImpl(
+        providerDataStore = providerDataStore,
+        providerModelDataSource = providerModelDataSource,
         dispatcherManager = dispatcherManager,
     )
 }

@@ -2,6 +2,7 @@
 <resources>
     <string name="settings_menu_appearance_title">Appearance &amp; Themes</string>
     <string name="settings_menu_font_title">Font</string>
+    <string name="settings_menu_provider_title">Model Providers</string>
     <string name="settings_section_color_mode">COLOR SCHEME &amp; MODE</string>
     <string name="settings_section_palettes">CURATED DESIGN PALETTES</string>
     <string name="settings_section_typography">TYPOGRAPHY ENGINE</string>

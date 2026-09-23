@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FormatSize
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,10 +43,11 @@ import com.lhzkml.jasmine.feature.settings.impl.R
 private val MenuRowIconSize = 20.dp
 private val MenuRowIconTextSpacing = 14.dp
 
-/** Row inner padding; divider hairline width. */
+/** Row inner padding; divider hairline width; spacing between group cards. */
 private val MenuRowPaddingHorizontal = 16.dp
 private val MenuRowPaddingVertical = 14.dp
 private val MenuRowDividerHeight = 1.dp
+private val MenuGroupSpacing = 16.dp
 
 /** Title typography. */
 private val MenuRowTitleFontSize = 14.sp
@@ -57,7 +59,7 @@ private val MenuRowTitleFontSize = 14.sp
  * no trailing chevron — the whole row is the tap target.
  *
  * Entries: "Appearance & Themes" -> appearance page, "Font" -> font page,
- * "Language" -> language page.
+ * "Language" -> language page, "Model Providers" -> provider feature.
  */
 @Composable
 fun SettingsMenuScreen(
@@ -65,6 +67,7 @@ fun SettingsMenuScreen(
     onOpenAppearance: () -> Unit,
     onOpenFont: () -> Unit,
     onOpenLanguage: () -> Unit,
+    onOpenProviders: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -100,6 +103,19 @@ fun SettingsMenuScreen(
                 onClick = onOpenLanguage,
                 currentTheme = currentTheme,
                 testTag = "settings_menu_language_entry"
+            )
+        }
+
+        // Model providers are a separate feature — their own group card.
+        Spacer(modifier = Modifier.height(MenuGroupSpacing))
+
+        SettingsGroupCard(currentTheme = currentTheme, modifier = Modifier.fillMaxWidth()) {
+            SettingsMenuRow(
+                icon = Icons.Outlined.SmartToy,
+                title = stringResource(R.string.settings_menu_provider_title),
+                onClick = onOpenProviders,
+                currentTheme = currentTheme,
+                testTag = "settings_menu_provider_entry"
             )
         }
     }
