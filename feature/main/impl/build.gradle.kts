@@ -8,7 +8,7 @@ android {
   namespace = "com.lhzkml.jasmine.feature.main.impl"
   compileSdk { version = release(37) }
 
-  defaultConfig { minSdk = 24 }
+  defaultConfig { minSdk = 26 }
 
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
@@ -22,6 +22,8 @@ kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarg
 
 dependencies {
   api(project(":feature:main:api"))
+  // Chat surface: the shell hosts the conversation, so it owns the AgentChat facade.
+  implementation(project(":core:agent"))
   implementation(project(":core:ui"))
   implementation(project(":core:data"))
   implementation(project(":core:navigation"))
@@ -50,4 +52,8 @@ dependencies {
 
   implementation(libs.hilt.android)
   ksp(libs.hilt.compiler)
+
+  // The chat state machine is tested against fake repositories and a fake AgentChat.
+  testImplementation(libs.junit)
+  testImplementation(libs.kotlinx.coroutines.test)
 }

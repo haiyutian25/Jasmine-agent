@@ -20,6 +20,9 @@ interface UserPreferencesRepository {
     suspend fun updateColorMode(colorMode: String)
     suspend fun updateFontScale(fontScale: Float)
     suspend fun updateActiveCustomFont(fontId: String)
+
+    /** Points the chat at [providerId] / [modelId] (both empty clears the selection). */
+    suspend fun updateActiveModel(providerId: String, modelId: String)
 }
 
 /**
@@ -58,4 +61,9 @@ class UserPreferencesRepositoryImpl(
 
     override suspend fun updateActiveCustomFont(fontId: String) =
         userPreferencesDataStore.update { it.copy(activeCustomFontId = fontId) }
+
+    override suspend fun updateActiveModel(providerId: String, modelId: String) =
+        userPreferencesDataStore.update {
+            it.copy(activeProviderId = providerId, activeModelId = modelId)
+        }
 }

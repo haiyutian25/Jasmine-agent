@@ -34,7 +34,7 @@
     <string name="splash_phase_format">阶段 %1$02d / %2$02d</string>
     <string name="splash_ready">就绪</string>
     <string name="splash_exec">执行</string>
-    <string name="splash_launch_canvas">启动工作室画布</string>
+    <string name="splash_launch_canvas">开始对话</string>
 
     <!-- 底部导航标签 -->
 
@@ -47,4 +47,20 @@
 
     <!-- 语言设置 -->
     <!-- 语言名以其母语显示（与默认资源一致），不随界面语言翻译 -->
+
+    <!-- 对话 -->
+    <string name="chat_setup_title">尚未选择模型</string>
+    <string name="chat_setup_hint">选择一个供应商与模型即可开始对话。</string>
+    <string name="chat_api_key_hint">请先为 %1$s 填写 API 密钥。</string>
+    <string name="chat_setup_action">选择模型</string>
+    <string name="chat_manage_providers">管理模型提供商</string>
+    <string name="chat_input_hint">输入消息…</string>
+    <string name="chat_send_cd">发送消息</string>
+    <string name="chat_new_conversation">新对话</string>
+    <string name="chat_pick_model_title">选择模型</string>
+    <string name="chat_pick_model_empty">尚未配置任何模型，请先在「模型提供商」中添加。</string>
+    <string name="chat_history_cd">历史对话</string>
+    <string name="chat_history_title">历史对话</string>
+    <string name="chat_history_empty">暂无历史对话。</string>
+    <string name="chat_history_delete_cd">删除对话</string>
 </resources>

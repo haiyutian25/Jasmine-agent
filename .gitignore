@@ -16,6 +16,11 @@ build/
 local.properties
 .env
 debug.keystore
+# Signing material must never be committed. `my-upload-key.jks` is the default
+# release keystore path in app/build.gradle.kts.
+*.jks
+*.keystore
+my-upload-key.jks
 .git-commit-msg.txt
 .git_commit_msg.txt
 .tmp_frp/

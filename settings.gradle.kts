@@ -21,6 +21,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "jasmine"
 include(":app")
+include(":core:agent")
 include(":core:data")
 include(":core:database")
 include(":core:navigation")

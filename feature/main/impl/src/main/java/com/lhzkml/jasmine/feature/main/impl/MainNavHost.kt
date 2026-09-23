@@ -135,11 +135,15 @@ fun MainNavHost(
                     EventsEffect(viewModel = providerViewModel) { event ->
                         when (event) {
                             is ProviderEvent.ShowToast -> {
-                                Toast.makeText(
-                                    eventContext,
-                                    eventContext.getString(event.messageRes),
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                val message = if (event.formatArgs.isEmpty()) {
+                                    eventContext.getString(event.messageRes)
+                                } else {
+                                    eventContext.getString(
+                                        event.messageRes,
+                                        *event.formatArgs.toTypedArray()
+                                    )
+                                }
+                                Toast.makeText(eventContext, message, Toast.LENGTH_SHORT).show()
                             }
                         }
                     }

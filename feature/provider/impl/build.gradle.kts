@@ -8,7 +8,7 @@ android {
   namespace = "com.lhzkml.jasmine.feature.provider.impl"
   compileSdk { version = release(37) }
 
-  defaultConfig { minSdk = 24 }
+  defaultConfig { minSdk = 26 }
 
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
@@ -24,6 +24,8 @@ dependencies {
   api(project(":feature:provider:api"))
   implementation(project(":core:ui"))
   implementation(project(":core:data"))
+  // Provider connectivity check runs through the agent layer's probe facade.
+  implementation(project(":core:agent"))
 
   implementation(platform(libs.androidx.compose.bom))
   implementation(libs.androidx.activity.compose)

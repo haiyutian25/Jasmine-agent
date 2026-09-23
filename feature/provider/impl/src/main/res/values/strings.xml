@@ -32,4 +32,9 @@
     <string name="provider_model_edit_cd">Edit model</string>
     <string name="provider_model_delete_cd">Delete model</string>
     <string name="provider_model_params">Context %1$d · Output %2$d</string>
+    <string name="provider_test_connection">Test Connection</string>
+    <string name="provider_testing">Testing…</string>
+    <string name="provider_test_needs_model_toast">Add a model first</string>
+    <string name="provider_test_success_toast">Connection OK · %1$s</string>
+    <string name="provider_test_failed_toast">Connection failed: %1$s</string>
 </resources>

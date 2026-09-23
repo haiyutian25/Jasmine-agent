@@ -461,6 +461,44 @@ private fun ProviderEditorContent(
         }
     }
 
+    Spacer(modifier = Modifier.height(8.dp))
+
+    // Connectivity check: a real round trip through the draft credentials and
+    // the first configured model — verifies the provider before saving.
+    Button(
+        onClick = { onAction(ProviderAction.TestConnectionClicked) },
+        modifier = Modifier.fillMaxWidth(),
+        currentTheme = currentTheme,
+        fillWidth = true,
+        contentAlignment = Alignment.Center,
+        testTag = "provider_test_connection_btn"
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (editor.isProbing) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(ModelSheetSpinnerSize),
+                    color = currentTheme.primary,
+                    strokeWidth = 2.dp
+                )
+            }
+            Text(
+                text = stringResource(
+                    if (editor.isProbing) {
+                        R.string.provider_testing
+                    } else {
+                        R.string.provider_test_connection
+                    }
+                ),
+                fontSize = ProviderActionButtonFontSize,
+                fontWeight = FontWeight.Medium,
+                color = currentTheme.foreground
+            )
+        }
+    }
+
     Spacer(modifier = Modifier.height(24.dp))
 
     Row(

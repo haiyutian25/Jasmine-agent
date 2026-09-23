@@ -14,15 +14,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lhzkml.jasmine.core.ui.components.NavigationTab
 import com.lhzkml.jasmine.core.ui.components.ProductionBottomNavBar
 import com.lhzkml.jasmine.core.ui.components.ProductionTopNavBar
 import com.lhzkml.jasmine.core.ui.components.SidebarDrawer
 import com.lhzkml.jasmine.core.ui.components.SidebarEdgeZone
-import com.lhzkml.jasmine.feature.main.impl.screens.CanvasScreen
+import com.lhzkml.jasmine.feature.main.impl.chat.ChatScreen
+import com.lhzkml.jasmine.feature.main.impl.chat.ChatViewModel
 
 /**
- * Main destination: push-canvas sidebar + 4-tab scaffold. Stateless renderer of
+ * Main destination: push-canvas sidebar + a single chat tab. Stateless renderer of
  * [MainState]: every user intent leaves through [onAction] (wired to
  * [MainViewModel.trySendAction] by the host), keeping the single stateFlow
  * subscription at the activity root.
@@ -30,6 +33,7 @@ import com.lhzkml.jasmine.feature.main.impl.screens.CanvasScreen
  * The settings flow is NOT hosted here — it lives on the Navigation 3 back
  * stack as sibling destinations (see [MainNavHost]), so system back,
  * predictive back and process-death restore come from the navigation library.
+ * The chat has its own [ChatViewModel], scoped to this navigation entry.
  */
 @Composable
 fun MainScreen(
@@ -94,7 +98,19 @@ fun MainScreen(
                     )
                 ) { tab ->
                     when (tab) {
-                        NavigationTab.CANVAS -> CanvasScreen()
+                        NavigationTab.CHAT -> {
+                            // Collect the chat state here rather than at the root: a
+                            // streaming reply then recomposes only the chat surface,
+                            // not the whole NavHost tree.
+                            val chatViewModel: ChatViewModel = hiltViewModel()
+                            val chatState by chatViewModel.stateFlow.collectAsStateWithLifecycle()
+                            ChatScreen(
+                                state = chatState,
+                                onAction = chatViewModel::trySendAction,
+                                currentTheme = state.theme,
+                                onOpenSettings = onOpenSettings,
+                            )
+                        }
                     }
                 }
             }

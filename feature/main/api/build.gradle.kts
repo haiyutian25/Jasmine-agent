@@ -7,7 +7,7 @@ android {
   namespace = "com.lhzkml.jasmine.feature.main.api"
   compileSdk { version = release(37) }
 
-  defaultConfig { minSdk = 24 }
+  defaultConfig { minSdk = 26 }
 
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11

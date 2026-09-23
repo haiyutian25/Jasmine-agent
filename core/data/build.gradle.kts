@@ -8,7 +8,7 @@ android {
   namespace = "com.lhzkml.jasmine.core.data"
   compileSdk { version = release(37) }
 
-  defaultConfig { minSdk = 24 }
+  defaultConfig { minSdk = 26 }
 
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
@@ -19,7 +19,12 @@ android {
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11) } }
 
 dependencies {
-  api(project(":core:database"))
+  // Chat transcript persistence. `implementation`, not `api`: Room entities and
+  // DAOs stay behind the repository boundary, so no consumer needs to see them.
+  // Room itself is a direct dependency because this module touches RoomDatabase
+  // (to obtain the DAO) and the Room-annotated entity types.
+  implementation(project(":core:database"))
+  implementation(libs.androidx.room.runtime)
   implementation(project(":core:network"))
 
   implementation(libs.kotlinx.coroutines.core)

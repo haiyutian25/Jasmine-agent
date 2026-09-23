@@ -43,6 +43,8 @@ class UserPreferencesDataStore @Inject constructor(
             prefs[KEY_COLOR_MODE] = updated.colorMode
             prefs[KEY_FONT_SCALE] = updated.fontScale
             prefs[KEY_ACTIVE_FONT] = updated.activeCustomFontId
+            prefs[KEY_ACTIVE_PROVIDER] = updated.activeProviderId
+            prefs[KEY_ACTIVE_MODEL] = updated.activeModelId
         }
     }
 
@@ -52,6 +54,8 @@ class UserPreferencesDataStore @Inject constructor(
         colorMode = this[KEY_COLOR_MODE] ?: UserPreferences.DEFAULT.colorMode,
         fontScale = this[KEY_FONT_SCALE] ?: UserPreferences.DEFAULT.fontScale,
         activeCustomFontId = this[KEY_ACTIVE_FONT] ?: UserPreferences.DEFAULT.activeCustomFontId,
+        activeProviderId = this[KEY_ACTIVE_PROVIDER] ?: UserPreferences.DEFAULT.activeProviderId,
+        activeModelId = this[KEY_ACTIVE_MODEL] ?: UserPreferences.DEFAULT.activeModelId,
     )
 
     private companion object {
@@ -60,6 +64,8 @@ class UserPreferencesDataStore @Inject constructor(
         val KEY_COLOR_MODE = stringPreferencesKey("colorMode")
         val KEY_FONT_SCALE = floatPreferencesKey("fontScale")
         val KEY_ACTIVE_FONT = stringPreferencesKey("activeCustomFontId")
+        val KEY_ACTIVE_PROVIDER = stringPreferencesKey("activeProviderId")
+        val KEY_ACTIVE_MODEL = stringPreferencesKey("activeModelId")
     }
 }
 

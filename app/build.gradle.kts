@@ -12,7 +12,8 @@ android {
 
   defaultConfig {
     applicationId = "com.lhzkml.jasmine"
-    minSdk = 24
+    // ADK core 的 Android 变体要求 minSdk 26，app 需对齐（放弃 API 24–25）。
+    minSdk = 26
     targetSdk = 37
     versionCode = 1
     versionName = "1.0"
@@ -54,6 +55,24 @@ android {
     compose = true
     buildConfig = true
   }
+  /**
+   * Google ADK pulls in the google-auth stack (`google-auth-library-*`,
+   * `api-common`), whose jars each ship the same `META-INF` metadata files. They
+   * are JAR-index/licence boilerplate that means nothing inside an APK, but
+   * duplicate entries fail resource merging — so they must be excluded or the
+   * app cannot be packaged at all.
+   */
+  packaging {
+    resources {
+      excludes += "META-INF/INDEX.LIST"
+      excludes += "META-INF/DEPENDENCIES"
+      excludes += "META-INF/LICENSE"
+      excludes += "META-INF/LICENSE.txt"
+      excludes += "META-INF/NOTICE"
+      excludes += "META-INF/NOTICE.txt"
+    }
+  }
+
   testOptions { unitTests { isIncludeAndroidResources = true } }
   dependenciesInfo {
     includeInApk = false
@@ -76,6 +95,7 @@ dependencies {
   implementation(libs.androidx.lifecycle.runtime.compose)
   ksp(libs.hilt.compiler)
 
+  testImplementation(project(":core:data"))
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)

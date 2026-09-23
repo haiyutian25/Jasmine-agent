@@ -144,7 +144,7 @@ class MainViewModel @Inject constructor(
                 isSystemDark = isSystemDark,
             ),
             activeContentFont = AppTypographyChoice.EDITORIAL.font,
-            currentTab = NavigationTab.CANVAS,
+            currentTab = NavigationTab.CHAT,
             isSidebarOpen = false,
             typographyChoice = AppTypographyChoice.EDITORIAL,
             fontScale = UserPreferences.DEFAULT.fontScale,

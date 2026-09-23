@@ -8,7 +8,7 @@ android {
   namespace = "com.lhzkml.jasmine.core.network"
   compileSdk { version = release(37) }
 
-  defaultConfig { minSdk = 24 }
+  defaultConfig { minSdk = 26 }
 
   buildFeatures { buildConfig = true }
 

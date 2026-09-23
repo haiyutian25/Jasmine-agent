@@ -69,7 +69,7 @@ enum class NavigationTab(
     val unselectedIcon: ImageVector,
     val testTag: String
 ) {
-    CANVAS(R.string.nav_tab_canvas, Icons.Filled.Home, Icons.Outlined.Home, "bottom_tab_canvas"),
+    CHAT(R.string.nav_tab_chat, Icons.Filled.Home, Icons.Outlined.Home, "bottom_tab_chat"),
 }
 
 /** Page settle animation timing for swipe tab switching. */

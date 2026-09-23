@@ -34,7 +34,7 @@
     <string name="splash_phase_format">PHASE %1$02d / %2$02d</string>
     <string name="splash_ready">READY</string>
     <string name="splash_exec">EXEC</string>
-    <string name="splash_launch_canvas">Launch Studio Canvas</string>
+    <string name="splash_launch_canvas">Start chatting</string>
 
     <!-- Bottom navigation tabs -->
 
@@ -46,4 +46,20 @@
     <!-- Sidebar drawer -->
 
     <!-- Language settings -->
+
+    <!-- Chat -->
+    <string name="chat_setup_title">No model yet</string>
+    <string name="chat_setup_hint">Pick a provider and a model to start chatting.</string>
+    <string name="chat_api_key_hint">Add an API key for %1$s to start chatting.</string>
+    <string name="chat_setup_action">Choose model</string>
+    <string name="chat_manage_providers">Manage providers</string>
+    <string name="chat_input_hint">Message…</string>
+    <string name="chat_send_cd">Send message</string>
+    <string name="chat_new_conversation">New chat</string>
+    <string name="chat_pick_model_title">Choose model</string>
+    <string name="chat_pick_model_empty">No models configured yet. Add one under Model Providers.</string>
+    <string name="chat_history_cd">Chat history</string>
+    <string name="chat_history_title">Chats</string>
+    <string name="chat_history_empty">No saved chats yet.</string>
+    <string name="chat_history_delete_cd">Delete chat</string>
 </resources>

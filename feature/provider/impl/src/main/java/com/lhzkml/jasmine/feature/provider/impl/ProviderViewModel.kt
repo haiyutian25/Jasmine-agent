@@ -2,6 +2,8 @@ package com.lhzkml.jasmine.feature.provider.impl
 
 import androidx.annotation.StringRes
 import androidx.lifecycle.viewModelScope
+import com.lhzkml.jasmine.core.agent.ProbeResult
+import com.lhzkml.jasmine.core.agent.ProviderProbe
 import com.lhzkml.jasmine.core.data.model.ModelConfig
 import com.lhzkml.jasmine.core.data.model.ProviderApiType
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
@@ -46,7 +48,8 @@ sealed interface ModelSheetState {
  * new provider; a non-null id means "edit the stored entry with this id".
  * Models live on the draft and are persisted together with the provider on
  * save. [modelSheet] / [modelEditor] drive the two bottom sheets and are
- * only meaningful while the editor is open.
+ * only meaningful while the editor is open. [isProbing] marks an in-flight
+ * connectivity check against the (unsaved) draft credentials.
  */
 data class ProviderEditorState(
     val id: String?,
@@ -58,6 +61,7 @@ data class ProviderEditorState(
     val models: List<ModelConfig>,
     val modelSheet: ModelSheetState?,
     val modelEditor: ModelEditorState?,
+    val isProbing: Boolean = false,
 )
 
 /**
@@ -75,8 +79,11 @@ data class ProviderState(
  * One-time events emitted by [ProviderViewModel]; consumed exactly once by the UI.
  */
 sealed interface ProviderEvent {
-    /** Show a transient toast carrying a string resource. */
-    data class ShowToast(@StringRes val messageRes: Int) : ProviderEvent
+    /** Show a transient toast carrying a string resource, formatted with [formatArgs] when present. */
+    data class ShowToast(
+        @StringRes val messageRes: Int,
+        val formatArgs: List<Any> = emptyList(),
+    ) : ProviderEvent
 }
 
 /**
@@ -96,6 +103,9 @@ sealed interface ProviderAction {
     data class ApiTypeSelected(val type: ProviderApiType) : ProviderAction
     data object SaveClicked : ProviderAction
     data object CancelClicked : ProviderAction
+
+    /** Runs a real round trip through the draft credentials (see [ProviderProbe]). */
+    data object TestConnectionClicked : ProviderAction
 
     // Model catalog sheet
     data object FetchModelsClicked : ProviderAction
@@ -120,6 +130,7 @@ sealed interface ProviderAction {
         data class ProvidersReceived(val providers: List<ProviderConfig>) : Internal
         data class ModelsFetched(val modelIds: List<String>) : Internal
         data object ModelsFetchFailed : Internal
+        data class ProbeFinished(val result: ProbeResult) : Internal
     }
 }
 
@@ -128,12 +139,14 @@ sealed interface ProviderAction {
  *
  * The UI renders [stateFlow] and sends every user intent as a [ProviderAction];
  * one-shot feedback (toasts) is delivered through [eventFlow]. State mutations
- * happen synchronously inside [handleAction]; persistence and the model-catalog
- * fetch post follow-up [ProviderAction.Internal] actions.
+ * happen synchronously inside [handleAction]; persistence, the model-catalog
+ * fetch and the connectivity probe post follow-up [ProviderAction.Internal]
+ * actions.
  */
 @HiltViewModel
 class ProviderViewModel @Inject constructor(
     private val providerRepository: ProviderRepository,
+    private val providerProbe: ProviderProbe,
 ) : BaseViewModel<ProviderState, ProviderEvent, ProviderAction>(
     initialState = ProviderState(),
 ) {
@@ -174,6 +187,7 @@ class ProviderViewModel @Inject constructor(
 
             ProviderAction.SaveClicked -> handleSaveClicked()
             ProviderAction.CancelClicked -> updateState { copy(editor = null) }
+            ProviderAction.TestConnectionClicked -> handleTestConnectionClicked()
 
             ProviderAction.FetchModelsClicked -> handleFetchModelsClicked()
             ProviderAction.CustomModelClicked -> updateEditor {
@@ -220,6 +234,7 @@ class ProviderViewModel @Inject constructor(
                 updateEditor { copy(modelSheet = ModelSheetState.Error) }
                 sendEvent(ProviderEvent.ShowToast(R.string.provider_fetch_failed_toast))
             }
+            is ProviderAction.Internal.ProbeFinished -> handleProbeFinished(action)
         }
     }
 
@@ -284,6 +299,55 @@ class ProviderViewModel @Inject constructor(
         }
         viewModelScope.launch { providerRepository.upsertProvider(provider) }
         sendEvent(ProviderEvent.ShowToast(R.string.provider_saved_toast))
+    }
+
+    /**
+     * Probes the draft endpoint with the first configured model — the check is
+     * deliberately run against unsaved credentials so the user can verify
+     * before committing. Nothing is persisted here.
+     */
+    private fun handleTestConnectionClicked() {
+        val editor = state.editor ?: return
+        if (editor.isProbing) return
+        val baseUrl = editor.baseUrl.trim()
+        val apiKey = editor.apiKey.trim()
+        if (baseUrl.isEmpty() || apiKey.isEmpty()) {
+            sendEvent(ProviderEvent.ShowToast(R.string.provider_fetch_needs_endpoint_toast))
+            return
+        }
+        val modelId = editor.models.firstOrNull()?.modelId
+        if (modelId == null) {
+            sendEvent(ProviderEvent.ShowToast(R.string.provider_test_needs_model_toast))
+            return
+        }
+        updateEditor { copy(isProbing = true) }
+        val probe = ProviderConfig(
+            id = editor.id ?: "",
+            name = editor.name,
+            baseUrl = baseUrl,
+            apiKey = apiKey,
+            apiType = editor.apiType,
+        )
+        viewModelScope.launch {
+            val result = providerProbe.probe(probe, modelId)
+            sendAction(ProviderAction.Internal.ProbeFinished(result))
+        }
+    }
+
+    private fun handleProbeFinished(action: ProviderAction.Internal.ProbeFinished) {
+        updateEditor { copy(isProbing = false) }
+        sendEvent(
+            when (val result = action.result) {
+                is ProbeResult.Success -> ProviderEvent.ShowToast(
+                    R.string.provider_test_success_toast,
+                    listOf(result.reply.abbreviated(ProbeReplyMaxLength)),
+                )
+                is ProbeResult.Failure -> ProviderEvent.ShowToast(
+                    R.string.provider_test_failed_toast,
+                    listOf(result.detail),
+                )
+            }
+        )
     }
 
     // endregion
@@ -381,3 +445,10 @@ class ProviderViewModel @Inject constructor(
         mutableStateFlow.update(block)
     }
 }
+
+/** Keeps a model reply short enough to read inside a toast. */
+private const val ProbeReplyMaxLength = 60
+
+/** Truncates with an ellipsis when [this] exceeds [max] characters. */
+private fun String.abbreviated(max: Int): String =
+    if (length <= max) this else take(max - 1) + "…"
