@@ -112,7 +112,7 @@ private fun resolveTheme(
         ColorMode.DARK -> true
         ColorMode.SYSTEM -> isSystemDark
     }
-    return ThemeResolver.resolveFamily(family, effectiveIsDark)
+    return ThemeResolver.resolveFamily(family.orEmpty(), effectiveIsDark)
 }
 
 /**

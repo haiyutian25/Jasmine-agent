@@ -3,10 +3,11 @@ package com.lhzkml.jasmine.core.agent
 import com.google.adk.kt.models.LlmRequest
 import com.google.adk.kt.models.LlmResponse
 import com.google.adk.kt.models.Model
+import com.google.adk.kt.sessions.InMemorySessionService
+import com.google.adk.kt.sessions.SessionKey
 import com.google.adk.kt.types.Content
 import com.google.adk.kt.types.Part
 import com.google.adk.kt.types.Role
-import com.lhzkml.jasmine.core.data.model.ChatRole
 import com.lhzkml.jasmine.core.data.model.ProviderApiType
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import kotlinx.coroutines.flow.Flow
@@ -21,53 +22,129 @@ import org.junit.Test
 /**
  * Drives the real ADK runner with a recording [Model].
  *
- * This is what makes the transcript restore trustworthy: a restored conversation
- * is only useful if the replayed turns actually reach the model, and that is
- * asserted here by inspecting the `LlmRequest` the runner builds — no network,
- * no API key.
+ * The model's context comes entirely from the session store, so these tests
+ * assert what the runner reads back out of it by inspecting the `LlmRequest` it
+ * builds — no network, no API key.
+ *
+ * Sessions are exercised through a real [InMemorySessionService]; the app injects
+ * ADK's Room-backed one, and the resume path is identical either way (the service
+ * interface is the seam).
  */
 class AdkAgentChatTest {
 
     @Test
-    fun `replayed history reaches the model`() = runTest {
-        val model = RecordingModel(reply = "second answer")
-        val chat = AdkAgentChat(modelFactory = { _, _ -> model })
+    fun `a new session starts with no context`() = runTest {
+        val model = RecordingModel(reply = "hi")
+        val chat = AdkAgentChat(
+            sessionService = InMemorySessionService(),
+            modelFactory = { _, _ -> model },
+        )
 
         chat.startConversation(
+            sessionId = CONVERSATION_ID,
             provider = PROVIDER,
             modelId = "test-model",
             instruction = "be nice",
-            history = listOf(
-                ChatTurn(ChatRole.USER, "first question"),
-                ChatTurn(ChatRole.ASSISTANT, "first answer"),
-            ),
         )
-        chat.send("second question").toList()
-
-        val texts = model.requests.single().texts()
-        assertTrue("replayed user turn missing: $texts", texts.contains("first question"))
-        assertTrue("replayed assistant turn missing: $texts", texts.contains("first answer"))
-        assertTrue("new turn missing: $texts", texts.contains("second question"))
-        // Replayed turns keep their role so the model reads them as a dialogue.
-        assertEquals(1, model.requests.single().contents.count { it.role == Role.MODEL })
-    }
-
-    @Test
-    fun `without history the model only sees the new message`() = runTest {
-        val model = RecordingModel(reply = "hi")
-        val chat = AdkAgentChat(modelFactory = { _, _ -> model })
-
-        chat.startConversation(provider = PROVIDER, modelId = "test-model", instruction = "be nice")
         chat.send("only message").toList()
 
         assertEquals(listOf("only message"), model.requests.single().texts())
     }
 
     @Test
+    fun `a stored conversation is resumed with its own context`() = runTest {
+        val sessionService = InMemorySessionService()
+        val first = RecordingModel(reply = "first answer")
+        val chat = AdkAgentChat(sessionService = sessionService, modelFactory = { _, _ -> first })
+
+        chat.startConversation(
+            sessionId = CONVERSATION_ID,
+            provider = PROVIDER,
+            modelId = "test-model",
+            instruction = "be nice",
+        )
+        chat.send("first question").toList()
+        chat.endConversation()
+
+        // A fresh facade over the same store models an app restart: the earlier
+        // turns must come back from the session, not from anywhere else.
+        val second = RecordingModel(reply = "second answer")
+        val resumed = AdkAgentChat(sessionService = sessionService, modelFactory = { _, _ -> second })
+        resumed.startConversation(
+            sessionId = CONVERSATION_ID,
+            provider = PROVIDER,
+            modelId = "test-model",
+            instruction = "be nice",
+        )
+        resumed.send("second question").toList()
+
+        val texts = second.requests.single().texts()
+        assertTrue("stored context was not restored: $texts", texts.contains("first question"))
+        assertTrue("stored context was not restored: $texts", texts.contains("first answer"))
+        assertTrue("new turn missing: $texts", texts.contains("second question"))
+    }
+
+    @Test
+    fun `a different conversation does not inherit another one's context`() = runTest {
+        val sessionService = InMemorySessionService()
+        val first = RecordingModel(reply = "first answer")
+        val chat = AdkAgentChat(sessionService = sessionService, modelFactory = { _, _ -> first })
+
+        chat.startConversation(
+            sessionId = "conversation-1",
+            provider = PROVIDER,
+            modelId = "test-model",
+            instruction = "be nice",
+        )
+        chat.send("secret").toList()
+        chat.endConversation()
+
+        val second = RecordingModel(reply = "clean answer")
+        val other = AdkAgentChat(sessionService = sessionService, modelFactory = { _, _ -> second })
+        other.startConversation(
+            sessionId = "conversation-2",
+            provider = PROVIDER,
+            modelId = "test-model",
+            instruction = "be nice",
+        )
+        other.send("fresh question").toList()
+
+        val texts = second.requests.single().texts()
+        assertFalse("context leaked between conversations: $texts", texts.contains("secret"))
+    }
+
+    @Test
+    fun `ending a conversation does not erase the stored session`() = runTest {
+        val sessionService = InMemorySessionService()
+        val model = RecordingModel(reply = "ok")
+        val chat = AdkAgentChat(sessionService = sessionService, modelFactory = { _, _ -> model })
+
+        chat.startConversation(
+            sessionId = CONVERSATION_ID,
+            provider = PROVIDER,
+            modelId = "test-model",
+            instruction = "be nice",
+        )
+        chat.send("remember me").toList()
+        chat.endConversation()
+
+        val events = sessionService.listEvents(sessionKey()).events
+        assertTrue("the session was dropped on endConversation", events.isNotEmpty())
+    }
+
+    @Test
     fun `assistant text is streamed back to the caller`() = runTest {
         val model = RecordingModel(reply = "pong")
-        val chat = AdkAgentChat(modelFactory = { _, _ -> model })
-        chat.startConversation(provider = PROVIDER, modelId = "test-model", instruction = "be nice")
+        val chat = AdkAgentChat(
+            sessionService = InMemorySessionService(),
+            modelFactory = { _, _ -> model },
+        )
+        chat.startConversation(
+            sessionId = CONVERSATION_ID,
+            provider = PROVIDER,
+            modelId = "test-model",
+            instruction = "be nice",
+        )
 
         val events = chat.send("ping").toList()
 
@@ -83,8 +160,16 @@ class AdkAgentChatTest {
     @Test
     fun `a model error becomes a failed event`() = runTest {
         val model = RecordingModel(reply = "", errorMessage = "HTTP 401: bad key")
-        val chat = AdkAgentChat(modelFactory = { _, _ -> model })
-        chat.startConversation(provider = PROVIDER, modelId = "test-model", instruction = "be nice")
+        val chat = AdkAgentChat(
+            sessionService = InMemorySessionService(),
+            modelFactory = { _, _ -> model },
+        )
+        chat.startConversation(
+            sessionId = CONVERSATION_ID,
+            provider = PROVIDER,
+            modelId = "test-model",
+            instruction = "be nice",
+        )
 
         val events = chat.send("ping").toList()
 
@@ -96,14 +181,25 @@ class AdkAgentChatTest {
 
     @Test
     fun `sending before starting a conversation is rejected`() = runTest {
-        val chat = AdkAgentChat(modelFactory = { _, _ -> RecordingModel(reply = "x") })
+        val chat = AdkAgentChat(
+            sessionService = InMemorySessionService(),
+            modelFactory = { _, _ -> RecordingModel(reply = "x") },
+        )
 
         val failure = runCatching { chat.send("hi").toList() }.exceptionOrNull()
 
         assertTrue("expected IllegalStateException, got $failure", failure is IllegalStateException)
     }
 
+    private fun sessionKey() = SessionKey(
+        appName = "jasmine",
+        userId = "local_user",
+        id = CONVERSATION_ID,
+    )
+
     private companion object {
+        const val CONVERSATION_ID = "conversation-1"
+
         val PROVIDER = ProviderConfig(
             id = "deepseek",
             name = "DeepSeek",

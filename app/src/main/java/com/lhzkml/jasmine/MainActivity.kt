@@ -6,13 +6,9 @@ import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -86,14 +82,7 @@ class MainActivity : AppCompatActivity() {
                 LocalDensity provides Density(density = baseDensity.density, fontScale = state.fontScale)
             ) {
                 JasmineTheme(cssVars = state.theme) {
-                    // Single global IME handling point: with edge-to-edge on
-                    // targetSdk 35+ the window is NEVER resized by the keyboard,
-                    // so the whole nav viewport must shrink above the IME here.
-                    // Without this, focused TextFields fight the unmoved
-                    // viewport (bring-into-view loops) and the keyboard bounces.
-                    Box(modifier = Modifier.fillMaxSize().imePadding()) {
-                        MainNavHost(viewModel = viewModel, state = state)
-                    }
+                    MainNavHost(viewModel = viewModel, state = state)
                 }
             }
         }

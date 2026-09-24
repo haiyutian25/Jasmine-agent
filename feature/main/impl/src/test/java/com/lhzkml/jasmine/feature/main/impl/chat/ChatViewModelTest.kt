@@ -2,7 +2,6 @@ package com.lhzkml.jasmine.feature.main.impl.chat
 
 import com.lhzkml.jasmine.core.agent.AgentChat
 import com.lhzkml.jasmine.core.agent.ChatEvent
-import com.lhzkml.jasmine.core.agent.ChatTurn
 import com.lhzkml.jasmine.core.data.model.ChatRole
 import com.lhzkml.jasmine.core.data.model.Conversation
 import com.lhzkml.jasmine.core.data.model.ModelConfig
@@ -251,7 +250,7 @@ class ChatViewModelTest {
         }
 
     @Test
-    fun `a restored conversation is loaded and replayed into the agent`() =
+    fun `a restored conversation is loaded from the transcript`() =
         runTest(testDispatcher) {
             historyRepository.seedConversation(
                 conversationId = "conv-old",
@@ -271,25 +270,51 @@ class ChatViewModelTest {
                 state.messages.map { it.text },
             )
 
-            // Sending now must hand that transcript to the agent, or the model
-            // would answer as if the conversation were brand new.
+            // Sending only hands over the new turn: the model's earlier context
+            // comes from the stored ADK session, not from the transcript.
             viewModel.trySendAction(ChatAction.InputChanged("second question"))
             viewModel.trySendAction(ChatAction.SendClicked)
             advanceUntilIdle()
 
-            assertEquals(
-                listOf(
-                    ChatTurn(ChatRole.USER, "first question"),
-                    ChatTurn(ChatRole.ASSISTANT, "first answer"),
-                ),
-                agentChat.startedWithHistory,
-            )
-            // The new turn is not replayed as well: it goes in as the new message.
             assertEquals(listOf("second question"), agentChat.sent)
         }
 
     @Test
-    fun `failed replies are not replayed as model output`() = runTest(testDispatcher) {
+    fun `the agent session is keyed by the persisted conversation id`() = runTest(testDispatcher) {
+        // This is what lets a stored ADK session be *resumed* instead of rebuilt:
+        // both sides of the conversation agree on one identity, so the model's
+        // context and the transcript cannot drift apart.
+        historyRepository.seedConversation(
+            conversationId = "conv-old",
+            title = "earlier",
+            transcript = listOf(TranscriptMessage(ChatRole.USER, "first question")),
+        )
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.trySendAction(ChatAction.InputChanged("follow up"))
+        viewModel.trySendAction(ChatAction.SendClicked)
+        advanceUntilIdle()
+
+        assertEquals("conv-old", agentChat.startedWithSessionId)
+    }
+
+    @Test
+    fun `a brand new conversation starts a session under its own id`() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.trySendAction(ChatAction.InputChanged("hello"))
+        viewModel.trySendAction(ChatAction.SendClicked)
+        advanceUntilIdle()
+
+        val conversationId = viewModel.stateFlow.value.activeConversationId
+        assertTrue("no conversation was persisted", conversationId != null)
+        assertEquals(conversationId, agentChat.startedWithSessionId)
+    }
+
+    @Test
+    fun `a failed reply stays visible in the transcript`() = runTest(testDispatcher) {
         historyRepository.seedConversation(
             conversationId = "conv-old",
             title = "earlier",
@@ -301,11 +326,9 @@ class ChatViewModelTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
 
-        viewModel.trySendAction(ChatAction.InputChanged("again"))
-        viewModel.trySendAction(ChatAction.SendClicked)
-        advanceUntilIdle()
-
-        assertEquals(listOf(ChatTurn(ChatRole.USER, "question")), agentChat.startedWithHistory)
+        val messages = viewModel.stateFlow.value.messages
+        assertEquals(listOf("question", "HTTP 500"), messages.map { it.text })
+        assertTrue("the failed reply lost its error flag", messages.last().isError)
     }
 
     @Test
@@ -486,18 +509,18 @@ private class FakeChatHistoryRepository : ChatHistoryRepository {
 private class FakeAgentChat : AgentChat {
     var nextEvents: List<ChatEvent> = emptyList()
     val sent = mutableListOf<String>()
-    var startedWithHistory: List<ChatTurn> = emptyList()
+    var startedWithSessionId: String? = null
     var conversationsStarted = 0
     var conversationsEnded = 0
 
     override suspend fun startConversation(
+        sessionId: String,
         provider: ProviderConfig,
         modelId: String,
         instruction: String,
-        history: List<ChatTurn>,
     ) {
         conversationsStarted++
-        startedWithHistory = history
+        startedWithSessionId = sessionId
     }
 
     override fun send(text: String): Flow<ChatEvent> {

@@ -3,7 +3,6 @@ package com.lhzkml.jasmine.feature.main.impl.chat
 import androidx.lifecycle.viewModelScope
 import com.lhzkml.jasmine.core.agent.AgentChat
 import com.lhzkml.jasmine.core.agent.ChatEvent
-import com.lhzkml.jasmine.core.agent.ChatTurn
 import com.lhzkml.jasmine.core.data.model.ChatRole
 import com.lhzkml.jasmine.core.data.model.Conversation
 import com.lhzkml.jasmine.core.data.model.ModelConfig
@@ -108,11 +107,12 @@ sealed interface ChatAction {
  * (and persisted to) preferences, the transcript is persisted through
  * [ChatHistoryRepository], and the live ADK session lives in the injected
  * [AgentChat]. The two are kept deliberately separate — the repository is the
- * durable record, the ADK session is the model's working context, rebuilt (with
- * the transcript replayed into it) whenever the conversation or model changes.
+ * durable record, the ADK session (persisted by ADK itself) is the model's
+ * working context. Re-attaching after a model switch reloads that context from
+ * the session store rather than rebuilding it from the transcript.
  *
  * This ViewModel is scoped to the `Main` navigation entry, so leaving the main
- * screen ends the session; the transcript survives in Room.
+ * screen releases the runner; both the transcript and the session survive.
  */
 @HiltViewModel
 class ChatViewModel @Inject constructor(
@@ -222,13 +222,6 @@ class ChatViewModel @Inject constructor(
         val model = state.activeModel ?: return
         if (provider.apiKey.isBlank()) return
 
-        // The context to replay if this send has to (re)build the ADK session:
-        // the transcript as it stands *before* this turn, minus failed replies.
-        val history = state.messages
-            .filterNot { it.isError }
-            .filter { it.text.isNotBlank() }
-            .map { ChatTurn(role = it.role, text = it.text) }
-
         val assistantId = UUID.randomUUID().toString()
         streamingMessageId = assistantId
         updateState {
@@ -250,7 +243,7 @@ class ChatViewModel @Inject constructor(
             )
         }
 
-        turnJob = viewModelScope.launch { runTurn(provider, model, text, history) }
+        turnJob = viewModelScope.launch { runTurn(provider, model, text) }
     }
 
     private fun handleNewConversation() {
@@ -267,8 +260,8 @@ class ChatViewModel @Inject constructor(
             updateState { copy(isModelPickerOpen = false) }
             return
         }
-        // An ADK session is bound to one model, so a switch rebuilds it. The
-        // transcript stays: it is replayed into the new session.
+        // An ADK session is bound to one model, so a switch re-attaches it. The
+        // stored session (and the transcript) stay.
         resetSession()
         updateState {
             copy(
@@ -325,22 +318,24 @@ class ChatViewModel @Inject constructor(
         provider: ProviderConfig,
         model: ModelConfig,
         text: String,
-        history: List<ChatTurn>,
     ) {
         try {
-            val id = ensureConversation(provider, model, text)
-            if (id != null) {
-                // Best effort: losing a transcript write must not break the chat.
-                runCatching { chatHistoryRepository.appendMessage(id, ChatRole.USER, text) }
-            }
+            val id = ensureConversation(provider, model, text) ?: throw IllegalStateException(
+                "Could not open a conversation to send into."
+            )
+            // Best effort: losing a transcript write must not break the chat.
+            runCatching { chatHistoryRepository.appendMessage(id, ChatRole.USER, text) }
 
-            val key = "${id.orEmpty()}|${provider.id}|${model.id}"
+            val key = "$id|${provider.id}|${model.id}"
             if (sessionKey != key) {
+                // The ADK session carries the conversation's own id, so the model's
+                // stored context and the transcript share one identity and a
+                // resumed conversation is loaded rather than rebuilt.
                 agentChat.startConversation(
+                    sessionId = id,
                     provider = provider,
                     modelId = model.modelId,
                     instruction = CHAT_INSTRUCTION,
-                    history = history,
                 )
                 sessionKey = key
             }

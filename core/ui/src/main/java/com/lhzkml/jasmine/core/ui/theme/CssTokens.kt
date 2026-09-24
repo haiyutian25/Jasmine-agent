@@ -333,18 +333,16 @@ val CssVariables.isBraun: Boolean
  */
 object ThemeResolver {
     /**
-     * Palette family key of a concrete themeId ("editorial-light" -> "editorial").
+     * Palette family key of a concrete themeId ("editorial-light" -> "editorial"),
+     * or null when the id matches no family.
      *
      * Resolved by exact themeId match against [families] rather than suffix
      * stripping, because not every themeId is shaped as "{key}-light/-dark" —
      * e.g. "shadcn-zinc-dark" belongs to family "shadcn" and "notion-warm-light"
-     * to "notion"; suffix stripping would yield "shadcn-zinc"/"notion-warm" and
-     * silently fall back to the Editorial palette downstream. The suffix strip
-     * is kept only as a fallback for unknown persisted ids.
+     * to "notion".
      */
-    fun familyOf(themeId: String): String =
+    fun familyOf(themeId: String): String? =
         families.firstOrNull { it.light.themeId == themeId || it.dark.themeId == themeId }?.key
-            ?: themeId.removeSuffix("-light").removeSuffix("-dark")
 
     /**
      * A preset palette family: its stable [key], user-facing [displayName]

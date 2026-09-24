@@ -2,32 +2,38 @@ package com.lhzkml.jasmine.core.agent
 
 import com.google.adk.kt.agents.Instruction
 import com.google.adk.kt.agents.LlmAgent
-import com.google.adk.kt.events.Event
 import com.google.adk.kt.models.Model
 import com.google.adk.kt.runners.InMemoryRunner
 import com.google.adk.kt.runners.Runner
-import com.google.adk.kt.sessions.InMemorySessionService
 import com.google.adk.kt.sessions.SessionKey
+import com.google.adk.kt.sessions.SessionService
 import com.google.adk.kt.types.Content
 import com.google.adk.kt.types.Part
 import com.google.adk.kt.types.Role
-import com.lhzkml.jasmine.core.data.model.ChatRole
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
-import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
 /**
  * ADK-backed [AgentChat]: one [LlmAgent] whose model comes from [modelFactory],
- * driven by [InMemoryRunner] over an [InMemorySessionService].
+ * driven by [InMemoryRunner] over an injected [SessionService].
  *
- * The model is injected as a factory rather than built here, which keeps the
- * class free of transport wiring **and** makes the session/replay behaviour
- * testable against a recording [Model] without a network call.
+ * The session service is injected rather than constructed so this class stays
+ * free of Android/Room wiring **and** so a test can pass
+ * `InMemorySessionService()`. In the app the injected one is ADK's own
+ * `RoomSessionService` (see `AgentModule`), which is what makes a conversation
+ * survive process death.
  *
- * Nothing is persisted: the ADK session is created by [startConversation] and
- * thrown away by [endConversation]. The transcript's own persistence is a data
- * layer concern — this facade only replays what it is handed.
+ * ## Session identity
+ *
+ * [startConversation] is handed a [sessionId] that is the *caller's*
+ * conversation id, so the ADK session and the persisted transcript share one
+ * identity. The model's context is therefore read straight out of the store: a
+ * known session is resumed as-is, and an unknown one is created empty. There is
+ * no replay path — the transcript is not re-fed to the model.
+ *
+ * [endConversation] closes the runner but deliberately does **not** delete the
+ * session: dropping the in-memory object must not erase durable history.
  *
  * Events are filtered down to assistant text: the runner also emits the user's
  * own message event (already rendered locally) and bookkeeping events, so
@@ -37,19 +43,20 @@ import kotlinx.coroutines.flow.flow
  * `MAX_TOKENS`.
  */
 class AdkAgentChat(
+    private val sessionService: SessionService,
     private val modelFactory: (ProviderConfig, String) -> Model,
 ) : AgentChat {
 
-    private val sessionService = InMemorySessionService()
-
     private var runner: Runner? = null
-    private var sessionId: String? = null
+
+    /** The id of the session the runner is attached to. */
+    private var attachedSessionId: String? = null
 
     override suspend fun startConversation(
+        sessionId: String,
         provider: ProviderConfig,
         modelId: String,
         instruction: String,
-        history: List<ChatTurn>,
     ) {
         endConversation()
 
@@ -59,16 +66,9 @@ class AdkAgentChat(
             description = AGENT_DESCRIPTION,
             instruction = Instruction(instruction),
         )
-        val resolvedSessionId = UUID.randomUUID().toString()
-        val session = sessionService.createSession(
-            key = SessionKey(appName = APP_NAME, userId = USER_ID, id = resolvedSessionId),
-            state = null,
-        )
-        // Replay before the runner exists: the request for the next turn is built
-        // from the session's events, so this is what gives a restored
-        // conversation its context.
-        history.forEach { turn ->
-            sessionService.appendEvent(session, turn.toEvent())
+        val key = SessionKey(appName = APP_NAME, userId = USER_ID, id = sessionId)
+        if (sessionService.getSession(key) == null) {
+            sessionService.createSession(key)
         }
 
         runner = InMemoryRunner(
@@ -76,12 +76,13 @@ class AdkAgentChat(
             appName = APP_NAME,
             sessionService = sessionService,
         )
-        sessionId = resolvedSessionId
+        attachedSessionId = sessionId
     }
 
     override fun send(text: String): Flow<ChatEvent> = flow {
         val activeRunner = checkNotNull(runner) { "No conversation: call startConversation first" }
-        val activeSessionId = checkNotNull(sessionId) { "No conversation: call startConversation first" }
+        val activeSessionId =
+            checkNotNull(attachedSessionId) { "No conversation: call startConversation first" }
 
         activeRunner
             .runAsync(
@@ -111,20 +112,8 @@ class AdkAgentChat(
     override fun endConversation() {
         runner?.close()
         runner = null
-        sessionId = null
+        attachedSessionId = null
     }
-
-    /**
-     * A replayed turn is an ordinary session event: the runner only cares about
-     * the content's role, while the author keeps it attributed correctly.
-     */
-    private fun ChatTurn.toEvent(): Event = Event(
-        author = if (role == ChatRole.USER) USER_AUTHOR else AGENT_NAME,
-        content = Content(
-            role = if (role == ChatRole.USER) Role.USER else Role.MODEL,
-            parts = listOf(Part(text = text)),
-        ),
-    )
 
     private companion object {
         const val APP_NAME = "jasmine"

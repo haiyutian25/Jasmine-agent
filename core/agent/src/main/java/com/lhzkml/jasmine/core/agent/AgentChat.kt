@@ -1,20 +1,7 @@
 package com.lhzkml.jasmine.core.agent
 
-import com.lhzkml.jasmine.core.data.model.ChatRole
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import kotlinx.coroutines.flow.Flow
-
-/**
- * One prior turn replayed into a fresh session.
- *
- * Deliberately narrower than a stored transcript message: only turns that
- * actually happened should be replayed, so the caller drops failed replies
- * (an error string is not model output).
- */
-data class ChatTurn(
-    val role: ChatRole,
-    val text: String,
-)
 
 /**
  * One incremental piece of an assistant turn.
@@ -33,32 +20,32 @@ sealed interface ChatEvent {
 /**
  * Multi-turn conversation facade over ADK.
  *
- * Keeps ADK entirely inside this module: the caller passes a [ProviderConfig]
- * and a model id, and receives plain [ChatEvent]s. Conversation history is held
- * by ADK's in-memory session service, so callers only track what they render.
+ * Keeps ADK entirely inside this module: the caller passes a session id, a
+ * [ProviderConfig] and a model id, and receives plain [ChatEvent]s.
  *
- * Lifecycle is explicit — [startConversation] creates a fresh session (dropping
- * any previous history), [send] appends to it, [endConversation] discards it.
- * Switching provider or model therefore means starting a new conversation.
+ * Lifecycle is explicit — [startConversation] attaches to the session named by
+ * [startConversation.sessionId], [send] appends to it, [endConversation] releases
+ * the runner without erasing stored history. Switching provider or model
+ * therefore means starting a new conversation.
  *
  * Implementations are stateful and **not** thread-safe: one instance per
  * conversation owner (the ViewModel), and one in-flight [send] at a time.
  */
 interface AgentChat {
     /**
-     * Creates a new conversation against [provider] / [modelId] with
-     * [instruction] as the system prompt, discarding any existing history.
+     * Attaches to the conversation identified by [sessionId] — the caller's own
+     * persisted conversation id, so the model's working context and the durable
+     * transcript share one identity.
      *
-     * [history] is replayed into the new session so a restored transcript keeps
-     * its context: the runner builds the model request from the session's
-     * events, so without replaying them the model would answer as if the
-     * conversation were brand new.
+     * The conversation's context is whatever the session store already holds for
+     * that id; there is no replay path. A conversation whose session is gone
+     * starts from an empty context.
      */
     suspend fun startConversation(
+        sessionId: String,
         provider: ProviderConfig,
         modelId: String,
         instruction: String,
-        history: List<ChatTurn> = emptyList(),
     )
 
     /**
@@ -71,6 +58,6 @@ interface AgentChat {
      */
     fun send(text: String): Flow<ChatEvent>
 
-    /** Drops the conversation and releases the runner. */
+    /** Releases the runner. Stored history is left untouched. */
     fun endConversation()
 }

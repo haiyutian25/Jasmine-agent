@@ -14,13 +14,21 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -126,6 +134,12 @@ private const val TabColorAnimMillis = 200
  * [excludedStartZone] keeps the left edge reserved for a host edge gesture
  * (the drawer's edge swipe).
  *
+ * The bar is pinned to the window bottom and deliberately does not consume the IME
+ * inset, so the keyboard covers it — the behaviour Material 3 bottom bars have by
+ * default (they apply only the system-bar insets). The page above it is inset by
+ * the keyboard's *excess over the bar*, which lifts a focused composer onto the
+ * keyboard without leaving a bar-height gap between the two.
+ *
  * Bar styling follows Linear / Vercel / Material 3 standards:
  * - 66dp content height + navigationBarsPadding(); the host renders the bar
  *   flush with the screen bottom, so the background extends under the system
@@ -147,12 +161,21 @@ fun ProductionBottomNavBar(
     excludedStartZone: Dp = 0.dp,
     content: @Composable (NavigationTab) -> Unit = {}
 ) {
-    val fontScale = LocalDensity.current.fontScale
+    val density = LocalDensity.current
+    val fontScale = density.fontScale
     // When fonts are scaled up, the (sp) tab label grows taller. Tighten its
     // line box so the icon+label pair keeps fitting the fixed pill and never
     // nears the system gesture bar. Icon-label spacing stays at 0 — a negative
     // padding is deliberately avoided; the tighter line box reclaims the room.
     val labelLineHeight = if (fontScale > 1f) TabLabelLineHeight else TextUnit.Unspecified
+    // The bar stays pinned to the window bottom and the keyboard covers it, so the
+    // page above it only has to clear the keyboard's excess over the bar. Written
+    // as an inset subtraction rather than a manual read of the IME height: the
+    // built-in inset modifiers resolve in the layout phase, whereas reading an
+    // inset during composition would lag the keyboard animation by a frame.
+    val barInsets = WindowInsets(0.dp, 0.dp, 0.dp, TabDividerHeight + TabBarHeight)
+        .union(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
+    val pageInsets = WindowInsets.ime.exclude(barInsets)
 
     Column(modifier = modifier.fillMaxSize()) {
         // 1. Page content area (optionally swipeable)
@@ -162,11 +185,11 @@ fun ProductionBottomNavBar(
                 onTabChange = onTabSelected,
                 enabled = swipeEnabled,
                 excludedStartZone = excludedStartZone,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).windowInsetsPadding(pageInsets),
                 content = content
             )
         } else {
-            Box(modifier = Modifier.weight(1f)) {
+            Box(modifier = Modifier.weight(1f).windowInsetsPadding(pageInsets)) {
                 content(currentTab)
             }
         }
