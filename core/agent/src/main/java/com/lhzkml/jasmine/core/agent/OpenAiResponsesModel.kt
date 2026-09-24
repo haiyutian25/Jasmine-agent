@@ -51,31 +51,23 @@ class OpenAiResponsesModel(
 
     override val name: String = modelId
 
+    /**
+     * 只走事件流：分片交给 ADK 的 [StreamingResponseAggregator]，流结束后再发射一次
+     * 聚合结果。非流式分支已删除——App 的运行配置始终是 ADK 的 `StreamingMode.SSE`。
+     * `stream` 参数是 ADK [Model] 契约的一部分，保留但不再判断。
+     */
     @OptIn(FrameworkInternalApi::class)
     override fun generateContent(request: LlmRequest, stream: Boolean): Flow<LlmResponse> =
         flow {
-                if (stream) {
-                    val aggregator = StreamingResponseAggregator()
-                    streamResponse(request).collect { chunk -> emit(aggregator.processResponse(chunk)) }
-                    aggregator.aggregate()?.let { emit(it) }
-                } else {
-                    emit(callResponse(request))
-                }
+                val aggregator = StreamingResponseAggregator()
+                streamResponse(request).collect { chunk -> emit(aggregator.processResponse(chunk)) }
+                // See the Chat Completions adapter: no stream events means the provider did
+                // not stream, and that must surface rather than end the turn silently.
+                val aggregated = aggregator.aggregate()
+                    ?: throw IOException("The provider returned no stream events")
+                emit(aggregated)
             }
             .flowOn(ioDispatcher)
-
-    // ── 传输：非流式 ───────────────────────────────────────────────────
-
-    private fun callResponse(request: LlmRequest): LlmResponse {
-        val httpRequest = buildRequest(request, stream = false)
-        httpClient.newCall(httpRequest).execute().use { response ->
-            val text = response.body?.string().orEmpty()
-            if (!response.isSuccessful) throw IOException("HTTP ${response.code}: $text")
-            val parsed = openAiJson.decodeFromString<ResponsesResponse>(text)
-            parsed.error?.message?.let { throw IOException(it) }
-            return parsed.toLlmResponse(partial = false)
-        }
-    }
 
     // ── 传输：事件流 ───────────────────────────────────────────────────
 
@@ -85,7 +77,7 @@ class OpenAiResponsesModel(
      */
     private fun streamResponse(request: LlmRequest): Flow<LlmResponse> =
         flow {
-            ssePayloads(httpClient, buildRequest(request, stream = true)).collect { payload ->
+            ssePayloads(httpClient, buildRequest(request)).collect { payload ->
                 val event =
                     runCatching { openAiJson.decodeFromString<ResponsesStreamEvent>(payload) }
                         .getOrNull() ?: return@collect
@@ -135,8 +127,12 @@ class OpenAiResponsesModel(
 
     // ── 请求构造 ───────────────────────────────────────────────────────
 
-    /** Internal rather than private so the wire shape can be asserted by unit tests. */
-    internal fun buildRequest(request: LlmRequest, stream: Boolean): Request {
+    /**
+     * Always a streaming request: this adapter has no non-streaming shape.
+     *
+     * Internal rather than private so the wire shape can be asserted by unit tests.
+     */
+    internal fun buildRequest(request: LlmRequest): Request {
         val instructions =
             request.config.systemInstruction
                 ?.parts
@@ -158,13 +154,13 @@ class OpenAiResponsesModel(
                 temperature = request.config.temperature,
                 topP = request.config.topP,
                 maxOutputTokens = request.config.maxOutputTokens,
-                stream = stream,
+                stream = true,
             )
 
         return Request.Builder()
             .url(endpoint())
             .addHeader("Authorization", "Bearer ${config.apiKey}")
-            .addHeader("Accept", if (stream) "text/event-stream" else "application/json")
+            .addHeader("Accept", "text/event-stream")
             .post(openAiJson.encodeToString(payload).toRequestBody(JSON_MEDIA_TYPE))
             .build()
     }

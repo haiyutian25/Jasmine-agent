@@ -188,33 +188,6 @@ internal data class ResponsesStreamEvent(
 
 // ── 翻译：OpenAI → ADK ────────────────────────────────────────────────
 
-internal fun ResponsesResponse.toLlmResponse(partial: Boolean): LlmResponse {
-    val parts = output.mapNotNull { it.toPart() }
-    return LlmResponse(
-        content = parts.takeIf { it.isNotEmpty() }?.let { Content(role = Role.MODEL, parts = it) },
-        usageMetadata = usage?.toAdkUsage(),
-        finishReason = finishReason(),
-        errorMessage = error?.message,
-        partial = partial,
-    )
-}
-
-internal fun ResponsesOutputItem.toPart(): Part? =
-    when (type) {
-        ResponsesWire.ITEM_MESSAGE -> textContent()?.let { Part(text = it) }
-        ResponsesWire.ITEM_FUNCTION_CALL -> toFunctionCall()?.let { Part(functionCall = it) }
-        else -> null
-    }
-
-/** message item 的 `output_text` 内容块拼接结果；没有则 null。 */
-private fun ResponsesOutputItem.textContent(): String? =
-    content
-        .orEmpty()
-        .filter { it.type == ResponsesWire.CONTENT_OUTPUT_TEXT }
-        .mapNotNull { it.text }
-        .joinToString("")
-        .takeIf { it.isNotEmpty() }
-
 internal fun ResponsesOutputItem.toFunctionCall(): FunctionCall? {
     val functionName = name?.takeIf { it.isNotEmpty() } ?: return null
     return FunctionCall(

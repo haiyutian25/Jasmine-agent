@@ -27,6 +27,11 @@ internal data class ChatRequest(
     val stream: Boolean = false,
 )
 
+/**
+ * 请求侧的消息：[role] **必填**，因为它只用于发出去的请求体。
+ *
+ * 响应侧刻意不复用本类——见 [ChatDelta]。
+ */
 @Serializable
 internal data class ChatMessage(
     val role: String,
@@ -56,6 +61,12 @@ internal data class ChatToolFunction(
 
 @Serializable
 internal data class ChatToolCall(
+    /**
+     * Position of this call within the message. A stream repeats it on every frame of
+     * the same call — which is the only thing that makes reassembly possible, since the
+     * frames themselves carry no other clue that they belong together.
+     */
+    val index: Int? = null,
     val id: String? = null,
     val type: String? = null,
     val function: ChatToolCallFunction? = null,
@@ -77,11 +88,27 @@ internal data class ChatResponse(
     val error: ChatError? = null,
 )
 
+/**
+ * 响应侧的消息 / 增量分片：[role] 在这里**必须可选**。
+ *
+ * 与请求侧的 [ChatMessage] 分开是必要的，不是重复定义：流式响应里 `role` 只在
+ * **第一个**分片出现，之后每个分片只带 `content`；工具调用分片则只带
+ * `tool_calls`。若让响应复用角色必填的 [ChatMessage]，除首片以外的每一片都会
+ * 在反序列化时抛 `MissingFieldException`——而调用方按「单片解析失败只跳过该行」
+ * 容忍，于是症状是**流看起来正常，却一个字都收不到**。
+ */
+@Serializable
+internal data class ChatDelta(
+    val role: String? = null,
+    val content: String? = null,
+    @SerialName("tool_calls") val toolCalls: List<ChatToolCall>? = null,
+)
+
 @Serializable
 internal data class ChatChoice(
     val index: Int? = null,
-    val message: ChatMessage? = null,
-    val delta: ChatMessage? = null,
+    val message: ChatDelta? = null,
+    val delta: ChatDelta? = null,
     @SerialName("finish_reason") val finishReason: String? = null,
 )
 

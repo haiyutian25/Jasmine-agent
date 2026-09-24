@@ -42,8 +42,10 @@ private const val SSE_DONE = "[DONE]"
 
 /**
  * 按 SSE 规范逐行读取 [request] 的响应体，只发射 `data:` 行的载荷（去掉前缀、
- * 跳过空行与 `[DONE]`）。单个分片的 JSON 解析留给调用方——两种协议的分片类型
- * 不同，解析策略也不同。
+ * 跳过空行）。**`[DONE]` 是流的终点**：OpenAI 协议的流由它结束，而发完它之后
+ * 连接不一定关闭，若只跳过它继续读，就会一直阻塞在一次不会再有数据的读上。
+ *
+ * 单个分片的 JSON 解析留给调用方——两种协议的分片类型不同，解析策略也不同。
  *
  * 内部为阻塞式读取，调用方必须保证它跑在 IO 调度器上。
  */
@@ -58,7 +60,8 @@ internal fun ssePayloads(httpClient: OkHttpClient, request: Request): Flow<Strin
                 val line = source.readUtf8Line() ?: break
                 if (!line.startsWith("data:")) continue
                 val payload = line.removePrefix("data:").trim()
-                if (payload.isEmpty() || payload == SSE_DONE) continue
+                if (payload.isEmpty()) continue
+                if (payload == SSE_DONE) break
                 emit(payload)
             }
         }

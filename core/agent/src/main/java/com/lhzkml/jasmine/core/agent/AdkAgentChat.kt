@@ -3,6 +3,7 @@ package com.lhzkml.jasmine.core.agent
 import com.google.adk.kt.agents.Instruction
 import com.google.adk.kt.agents.LlmAgent
 import com.google.adk.kt.agents.RunConfig
+import com.google.adk.kt.agents.StreamingMode
 import com.google.adk.kt.apps.App
 import com.google.adk.kt.callbacks.AfterAgentCallback
 import com.google.adk.kt.callbacks.CallbackChoice
@@ -69,8 +70,12 @@ private const val ToolDetailMaxLength = 200
  *
  * ## Event mapping
  *
- * Text is forwarded for every event (that is what makes streaming work). Tool
- * activity is forwarded only from settled events: while streaming, the
+ * The run uses ADK's SSE streaming mode, so a model's answer arrives as partial deltas
+ * and is then repeated in full on the settled event the aggregator emits. Text is taken
+ * from the deltas only — taking it from the settled event as well would print the answer
+ * twice — and settled events are read for tool activity alone.
+ *
+ * Tool activity is forwarded only from settled events: while streaming, the
  * aggregator also emits *partial* function calls whose arguments are still
  * incomplete, and acting on those would surface half-built calls.
  *
@@ -170,7 +175,10 @@ class AdkAgentChat(
                 // ADK's per-run guard. Its `maxLlmCalls` limit is only enforced when a
                 // RunConfig is supplied — ADK's own source warns that leaving it off
                 // risks a run that never ends.
-                runConfig = RunConfig(),
+                //
+                // SSE is ADK's streaming mode, and `LlmAgentTurn` is where it is read:
+                // it is what makes the runner ask the model to stream.
+                runConfig = RunConfig(streamingMode = StreamingMode.SSE),
             )
             .collect { event ->
                 val failure = event.errorMessage
@@ -180,9 +188,12 @@ class AdkAgentChat(
                 }
                 if (event.author != USER_AUTHOR) {
                     val parts = event.content?.parts.orEmpty()
-                    val chunk = parts.mapNotNull { it.text }.joinToString("")
-                    if (chunk.isNotEmpty()) emit(ChatEvent.Text(chunk))
-                    if (!event.partial) {
+                    // Only deltas carry text. A settled event repeats the whole answer the
+                    // aggregator assembled, and is used for tool activity and nothing else.
+                    if (event.partial) {
+                        val chunk = parts.mapNotNull { it.text }.joinToString("")
+                        if (chunk.isNotEmpty()) emit(ChatEvent.Text(chunk))
+                    } else {
                         parts.forEach { part -> emitToolActivity(part) }
                     }
                 }

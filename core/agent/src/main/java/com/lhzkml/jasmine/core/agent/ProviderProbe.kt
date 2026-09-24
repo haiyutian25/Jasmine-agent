@@ -28,8 +28,8 @@ sealed interface ProbeResult {
  */
 interface ProviderProbe {
     /**
-     * Sends one minimal, non-streaming request to [provider] using [modelId]
-     * and reports whether a usable answer came back.
+     * Sends one minimal request to [provider] using [modelId] and reports whether
+     * a usable answer came back.
      *
      * Never throws for transport/provider errors — those come back as
      * [ProbeResult.Failure]; only coroutine cancellation propagates.

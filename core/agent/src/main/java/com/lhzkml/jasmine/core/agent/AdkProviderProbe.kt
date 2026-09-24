@@ -7,17 +7,19 @@ import com.google.adk.kt.types.Part
 import com.google.adk.kt.types.Role
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import kotlin.coroutines.cancellation.CancellationException
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
 
 /**
  * ADK-backed [ProviderProbe]: builds the [Model] matching the provider's wire
- * protocol and runs a single non-streaming turn through it.
+ * protocol and runs a single turn through it.
  *
  * The model is injected as a factory, so this class holds no transport wiring.
  *
- * Non-streaming is intentional — a connectivity check wants the smallest,
- * most diagnosable path, and the streaming path additionally depends on ADK's
- * framework-internal `StreamingResponseAggregator`.
+ * The whole flow is consumed and the *settled* response is read, because the
+ * adapters stream unconditionally: one call yields the deltas followed by the
+ * aggregate ADK's `StreamingResponseAggregator` emits. Reading only the first
+ * response would read the opening delta of an OpenAI stream, which is a
+ * role-only frame carrying no text — indistinguishable from a silent model.
  */
 class AdkProviderProbe(
     private val modelFactory: (ProviderConfig, String) -> Model,
@@ -36,8 +38,10 @@ class AdkProviderProbe(
         )
 
         return try {
-            val response = model.generateContent(request, stream = false).first()
-            val reply = response.content
+            val responses = model.generateContent(request, stream = false).toList()
+            val settled = responses.lastOrNull { !it.partial } ?: responses.lastOrNull()
+            val reply = settled
+                ?.content
                 ?.parts
                 .orEmpty()
                 .mapNotNull { it.text }

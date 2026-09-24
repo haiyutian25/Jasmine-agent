@@ -24,6 +24,7 @@ import okhttp3.Request
 import okio.Buffer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -41,13 +42,14 @@ class OpenAiWireTest {
     @Test
     fun `responses request uses the responses shape`() {
         val model = responsesModel()
-        val body = model.buildRequest(fullRequest(), stream = false).bodyJson()
+        val body = model.buildRequest(fullRequest()).bodyJson()
 
         assertEquals("gpt-test", body["model"]!!.jsonPrimitive.content)
         assertEquals("be nice", body["instructions"]!!.jsonPrimitive.content)
         assertEquals(0.5, body["temperature"]!!.jsonPrimitive.content.toDouble(), 0.0001)
         assertEquals("256", body["max_output_tokens"]!!.jsonPrimitive.content)
-        assertFalse("stream must be omitted/false", body["stream"]?.jsonPrimitive?.boolean ?: false)
+        // The adapter has no non-streaming shape: every request asks the provider to stream.
+        assertTrue("stream must be requested", body["stream"]?.jsonPrimitive?.boolean == true)
 
         // System prompt moved out of `messages` into top-level `instructions`.
         assertNull(body["messages"])
@@ -57,7 +59,7 @@ class OpenAiWireTest {
 
     @Test
     fun `responses request flattens function tools`() {
-        val body = responsesModel().buildRequest(fullRequest(), stream = false).bodyJson()
+        val body = responsesModel().buildRequest(fullRequest()).bodyJson()
         val tool = body["tools"]!!.jsonArray.single().jsonObject
 
         assertEquals("function", tool["type"]!!.jsonPrimitive.content)
@@ -102,7 +104,7 @@ class OpenAiWireTest {
             )
         val body =
             responsesModel()
-                .buildRequest(LlmRequest(contents = contents), stream = false)
+                .buildRequest(LlmRequest(contents = contents))
                 .bodyJson()
         val input = body["input"]!!.jsonArray.map { it.jsonObject }
 
@@ -122,26 +124,6 @@ class OpenAiWireTest {
     }
 
     // ── Responses: response → ADK ──────────────────────────────────────
-
-    @Test
-    fun `completed response maps text tool call usage and finish reason`() {
-        val response = openAiJson.decodeFromString<ResponsesResponse>(COMPLETED_RESPONSE)
-        val llm = response.toLlmResponse(partial = false)
-
-        val parts = llm.content!!.parts
-        assertEquals("Hello there", parts[0].text)
-        val call = parts[1].functionCall!!
-        assertEquals("get_time", call.name)
-        assertEquals("call_1", call.id)
-        assertEquals("Paris", call.args["city"])
-
-        assertEquals(FinishReason.STOP, llm.finishReason)
-        assertEquals(10, llm.usageMetadata!!.promptTokenCount)
-        assertEquals(4, llm.usageMetadata!!.candidatesTokenCount)
-        assertEquals(14, llm.usageMetadata!!.totalTokenCount)
-        assertEquals(Role.MODEL, llm.content!!.role)
-        assertFalse(llm.partial)
-    }
 
     @Test
     fun `incomplete and failed statuses map to the right finish reason`() {
@@ -165,14 +147,6 @@ class OpenAiWireTest {
             openAiJson.decodeFromString<ResponsesResponse>("""{"status":"in_progress"}""")
                 .finishReason(),
         )
-    }
-
-    @Test
-    fun `unknown output item types are ignored`() {
-        val response = openAiJson.decodeFromString<ResponsesResponse>(
-            """{"status":"completed","output":[{"type":"reasoning","id":"r1"},{"type":"message","content":[{"type":"refusal","refusal":"no"}]}]}"""
-        )
-        assertNull(response.toLlmResponse(partial = false).content)
     }
 
     // ── Responses: stream events ───────────────────────────────────────
@@ -214,7 +188,7 @@ class OpenAiWireTest {
                 httpClient = OkHttpClient(),
                 ioDispatcher = kotlinx.coroutines.Dispatchers.Unconfined,
             )
-                .buildRequest(fullRequest(), stream = false)
+                .buildRequest(fullRequest())
                 .bodyJson()
 
         val messages = body["messages"]!!.jsonArray.map { it.jsonObject }
@@ -232,7 +206,83 @@ class OpenAiWireTest {
         )
     }
 
+    // ── Chat Completions: stream frames ────────────────────────────────
+
+    @Test
+    fun `a stream frame after the opening one still parses`() {
+        // Regression: `role` appears only in the opening frame of an OpenAI stream; the
+        // frames that follow carry `content` alone. When the response reused the
+        // request-side message type — where `role` is required — every later frame failed
+        // to decode, and because a bad frame is skipped rather than fatal, a provider that
+        // answered perfectly produced an empty reply that never completed.
+        assertEquals(
+            "assistant",
+            chatFrame("""{"role":"assistant","content":""}""").delta!!.role,
+        )
+        assertEquals("pong", chatFrame("""{"content":"pong"}""").delta!!.content)
+        // The closing frame carries neither role nor content.
+        assertNull(chatFrame("""{}""").delta!!.content)
+        // Tool-call frames arrive with no content at all.
+        assertEquals(
+            "get_time",
+            chatFrame(
+                """{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"get_time","arguments":""}}]}"""
+            ).delta!!.toolCalls!!.single().function!!.name,
+        )
+    }
+
+    // ── Chat Completions: stream frames ────────────────────────────────
+
+    @Test
+    fun `a tool call split across frames is reassembled`() {
+        // OpenAI streams one call over several frames: the first carries the id and the
+        // name, and each later frame appends a slice of the `arguments` JSON text. Reading
+        // a frame on its own yields a call with no arguments at all — silently, because
+        // the argument parser tolerates a broken prefix instead of failing.
+        val fragments = ToolCallFragments()
+        toolCallFrames().forEach(fragments::add)
+
+        val call = fragments.complete().single()
+        assertEquals("current_time", call.name)
+        assertEquals("call_1", call.id)
+        assertEquals("Paris", call.args["city"])
+    }
+
+    @Test
+    fun `entries without an index are taken as whole calls`() {
+        // A gateway that ignores `stream` answers with one complete object, whose entries
+        // carry no index — the case that must not be mistaken for fragments of one call.
+        val fragments = ToolCallFragments()
+        fragments.add(toolCall("""{"id":"call_1","type":"function","function":{"name":"get_time","arguments":"{\"city\":\"Paris\"}"}}"""))
+        fragments.add(toolCall("""{"id":"call_2","type":"function","function":{"name":"get_date","arguments":"{}"}}"""))
+
+        assertEquals(listOf("get_time", "get_date"), fragments.complete().map { it.name })
+        assertEquals("Paris", fragments.complete().first().args["city"])
+    }
+
+    @Test
+    fun `an entry that never names a function is dropped`() {
+        val fragments = ToolCallFragments()
+        fragments.add(toolCall("""{"index":0,"function":{"arguments":"{}"}}"""))
+
+        assertTrue(fragments.complete().isEmpty())
+    }
+
     // ── Fixtures ───────────────────────────────────────────────────────
+
+    private fun toolCall(json: String): ChatToolCall =
+        openAiJson.decodeFromString<ChatToolCall>(json)
+
+    private fun toolCallFrames(): List<ChatToolCall> = listOf(
+        toolCall("""{"index":0,"id":"call_1","type":"function","function":{"name":"current_time","arguments":""}}"""),
+        toolCall("""{"index":0,"function":{"arguments":"{\"city\":"}}"""),
+        toolCall("""{"index":0,"function":{"arguments":"\"Paris\"}"}}"""),
+    )
+
+    private fun chatFrame(deltaJson: String): ChatChoice =
+        openAiJson.decodeFromString<ChatResponse>(
+            """{"id":"1","object":"chat.completion.chunk","choices":[{"index":0,"delta":$deltaJson,"finish_reason":null}]}"""
+        ).choices.single()
 
     private fun responsesModel() = OpenAiResponsesModel(
         config = provider(ProviderApiType.RESPONSES),

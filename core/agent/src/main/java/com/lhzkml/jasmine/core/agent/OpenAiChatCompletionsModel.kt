@@ -57,8 +57,11 @@ class OpenAiChatCompletionsModel(
     override val name: String = modelId
 
     /**
-     * 流式走 ADK 的 [StreamingResponseAggregator]：每个分片转成 `partial=true`
-     * 的 [LlmResponse] 交给它处理，流结束后再发射一次聚合结果。
+     * 只走流式：每个分片转成 `partial=true` 的 [LlmResponse] 交给 ADK 的
+     * [StreamingResponseAggregator]，流结束后再发射一次聚合结果。
+     *
+     * 非流式分支已删除——App 的运行配置始终是 ADK 的 `StreamingMode.SSE`，
+     * 那条路不可达。`stream` 参数是 ADK [Model] 契约的一部分，保留但不再判断。
      *
      * 整个 [Flow] 跑在注入的 IO 调度器上，因此内部可以安全地做阻塞式 HTTP 与
      * SSE 读取（与官方 `SpringAiModel` 用 `.flowOn(Dispatchers.IO)` 同理）。
@@ -66,48 +69,61 @@ class OpenAiChatCompletionsModel(
     @OptIn(FrameworkInternalApi::class)
     override fun generateContent(request: LlmRequest, stream: Boolean): Flow<LlmResponse> =
         flow {
-                if (stream) {
-                    val aggregator = StreamingResponseAggregator()
-                    streamChat(request).collect { chunk -> emit(aggregator.processResponse(chunk)) }
-                    aggregator.aggregate()?.let { emit(it) }
-                } else {
-                    emit(callChat(request))
-                }
+                val aggregator = StreamingResponseAggregator()
+                streamChat(request).collect { chunk -> emit(aggregator.processResponse(chunk)) }
+                // No stream events at all means the provider did not stream — typically it
+                // answered with a plain JSON body (some gateways ignore `stream`). Say so
+                // rather than ending the turn with nothing, which leaves the caller waiting
+                // on a reply that will never come.
+                val aggregated = aggregator.aggregate()
+                    ?: throw IOException("The provider returned no stream events")
+                emit(aggregated)
             }
             .flowOn(ioDispatcher)
-
-    // ── 传输：非流式 ───────────────────────────────────────────────────
-
-    private fun callChat(request: LlmRequest): LlmResponse {
-        val httpRequest = buildRequest(request, stream = false)
-        httpClient.newCall(httpRequest).execute().use { response ->
-            val text = response.body?.string().orEmpty()
-            if (!response.isSuccessful) throw IOException("HTTP ${response.code}: $text")
-            val parsed = openAiJson.decodeFromString<ChatResponse>(text)
-            parsed.error?.message?.let { throw IOException(it) }
-            return parsed.toLlmResponse(partial = false)
-        }
-    }
 
     // ── 传输：SSE 流式（手写，不依赖任何 OpenAI SDK） ────────────────────
 
     /**
      * 每个 `data:` 分片解析成一个增量 [LlmResponse]；单个分片解析失败只跳过该
      * 行，不让整条流中断（兼容供应商偶发的畸形帧）。
+     *
+     * 文本随分片即时发射，**工具调用不行**——它们是跨帧拼出来的，要等流结束后
+     * 才能发射（原因见 [ToolCallFragments]）。
      */
     private fun streamChat(request: LlmRequest): Flow<LlmResponse> =
         flow {
-            ssePayloads(httpClient, buildRequest(request, stream = true)).collect { payload ->
+            val toolCalls = ToolCallFragments()
+            ssePayloads(httpClient, buildRequest(request)).collect { payload ->
                 val chunk =
                     runCatching { openAiJson.decodeFromString<ChatResponse>(payload) }
                         .getOrNull() ?: return@collect
                 chunk.error?.message?.let { throw IOException(it) }
-                emit(chunk.toLlmResponse(partial = true))
+                chunk.choices.firstOrNull()?.let { choice ->
+                    (choice.delta ?: choice.message)?.toolCalls?.forEach(toolCalls::add)
+                }
+                emit(chunk.toLlmResponse())
+            }
+
+            val calls = toolCalls.complete()
+            if (calls.isNotEmpty()) {
+                emit(
+                    LlmResponse(
+                        content = Content(
+                            role = Role.MODEL,
+                            parts = calls.map { Part(functionCall = it) },
+                        ),
+                        partial = true,
+                    )
+                )
             }
         }
 
-    /** Internal rather than private so the wire shape can be asserted by unit tests. */
-    internal fun buildRequest(request: LlmRequest, stream: Boolean): Request {
+    /**
+     * Always a streaming request: this adapter has no non-streaming shape.
+     *
+     * Internal rather than private so the wire shape can be asserted by unit tests.
+     */
+    internal fun buildRequest(request: LlmRequest): Request {
         val messages =
             buildList {
                 request.config.systemInstruction
@@ -133,13 +149,13 @@ class OpenAiChatCompletionsModel(
                 topP = request.config.topP,
                 maxTokens = request.config.maxOutputTokens,
                 stop = request.config.stopSequences,
-                stream = stream,
+                stream = true,
             )
 
         return Request.Builder()
             .url(endpoint())
             .addHeader("Authorization", "Bearer ${config.apiKey}")
-            .addHeader("Accept", if (stream) "text/event-stream" else "application/json")
+            .addHeader("Accept", "text/event-stream")
             .post(openAiJson.encodeToString(payload).toRequestBody(JSON_MEDIA_TYPE))
             .build()
     }
@@ -197,30 +213,20 @@ class OpenAiChatCompletionsModel(
 
     // ── 翻译：OpenAI → ADK ─────────────────────────────────────────────
 
-    private fun ChatResponse.toLlmResponse(partial: Boolean): LlmResponse {
+    /**
+     * 文本与元数据。**刻意不含工具调用**：流式下一次调用是跨帧拼出来的
+     * （见 [ToolCallFragments]），分帧发射只会得到参数残缺的调用。
+     */
+    private fun ChatResponse.toLlmResponse(): LlmResponse {
         val choice = choices.firstOrNull()
-        val message = choice?.message ?: choice?.delta
-        val parts =
-            buildList {
-                message?.content?.takeIf { it.isNotEmpty() }?.let { add(Part(text = it)) }
-                message?.toolCalls
-                    ?.mapNotNull { it.toAdkFunctionCall() }
-                    ?.forEach { add(Part(functionCall = it)) }
-            }
+        val text = choice?.message?.content ?: choice?.delta?.content
         return LlmResponse(
-            content = parts.takeIf { it.isNotEmpty() }?.let { Content(role = Role.MODEL, parts = it) },
+            content = text
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { Content(role = Role.MODEL, parts = listOf(Part(text = it))) },
             finishReason = choice?.finishReason?.toAdkFinishReason(),
             usageMetadata = usage?.toAdkUsage(),
-            partial = partial,
-        )
-    }
-
-    private fun ChatToolCall.toAdkFunctionCall(): FunctionCall? {
-        val functionName = function?.name?.takeIf { it.isNotEmpty() } ?: return null
-        return FunctionCall(
-            name = functionName,
-            args = parseToolArguments(function.arguments),
-            id = id,
+            partial = true,
         )
     }
 
@@ -245,4 +251,49 @@ class OpenAiChatCompletionsModel(
     private companion object {
         val JSON_MEDIA_TYPE = "application/json".toMediaType()
     }
+}
+
+/**
+ * 把 Chat Completions 流式响应里的工具调用重新拼起来。
+ *
+ * 一次调用被协议拆在多个分片里：首片给出 `id` 与函数名，之后每片追加
+ * `arguments` 这段 JSON 文本的一段。因此**单看一片，参数就是一段残缺 JSON**
+ * （例如 `{"city"`），而参数解析器对残缺文本是容错的（返回空表而非报错），
+ * 于是逐片翻译会静默地得到「参数全空」的工具调用。
+ *
+ * 分片按 OpenAI 在每个条目上打的 `index` 归并；**没有 `index` 的条目视为一次
+ * 完整调用**——那正是不支持流式、在一帧里返回整个对象的网关的形状。
+ *
+ * `internal` 而非 `private`：拼装规则是纯数据变换，单元测试直接断言它，不必为
+ * 此起一个 HTTP 服务端。
+ */
+internal class ToolCallFragments {
+
+    private class Fragment {
+        var name: String? = null
+        var id: String? = null
+        val arguments = StringBuilder()
+    }
+
+    private val fragments = linkedMapOf<Int, Fragment>()
+    private var nextIndex = 0
+
+    /** 记下一片。同一 `index` 的片属于同一次调用，参数按到达顺序相接。 */
+    fun add(call: ChatToolCall) {
+        val fragment = fragments.getOrPut(call.index ?: nextIndex++) { Fragment() }
+        call.id?.takeIf { it.isNotEmpty() }?.let { fragment.id = it }
+        call.function?.name?.takeIf { it.isNotEmpty() }?.let { fragment.name = it }
+        call.function?.arguments?.let { fragment.arguments.append(it) }
+    }
+
+    /** 按调用开始的顺序给出完整调用；无名条目是无效帧，丢弃。 */
+    fun complete(): List<FunctionCall> =
+        fragments.values.mapNotNull { fragment ->
+            val name = fragment.name ?: return@mapNotNull null
+            FunctionCall(
+                name = name,
+                args = parseToolArguments(fragment.arguments.toString()),
+                id = fragment.id,
+            )
+        }
 }

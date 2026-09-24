@@ -367,6 +367,29 @@ class AdkAgentChatTest {
         assertTrue(events.filterIsInstance<ChatEvent.Text>().any { it.text == "ok" })
     }
 
+    @Test
+    fun `a streamed answer is not repeated by its settled event`() = runTest {
+        // ADK's SSE mode has the model stream deltas and then the aggregator repeat the
+        // whole answer on one settled event. Taking text from both would print it twice.
+        val chat = AdkAgentChat(
+            sessionService = InMemorySessionService(),
+            modelFactory = { _, _ -> StreamingModel() },
+        )
+        chat.startConversation(
+            sessionId = CONVERSATION_ID,
+            provider = PROVIDER,
+            modelId = "test-model",
+            instruction = "be nice",
+        )
+
+        val events = chat.send("ping").toList()
+
+        assertEquals(
+            listOf("Hel", "lo"),
+            events.filterIsInstance<ChatEvent.Text>().map { it.text },
+        )
+    }
+
     private fun sessionKey() = SessionKey(
         appName = "jasmine",
         userId = "local_user",
@@ -398,14 +421,31 @@ private class RecordingModel(
 
     override fun generateContent(request: LlmRequest, stream: Boolean): Flow<LlmResponse> {
         requests += request
-        return flowOf(
-            LlmResponse(
-                content = Content(role = Role.MODEL, parts = listOf(Part(text = reply))),
-                errorMessage = errorMessage,
-            )
-        )
+        // An error is not streamed; a normal answer is, in the shape ADK's SSE mode
+        // produces.
+        return if (errorMessage != null) {
+            flowOf(LlmResponse(errorMessage = errorMessage))
+        } else {
+            streamedAnswer(reply)
+        }
     }
 }
+
+/**
+ * One streamed answer in the shape ADK's SSE mode produces: a delta carrying the text,
+ * then the settled event the aggregator emits with the whole answer.
+ */
+private fun streamedAnswer(text: String): Flow<LlmResponse> =
+    flowOf(
+        LlmResponse(
+            content = Content(role = Role.MODEL, parts = listOf(Part(text = text))),
+            partial = true,
+        ),
+        LlmResponse(
+            content = Content(role = Role.MODEL, parts = listOf(Part(text = text))),
+            partial = false,
+        ),
+    )
 
 /**
  * Calls [toolName] on the first turn and answers in text once the tool has run —
@@ -422,18 +462,19 @@ private class ToolCallingModel(private val toolName: String) : Model {
         val toolAlreadyRan = request.contents
             .flatMap { it.parts }
             .any { it.functionResponse != null }
-        return flowOf(
-            if (toolAlreadyRan) {
-                LlmResponse(content = Content(role = Role.MODEL, parts = listOf(Part(text = "done"))))
-            } else {
+        return if (toolAlreadyRan) {
+            streamedAnswer("done")
+        } else {
+            // A tool call arrives on a settled event, not as a delta.
+            flowOf(
                 LlmResponse(
                     content = Content(
                         role = Role.MODEL,
                         parts = listOf(Part(functionCall = FunctionCall(name = toolName, args = emptyMap()))),
                     )
                 )
-            }
-        )
+            )
+        }
     }
 }
 
@@ -458,10 +499,10 @@ private class RequestInputModel(
         val answered = request.contents
             .flatMap { it.parts }
             .any { it.functionResponse != null }
-        return flowOf(
-            if (answered) {
-                LlmResponse(content = Content(role = Role.MODEL, parts = listOf(Part(text = "done"))))
-            } else {
+        return if (answered) {
+            streamedAnswer("done")
+        } else {
+            flowOf(
                 LlmResponse(
                     content = Content(
                         role = Role.MODEL,
@@ -476,13 +517,37 @@ private class RequestInputModel(
                         ),
                     )
                 )
-            }
-        )
+            )
+        }
     }
 
     private companion object {
         const val CALL_ID = "call-1"
     }
+}
+
+/**
+ * Streams two deltas and then the settled aggregate — the shape ADK's SSE mode produces
+ * for a model that streams.
+ */
+private class StreamingModel : Model {
+    override val name = "streaming-model"
+
+    override fun generateContent(request: LlmRequest, stream: Boolean): Flow<LlmResponse> =
+        flowOf(
+            LlmResponse(
+                content = Content(role = Role.MODEL, parts = listOf(Part(text = "Hel"))),
+                partial = true,
+            ),
+            LlmResponse(
+                content = Content(role = Role.MODEL, parts = listOf(Part(text = "lo"))),
+                partial = true,
+            ),
+            LlmResponse(
+                content = Content(role = Role.MODEL, parts = listOf(Part(text = "Hello"))),
+                partial = false,
+            ),
+        )
 }
 
 private fun LlmRequest.texts(): List<String> =
