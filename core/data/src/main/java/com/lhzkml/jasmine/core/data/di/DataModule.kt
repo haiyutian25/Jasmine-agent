@@ -5,13 +5,10 @@ import com.lhzkml.jasmine.core.data.datastore.ProviderDataStore
 import com.lhzkml.jasmine.core.data.datastore.UserPreferencesDataStore
 import com.lhzkml.jasmine.core.data.manager.dispatcher.DispatcherManager
 import com.lhzkml.jasmine.core.data.manager.dispatcher.DispatcherManagerImpl
-import com.lhzkml.jasmine.core.data.repository.ChatHistoryRepository
-import com.lhzkml.jasmine.core.data.repository.ChatHistoryRepositoryImpl
 import com.lhzkml.jasmine.core.data.repository.ProviderRepository
 import com.lhzkml.jasmine.core.data.repository.ProviderRepositoryImpl
 import com.lhzkml.jasmine.core.data.repository.UserPreferencesRepository
 import com.lhzkml.jasmine.core.data.repository.UserPreferencesRepositoryImpl
-import com.lhzkml.jasmine.core.database.AppDatabase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -45,16 +42,6 @@ object DataModule {
     ): ProviderRepository = ProviderRepositoryImpl(
         providerDataStore = providerDataStore,
         providerModelDataSource = providerModelDataSource,
-        dispatcherManager = dispatcherManager,
-    )
-
-    @Provides
-    @Singleton
-    fun provideChatHistoryRepository(
-        appDatabase: AppDatabase,
-        dispatcherManager: DispatcherManager,
-    ): ChatHistoryRepository = ChatHistoryRepositoryImpl(
-        chatHistoryDao = appDatabase.chatHistoryDao(),
         dispatcherManager = dispatcherManager,
     )
 }

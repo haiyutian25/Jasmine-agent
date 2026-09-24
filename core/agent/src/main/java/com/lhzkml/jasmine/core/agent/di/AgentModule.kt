@@ -1,14 +1,21 @@
 package com.lhzkml.jasmine.core.agent.di
 
 import android.content.Context
+import com.google.adk.kt.memory.MemoryService
+import com.google.adk.kt.memory.appsearch.AppSearchMemoryService
 import com.google.adk.kt.models.Model
 import com.google.adk.kt.sessions.SessionService
 import com.google.adk.kt.sessions.room.RoomSessionService
+import com.google.adk.kt.tools.BaseTool
 import com.lhzkml.jasmine.core.agent.AdkAgentChat
+import com.lhzkml.jasmine.core.agent.AdkConversationStore
 import com.lhzkml.jasmine.core.agent.AdkProviderProbe
 import com.lhzkml.jasmine.core.agent.AgentChat
+import com.lhzkml.jasmine.core.agent.ConversationStore
 import com.lhzkml.jasmine.core.agent.ProviderProbe
 import com.lhzkml.jasmine.core.agent.openAiModelFor
+import com.lhzkml.jasmine.core.agent.tools.JasmineTools
+import com.lhzkml.jasmine.core.agent.tools.generatedTools
 import com.lhzkml.jasmine.core.data.manager.dispatcher.DispatcherManager
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import dagger.Module
@@ -21,13 +28,13 @@ import okhttp3.OkHttpClient
 
 /**
  * Wires the agent layer into the graph — the composition root for the model
- * factory and the session store, so [AdkProviderProbe] and [AdkAgentChat] stay
- * free of transport/storage wiring (and testable with fakes).
+ * factory, the session store and the tool set, so [AdkProviderProbe] and
+ * [AdkAgentChat] stay free of transport/storage wiring (and testable with fakes).
  *
- * Both other dependencies come from sibling core modules: the shared
- * [OkHttpClient] (`core:network`) and the injectable [DispatcherManager]
- * (`core:data`) — the agent layer therefore never touches `Dispatchers`
- * directly, matching the project-wide threading convention.
+ * Other dependencies come from sibling core modules: the shared [OkHttpClient]
+ * (`core:network`) and the injectable [DispatcherManager] (`core:data`) — the
+ * agent layer therefore never touches `Dispatchers` directly, matching the
+ * project-wide threading convention.
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -59,18 +66,50 @@ object AgentModule {
         RoomSessionService.fromContext(context)
 
     /**
+     * The conversation history the UI reads, backed by the same session store the agent
+     * runs on — so a conversation exists once, not once per layer.
+     */
+    @Provides
+    @Singleton
+    fun provideConversationStore(sessionService: SessionService): ConversationStore =
+        AdkConversationStore(sessionService)
+
+    /**
+     * ADK's AppSearch-backed long-term memory (it ships in ADK core's Android
+     * variant, along with the `appsearch-local-storage` backend it needs).
+     *
+     * Persistent, unlike the `InMemoryMemoryService` ADK would otherwise default to
+     * — which matters because memory exists to outlive the process. Singleton: it
+     * owns one AppSearch database, and `fromContext` applies the application context
+     * internally.
+     */
+    @Provides
+    @Singleton
+    fun provideMemoryService(@ApplicationContext context: Context): MemoryService =
+        AppSearchMemoryService.fromContext(context)
+
+    /**
      * Deliberately **not** `@Singleton`: an [AgentChat] owns a live conversation
      * (runner plus the attached session), so each conversation owner gets its own
      * instance and cannot inherit another one's history.
+     *
+     * The app's own tools arrive as one [JasmineTools] instance whose `generatedTools()`
+     * accessor ADK's KSP processor emitted; ADK's own tools are contributed to the
+     * [BaseTool] set with `@Provides @IntoSet` (see [AgentToolsModule]).
      */
     @Provides
     fun provideAgentChat(
         sessionService: SessionService,
+        memoryService: MemoryService,
         okHttpClient: OkHttpClient,
         dispatcherManager: DispatcherManager,
+        jasmineTools: JasmineTools,
+        adkTools: Set<@JvmSuppressWildcards BaseTool>,
     ): AgentChat = AdkAgentChat(
         sessionService = sessionService,
         modelFactory = modelFactory(okHttpClient, dispatcherManager),
+        tools = jasmineTools.generatedTools() + adkTools,
+        memoryService = memoryService,
     )
 
     private fun modelFactory(

@@ -2,15 +2,25 @@ package com.lhzkml.jasmine.core.agent
 
 import com.google.adk.kt.models.LlmRequest
 import com.google.adk.kt.models.LlmResponse
+import com.google.adk.kt.memory.InMemoryMemoryService
 import com.google.adk.kt.models.Model
 import com.google.adk.kt.sessions.InMemorySessionService
 import com.google.adk.kt.sessions.SessionKey
+import com.google.adk.kt.tools.BaseTool
+import com.google.adk.kt.tools.RequestInputTool
 import com.google.adk.kt.types.Content
+import com.google.adk.kt.types.FunctionCall
 import com.google.adk.kt.types.Part
 import com.google.adk.kt.types.Role
+import com.lhzkml.jasmine.core.agent.tools.JasmineTools
+import com.lhzkml.jasmine.core.agent.tools.generatedTools
+import com.lhzkml.jasmine.core.data.model.ChatRole
+import com.lhzkml.jasmine.core.data.model.Conversation
 import com.lhzkml.jasmine.core.data.model.ProviderApiType
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
+import com.lhzkml.jasmine.core.data.model.TranscriptMessage
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
@@ -152,9 +162,10 @@ class AdkAgentChatTest {
         assertEquals(listOf("pong"), texts)
         // The caller's own message is not echoed back: it is already rendered locally.
         assertFalse(texts.contains("ping"))
-        // Note: ChatEvent.Completed is NOT asserted. ADK does not reliably mark the
-        // final event as turnComplete for a plain single-agent turn, which is why
-        // ChatViewModel posts its own TurnCompleted once the flow ends.
+        // ADK marks the end of the turn itself: the closing text event is its
+        // `isFinalResponse`, and that is what carries ChatEvent.Completed. The caller
+        // no longer posts an end-of-turn action of its own.
+        assertEquals(1, events.count { it is ChatEvent.Completed })
     }
 
     @Test
@@ -189,6 +200,171 @@ class AdkAgentChatTest {
         val failure = runCatching { chat.send("hi").toList() }.exceptionOrNull()
 
         assertTrue("expected IllegalStateException, got $failure", failure is IllegalStateException)
+    }
+
+    @Test
+    fun `declared tools reach the model`() = runTest {
+        val model = RecordingModel(reply = "hi")
+        val chat = AdkAgentChat(
+            sessionService = InMemorySessionService(),
+            modelFactory = { _, _ -> model },
+            tools = listOf(currentTimeTool()),
+        )
+
+        chat.startConversation(
+            sessionId = CONVERSATION_ID,
+            provider = PROVIDER,
+            modelId = "test-model",
+            instruction = "be nice",
+        )
+        chat.send("what time is it").toList()
+
+        // Without this the model has no way to know the tool exists.
+        val declared = model.requests.single().config.tools
+            .orEmpty()
+            .flatMap { it.functionDeclarations.orEmpty() }
+        assertEquals(listOf("current_time"), declared.map { it.name })
+    }
+
+    @Test
+    fun `a tool call runs the tool and feeds its result back to the model`() = runTest {
+        val model = ToolCallingModel(toolName = "current_time")
+        val chat = AdkAgentChat(
+            sessionService = InMemorySessionService(),
+            modelFactory = { _, _ -> model },
+            tools = listOf(currentTimeTool()),
+        )
+        chat.startConversation(
+            sessionId = CONVERSATION_ID,
+            provider = PROVIDER,
+            modelId = "test-model",
+            instruction = "be nice",
+        )
+
+        val events = chat.send("what time is it").toList()
+
+        // The call and its result are surfaced so the UI can show the agent working.
+        assertEquals(
+            listOf("current_time"),
+            events.filterIsInstance<ChatEvent.ToolCall>().map { it.name },
+        )
+        val results = events.filterIsInstance<ChatEvent.ToolResult>()
+        assertEquals(listOf("current_time"), results.map { it.name })
+        assertTrue("the tool produced no output: $results", results.single().result.isNotBlank())
+
+        // The loop closed: ADK re-called the model with the tool's answer appended.
+        assertEquals(2, model.requests.size)
+        val fedBack = model.requests.last().contents
+            .flatMap { it.parts }
+            .mapNotNull { it.functionResponse }
+        assertEquals(listOf("current_time"), fedBack.map { it.name })
+
+        // …and the model's closing text still reaches the caller.
+        assertTrue(
+            events.filterIsInstance<ChatEvent.Text>().any { it.text == "done" },
+        )
+    }
+
+    @Test
+    fun `a long-running tool pauses the turn and the answer resumes it`() = runTest {
+        val model = RequestInputModel(toolName = "adk_request_input", question = "Which city?")
+        val chat = AdkAgentChat(
+            sessionService = InMemorySessionService(),
+            modelFactory = { _, _ -> model },
+            tools = listOf(RequestInputTool()),
+        )
+        chat.startConversation(
+            sessionId = CONVERSATION_ID,
+            provider = PROVIDER,
+            modelId = "test-model",
+            instruction = "be nice",
+        )
+
+        val paused = chat.send("book me a flight").toList()
+
+        // The turn stops on the prompt: the tool deferred, so ADK ended the turn
+        // instead of re-calling the model with an empty result.
+        val prompt = paused.filterIsInstance<ChatEvent.UserPromptRequested>().single()
+        assertEquals("Which city?", prompt.prompt)
+        assertTrue("no options expected for a free-form question", prompt.options.isEmpty())
+        // ADK marks the pause as this turn's final response (`isFinalResponse` is true
+        // for an event carrying a long-running call), which is how the caller learns
+        // the turn ended and can release the composer for the answer.
+        assertTrue("the pause was not reported as the end of the turn", paused.any { it is ChatEvent.Completed })
+        assertEquals(1, model.requests.size)
+
+        val resumed = chat.respondToPrompt("Beijing").toList()
+
+        // The answer went back as the tool's result, correlated by call id.
+        assertEquals(2, model.requests.size)
+        val fedBack = model.requests.last().contents
+            .flatMap { it.parts }
+            .mapNotNull { it.functionResponse }
+        assertEquals(listOf("adk_request_input"), fedBack.map { it.name })
+        assertEquals("Beijing", fedBack.single().response["result"])
+
+        // …and the rest of the turn streamed normally.
+        assertTrue(resumed.filterIsInstance<ChatEvent.Text>().any { it.text == "done" })
+    }
+
+    @Test
+    fun `answering with no prompt pending is rejected`() = runTest {
+        val chat = AdkAgentChat(
+            sessionService = InMemorySessionService(),
+            modelFactory = { _, _ -> RecordingModel(reply = "x") },
+        )
+        chat.startConversation(
+            sessionId = CONVERSATION_ID,
+            provider = PROVIDER,
+            modelId = "test-model",
+            instruction = "be nice",
+        )
+
+        val failure = runCatching { chat.respondToPrompt("hello").toList() }.exceptionOrNull()
+
+        assertTrue("expected IllegalStateException, got $failure", failure is IllegalStateException)
+    }
+
+    @Test
+    fun `a finished turn is handed to long-term memory`() = runTest {
+        val memory = InMemoryMemoryService()
+        val chat = AdkAgentChat(
+            sessionService = InMemorySessionService(),
+            modelFactory = { _, _ -> RecordingModel(reply = "Paris is the capital of France") },
+            memoryService = memory,
+        )
+        chat.startConversation(
+            sessionId = CONVERSATION_ID,
+            provider = PROVIDER,
+            modelId = "test-model",
+            instruction = "be nice",
+        )
+
+        chat.send("what is the capital of France").toList()
+
+        // Without ingestion `load_memory` would search an empty store forever.
+        val found = memory.searchMemory(appName = "jasmine", userId = "local_user", query = "capital")
+        assertTrue("nothing was remembered", found.memories.isNotEmpty())
+    }
+
+    @Test
+    fun `without a memory service a turn still completes`() = runTest {
+        // Memory is optional: the runner defaults it, and a null must not break a turn.
+        val model = RecordingModel(reply = "ok")
+        val chat = AdkAgentChat(
+            sessionService = InMemorySessionService(),
+            modelFactory = { _, _ -> model },
+        )
+        chat.startConversation(
+            sessionId = CONVERSATION_ID,
+            provider = PROVIDER,
+            modelId = "test-model",
+            instruction = "be nice",
+        )
+
+        val events = chat.send("hi").toList()
+
+        assertTrue(events.filterIsInstance<ChatEvent.Text>().any { it.text == "ok" })
     }
 
     private fun sessionKey() = SessionKey(
@@ -231,5 +407,112 @@ private class RecordingModel(
     }
 }
 
+/**
+ * Calls [toolName] on the first turn and answers in text once the tool has run —
+ * which is what makes the runner's tool loop observable.
+ */
+private class ToolCallingModel(private val toolName: String) : Model {
+
+    override val name: String = "tool-calling-model"
+
+    val requests = mutableListOf<LlmRequest>()
+
+    override fun generateContent(request: LlmRequest, stream: Boolean): Flow<LlmResponse> {
+        requests += request
+        val toolAlreadyRan = request.contents
+            .flatMap { it.parts }
+            .any { it.functionResponse != null }
+        return flowOf(
+            if (toolAlreadyRan) {
+                LlmResponse(content = Content(role = Role.MODEL, parts = listOf(Part(text = "done"))))
+            } else {
+                LlmResponse(
+                    content = Content(
+                        role = Role.MODEL,
+                        parts = listOf(Part(functionCall = FunctionCall(name = toolName, args = emptyMap()))),
+                    )
+                )
+            }
+        )
+    }
+}
+
+/**
+ * Asks [question] through a long-running tool, then answers in text once the tool
+ * has a response — the shape a paused-and-resumed turn has in practice.
+ *
+ * The call carries an explicit id because that is what ADK correlates the injected
+ * answer against, and what a real provider supplies.
+ */
+private class RequestInputModel(
+    private val toolName: String,
+    private val question: String,
+) : Model {
+
+    override val name: String = "request-input-model"
+
+    val requests = mutableListOf<LlmRequest>()
+
+    override fun generateContent(request: LlmRequest, stream: Boolean): Flow<LlmResponse> {
+        requests += request
+        val answered = request.contents
+            .flatMap { it.parts }
+            .any { it.functionResponse != null }
+        return flowOf(
+            if (answered) {
+                LlmResponse(content = Content(role = Role.MODEL, parts = listOf(Part(text = "done"))))
+            } else {
+                LlmResponse(
+                    content = Content(
+                        role = Role.MODEL,
+                        parts = listOf(
+                            Part(
+                                functionCall = FunctionCall(
+                                    name = toolName,
+                                    args = mapOf("message" to question),
+                                    id = CALL_ID,
+                                )
+                            )
+                        ),
+                    )
+                )
+            }
+        )
+    }
+
+    private companion object {
+        const val CALL_ID = "call-1"
+    }
+}
+
 private fun LlmRequest.texts(): List<String> =
     contents.flatMap { content -> content.parts.mapNotNull { it.text } }
+
+/**
+ * The app's own current-time tool, taken from the set ADK's KSP processor generated —
+ * the same way `AgentModule` hands tools to the agent.
+ */
+private fun currentTimeTool(): BaseTool =
+    JasmineTools(NoConversationsStore()).generatedTools().first { it.name == "current_time" }
+
+/**
+ * A store holding nothing. These tests exercise the runner, not the listing tool, and
+ * the current-time tool never reads it.
+ */
+private class NoConversationsStore : ConversationStore {
+    override val conversationsStateFlow = MutableStateFlow<List<Conversation>>(emptyList())
+
+    override suspend fun refresh() = Unit
+
+    override suspend fun latestConversation(): Conversation? = null
+
+    override suspend fun messagesOf(conversationId: String): List<TranscriptMessage> = emptyList()
+
+    override suspend fun createConversation(
+        providerId: String,
+        modelId: String,
+        title: String,
+    ): Conversation = error("not used by these tests")
+
+    override suspend fun deleteConversation(id: String) = Unit
+}

@@ -5,10 +5,38 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * One incremental piece of an assistant turn.
+ *
+ * A turn is a sequence: any amount of [Text] and [ToolCall]/[ToolResult] pairs, then
+ * [Completed], [Failed], or [UserPromptRequested] when the agent stopped to ask
+ * something. Tool activity is reported so the caller can show what the agent is
+ * doing — while a tool runs the model is silent, and without this the UI would look
+ * frozen.
  */
 sealed interface ChatEvent {
     /** More assistant text arrived; append it to the running reply. */
     data class Text(val text: String) : ChatEvent
+
+    /**
+     * The model asked to call a tool. [arguments] is the raw argument map rendered
+     * for display; the tool itself is executed by ADK, not by the caller.
+     */
+    data class ToolCall(val name: String, val arguments: String) : ChatEvent
+
+    /** A tool finished; [result] is what it returned, already truncated for display. */
+    data class ToolResult(val name: String, val result: String) : ChatEvent
+
+    /**
+     * The agent stopped and is waiting on the user: a tool asked a question or offered
+     * a choice. **The turn ends here** — no [Completed] follows, and nothing more is
+     * emitted until [AgentChat.respondToPrompt] is called.
+     *
+     * [options] is empty when free-form text is expected, otherwise it holds the
+     * choices the user must pick from.
+     */
+    data class UserPromptRequested(
+        val prompt: String,
+        val options: List<String>,
+    ) : ChatEvent
 
     /** The turn failed; [detail] is the raw reason (HTTP status, provider error…). */
     data class Failed(val detail: String) : ChatEvent
@@ -57,6 +85,14 @@ interface AgentChat {
      * @throws IllegalStateException when called before [startConversation].
      */
     fun send(text: String): Flow<ChatEvent>
+
+    /**
+     * Answers the pending [ChatEvent.UserPromptRequested] and resumes the paused turn,
+     * streaming whatever the model does next — including another prompt.
+     *
+     * @throws IllegalStateException when no prompt is pending.
+     */
+    fun respondToPrompt(answer: String): Flow<ChatEvent>
 
     /** Releases the runner. Stored history is left untouched. */
     fun endConversation()

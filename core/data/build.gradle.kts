@@ -23,7 +23,7 @@ dependencies {
   // DAOs stay behind the repository boundary, so no consumer needs to see them.
   // Room itself is a direct dependency because this module touches RoomDatabase
   // (to obtain the DAO) and the Room-annotated entity types.
-  implementation(project(":core:database"))
+
   implementation(libs.androidx.room.runtime)
   implementation(project(":core:network"))
 

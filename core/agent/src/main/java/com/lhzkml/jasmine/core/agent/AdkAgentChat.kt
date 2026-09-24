@@ -2,17 +2,28 @@ package com.lhzkml.jasmine.core.agent
 
 import com.google.adk.kt.agents.Instruction
 import com.google.adk.kt.agents.LlmAgent
+import com.google.adk.kt.agents.RunConfig
+import com.google.adk.kt.apps.App
+import com.google.adk.kt.callbacks.AfterAgentCallback
+import com.google.adk.kt.callbacks.CallbackChoice
+import com.google.adk.kt.memory.MemoryService
 import com.google.adk.kt.models.Model
 import com.google.adk.kt.runners.InMemoryRunner
 import com.google.adk.kt.runners.Runner
 import com.google.adk.kt.sessions.SessionKey
 import com.google.adk.kt.sessions.SessionService
+import com.google.adk.kt.tools.BaseTool
 import com.google.adk.kt.types.Content
+import com.google.adk.kt.types.FunctionCall
+import com.google.adk.kt.types.FunctionResponse
 import com.google.adk.kt.types.Part
 import com.google.adk.kt.types.Role
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+
+/** How much of a tool's arguments/result is worth putting on screen. */
+private const val ToolDetailMaxLength = 200
 
 /**
  * ADK-backed [AgentChat]: one [LlmAgent] whose model comes from [modelFactory],
@@ -23,6 +34,12 @@ import kotlinx.coroutines.flow.flow
  * `InMemorySessionService()`. In the app the injected one is ADK's own
  * `RoomSessionService` (see `AgentModule`), which is what makes a conversation
  * survive process death.
+ *
+ * Tools arrive already adapted to ADK's [BaseTool] (`AdkAgentTool` does that in
+ * the composition root), so this class only hands them to the agent. ADK's own
+ * `ToolProcessor` then runs the loop: declarations go into the request, a
+ * `functionCall` comes back, the tool runs, its `functionResponse` is appended
+ * and the model is called again.
  *
  * ## Session identity
  *
@@ -35,22 +52,49 @@ import kotlinx.coroutines.flow.flow
  * [endConversation] closes the runner but deliberately does **not** delete the
  * session: dropping the in-memory object must not erase durable history.
  *
- * Events are filtered down to assistant text: the runner also emits the user's
- * own message event (already rendered locally) and bookkeeping events, so
- * anything authored by [USER_AUTHOR] is skipped. A non-null `errorMessage` is
- * surfaced as [ChatEvent.Failed]; `errorCode` alone is *not* treated as failure
- * because ADK also uses it to report a non-`STOP` finish reason such as
- * `MAX_TOKENS`.
+ * ## Paused turns
+ *
+ * A *long-running* tool (ADK's `adk_request_input` / `get_user_choice`) returns
+ * without a result, which makes the runner end the turn on the function-call
+ * event instead of re-calling the model. Such a call is surfaced as
+ * [ChatEvent.UserPromptRequested] and remembered; [respondToPrompt] then injects
+ * the `functionResponse` the runner was waiting for and streams the rest of the
+ * turn. ADK correlates it by call id, so the id is kept here rather than exposed.
+ *
+ * ## Long-term memory
+ *
+ * With a memory service injected, the agent carries ADK's *after-agent callback* that
+ * ingests the finished session (see [memoryIngestionCallbacks]), so `load_memory` has
+ * something to find. Ingestion is the framework's hook, not a step of this class.
+ *
+ * ## Event mapping
+ *
+ * Text is forwarded for every event (that is what makes streaming work). Tool
+ * activity is forwarded only from settled events: while streaming, the
+ * aggregator also emits *partial* function calls whose arguments are still
+ * incomplete, and acting on those would surface half-built calls.
+ *
+ * Events authored by [USER_AUTHOR] are skipped — the runner echoes the caller's
+ * own message, which the UI already rendered. A non-null `errorMessage` becomes
+ * [ChatEvent.Failed]; `errorCode` alone is *not* treated as failure because ADK
+ * also uses it to report a non-`STOP` finish reason such as `MAX_TOKENS`.
  */
 class AdkAgentChat(
     private val sessionService: SessionService,
     private val modelFactory: (ProviderConfig, String) -> Model,
+    private val tools: List<BaseTool> = emptyList(),
+    private val memoryService: MemoryService? = null,
 ) : AgentChat {
 
     private var runner: Runner? = null
 
     /** The id of the session the runner is attached to. */
     private var attachedSessionId: String? = null
+
+    /** The long-running call the agent is waiting on, if any. */
+    private var pendingPrompt: PendingPrompt? = null
+
+    private data class PendingPrompt(val name: String, val id: String?)
 
     override suspend fun startConversation(
         sessionId: String,
@@ -65,21 +109,55 @@ class AdkAgentChat(
             model = modelFactory(provider, modelId),
             description = AGENT_DESCRIPTION,
             instruction = Instruction(instruction),
+            tools = tools,
+            afterAgentCallbacks = memoryIngestionCallbacks(),
         )
         val key = SessionKey(appName = APP_NAME, userId = USER_ID, id = sessionId)
         if (sessionService.getSession(key) == null) {
             sessionService.createSession(key)
         }
 
+        // ADK's own app declaration, which is also the only place resumability,
+        // compaction and context caching are configurable. Left at their defaults, so
+        // this is the same configuration the loose appName/agent constructor produced.
         runner = InMemoryRunner(
-            agent = agent,
-            appName = APP_NAME,
+            app = App(appName = APP_NAME, rootAgent = agent),
             sessionService = sessionService,
+            memoryService = memoryService,
         )
         attachedSessionId = sessionId
     }
 
-    override fun send(text: String): Flow<ChatEvent> = flow {
+    override fun send(text: String): Flow<ChatEvent> =
+        run(newMessage = Content(role = Role.USER, parts = listOf(Part(text = text))))
+
+    override fun respondToPrompt(answer: String): Flow<ChatEvent> {
+        val pending = checkNotNull(pendingPrompt) { "No prompt is waiting for an answer" }
+        pendingPrompt = null
+        return run(
+            newMessage = Content(
+                role = Role.USER,
+                parts = listOf(
+                    Part(
+                        functionResponse = FunctionResponse(
+                            name = pending.name,
+                            response = mapOf(BaseTool.RESULT_KEY to answer),
+                            id = pending.id,
+                        )
+                    )
+                ),
+            ),
+        )
+    }
+
+    override fun endConversation() {
+        runner?.close()
+        runner = null
+        attachedSessionId = null
+        pendingPrompt = null
+    }
+
+    private fun run(newMessage: Content): Flow<ChatEvent> = flow {
         val activeRunner = checkNotNull(runner) { "No conversation: call startConversation first" }
         val activeSessionId =
             checkNotNull(attachedSessionId) { "No conversation: call startConversation first" }
@@ -88,7 +166,11 @@ class AdkAgentChat(
             .runAsync(
                 userId = USER_ID,
                 sessionId = activeSessionId,
-                newMessage = Content(role = Role.USER, parts = listOf(Part(text = text))),
+                newMessage = newMessage,
+                // ADK's per-run guard. Its `maxLlmCalls` limit is only enforced when a
+                // RunConfig is supplied — ADK's own source warns that leaving it off
+                // risks a run that never ends.
+                runConfig = RunConfig(),
             )
             .collect { event ->
                 val failure = event.errorMessage
@@ -97,22 +179,64 @@ class AdkAgentChat(
                     return@collect
                 }
                 if (event.author != USER_AUTHOR) {
-                    val chunk =
-                        event.content
-                            ?.parts
-                            .orEmpty()
-                            .mapNotNull { it.text }
-                            .joinToString("")
+                    val parts = event.content?.parts.orEmpty()
+                    val chunk = parts.mapNotNull { it.text }.joinToString("")
                     if (chunk.isNotEmpty()) emit(ChatEvent.Text(chunk))
+                    if (!event.partial) {
+                        parts.forEach { part -> emitToolActivity(part) }
+                    }
                 }
-                if (event.turnComplete) emit(ChatEvent.Completed)
+                if (event.isFinalResponse) emit(ChatEvent.Completed)
             }
+
     }
 
-    override fun endConversation() {
-        runner?.close()
-        runner = null
-        attachedSessionId = null
+    /**
+     * ADK's own ingestion entry point: an after-agent callback is handed a
+     * `CallbackContext`, and its `addSessionToMemory()` is what puts the session into
+     * the memory service — the same thing a hand-written post-turn call would do, but
+     * driven by the framework's hook and reading the live session directly.
+     *
+     * Registered only when a memory service exists: ADK throws from
+     * `addSessionToMemory` when the invocation has none.
+     */
+    private fun memoryIngestionCallbacks(): List<AfterAgentCallback> =
+        if (memoryService == null) {
+            emptyList()
+        } else {
+            listOf(
+                AfterAgentCallback { context ->
+                    context.addSessionToMemory()
+                    CallbackChoice.Continue(Unit)
+                }
+            )
+        }
+
+    /**
+     * Reports one part of a settled event. A long-running call is both recorded (so
+     * the turn can be resumed) and surfaced as a prompt; everything else is a plain
+     * tool call or result.
+     */
+    private suspend fun kotlinx.coroutines.flow.FlowCollector<ChatEvent>.emitToolActivity(part: Part) {
+        part.functionCall?.let { call ->
+            val prompt = call.asUserPrompt()
+            if (prompt == null) {
+                emit(ChatEvent.ToolCall(name = call.name, arguments = call.args.abbreviated()))
+            } else {
+                // The call id is what ADK matches the answer against on resume.
+                pendingPrompt = PendingPrompt(name = call.name, id = call.id)
+                emit(ChatEvent.ToolCall(name = call.name, arguments = call.args.abbreviated()))
+                emit(prompt)
+            }
+        }
+        part.functionResponse?.let { response ->
+            emit(
+                ChatEvent.ToolResult(
+                    name = response.name,
+                    result = response.response.abbreviated(),
+                )
+            )
+        }
     }
 
     private companion object {
@@ -123,5 +247,36 @@ class AdkAgentChat(
 
         /** Author ADK stamps on the caller's own message events. */
         const val USER_AUTHOR = "user"
+
+        /** ADK's two long-running tools: they stop the turn and wait for the user. */
+        const val REQUEST_INPUT_TOOL = "adk_request_input"
+        const val GET_USER_CHOICE_TOOL = "get_user_choice"
+        const val MESSAGE_ARG = "message"
+        const val OPTIONS_ARG = "options"
     }
 }
+
+/**
+ * Turns a long-running call into the prompt it represents, or null for an ordinary
+ * tool. Both shapes are ADK's own, so the argument names are read here rather than
+ * modelled in the public contract.
+ */
+private fun FunctionCall.asUserPrompt(): ChatEvent.UserPromptRequested? = when (name) {
+    "adk_request_input" -> ChatEvent.UserPromptRequested(
+        prompt = args["message"]?.toString().orEmpty(),
+        options = emptyList(),
+    )
+
+    "get_user_choice" -> ChatEvent.UserPromptRequested(
+        prompt = "",
+        options = (args["options"] as? List<*>).orEmpty().mapNotNull { it?.toString() },
+    )
+
+    else -> null
+}
+
+/** Renders model-supplied arguments / tool responses compactly for a status line. */
+private fun Map<String, Any?>.abbreviated(): String =
+    entries.joinToString(", ") { (key, value) -> "$key=$value" }
+        .ifEmpty { "—" }
+        .let { if (it.length <= ToolDetailMaxLength) it else it.take(ToolDetailMaxLength - 1) + "…" }

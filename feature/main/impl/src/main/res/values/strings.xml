@@ -62,4 +62,8 @@
     <string name="chat_history_title">Chats</string>
     <string name="chat_history_empty">No saved chats yet.</string>
     <string name="chat_history_delete_cd">Delete chat</string>
+    <string name="chat_tool_call">Called %1$s</string>
+    <string name="chat_tool_result">%1$s returned</string>
+    <string name="chat_prompt_title">The agent is waiting for you</string>
+    <string name="chat_prompt_hint">Your answer…</string>
 </resources>

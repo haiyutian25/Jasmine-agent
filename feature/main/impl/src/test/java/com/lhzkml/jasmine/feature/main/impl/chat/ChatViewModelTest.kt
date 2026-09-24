@@ -9,7 +9,7 @@ import com.lhzkml.jasmine.core.data.model.ProviderApiType
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import com.lhzkml.jasmine.core.data.model.TranscriptMessage
 import com.lhzkml.jasmine.core.data.model.UserPreferences
-import com.lhzkml.jasmine.core.data.repository.ChatHistoryRepository
+import com.lhzkml.jasmine.core.agent.ConversationStore
 import com.lhzkml.jasmine.core.data.repository.ProviderRepository
 import com.lhzkml.jasmine.core.data.repository.UserPreferencesRepository
 import kotlinx.coroutines.Dispatchers
@@ -43,7 +43,7 @@ class ChatViewModelTest {
 
     private lateinit var providerRepository: FakeProviderRepository
     private lateinit var preferencesRepository: FakeUserPreferencesRepository
-    private lateinit var historyRepository: FakeChatHistoryRepository
+    private lateinit var conversationStore: FakeConversationStore
     private lateinit var agentChat: FakeAgentChat
 
     @Before
@@ -57,7 +57,7 @@ class ChatViewModelTest {
                     activeModelId = MODEL_ID,
                 )
             )
-        historyRepository = FakeChatHistoryRepository()
+        conversationStore = FakeConversationStore()
         agentChat = FakeAgentChat()
     }
 
@@ -111,23 +111,142 @@ class ChatViewModelTest {
         }
 
     @Test
-    fun `the turn ends even when the agent never reports completion`() =
+    fun `tool activity is interleaved with the model's text in order`() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        agentChat.nextEvents = listOf(
+            ChatEvent.Text("Let me check."),
+            ChatEvent.ToolCall("current_time", ""),
+            ChatEvent.ToolResult("current_time", "2026-09-24 09:00"),
+            ChatEvent.Text("It is 09:00."),
+            ChatEvent.Completed,
+        )
+
+        viewModel.trySendAction(ChatAction.InputChanged("what time"))
+        viewModel.trySendAction(ChatAction.SendClicked)
+        advanceUntilIdle()
+
+        val messages = viewModel.stateFlow.value.messages
+        // user, preamble, call, result, answer — the order things happened in.
+        assertEquals(5, messages.size)
+        assertEquals("what time", messages[0].text)
+        assertEquals("Let me check.", messages[1].text)
+        assertEquals("current_time", messages[2].tool?.name)
+        assertFalse(messages[2].tool!!.isResult)
+        assertEquals("current_time", messages[3].tool?.name)
+        assertTrue(messages[3].tool!!.isResult)
+        assertEquals("2026-09-24 09:00", messages[3].tool!!.detail)
+        assertEquals("It is 09:00.", messages[4].text)
+        assertFalse(messages[4].isStreaming)
+    }
+
+    @Test
+    fun `a turn that opens with a tool call leaves no empty bubble`() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        agentChat.nextEvents = listOf(
+            ChatEvent.ToolCall("current_time", ""),
+            ChatEvent.ToolResult("current_time", "09:00"),
+            ChatEvent.Text("It is 09:00."),
+            ChatEvent.Completed,
+        )
+
+        viewModel.trySendAction(ChatAction.InputChanged("what time"))
+        viewModel.trySendAction(ChatAction.SendClicked)
+        advanceUntilIdle()
+
+        // The placeholder created on send is dropped rather than sealed, so the trace
+        // does not start with a blank assistant bubble.
+        val messages = viewModel.stateFlow.value.messages
+        assertEquals(4, messages.size)
+        assertTrue(messages.none { it.tool == null && it.text.isEmpty() })
+    }
+
+    @Test
+    fun `the persisted reply joins the segments and leaves the trace out`() =
         runTest(testDispatcher) {
-            // ADK does not reliably set turnComplete on the final event, so the
-            // ViewModel must unblock the composer when the flow ends regardless.
             val viewModel = createViewModel()
             advanceUntilIdle()
-            agentChat.nextEvents = listOf(ChatEvent.Text("done"))
+            agentChat.nextEvents = listOf(
+                ChatEvent.Text("Let me check."),
+                ChatEvent.ToolCall("current_time", ""),
+                ChatEvent.ToolResult("current_time", "2026-09-24 09:00"),
+                ChatEvent.Text("It is 09:00."),
+                ChatEvent.Completed,
+            )
 
-            viewModel.trySendAction(ChatAction.InputChanged("hi"))
+            viewModel.trySendAction(ChatAction.InputChanged("what time"))
             viewModel.trySendAction(ChatAction.SendClicked)
             advanceUntilIdle()
 
-            val state = viewModel.stateFlow.value
-            assertFalse(state.isSending)
-            assertFalse(state.messages.last().isStreaming)
-            assertEquals("done", state.messages.last().text)
+            // Nothing is written from here: the runner appends the user message and the
+            // model's reply to the session as the turn runs. All this layer does is open
+            // the conversation.
+            assertEquals(1, conversationStore.created.size)
         }
+
+    @Test
+    fun `a question is surfaced and leaves no empty bubble behind`() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        agentChat.nextEvents = listOf(
+            ChatEvent.Text("I need one thing."),
+            ChatEvent.UserPromptRequested("Which city?", emptyList()),
+            // ADK reports a pause as this turn's final response, and that is what
+            // releases the composer while the question is on screen.
+            ChatEvent.Completed,
+        )
+
+        viewModel.trySendAction(ChatAction.InputChanged("book a flight"))
+        viewModel.trySendAction(ChatAction.SendClicked)
+        advanceUntilIdle()
+
+        val state = viewModel.stateFlow.value
+        assertEquals("Which city?", state.pendingPrompt?.prompt)
+        assertTrue(state.pendingPrompt!!.options.isEmpty())
+        // The turn is paused, not running, so the composer is released.
+        assertFalse(state.isSending)
+        assertTrue(state.messages.none { it.tool == null && it.text.isEmpty() })
+    }
+
+    @Test
+    fun `answering resumes the turn and streams the rest`() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        agentChat.nextEvents = listOf(
+            ChatEvent.UserPromptRequested("Pick one", listOf("Beijing", "Shanghai")),
+            ChatEvent.Completed,
+        )
+
+        viewModel.trySendAction(ChatAction.InputChanged("book a flight"))
+        viewModel.trySendAction(ChatAction.SendClicked)
+        advanceUntilIdle()
+        assertEquals(
+            listOf("Beijing", "Shanghai"),
+            viewModel.stateFlow.value.pendingPrompt?.options,
+        )
+
+        agentChat.nextPromptEvents = listOf(ChatEvent.Text("Booked."), ChatEvent.Completed)
+        viewModel.trySendAction(ChatAction.PromptAnswered("Beijing"))
+        advanceUntilIdle()
+
+        assertEquals(listOf("Beijing"), agentChat.answered)
+        val state = viewModel.stateFlow.value
+        assertNull(state.pendingPrompt)
+        assertFalse(state.isSending)
+        assertEquals("Booked.", state.messages.last().text)
+    }
+
+    @Test
+    fun `answering with nothing pending does nothing`() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.trySendAction(ChatAction.PromptAnswered("hello"))
+        advanceUntilIdle()
+
+        assertTrue(agentChat.answered.isEmpty())
+    }
 
     @Test
     fun `a failed turn is surfaced on the assistant message`() = runTest(testDispatcher) {
@@ -150,6 +269,8 @@ class ChatViewModelTest {
     fun `consecutive sends reuse the same conversation`() = runTest(testDispatcher) {
         val viewModel = createViewModel()
         advanceUntilIdle()
+        // Each turn ends on the agent's own completion marker.
+        agentChat.nextEvents = listOf(ChatEvent.Completed)
 
         viewModel.trySendAction(ChatAction.InputChanged("one"))
         viewModel.trySendAction(ChatAction.SendClicked)
@@ -161,7 +282,7 @@ class ChatViewModelTest {
         assertEquals(1, agentChat.conversationsStarted)
         assertEquals(listOf("one", "two"), agentChat.sent)
         assertEquals(4, viewModel.stateFlow.value.messages.size)
-        assertEquals(1, historyRepository.created.size)
+        assertEquals(1, conversationStore.created.size)
     }
 
     @Test
@@ -225,7 +346,7 @@ class ChatViewModelTest {
     // ── Transcript persistence ─────────────────────────────────────────
 
     @Test
-    fun `the first send creates the conversation and persists both messages`() =
+    fun `the first send creates the conversation`() =
         runTest(testDispatcher) {
             val viewModel = createViewModel()
             advanceUntilIdle()
@@ -235,24 +356,17 @@ class ChatViewModelTest {
             viewModel.trySendAction(ChatAction.SendClicked)
             advanceUntilIdle()
 
-            val created = historyRepository.created.single()
+            val created = conversationStore.created.single()
             assertEquals("hi", created.title)
             assertEquals(PROVIDER.id, created.providerId)
             assertEquals(MODEL_ID, created.modelId)
             assertEquals(created.id, viewModel.stateFlow.value.activeConversationId)
-            assertEquals(
-                listOf(
-                    Triple(created.id, ChatRole.USER, "hi"),
-                    Triple(created.id, ChatRole.ASSISTANT, "Hello"),
-                ),
-                historyRepository.appended,
-            )
         }
 
     @Test
     fun `a restored conversation is loaded from the transcript`() =
         runTest(testDispatcher) {
-            historyRepository.seedConversation(
+            conversationStore.seedConversation(
                 conversationId = "conv-old",
                 title = "earlier",
                 transcript = listOf(
@@ -284,7 +398,7 @@ class ChatViewModelTest {
         // This is what lets a stored ADK session be *resumed* instead of rebuilt:
         // both sides of the conversation agree on one identity, so the model's
         // context and the transcript cannot drift apart.
-        historyRepository.seedConversation(
+        conversationStore.seedConversation(
             conversationId = "conv-old",
             title = "earlier",
             transcript = listOf(TranscriptMessage(ChatRole.USER, "first question")),
@@ -315,7 +429,7 @@ class ChatViewModelTest {
 
     @Test
     fun `a failed reply stays visible in the transcript`() = runTest(testDispatcher) {
-        historyRepository.seedConversation(
+        conversationStore.seedConversation(
             conversationId = "conv-old",
             title = "earlier",
             transcript = listOf(
@@ -334,9 +448,9 @@ class ChatViewModelTest {
     @Test
     fun `selecting a conversation from history loads its transcript`() =
         runTest(testDispatcher) {
-            historyRepository.seedConversation("conv-a", "A", listOf(TranscriptMessage(ChatRole.USER, "from A")))
-            historyRepository.seedConversation("conv-b", "B", listOf(TranscriptMessage(ChatRole.USER, "from B")))
-            historyRepository.markLatest("conv-a")
+            conversationStore.seedConversation("conv-a", "A", listOf(TranscriptMessage(ChatRole.USER, "from A")))
+            conversationStore.seedConversation("conv-b", "B", listOf(TranscriptMessage(ChatRole.USER, "from B")))
+            conversationStore.markLatest("conv-a")
 
             val viewModel = createViewModel()
             advanceUntilIdle()
@@ -356,7 +470,7 @@ class ChatViewModelTest {
     @Test
     fun `deleting the current conversation clears the transcript`() =
         runTest(testDispatcher) {
-            historyRepository.seedConversation("conv-a", "A", listOf(TranscriptMessage(ChatRole.USER, "hi")))
+            conversationStore.seedConversation("conv-a", "A", listOf(TranscriptMessage(ChatRole.USER, "hi")))
             val viewModel = createViewModel()
             advanceUntilIdle()
 
@@ -366,7 +480,7 @@ class ChatViewModelTest {
             val state = viewModel.stateFlow.value
             assertNull(state.activeConversationId)
             assertTrue(state.messages.isEmpty())
-            assertEquals(listOf("conv-a"), historyRepository.deleted)
+            assertEquals(listOf("conv-a"), conversationStore.deleted)
         }
 
     @Test
@@ -383,14 +497,14 @@ class ChatViewModelTest {
 
             assertTrue(viewModel.stateFlow.value.messages.isEmpty())
             assertNull(viewModel.stateFlow.value.activeConversationId)
-            assertEquals(1, historyRepository.created.size)
+            assertEquals(1, conversationStore.created.size)
             assertEquals(1, agentChat.conversationsEnded)
         }
 
     private fun createViewModel() = ChatViewModel(
         providerRepository = providerRepository,
         userPreferencesRepository = preferencesRepository,
-        chatHistoryRepository = historyRepository,
+        conversationStore = conversationStore,
         agentChat = agentChat,
     )
 
@@ -432,10 +546,9 @@ private class FakeUserPreferencesRepository(initial: UserPreferences) : UserPref
     }
 }
 
-private class FakeChatHistoryRepository : ChatHistoryRepository {
+private class FakeConversationStore : ConversationStore {
     override val conversationsStateFlow = MutableStateFlow<List<Conversation>>(emptyList())
     val created = mutableListOf<Conversation>()
-    val appended = mutableListOf<Triple<String, ChatRole, String>>()
     val deleted = mutableListOf<String>()
 
     private val transcripts = mutableMapOf<String, MutableList<TranscriptMessage>>()
@@ -464,6 +577,9 @@ private class FakeChatHistoryRepository : ChatHistoryRepository {
         latest = conversationsStateFlow.value.firstOrNull { it.id == conversationId }
     }
 
+    /** ADK's session store is not observable; the ViewModel re-reads it explicitly. */
+    override suspend fun refresh() = Unit
+
     override suspend fun latestConversation(): Conversation? = latest
 
     override suspend fun messagesOf(conversationId: String): List<TranscriptMessage> =
@@ -485,18 +601,8 @@ private class FakeChatHistoryRepository : ChatHistoryRepository {
         created += conversation
         transcripts[conversation.id] = mutableListOf()
         conversationsStateFlow.value = listOf(conversation) + conversationsStateFlow.value
+        latest = conversation
         return conversation
-    }
-
-    override suspend fun appendMessage(
-        conversationId: String,
-        role: ChatRole,
-        text: String,
-        isError: Boolean,
-    ) {
-        appended += Triple(conversationId, role, text)
-        transcripts.getOrPut(conversationId) { mutableListOf() } +=
-            TranscriptMessage(role = role, text = text, isError = isError)
     }
 
     override suspend fun deleteConversation(id: String) {
@@ -530,5 +636,15 @@ private class FakeAgentChat : AgentChat {
 
     override fun endConversation() {
         conversationsEnded++
+    }
+
+    /** Events the resumed turn streams, once the user answers. */
+    var nextPromptEvents: List<ChatEvent> = emptyList()
+
+    val answered = mutableListOf<String>()
+
+    override fun respondToPrompt(answer: String): Flow<ChatEvent> {
+        answered += answer
+        return nextPromptEvents.asFlow()
     }
 }

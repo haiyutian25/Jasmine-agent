@@ -37,6 +37,10 @@ dependencies {
     exclude(group = "net.sf.kxml", module = "kxml2")
   }
 
+  // ADK 官方 KSP 处理器：把 @Tool 注解的函数在编译期变成 FunctionTool（含 schema），
+  // 替代手写 FunctionDeclaration/Schema。
+  ksp(libs.androidx.adk.processor)
+
   implementation(libs.okhttp)
   implementation(libs.kotlinx.serialization.json)
   implementation(libs.kotlinx.coroutines.core)

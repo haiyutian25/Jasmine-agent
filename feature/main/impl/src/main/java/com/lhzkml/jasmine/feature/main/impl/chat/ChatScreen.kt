@@ -30,6 +30,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.outlined.Build
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,6 +39,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -82,6 +88,11 @@ private val ChatHistoryRowPaddingVertical = 11.dp
 
 private val ChatComposerVerticalPadding = 10.dp
 private val ChatSendButtonSize = 44.dp
+private val ChatToolIconSize = 14.dp
+private val ChatToolRowPaddingVertical = 8.dp
+
+/** Tool arguments/results are a status note, not the point — keep them to two lines. */
+private const val ChatToolDetailMaxLines = 2
 private val ChatSendIconSize = 18.dp
 private val ChatSendSpinnerSize = 16.dp
 private val ChatPickerListMaxHeight = 380.dp
@@ -115,7 +126,18 @@ fun ChatScreen(
                     currentTheme = currentTheme,
                     modifier = Modifier.weight(1f),
                 )
-                Composer(state = state, currentTheme = currentTheme, onAction = onAction)
+                // While the agent is blocked on a question the composer steps aside:
+                // the turn is paused, so a new message would go nowhere.
+                val pendingPrompt = state.pendingPrompt
+                if (pendingPrompt == null) {
+                    Composer(state = state, currentTheme = currentTheme, onAction = onAction)
+                } else {
+                    PromptPanel(
+                        prompt = pendingPrompt,
+                        currentTheme = currentTheme,
+                        onAnswer = { onAction(ChatAction.PromptAnswered(it)) },
+                    )
+                }
             }
         } else {
             ChatSetup(
@@ -229,45 +251,118 @@ private fun MessageList(
         verticalArrangement = Arrangement.spacedBy(ChatMessageSpacing)
     ) {
         items(state.messages, key = { it.id }) { message ->
-            MessageBubble(message = message, currentTheme = currentTheme)
+            val tool = message.tool
+            if (tool == null) {
+                MessageBubble(message = message, currentTheme = currentTheme)
+            } else {
+                ToolActivityRow(activity = tool, currentTheme = currentTheme)
+            }
         }
     }
 }
 
+/**
+ * One transcript message.
+ *
+ * Only the user's side is a bubble: it marks what the user said, and its fill is what
+ * makes that stand out. The model's reply is plain text on the page instead — a card
+ * around every answer is chrome that competes with the words.
+ *
+ * The user bubble is capped at [ChatBubbleMaxWidthFraction] of the row but must sit
+ * flush against the row's end, so the cap is applied to a box that the [Row] itself
+ * places at the end. Capping the bubble directly would leave the remainder of that box
+ * as dead space to its right.
+ */
 @Composable
 private fun MessageBubble(message: ChatMessage, currentTheme: CssVariables) {
     val isUser = message.role == ChatRole.USER
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val text = message.text.ifEmpty { if (message.isStreaming) "…" else "" }
 
-    Column(
+    if (!isUser) {
+        Text(
+            text = text,
+            fontSize = ChatBodyFontSize,
+            color = if (message.isError) currentTheme.mutedForeground else currentTheme.cardForeground,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        return
+    }
+
+    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(ChatBubbleMaxWidthFraction)
+                .wrapContentWidth(Alignment.End)
+                .clip(shape)
+                .background(currentTheme.primary)
+                .padding(
+                    horizontal = ChatBubblePaddingHorizontal,
+                    vertical = ChatBubblePaddingVertical
+                )
+        ) {
+            Text(
+                text = text,
+                fontSize = ChatBodyFontSize,
+                color = currentTheme.primaryForeground,
+            )
+        }
+    }
+}
+
+// ── Tool activity ──────────────────────────────────────────────────────
+
+/**
+ * One tool call or its result, shown inline in the transcript.
+ *
+ * Deliberately understated — a full-width note rather than a bubble — because this
+ * is execution trace, not something the model said. It exists so the agent's work
+ * stays visible: while a tool runs the model is silent, and without it the screen
+ * would look frozen.
+ */
+@Composable
+private fun ToolActivityRow(activity: ChatToolActivity, currentTheme: CssVariables) {
+    val shape = RoundedCornerShape(currentTheme.radiusSm)
+    Row(
         modifier = Modifier
-            .fillMaxWidth(ChatBubbleMaxWidthFraction)
-            .wrapContentWidth(if (isUser) Alignment.End else Alignment.Start)
+            .fillMaxWidth()
             .clip(shape)
-            .background(
-                when {
-                    isUser -> currentTheme.primary
-                    message.isError -> currentTheme.subtleSurface
-                    else -> currentTheme.card
-                }
-            )
-            .then(
-                if (isUser) Modifier else Modifier.border(ChatDividerHeight, currentTheme.border, shape)
-            )
+            .background(currentTheme.subtleSurface)
+            .border(ChatDividerHeight, currentTheme.border, shape)
             .padding(
                 horizontal = ChatBubblePaddingHorizontal,
-                vertical = ChatBubblePaddingVertical
-            )
+                vertical = ChatToolRowPaddingVertical
+            ),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = message.text.ifEmpty { if (message.isStreaming) "…" else "" },
-            fontSize = ChatBodyFontSize,
-            color = when {
-                isUser -> currentTheme.primaryForeground
-                message.isError -> currentTheme.mutedForeground
-                else -> currentTheme.cardForeground
-            }
+        Icon(
+            imageVector = if (activity.isResult) Icons.Outlined.Check else Icons.Outlined.Build,
+            contentDescription = null,
+            tint = currentTheme.mutedForeground,
+            modifier = Modifier.size(ChatToolIconSize)
         )
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(
+                    if (activity.isResult) R.string.chat_tool_result else R.string.chat_tool_call,
+                    activity.name
+                ),
+                fontSize = ChatMetaFontSize,
+                fontWeight = FontWeight.Medium,
+                color = currentTheme.foreground
+            )
+            Text(
+                text = activity.detail,
+                fontSize = ChatMetaFontSize,
+                color = currentTheme.mutedForeground,
+                maxLines = ChatToolDetailMaxLines,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -349,6 +444,131 @@ private fun Composer(
                         modifier = Modifier.size(ChatSendIconSize)
                     )
                 }
+            }
+        }
+    }
+}
+
+// ── Agent question ─────────────────────────────────────────────────────
+
+/**
+ * Replaces the composer while the agent waits on an answer. A question offering
+ * options becomes one button per option; anything else becomes a one-line reply
+ * field.
+ */
+@Composable
+private fun PromptPanel(
+    prompt: ChatUserPrompt,
+    currentTheme: CssVariables,
+    onAnswer: (String) -> Unit,
+) {
+    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                horizontal = ChatContentPaddingHorizontal,
+                vertical = ChatComposerVerticalPadding
+            )
+            .clip(shape)
+            .background(currentTheme.card)
+            .border(ChatDividerHeight, currentTheme.primary, shape)
+            .padding(ChatBubblePaddingHorizontal, ChatBubblePaddingVertical)
+    ) {
+        Text(
+            text = stringResource(R.string.chat_prompt_title),
+            fontSize = ChatMetaFontSize,
+            fontWeight = FontWeight.Medium,
+            color = currentTheme.mutedForeground
+        )
+        if (prompt.prompt.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = prompt.prompt,
+                fontSize = ChatBodyFontSize,
+                color = currentTheme.foreground
+            )
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+
+        if (prompt.options.isEmpty()) {
+            FreeTextAnswer(currentTheme = currentTheme, onAnswer = onAnswer)
+        } else {
+            prompt.options.forEach { option ->
+                Button(
+                    onClick = { onAnswer(option) },
+                    modifier = Modifier.fillMaxWidth(),
+                    testTag = "chat_prompt_option_$option"
+                ) {
+                    Text(
+                        text = option,
+                        fontSize = ChatBodyFontSize,
+                        color = currentTheme.foreground,
+                        modifier = Modifier.padding(vertical = 10.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** One-line reply field for a question that offers no options. */
+@Composable
+private fun FreeTextAnswer(currentTheme: CssVariables, onAnswer: (String) -> Unit) {
+    var answer by remember { mutableStateOf("") }
+    val canSend = answer.isNotBlank()
+    val shape = RoundedCornerShape(currentTheme.radiusMd)
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        BasicTextField(
+            value = answer,
+            onValueChange = { answer = it },
+            modifier = Modifier
+                .weight(1f)
+                .testTag("chat_prompt_input")
+                .clip(shape)
+                .background(currentTheme.subtleSurface)
+                .border(ChatDividerHeight, currentTheme.border, shape)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            textStyle = TextStyle(fontSize = ChatBodyFontSize, color = currentTheme.foreground),
+            cursorBrush = SolidColor(currentTheme.primary),
+            maxLines = 3,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+            keyboardActions = KeyboardActions(onSend = { if (canSend) onAnswer(answer.trim()) }),
+            decorationBox = { innerTextField ->
+                if (answer.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.chat_prompt_hint),
+                        fontSize = ChatBodyFontSize,
+                        color = currentTheme.mutedForeground
+                    )
+                }
+                innerTextField()
+            }
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Button(
+            onClick = { if (canSend) onAnswer(answer.trim()) },
+            rippleEnabled = false,
+            modifier = Modifier.size(ChatSendButtonSize),
+            testTag = "chat_prompt_send_btn"
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape)
+                    .background(if (canSend) currentTheme.primary else currentTheme.subtleSurface),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Send,
+                    contentDescription = stringResource(R.string.chat_send_cd),
+                    tint = if (canSend) currentTheme.primaryForeground else currentTheme.mutedForeground,
+                    modifier = Modifier.size(ChatSendIconSize)
+                )
             }
         }
     }
