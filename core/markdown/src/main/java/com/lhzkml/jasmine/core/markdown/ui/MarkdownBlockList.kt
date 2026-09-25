@@ -32,6 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -54,6 +55,7 @@ import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -294,13 +296,26 @@ private fun ParagraphContent(
  */
 private fun List<MarkdownInline>.soleImage(): Pair<MarkdownInline, String?>? {
     val only = filterNot { it.isBlankInline() }.singleOrNull() ?: return null
-    if (only.type == MarkdownInlineType.IMAGE) return only to null
+    // 地址不是链接的不算图片，返回 null 让它走文本渲染、原样显示源码。
+    if (only.type == MarkdownInlineType.IMAGE && isImageUrl(only.url.orEmpty())) return only to null
     // [![alt](img)](link) —— 链接里只包着一张图。
     if (only.type == MarkdownInlineType.LINK) {
         val inner = only.children.filterNot { it.isBlankInline() }.singleOrNull()
-        if (inner?.type == MarkdownInlineType.IMAGE) return inner to only.url
+        if (inner?.type == MarkdownInlineType.IMAGE && isImageUrl(inner.url.orEmpty())) {
+            return inner to only.url
+        }
     }
     return null
+}
+
+/** 源码里的地址是不是一个真链接；`![alt](图片地址)` 这种占位文字不算。 */
+private fun isImageUrl(url: String): Boolean {
+    val u = url.trim()
+    if (u.isEmpty()) return false
+    if (u.contains("://")) return true
+    if (u.startsWith("/") || u.startsWith("//")) return true
+    if (u.startsWith("data:") || u.startsWith("file:") || u.startsWith("content:")) return true
+    return u.contains('.') || u.contains('/')
 }
 
 /** 空白文本节点（图片前后的缩进/换行常产生这种节点）。 */
@@ -582,7 +597,36 @@ private fun TableBlock(
     bodyFontSize: TextUnit,
     baseColor: Color,
 ) {
-    // 列宽按内容自适应 + 整表横向可滚：不引表格布局库的前提下最稳的做法。
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val baseStyle = LocalTextStyle.current
+    val cellFontSize = (bodyFontSize.value * 0.92f).sp
+
+    // 每列取所有行里最宽的那一格，全表共用这一组列宽。
+    // 逐行各自算的话，表头（"类型"两个字）和内容（长文本）会各占各的宽度，列就对不齐。
+    //
+    // 测量样式必须和下面 Text 实际用的样式一致：Text 会拿 LocalTextStyle 兜底（字体、字距…），
+    // 只按 fontSize/fontWeight 去量会偏窄，末字被挤到下一行。
+    val columnWidths = remember(block.table, cellFontSize, currentTheme, measurer, density, baseStyle) {
+        val columns = block.table.maxOfOrNull { it.cells.size } ?: 0
+        (0 until columns).map { index ->
+            val widest = block.table.maxOfOrNull { row ->
+                val cell = row.cells.getOrNull(index) ?: return@maxOfOrNull 0
+                measurer.measure(
+                    text = cell.content.toAnnotatedString(currentTheme, bodyFontSize).text,
+                    style = baseStyle.merge(
+                        TextStyle(
+                            fontSize = cellFontSize,
+                            fontWeight = if (row.isHeader) FontWeight.SemiBold else FontWeight.Normal,
+                        )
+                    ),
+                ).size.width
+            } ?: 0
+            (with(density) { widest.toDp() } + CellPadding * 2).coerceAtLeast(CellMinWidth)
+        }
+    }
+
+    // 整表横向可滚：列多/内容长时不挤成一团。
     Column(
         Modifier
             .fillMaxWidth()
@@ -597,12 +641,12 @@ private fun TableBlock(
                     )
                     .padding(vertical = 6.dp)
             ) {
-                row.cells.forEach { cell ->
+                row.cells.forEachIndexed { index, cell ->
                     val inline = cell.content.toAnnotatedString(currentTheme, bodyFontSize)
                     Text(
                         text = inline.text,
                         inlineContent = inline.inlineContent,
-                        fontSize = (bodyFontSize.value * 0.92f).sp,
+                        fontSize = cellFontSize,
                         fontWeight = if (row.isHeader) FontWeight.SemiBold else FontWeight.Normal,
                         color = baseColor,
                         textAlign = when (cell.alignment) {
@@ -611,8 +655,8 @@ private fun TableBlock(
                             else -> TextAlign.Start
                         },
                         modifier = Modifier
-                            .widthIn(min = 72.dp)
-                            .padding(horizontal = 10.dp),
+                            .width(columnWidths.getOrElse(index) { CellMinWidth })
+                            .padding(horizontal = CellPadding),
                     )
                 }
             }
@@ -627,6 +671,9 @@ private fun TableBlock(
         }
     }
 }
+
+private val CellPadding = 10.dp
+private val CellMinWidth = 72.dp
 
 // ── 行内 → AnnotatedString ──────────────────────────────────────────────
 
@@ -726,19 +773,33 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendInlines(
                 SpanStyle(textDecoration = TextDecoration.Underline)
             ) { appendInlines(node.children, theme, bodyFontSize, images) }
 
-            MarkdownInlineType.LINK -> withStyle(
-                SpanStyle(
-                    color = theme.primary,
-                    textDecoration = TextDecoration.Underline,
-                    fontWeight = FontWeight.Medium,
-                )
-            ) { appendInlines(node.children, theme, bodyFontSize, images) }
+            MarkdownInlineType.LINK -> {
+                val inner = node.children.filterNot { it.isBlankInline() }.singleOrNull()
+                if (inner?.type == MarkdownInlineType.IMAGE && !isImageUrl(inner.url.orEmpty())) {
+                    // 链接里包的是一张「地址不是链接」的图，整块按原始写法显示。
+                    append("[![${inner.children.plainText()}](${inner.url})](${node.url})")
+                } else {
+                    withStyle(
+                        SpanStyle(
+                            color = theme.primary,
+                            textDecoration = TextDecoration.Underline,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    ) { appendInlines(node.children, theme, bodyFontSize, images) }
+                }
+            }
 
             // 行内图片：嵌进文本流，由 Coil 加载。
             MarkdownInlineType.IMAGE -> {
-                val id = "md-image-" + images.size
-                appendInlineContent(id, alternateText = node.children.plainText())
-                images[id] = inlineImageContent(node.url.orEmpty(), theme, bodyFontSize)
+                val url = node.url.orEmpty()
+                if (isImageUrl(url)) {
+                    val id = "md-image-" + images.size
+                    appendInlineContent(id, alternateText = node.children.plainText())
+                    images[id] = inlineImageContent(url, theme, bodyFontSize)
+                } else {
+                    // 源码里的地址不是链接（`![alt](图片地址)` 这类示例写法），按原始写法显示。
+                    append("![${node.children.plainText()}]($url)")
+                }
             }
 
             MarkdownInlineType.FORMULA -> withStyle(
@@ -756,7 +817,7 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendInlines(
     }
 }
 
-/** 取行内树里的可见文本（图片 alt、纯文本回退用）。 */
+/** 递归取出行内树里的可见文本 —— 图片的 alt 文本就是这么来的（`literal` 只在叶子上）。 */
 internal fun List<MarkdownInline>.plainText(): String = buildString { collectPlain(this@plainText) }
 
 private fun StringBuilder.collectPlain(nodes: List<MarkdownInline>) {
