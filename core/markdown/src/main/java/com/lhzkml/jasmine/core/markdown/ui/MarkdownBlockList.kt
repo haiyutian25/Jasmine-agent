@@ -13,6 +13,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -602,7 +603,7 @@ private fun MathBlock(
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
-    val mathSize = bodyFontSize.value * 0.95f
+    val mathSize = blockMathSize(bodyFontSize)
 
     // 解析 + 光栅化不算便宜，按「源码 / 字号 / 颜色 / 密度」缓存。
     val bitmap by produceState<Bitmap?>(null, block.literal, mathSize, baseColor, density.density) {
@@ -617,23 +618,32 @@ private fun MathBlock(
         }
     }
 
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(currentTheme.radiusSm))
-            .background(currentTheme.subtleSurface)
-            .padding(10.dp)
-    ) {
+    // 不加背景卡片：卡片的内边距会白白吃掉左右各 10dp，公式能用的宽度就少了。
+    // 去掉之后公式可以用满整行，也就有条件把字号放大（见 BlockMathScale）。
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
         val rendered = bitmap
         if (rendered != null) {
             // 位图是按 density 放大的，除回去就是它该占的 dp 尺寸。
-            val width = with(density) { rendered.width.toDp() }
-            val height = with(density) { rendered.height.toDp() }
-            Box(Modifier.horizontalScroll(rememberScrollState())) {
+            val imageWidth = with(density) { rendered.width.toDp() }
+            val imageHeight = with(density) { rendered.height.toDp() }
+            val overflows = imageWidth > maxWidth
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (overflows) {
+                            Modifier.horizontalScroll(rememberScrollState())
+                        } else {
+                            Modifier
+                        }
+                    ),
+                // 装得下就居中（数学排版惯例，ima 的 xd0.c 也有居中分支）；装不下则从左侧起可滚动。
+                horizontalArrangement = if (overflows) Arrangement.Start else Arrangement.Center,
+            ) {
                 Image(
                     bitmap = rendered.asImageBitmap(),
                     contentDescription = block.literal,
-                    modifier = Modifier.size(width, height),
+                    modifier = Modifier.size(imageWidth, imageHeight),
                 )
             }
         } else {
@@ -792,8 +802,18 @@ private fun rememberMathEnv(color: Color): MathEnv {
     return remember(context, density, color) { MathEnv(context, density, color) }
 }
 
-/** 行内公式字号比正文略小，与块级保持一致。 */
+/** 行内公式字号：略小于正文，跟上下文文字协调（嵌在文字流里，不能喧宾夺主）。 */
 private fun mathSize(bodyFontSize: TextUnit): Float = bodyFontSize.value * 0.95f
+
+/**
+ * 块级公式字号：独立成行，可以比正文大一些。
+ *
+ * 放大是有前提的 —— 块级公式不再套背景卡片（卡片左右各 10dp 内边距会吃掉可用宽度），
+ * 这样它才能用满整行而不至于频繁触发横向滚动。
+ */
+private fun blockMathSize(bodyFontSize: TextUnit): Float = bodyFontSize.value * BLOCK_MATH_SCALE
+
+private const val BLOCK_MATH_SCALE = 1.15f
 
 /**
  * 行内公式 → inline content。
