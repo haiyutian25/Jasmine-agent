@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
@@ -30,7 +29,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Delete
@@ -66,6 +67,7 @@ import com.lhzkml.jasmine.core.ui.components.Button
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.feature.main.impl.R
 
+
 // ── Chat dimensions ────────────────────────────────────────────────────
 
 /** Header row: active model on the left, "new chat" on the right (48dp touch target). */
@@ -89,13 +91,27 @@ private val ChatHistoryRowActionIconSize = 16.dp
 private val ChatHistoryRowPaddingVertical = 11.dp
 
 private val ChatComposerVerticalPadding = 10.dp
-private val ChatSendButtonSize = 44.dp
+
+/** 输入区与下方工具行之间的间距。 */
+private val ChatComposerToolRowGap = 8.dp
+/**
+ * 发送/加号/停止按钮的直径。
+ *
+ * 26dp 是对着 ima 量的：它输入区右侧那两个圆（语音、加号）外接框都是 72px ÷ 2.75 = 26.2dp。
+ * 之前这里写 44dp，比 ima 大了 69%，视觉上过于抢眼。
+ *
+ * 这里刻意**不**额外放大触摸区 —— 视觉圆多大，可点区域就多大。
+ * （工程里 `Button` 自带 `sizeIn(minWidth = ButtonMinTouchTarget)`，但外层 `size()`
+ * 传下来的约束会把它夹住，所以实际尺寸就是这个值。）
+ */
+private val ChatSendButtonSize = 26.dp
 private val ChatToolIconSize = 14.dp
 private val ChatToolRowPaddingVertical = 8.dp
 
 /** Tool arguments/results are a status note, not the point — keep them to two lines. */
 private const val ChatToolDetailMaxLines = 2
-private val ChatSendIconSize = 18.dp
+/** 跟着 [ChatSendButtonSize] 等比缩小（18dp/44dp → 14dp/26dp），图标与圆的占比和 ima 一致。 */
+private val ChatSendIconSize = 14.dp
 private val ChatSendSpinnerSize = 16.dp
 private val ChatPickerListMaxHeight = 380.dp
 
@@ -120,39 +136,27 @@ fun ChatScreen(
             .fillMaxSize()
             .background(currentTheme.background)
     ) {
-        if (state.isReady) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                ChatHeader(state = state, currentTheme = currentTheme, onAction = onAction)
-                MessageList(
-                    state = state,
-                    currentTheme = currentTheme,
-                    modifier = Modifier.weight(1f),
-                )
-                // While the agent is blocked on a question the composer steps aside:
-                // the turn is paused, so a new message would go nowhere.
-                val pendingPrompt = state.pendingPrompt
-                if (pendingPrompt == null) {
-                    Composer(state = state, currentTheme = currentTheme, onAction = onAction)
-                } else {
-                    PromptPanel(
-                        prompt = pendingPrompt,
-                        currentTheme = currentTheme,
-                        onAnswer = { onAction(ChatAction.PromptAnswered(it)) },
-                    )
-                }
-            }
-        } else {
-            ChatSetup(
+        Column(modifier = Modifier.fillMaxSize()) {
+            ChatHeader(state = state, currentTheme = currentTheme, onAction = onAction)
+            MessageList(
                 state = state,
                 currentTheme = currentTheme,
-                onAction = onAction,
-                onOpenSettings = onOpenSettings,
+                modifier = Modifier.weight(1f),
             )
+            // While the agent is blocked on a question the composer steps aside:
+            // the turn is paused, so a new message would go nowhere.
+            val pendingPrompt = state.pendingPrompt
+            if (pendingPrompt == null) {
+                Composer(state = state, currentTheme = currentTheme, onAction = onAction)
+            } else {
+                PromptPanel(
+                    prompt = pendingPrompt,
+                    currentTheme = currentTheme,
+                    onAnswer = { onAction(ChatAction.PromptAnswered(it)) },
+                )
+            }
         }
 
-        if (state.isModelPickerOpen) {
-            ModelPickerSheet(state = state, currentTheme = currentTheme, onAction = onAction)
-        }
         if (state.isHistoryOpen) {
             HistorySheet(state = state, currentTheme = currentTheme, onAction = onAction)
         }
@@ -401,25 +405,26 @@ private fun Composer(
     val canSend = state.input.isNotBlank() && !state.isSending
     val shape = RoundedCornerShape(currentTheme.radiusMd)
 
-    Row(
+    // One card holds both the text field and a tool row underneath it: model picker
+    // on the left, the action button on the right.
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(
                 horizontal = ChatContentPaddingHorizontal,
                 vertical = ChatComposerVerticalPadding
-            ),
-        verticalAlignment = Alignment.Bottom
+            )
+            .clip(shape)
+            .background(currentTheme.subtleSurface)
+            .border(ChatDividerHeight, currentTheme.border, shape)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         BasicTextField(
             value = state.input,
             onValueChange = { onAction(ChatAction.InputChanged(it)) },
             modifier = Modifier
-                .weight(1f)
-                .testTag("chat_input")
-                .clip(shape)
-                .background(currentTheme.subtleSurface)
-                .border(ChatDividerHeight, currentTheme.border, shape)
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .fillMaxWidth()
+                .testTag("chat_input"),
             textStyle = TextStyle(fontSize = ChatBodyFontSize, color = currentTheme.foreground),
             cursorBrush = SolidColor(currentTheme.primary),
             maxLines = 5,
@@ -439,34 +444,77 @@ private fun Composer(
             }
         )
 
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.height(ChatComposerToolRowGap))
 
-        Button(
-            onClick = { if (canSend) onAction(ChatAction.SendClicked) },
-            rippleEnabled = false,
-            modifier = Modifier.size(ChatSendButtonSize),
-            testTag = "chat_send_btn"
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            // 贴底而不是垂直居中：左侧模型按钮自带 48dp 最小高度，会把这一行撑到 132px，
+            // 26dp 的发送按钮若居中，上下就各空出 30px（实测按钮底距内容区底 10.5dp，
+            // ima 只有 4.7dp）。改成 Bottom 后只有较矮的发送按钮会下移，模型按钮本来
+            // 就占满整行高度，位置不变。
+            verticalAlignment = Alignment.Bottom
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(CircleShape)
-                    .background(if (canSend) currentTheme.primary else currentTheme.subtleSurface),
-                contentAlignment = Alignment.Center
+            // Left: the active model doubles as the entry point for switching models.
+            Button(
+                onClick = { onAction(ChatAction.ModelPickerOpened) },
+                rippleEnabled = false,
+                testTag = "chat_active_model_btn"
             ) {
-                if (state.isSending) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(ChatSendSpinnerSize),
-                        color = currentTheme.primaryForeground,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Send,
-                        contentDescription = stringResource(R.string.chat_send_cd),
-                        tint = if (canSend) currentTheme.primaryForeground else currentTheme.mutedForeground,
-                        modifier = Modifier.size(ChatSendIconSize)
-                    )
+                Text(
+                    text = state.activeModel?.modelId.orEmpty(),
+                    fontSize = ChatMetaFontSize,
+                    color = currentTheme.mutedForeground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Right: a single button with three faces — empty input / plus, typable /
+            // send, reply in flight / stop. Only Send is wired to an action; the plus
+            // and stop faces are presentational for now.
+            Button(
+                onClick = { if (canSend) onAction(ChatAction.SendClicked) },
+                rippleEnabled = false,
+                modifier = Modifier.size(ChatSendButtonSize),
+                testTag = "chat_send_btn"
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
+                        .background(
+                            if (canSend || state.isSending) {
+                                currentTheme.primary
+                            } else {
+                                currentTheme.subtleSurface
+                            }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    when {
+                        state.isSending -> Icon(
+                            imageVector = Icons.Filled.Stop,
+                            contentDescription = stringResource(R.string.chat_stop_cd),
+                            tint = currentTheme.primaryForeground,
+                            modifier = Modifier.size(ChatSendIconSize)
+                        )
+
+                        canSend -> Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = stringResource(R.string.chat_send_cd),
+                            tint = currentTheme.primaryForeground,
+                            modifier = Modifier.size(ChatSendIconSize)
+                        )
+
+                        else -> Icon(
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = stringResource(R.string.chat_add_cd),
+                            tint = currentTheme.mutedForeground,
+                            modifier = Modifier.size(ChatSendIconSize)
+                        )
+                    }
                 }
             }
         }
@@ -598,73 +646,6 @@ private fun FreeTextAnswer(currentTheme: CssVariables, onAnswer: (String) -> Uni
     }
 }
 
-// ── Setup prompt ───────────────────────────────────────────────────────
-
-@Composable
-private fun ChatSetup(
-    state: ChatState,
-    currentTheme: CssVariables,
-    onAction: (ChatAction) -> Unit,
-    onOpenSettings: () -> Unit,
-) {
-    val provider = state.activeProvider
-    val explanation =
-        if (state.activeModel == null || provider == null) {
-            stringResource(R.string.chat_setup_hint)
-        } else {
-            stringResource(R.string.chat_api_key_hint, provider.name)
-        }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(32.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = stringResource(R.string.chat_setup_title),
-            fontSize = ChatTitleFontSize,
-            fontWeight = FontWeight.SemiBold,
-            color = currentTheme.foreground
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = explanation,
-            fontSize = ChatBodyFontSize,
-            color = currentTheme.mutedForeground,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(20.dp))
-        Button(
-            onClick = { onAction(ChatAction.ModelPickerOpened) },
-            currentTheme = currentTheme,
-            containerColor = currentTheme.primary,
-            border = BorderStroke(0.dp, Color.Transparent),
-            testTag = "chat_choose_model_btn"
-        ) {
-            Text(
-                text = stringResource(R.string.chat_setup_action),
-                fontSize = ChatBodyFontSize,
-                fontWeight = FontWeight.SemiBold,
-                color = currentTheme.primaryForeground
-            )
-        }
-        Spacer(modifier = Modifier.height(10.dp))
-        Button(
-            onClick = onOpenSettings,
-            rippleEnabled = false,
-            testTag = "chat_manage_providers_btn"
-        ) {
-            Text(
-                text = stringResource(R.string.chat_manage_providers),
-                fontSize = ChatMetaFontSize,
-                color = currentTheme.mutedForeground
-            )
-        }
-    }
-}
-
 // ── History ────────────────────────────────────────────────────────────
 
 /**
@@ -775,102 +756,6 @@ private fun HistoryRow(
                         .padding(8.dp)
                         .size(ChatHistoryRowActionIconSize)
                 )
-            }
-        }
-    }
-}
-
-// ── Model picker ───────────────────────────────────────────────────────
-
-/**
- * Lists every configured model grouped by provider. Providers with no models
- * are hidden — there is nothing to pick, and the empty state points at the
- * provider screen instead.
- */
-@Composable
-private fun ModelPickerSheet(
-    state: ChatState,
-    currentTheme: CssVariables,
-    onAction: (ChatAction) -> Unit,
-) {
-    BottomSheet(
-        onDismiss = { onAction(ChatAction.ModelPickerDismissed) },
-        currentTheme = currentTheme,
-        modifier = Modifier.testTag("chat_model_sheet")
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 16.dp)
-        ) {
-            Text(
-                text = stringResource(R.string.chat_pick_model_title),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = currentTheme.foreground
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-
-            val selectable = state.providers.filter { it.models.isNotEmpty() }
-            if (selectable.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.chat_pick_model_empty),
-                    fontSize = ChatBodyFontSize,
-                    color = currentTheme.mutedForeground,
-                    modifier = Modifier.padding(vertical = 20.dp)
-                )
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = ChatPickerListMaxHeight)
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    selectable.forEach { provider ->
-                        Text(
-                            text = provider.name,
-                            fontSize = ChatMetaFontSize,
-                            fontWeight = FontWeight.SemiBold,
-                            color = currentTheme.mutedForeground,
-                            modifier = Modifier.padding(top = 10.dp, bottom = 6.dp)
-                        )
-                        provider.models.forEach { model ->
-                            val isActive = provider.id == state.activeProviderId &&
-                                model.id == state.activeModelId
-                            Button(
-                                onClick = { onAction(ChatAction.ModelSelected(provider.id, model.id)) },
-                                modifier = Modifier.fillMaxWidth(),
-                                testTag = "chat_pick_${model.id}"
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = model.modelId,
-                                        fontSize = ChatBodyFontSize,
-                                        fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
-                                        color = if (isActive) currentTheme.primary else currentTheme.foreground,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    if (isActive) {
-                                        Icon(
-                                            imageVector = Icons.Default.Check,
-                                            contentDescription = null,
-                                            tint = currentTheme.primary,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
             }
         }
     }
