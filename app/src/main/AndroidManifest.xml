@@ -5,6 +5,15 @@
     <!-- Preset fonts are downloaded over HTTPS from GitHub Releases. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!--
+      mermaid 图表「保存图片」需要写公共相册。
+      API 29 起走 MediaStore 分区存储，不需要这个权限；只有 API 26-28 才要，
+      所以用 maxSdkVersion 限住，新版系统上不会申请任何存储权限。
+    -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
     <!-- 禁用备份功能 -->
     <application
         android:name=".JasmineApplication"

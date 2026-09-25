@@ -1,6 +1,12 @@
 package com.lhzkml.jasmine.core.markdown.ui
 
+import android.Manifest
+import android.content.Context
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -12,21 +18,30 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -43,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import com.lhzkml.jasmine.core.markdown.model.MarkdownBlock
 import com.lhzkml.jasmine.core.markdown.model.MarkdownBlockType
 import com.lhzkml.jasmine.core.markdown.model.MarkdownCellAlignment
+import kotlinx.coroutines.launch
 import com.lhzkml.jasmine.core.markdown.model.MarkdownContainerType
 import com.lhzkml.jasmine.core.markdown.model.MarkdownInline
 import com.lhzkml.jasmine.core.markdown.model.MarkdownInlineType
@@ -283,17 +299,47 @@ private fun MermaidOrCodeBlock(
     bodyFontSize: TextUnit,
 ) {
     var showImage by remember(block.id) { mutableStateOf(false) }
+    val context = LocalContext.current
+    val density = LocalDensity.current.density
+    val isDark = currentTheme.background.luminance() < 0.5f
+    val scope = rememberCoroutineScope()
+
+    // 保存图片：位图仍然问同一个渲染器要 —— 用户能点到这个按钮，说明已经在「图片」页
+    // 渲染过一次，所以这里必定缓存命中，几乎立即返回（不会重新起一次渲染）。
+    val saveImage: () -> Unit = {
+        scope.launch {
+            val rendered = MermaidRenderer.render(context, block.literal, isDark, density)
+            val ok = rendered != null && saveMermaidImage(context, rendered.bitmap)
+            toast(context, if (ok) "已保存到相册" else "保存失败")
+        }
+    }
+    // API 29 起走分区存储，不需要权限；26-28 要先申请 WRITE_EXTERNAL_STORAGE。
+    val permission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted -> if (granted) saveImage() else toast(context, "需要存储权限才能保存图片") }
+
     Column(Modifier.fillMaxWidth()) {
         MermaidTabBar(
             showImage = showImage,
             onSelect = { showImage = it },
             currentTheme = currentTheme,
             bodyFontSize = bodyFontSize,
+            onCopy = {
+                copyMermaidSource(context, block.literal)
+                toast(context, "已复制")
+            },
+            onSaveImage = {
+                if (needsStoragePermission(context)) {
+                    permission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                } else {
+                    saveImage()
+                }
+            },
         )
         if (showImage) {
             MermaidImage(
                 source = block.literal,
-                isDark = currentTheme.background.luminance() < 0.5f,
+                isDark = isDark,
                 currentTheme = currentTheme,
             )
         } else {
@@ -302,24 +348,84 @@ private fun MermaidOrCodeBlock(
     }
 }
 
-/** 「代码 / 图片」切换条。**代码在前**，且默认选中的就是「代码」。 */
+/**
+ * 「代码 / 图片」切换条 + 右侧动作图标。**代码在前**，且默认选中的就是「代码」。
+ *
+ * 右侧按钮跟着当前页切换，与 ima 的 `FencedCodeTabBar` 一致（`FencedCodeBlockComposable.kt:411`）：
+ * 代码页给「复制」（ima 用 `code_copy_icon`），图片页给「保存图片」（ima 用 `std_ic_download`）。
+ * 两边都是纯图标，不带文字。
+ */
 @Composable
 private fun MermaidTabBar(
     showImage: Boolean,
     onSelect: (Boolean) -> Unit,
     currentTheme: CssVariables,
     bodyFontSize: TextUnit,
+    onCopy: () -> Unit,
+    onSaveImage: () -> Unit,
 ) {
+    // 整条做成一个**有边界的工具栏**：底色 + 描边 + 圆角。不这样做的话，两个 tab 加一个
+    // 图标看起来就是三段散落的文字和符号，既读不出"这是一条工具栏"，也看不出哪块能点。
+    val shape = RoundedCornerShape(currentTheme.radiusSm)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(bottom = 8.dp)
+            .clip(shape)
+            .background(currentTheme.subtleSurface)
+            .border(1.dp, currentTheme.border, shape)
+            .padding(horizontal = 4.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        MermaidTab("代码", !showImage, currentTheme, bodyFontSize) { onSelect(false) }
-        MermaidTab("图片", showImage, currentTheme, bodyFontSize) { onSelect(true) }
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            MermaidTab("代码", !showImage, currentTheme, bodyFontSize) { onSelect(false) }
+            MermaidTab("图片", showImage, currentTheme, bodyFontSize) { onSelect(true) }
+        }
+        Spacer(Modifier.weight(1f))
+        if (showImage) {
+            MermaidActionIcon(Icons.Default.Download, "保存图片", currentTheme, onSaveImage)
+        } else {
+            MermaidActionIcon(Icons.Default.ContentCopy, "复制", currentTheme, onCopy)
+        }
     }
+}
+
+/**
+ * tab 栏右侧的图标动作按钮。
+ *
+ * 做成**有底色 + 描边的方块**（而不是裸图标）：这是它能被认出来的全部依据 ——
+ * 尺寸定在 30dp，既够得着，又能让描边显出"这是个按键"。
+ */
+@Composable
+private fun MermaidActionIcon(
+    icon: ImageVector,
+    label: String,
+    currentTheme: CssVariables,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(currentTheme.radiusSm - 2.dp)
+    Box(
+        modifier = Modifier
+            .size(30.dp)
+            .clip(shape)
+            .background(currentTheme.card)
+            .border(1.dp, currentTheme.border, shape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            // 用前景色而不是弱化色：这是可点击的动作，不该看起来像禁用态。
+            tint = currentTheme.foreground,
+            modifier = Modifier.size(16.dp),
+        )
+    }
+}
+
+/** 轻量提示：几秒的反馈用系统 Toast 就够，不必为此引入 Snackbar 宿主。 */
+private fun toast(context: Context, message: String) {
+    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
 }
 
 @Composable
@@ -330,16 +436,20 @@ private fun MermaidTab(
     bodyFontSize: TextUnit,
     onClick: () -> Unit,
 ) {
+    val shape = RoundedCornerShape(currentTheme.radiusSm - 2.dp)
     Text(
         text = label,
         fontSize = (bodyFontSize.value * 0.82f).sp,
         fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
         color = if (selected) currentTheme.foreground else currentTheme.mutedForeground,
         modifier = Modifier
-            .clip(RoundedCornerShape(currentTheme.radiusSm))
-            .background(if (selected) currentTheme.muted else Color.Transparent)
+            .clip(shape)
+            // 选中态换成 card（比工具栏底色亮一档）再加描边，形成"陷进去"的层次。
+            // 之前用 muted，与底色几乎同色，选中与否根本看不出来。
+            .background(if (selected) currentTheme.card else Color.Transparent)
+            .then(if (selected) Modifier.border(1.dp, currentTheme.border, shape) else Modifier)
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+            .padding(horizontal = 12.dp, vertical = 5.dp),
     )
 }
 
