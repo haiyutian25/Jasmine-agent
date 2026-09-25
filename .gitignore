@@ -28,3 +28,4 @@ my-upload-key.jks
 # Local clone of Google ADK for Kotlin (reference only, not part of this project)
 /adk-kotlin/
 /.codebuddy/
+/.trae/
