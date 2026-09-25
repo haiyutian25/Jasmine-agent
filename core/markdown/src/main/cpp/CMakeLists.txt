@@ -139,16 +139,33 @@ target_include_directories(tex PRIVATE
     ${TEX_DIR}/port
 )
 
-# 只保留功能必需的选项。
+# ---------------------------------------------------------------------------
+# 编译选项（每一项都在真机上验过，别照抄上游 Android.mk）
 #
-# ⚠️ 上游 Android.mk 还有 -fvisibility=hidden / -ffunction-sections / -fdata-sections /
-# -Os / -Wl,--gc-sections 这套体积优化，但照搬后 nParse 会 SIGSEGV —— 这套选项会把
-# MicroTeX 内部跨编译单元的符号裁掉。先保证功能正确，体积后面单独处理。
+# ⚠️ **不要用 -Os / -O2**：`LaTeX.nParse` 会 SIGSEGV（初始化正常、一 parse 就崩，
+#    fault addr 0x100000008）。实测 -Os、-Os -fno-strict-aliasing、-Os + sections
+#    三种组合全崩；-O0 与 -O1 都正常。省下的体积远不如下面两项符号裁剪多，
+#    所以用 -O1 换稳定。
+#
+# ✅ 安全的体积优化（9.63 MB → 8.18 MB，省 1.45 MB）：
+#    - -ffunction-sections -fdata-sections + -Wl,--gc-sections：裁掉未引用的 section
+#    - CXX_VISIBILITY_PRESET hidden：收窄动态符号表（JNI_OnLoad 带 JNIEXPORT，
+#      会覆盖 hidden，所以 System.loadLibrary 不受影响 —— 见 jni_def.cpp:68）
+# ---------------------------------------------------------------------------
 target_compile_options(tex PRIVATE
     -fexceptions
     -frtti
+    -O1
+    -ffunction-sections
+    -fdata-sections
 )
+target_link_options(tex PRIVATE "-Wl,--gc-sections")
 target_link_libraries(tex PRIVATE log m)
+
+set_target_properties(tex PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+)
 
 set_target_properties(tex PROPERTIES
     CXX_STANDARD 11
