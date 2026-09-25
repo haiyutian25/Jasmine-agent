@@ -76,6 +76,20 @@ static char *im_strndup(const char *s, size_t n) {
 }
 
 /*
+ * 公式里的换行是否要算一个字符（空格）。
+ *
+ * ⚠️ 必须算。SOFT_BREAK / LINE_BREAK 节点的 literal 是 NULL，直接跳过的话
+ *    换行会被无声吞掉、把前后两段粘连起来：
+ *
+ *        \qquad\nf(x)   →   \qquadf(x)      ← \qquadf 是不存在的命令，整段变红字
+ *
+ *    LaTeX 里普通换行本来就等价于一个空格，所以这里补一个空格正是它的语义。
+ */
+static bool is_break_node(cmark_node *n) {
+  return n->type == CMARK_NODE_SOFTBREAK || n->type == CMARK_NODE_LINEBREAK;
+}
+
+/*
  * 取公式节点的正文。
  *
  * ⚠️ 不能直接 cmark_node_get_literal()：它只认 TEXT/CODE 等标准类型，自定义的
@@ -87,6 +101,10 @@ static char *fomula_text(cmark_node *node) {
   size_t need = 0;
   cmark_node *c;
   for (c = cmark_node_first_child(node); c != NULL; c = cmark_node_next(c)) {
+    if (is_break_node(c)) {
+      need += 1;
+      continue;
+    }
     const char *lit = cmark_node_get_literal(c);
     if (lit != NULL) need += strlen(lit);
   }
@@ -95,6 +113,10 @@ static char *fomula_text(cmark_node *node) {
   if (out == NULL) return NULL;
   size_t n = 0;
   for (c = cmark_node_first_child(node); c != NULL; c = cmark_node_next(c)) {
+    if (is_break_node(c)) {
+      out[n++] = ' ';
+      continue;
+    }
     const char *lit = cmark_node_get_literal(c);
     if (lit != NULL) {
       size_t l = strlen(lit);
@@ -313,10 +335,57 @@ static void ensure_extensions(void) {
   g_registered = true;
 }
 
+/*
+ * ==========================================================================
+ * 反斜杠转义规则（LaTeX 修正）
+ *
+ * cmark 默认把 `\` + ASCII 标点当作「markdown 转义」：吃掉反斜杠、只留标点。
+ * 但 LaTeX 里有一批命令**以标点开头**，被这样吃掉后语法就散了：
+ *
+ *     \begin{pmatrix} a & b \\ c & d \end{pmatrix}   →  a & b \ c & d   矩阵结构崩塌
+ *     \int f(x)\,dx                                  →  \int f(x),dx    细空格变逗号
+ *     \begin{cases} 1, & x>0 \\ 0, & x\le 0 \end{cases}  →  分段函数崩掉
+ *
+ * 根因在 cmark 的 handle_backslash（inlines.c:837）：它对 `\x` 的处理不区分上下文，
+ * 而 `\` 走的是 switch 的独立分支，**根本不经过语法扩展**，所以扩展层拦不住。
+ * cmark 为此留了 cmark_parser_set_backslash_ispunct_func 这个钩子 —— 这里就是用它。
+ *
+ * 保护集只收「LaTeX 需要、而 markdown 里没有含义」的标点，因此不改动任何
+ * 正常 markdown 转义行为（`\*` 抑制强调、`\-` 等一概不受影响）。
+ *
+ * 刻意**不**保护的：
+ *   \$ — 正文里 "价格 \$100" 是常见写法，要让 `$` 正常出现
+ *   \~ — 用来抑制 GFM 删除线
+ * 这两个在 LaTeX 里出现频率低，取舍上让 markdown 优先。
+ * ==========================================================================
+ */
+static int latex_backslash_ispunct(char c) {
+  switch (c) {
+    case '\\':  /* \\ 换行 */
+    case ',':   /* \, 细空格 */
+    case ';':   /* \; 粗空格 */
+    case ':':   /* \: 中等空格 */
+    case '!':   /* \! 负空格 */
+    case '{':   /* \{ */
+    case '}':   /* \} */
+    case '_':   /* \_ 下划线 */
+    case '%':   /* \% */
+    case '&':   /* \& */
+    case '#':   /* \# */
+    case '^':   /* \^ 抑扬符 */
+    case '@':   /* \@ */
+      return 0;
+    default:
+      return cmark_ispunct(c);
+  }
+}
+
 static cmark_parser *make_parser(void) {
   ensure_extensions();
   cmark_parser *parser = cmark_parser_new_with_mem(
       CMARK_OPT_DEFAULT, cmark_get_default_mem_allocator());
+  /* 见上方 latex_backslash_ispunct 的说明。 */
+  cmark_parser_set_backslash_ispunct_func(parser, latex_backslash_ispunct);
   cmark_parser_attach_syntax_extension(parser, g_table);
   cmark_parser_attach_syntax_extension(parser, g_strike);
   cmark_parser_attach_syntax_extension(parser, g_autolink);
