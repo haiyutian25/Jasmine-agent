@@ -57,7 +57,6 @@
     <string name="chat_input_hint">输入消息…</string>
     <string name="chat_send_cd">发送消息</string>
     <string name="chat_stop_cd">停止</string>
-    <string name="chat_add_cd">添加</string>
     <string name="chat_new_conversation">新对话</string>
     <string name="chat_pick_model_title">选择模型</string>
     <string name="chat_pick_model_empty">尚未配置任何模型，请先在「模型提供商」中添加。</string>

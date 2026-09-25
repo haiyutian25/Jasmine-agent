@@ -29,7 +29,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.Build
@@ -112,6 +111,44 @@ private val ChatToolRowPaddingVertical = 8.dp
 private const val ChatToolDetailMaxLines = 2
 /** 跟着 [ChatSendButtonSize] 等比缩小（18dp/44dp → 14dp/26dp），图标与圆的占比和 ima 一致。 */
 private val ChatSendIconSize = 14.dp
+
+/**
+ * 输入区（光标 + 文字）相对提示文字下移的量。
+ *
+ * 光标是按「行框」画的，而行框顶部比汉字墨迹高出不少 —— 13.5sp 下真机实测：
+ *
+ *     光标       y[1004..1046]  43px = 15.6dp
+ *     汉字墨迹   y[1020..1054]  35px = 12.7dp
+ *
+ * 也就是光标的顶比汉字顶高 12px、底又比汉字底高 8px，看上去就是「光标浮在文字上方」。
+ * 提示文字与真实输入文字本来就在同一落点（距卡片顶 16.0dp vs 16.4dp），所以对齐的目标
+ * 是提示文字：把输入区下移 4dp（≈12px）去贴它，而不是把提示文字上提。
+ *
+ * ⚠️ 这里必须用 `padding` 而不是 `offset`：`offset` 只挪绘制位置、不挪输入框自己的
+ * 可视区域，内容超过最大行数滚动到底时，上一行的底部会从顶部露出约 11px（实测）。
+ * 用 `padding` 时输入框整体下移、内容与可视区相对关系不变，滚动不会露出残行。
+ */
+private val ChatInputTextOffset = 4.dp
+
+/**
+ * 输入区的行高 —— 必须显式写成字体的自然行距（13.5sp 下实测 55px = 20dp）。
+ *
+ * 不指定行高时，Compose 画光标用的是「行框」高度，而滚动又按光标高度来算。
+ * 这个字体在 13.5sp 下光标只有 43px、行距却有 55px，两者不一致的后果是：
+ * 每滚一行只推进 43px，顶部留下 12px 的上一行残影 —— 表现就是**最上面那行被切掉**，
+ * `maxLines = 5` 实际只能看全 4 行（真机实测：顶行仅露出 10px）。
+ * 把行高定成 55px 后光标高度与行距一致，滚动按整行推进，5 行就能全部看全。
+ */
+private val ChatInputLineHeight = 20.sp
+
+/**
+ * 输入区的最小高度（2.5 行）。
+ *
+ * 工具行从 48dp 收到 26dp 后，空输入时的卡片从 99.6dp 掉到 77.8dp，看着瘪了。
+ * 这里给输入区一个最小高度，把卡片撑回略高于原来的水平：
+ *   50dp 输入区 + 4dp 下移 + 8dp 间隔 + 26dp 按钮 + 20dp 内边距 ≈ 108dp（原 99.6dp）。
+ */
+private val ChatInputMinHeight = 50.dp
 private val ChatSendSpinnerSize = 16.dp
 private val ChatPickerListMaxHeight = 380.dp
 
@@ -424,8 +461,15 @@ private fun Composer(
             onValueChange = { onAction(ChatAction.InputChanged(it)) },
             modifier = Modifier
                 .fillMaxWidth()
+                // 最小高度：空输入时也别把卡片压得太扁（见 ChatInputMinHeight）。
+                // 文字始终从顶端开始排，所以这个下限不会影响已有内容的位置。
+                .heightIn(min = ChatInputMinHeight)
                 .testTag("chat_input"),
-            textStyle = TextStyle(fontSize = ChatBodyFontSize, color = currentTheme.foreground),
+            textStyle = TextStyle(
+                fontSize = ChatBodyFontSize,
+                lineHeight = ChatInputLineHeight,
+                color = currentTheme.foreground
+            ),
             cursorBrush = SolidColor(currentTheme.primary),
             maxLines = 5,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
@@ -433,26 +477,41 @@ private fun Composer(
                 onSend = { if (canSend) onAction(ChatAction.SendClicked) }
             ),
             decorationBox = { innerTextField ->
-                if (state.input.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.chat_input_hint),
-                        fontSize = ChatBodyFontSize,
-                        color = currentTheme.mutedForeground
-                    )
+                // 两者放进同一个 Box：提示文字保持原位，输入区（光标 + 文字）额外下移，
+                // 让光标的行框和汉字墨迹对齐。原因见 ChatInputTextOffset。
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    if (state.input.isEmpty()) {
+                        Text(
+                            text = stringResource(R.string.chat_input_hint),
+                            fontSize = ChatBodyFontSize,
+                            color = currentTheme.mutedForeground
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = ChatInputTextOffset)
+                    ) {
+                        innerTextField()
+                    }
                 }
-                innerTextField()
             }
         )
 
         Spacer(modifier = Modifier.height(ChatComposerToolRowGap))
 
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            // 贴底而不是垂直居中：左侧模型按钮自带 48dp 最小高度，会把这一行撑到 132px，
-            // 26dp 的发送按钮若居中，上下就各空出 30px（实测按钮底距内容区底 10.5dp，
-            // ima 只有 4.7dp）。改成 Bottom 后只有较矮的发送按钮会下移，模型按钮本来
-            // 就占满整行高度，位置不变。
-            verticalAlignment = Alignment.Bottom
+            // 行高锁到按钮尺寸，把「工具行比按钮高出来的那截」挤掉。
+            //
+            // 左侧模型按钮用的是通用 Button，它自带 sizeIn(min = 48dp) 的触摸高度，
+            // 会把这一行撑到 132px；发送按钮只有 26dp，于是两者之间白白空出 22dp，
+            // 加上 8dp 间隔，输入区最后一行到按钮之间有 30dp 空白（真机实测 29.5dp）。
+            // 这里显式给高度，通用 Button 的 sizeIn 会被传入约束夹住（与发送按钮的
+            // size() 同一个机制），行高就变成 26dp，空白只剩 8dp 间隔。
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(ChatSendButtonSize),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             // Left: the active model doubles as the entry point for switching models.
             Button(
@@ -471,9 +530,9 @@ private fun Composer(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Right: a single button with three faces — empty input / plus, typable /
-            // send, reply in flight / stop. Only Send is wired to an action; the plus
-            // and stop faces are presentational for now.
+            // Right: the send button, two faces — send, or stop while a reply is in
+            // flight. 空输入时以前显示「加号」，现在统一显示发送箭头（不可发时置灰），
+            // 这样按钮的含义始终一致，不需要用户猜那个加号是干什么的。
             Button(
                 onClick = { if (canSend) onAction(ChatAction.SendClicked) },
                 rippleEnabled = false,
@@ -493,25 +552,22 @@ private fun Composer(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    when {
-                        state.isSending -> Icon(
+                    if (state.isSending) {
+                        Icon(
                             imageVector = Icons.Filled.Stop,
                             contentDescription = stringResource(R.string.chat_stop_cd),
                             tint = currentTheme.primaryForeground,
                             modifier = Modifier.size(ChatSendIconSize)
                         )
-
-                        canSend -> Icon(
+                    } else {
+                        Icon(
                             imageVector = Icons.AutoMirrored.Filled.Send,
                             contentDescription = stringResource(R.string.chat_send_cd),
-                            tint = currentTheme.primaryForeground,
-                            modifier = Modifier.size(ChatSendIconSize)
-                        )
-
-                        else -> Icon(
-                            imageVector = Icons.Filled.Add,
-                            contentDescription = stringResource(R.string.chat_add_cd),
-                            tint = currentTheme.mutedForeground,
+                            tint = if (canSend) {
+                                currentTheme.primaryForeground
+                            } else {
+                                currentTheme.mutedForeground
+                            },
                             modifier = Modifier.size(ChatSendIconSize)
                         )
                     }
