@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -359,22 +360,35 @@ private fun HeadingBlock(
 
 @Composable
 private fun CodeBlock(block: MarkdownBlock, currentTheme: CssVariables, bodyFontSize: TextUnit) {
-    // 代码块横向可滚，避免长行折行破坏缩进语义。
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(currentTheme.radiusSm))
-            .background(currentTheme.subtleSurface)
-            .padding(10.dp)
-    ) {
-        if (block.fenceInfo.isNotBlank()) {
+    val context = LocalContext.current
+    // 与 mermaid 块共用同一种容器：左边是语言，右边是复制。
+    ToolbarBlock(
+        currentTheme = currentTheme,
+        toolbar = {
             Text(
-                text = block.fenceInfo,
+                text = block.fenceInfo.ifBlank { "代码" },
                 fontSize = (bodyFontSize.value * 0.78f).sp,
                 color = currentTheme.mutedForeground,
-                modifier = Modifier.padding(bottom = 6.dp),
             )
-        }
+            Spacer(Modifier.weight(1f))
+            ToolbarIconButton(Icons.Default.ContentCopy, "复制", currentTheme) {
+                copyToClipboard(context, block.literal)
+                toast(context, "已复制")
+            }
+        },
+    ) {
+        CodeText(block, currentTheme, bodyFontSize)
+    }
+}
+
+/** 代码正文：横向可滚，避免长行折行破坏缩进语义。 */
+@Composable
+private fun CodeText(block: MarkdownBlock, currentTheme: CssVariables, bodyFontSize: TextUnit) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(10.dp)
+    ) {
         Text(
             text = block.literal,
             fontSize = (bodyFontSize.value * 0.88f).sp,
@@ -426,24 +440,28 @@ private fun MermaidOrCodeBlock(
         ActivityResultContracts.RequestPermission(),
     ) { granted -> if (granted) saveImage() else toast(context, "需要存储权限才能保存图片") }
 
-    Column(Modifier.fillMaxWidth()) {
-        MermaidTabBar(
-            showImage = showImage,
-            onSelect = { showImage = it },
-            currentTheme = currentTheme,
-            bodyFontSize = bodyFontSize,
-            onCopy = {
-                copyMermaidSource(context, block.literal)
-                toast(context, "已复制")
-            },
-            onSaveImage = {
-                if (needsStoragePermission(context)) {
-                    permission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                } else {
-                    saveImage()
+    ToolbarBlock(
+        currentTheme = currentTheme,
+        toolbar = {
+            MermaidTab("代码", !showImage, currentTheme, bodyFontSize) { showImage = false }
+            MermaidTab("图片", showImage, currentTheme, bodyFontSize) { showImage = true }
+            Spacer(Modifier.weight(1f))
+            if (showImage) {
+                ToolbarIconButton(Icons.Default.Download, "保存图片", currentTheme) {
+                    if (needsStoragePermission(context)) {
+                        permission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    } else {
+                        saveImage()
+                    }
                 }
-            },
-        )
+            } else {
+                ToolbarIconButton(Icons.Default.ContentCopy, "复制", currentTheme) {
+                    copyToClipboard(context, block.literal)
+                    toast(context, "已复制")
+                }
+            }
+        },
+    ) {
         if (showImage) {
             MermaidImage(
                 source = block.literal,
@@ -451,61 +469,53 @@ private fun MermaidOrCodeBlock(
                 currentTheme = currentTheme,
             )
         } else {
-            CodeBlock(block, currentTheme, bodyFontSize)
+            // 只渲染正文 —— 工具栏已经由上面的 ToolbarBlock 提供了。
+            CodeText(block, currentTheme, bodyFontSize)
         }
     }
 }
 
 /**
- * 「代码 / 图片」切换条 + 右侧动作图标。**代码在前**，且默认选中的就是「代码」。
+ * 带工具栏的块容器：一个外框（底色 + 描边 + 圆角）里装「顶部工具栏 + 分隔线 + 内容」。
  *
- * 右侧按钮跟着当前页切换，与 ima 的 `FencedCodeTabBar` 一致（`FencedCodeBlockComposable.kt:411`）：
- * 代码页给「复制」（ima 用 `code_copy_icon`），图片页给「保存图片」（ima 用 `std_ic_download`）。
- * 两边都是纯图标，不带文字。
+ * 工具栏必须和内容在**同一个框**里。各自独立成框的话，看起来就是上下两块东西，
+ * 读不出"上面这条是这块内容的操作栏"。
  */
 @Composable
-private fun MermaidTabBar(
-    showImage: Boolean,
-    onSelect: (Boolean) -> Unit,
+private fun ToolbarBlock(
     currentTheme: CssVariables,
-    bodyFontSize: TextUnit,
-    onCopy: () -> Unit,
-    onSaveImage: () -> Unit,
+    modifier: Modifier = Modifier,
+    toolbar: @Composable RowScope.() -> Unit,
+    content: @Composable () -> Unit,
 ) {
-    // 整条做成一个**有边界的工具栏**：底色 + 描边 + 圆角。不这样做的话，两个 tab 加一个
-    // 图标看起来就是三段散落的文字和符号，既读不出"这是一条工具栏"，也看不出哪块能点。
     val shape = RoundedCornerShape(currentTheme.radiusSm)
-    Row(
-        modifier = Modifier
+    Column(
+        modifier
             .fillMaxWidth()
-            .padding(bottom = 8.dp)
             .clip(shape)
             .background(currentTheme.subtleSurface)
             .border(1.dp, currentTheme.border, shape)
-            .padding(horizontal = 4.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            MermaidTab("代码", !showImage, currentTheme, bodyFontSize) { onSelect(false) }
-            MermaidTab("图片", showImage, currentTheme, bodyFontSize) { onSelect(true) }
-        }
-        Spacer(Modifier.weight(1f))
-        if (showImage) {
-            MermaidActionIcon(Icons.Default.Download, "保存图片", currentTheme, onSaveImage)
-        } else {
-            MermaidActionIcon(Icons.Default.ContentCopy, "复制", currentTheme, onCopy)
-        }
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            content = toolbar,
+        )
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(currentTheme.border)
+        )
+        content()
     }
 }
 
-/**
- * tab 栏右侧的图标动作按钮。
- *
- * 做成**有底色 + 描边的方块**（而不是裸图标）：这是它能被认出来的全部依据 ——
- * 尺寸定在 30dp，既够得着，又能让描边显出"这是个按键"。
- */
+/** 工具栏右侧的图标按钮：有底色 + 描边的方块，30dp 够得着、也看得出能点。 */
 @Composable
-private fun MermaidActionIcon(
+private fun ToolbarIconButton(
     icon: ImageVector,
     label: String,
     currentTheme: CssVariables,

@@ -23,16 +23,16 @@ import java.io.FileOutputStream
  */
 
 /** 剪贴板条目的标签，仅用于系统剪贴板面板上的显示。 */
-private const val CLIPBOARD_LABEL = "mermaid"
+private const val CLIPBOARD_LABEL = "code"
 
 /** 保存到相册时的子目录与文件名前缀。 */
 private const val ALBUM_DIR = "Jasmine"
 private const val FILE_PREFIX = "mermaid_"
 
-/** 把 mermaid 源码复制到系统剪贴板。 */
-internal fun copyMermaidSource(context: Context, source: String) {
+/** 把代码/图表源码复制到系统剪贴板。 */
+internal fun copyToClipboard(context: Context, text: String) {
     val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    manager.setPrimaryClip(ClipData.newPlainText(CLIPBOARD_LABEL, source))
+    manager.setPrimaryClip(ClipData.newPlainText(CLIPBOARD_LABEL, text))
 }
 
 /** 保存图片是否还需要运行时授权 —— 只有 API 26-28 需要（29 起是分区存储）。 */

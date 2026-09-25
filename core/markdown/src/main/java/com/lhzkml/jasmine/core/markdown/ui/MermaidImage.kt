@@ -60,11 +60,10 @@ internal fun MermaidImage(
         value = MermaidRenderer.render(context, source, isDark, density)
     }
 
+    // 背景与圆角由外层 ToolbarBlock 提供，这里只留内边距。
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(currentTheme.radiusSm))
-            .background(currentTheme.subtleSurface)
             .padding(8.dp)
     ) {
         val r = rendered
