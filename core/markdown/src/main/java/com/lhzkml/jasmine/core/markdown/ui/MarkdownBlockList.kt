@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -23,6 +24,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.InlineTextContent
+// ⚠️ Compose 1.12 起 appendInlineContent 从 androidx.compose.ui.text 移到了 foundation.text
+//    （定义在 InlineTextContentKt 里）。用旧包名会报 Unresolved reference。
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Download
@@ -40,9 +45,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -55,6 +63,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.lhzkml.jasmine.core.markdown.model.MarkdownBlock
 import com.lhzkml.jasmine.core.markdown.model.MarkdownBlockType
 import com.lhzkml.jasmine.core.markdown.model.MarkdownCellAlignment
@@ -83,7 +92,7 @@ import com.lhzkml.jasmine.core.ui.theme.CssVariables
  *   真正的排版由上层（web 端用 KaTeX）完成。本工程没有引入公式排版库，
  *   所以公式按等宽文本原样显示。
  * - **HTML 块/行内**：只按字面量显示，不解析执行。
- * - **图片**：工程没有图片加载库（无 Coil/Glide），显示 alt 文本而非图片。
+ * - **图片**：由 Coil 加载。
  */
 @Composable
 fun MarkdownBlockList(
@@ -142,12 +151,28 @@ private fun MarkdownBlockView(
             color = currentTheme.mutedForeground,
             modifier = Modifier.fillMaxWidth(),
         )
-        MarkdownBlockType.IMAGE -> Text(
-            text = block.content.toAnnotatedString(currentTheme, bodyFontSize),
-            fontSize = bodyFontSize,
-            color = baseColor,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        // 图片块：`![alt](url)` 独占一行时解析成这个类型。
+        MarkdownBlockType.IMAGE -> {
+            val image = block.content.soleImage()
+            if (image != null) {
+                MarkdownImage(
+                    url = image.first.url.orEmpty(),
+                    alt = image.first.children.plainText(),
+                    currentTheme = currentTheme,
+                    linkUrl = image.second,
+                )
+            } else {
+                // 兜底：结构不是「一张图」时仍按文本走，不至于整块消失。
+                val inline = block.content.toAnnotatedString(currentTheme, bodyFontSize)
+                Text(
+                    text = inline.text,
+                    inlineContent = inline.inlineContent,
+                    fontSize = bodyFontSize,
+                    color = baseColor,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
         else -> ParagraphBlock(block, currentTheme, bodyFontSize, baseColor)
     }
 }
@@ -162,7 +187,9 @@ private fun ParagraphBlock(
 ) {
     val quote = block.prefix.firstOrNull { it.containerType == MarkdownContainerType.QUOTE }
     val list = block.prefix.lastOrNull { it.containerType != MarkdownContainerType.QUOTE }
-    val annot = block.content.toAnnotatedString(currentTheme, bodyFontSize)
+    val inline = block.content.toAnnotatedString(currentTheme, bodyFontSize)
+    // 整段只有一张图（可能被链接包裹）时交给图片组件，见 soleImage 的说明。
+    val image = block.content.soleImage()
 
     if (quote != null) {
         // 引用：左侧竖线 + 缩进，与 ima 的 showQuoteMarker 对应。
@@ -174,9 +201,11 @@ private fun ParagraphBlock(
                     .background(currentTheme.border)
             )
             Spacer(Modifier.width(10.dp))
-            Text(
-                text = annot,
-                fontSize = bodyFontSize,
+            ParagraphContent(
+                image = image,
+                inline = inline,
+                currentTheme = currentTheme,
+                bodyFontSize = bodyFontSize,
                 color = currentTheme.mutedForeground,
                 modifier = Modifier.weight(1f),
             )
@@ -198,9 +227,11 @@ private fun ParagraphBlock(
                 },
                 modifier = Modifier.width(20.dp),
             )
-            Text(
-                text = annot,
-                fontSize = bodyFontSize,
+            ParagraphContent(
+                image = image,
+                inline = inline,
+                currentTheme = currentTheme,
+                bodyFontSize = bodyFontSize,
                 color = baseColor,
                 modifier = Modifier.weight(1f),
             )
@@ -208,13 +239,73 @@ private fun ParagraphBlock(
         return
     }
 
-    Text(
-        text = annot,
-        fontSize = bodyFontSize,
+    ParagraphContent(
+        image = image,
+        inline = inline,
+        currentTheme = currentTheme,
+        bodyFontSize = bodyFontSize,
         color = baseColor,
         modifier = Modifier.fillMaxWidth(),
     )
 }
+
+/**
+ * 段落的内容区：整段是一张图就交给 [MarkdownImage]，否则是样式化文本。
+ *
+ * 引用 / 列表 / 普通段落三者的差别只在**前缀与颜色**，内容区是同一套逻辑 ——
+ * 所以抽成一个函数，图片支持就不必在三处各写一遍。
+ */
+@Composable
+private fun ParagraphContent(
+    image: Pair<MarkdownInline, String?>?,
+    inline: InlineRenderResult,
+    currentTheme: CssVariables,
+    bodyFontSize: TextUnit,
+    color: Color,
+    modifier: Modifier,
+) {
+    if (image != null) {
+        MarkdownImage(
+            url = image.first.url.orEmpty(),
+            alt = image.first.children.plainText(),
+            currentTheme = currentTheme,
+            modifier = modifier,
+            linkUrl = image.second,
+        )
+    } else {
+        Text(
+            text = inline.text,
+            inlineContent = inline.inlineContent,
+            fontSize = bodyFontSize,
+            color = color,
+            modifier = modifier,
+        )
+    }
+}
+
+/**
+ * 这段行内内容去掉空白后若只剩一张图，就把它取出来（连同外层可能的链接 url）。
+ *
+ * 为什么要单独判出来、而不是在 `AnnotatedString` 里嵌 inline content：
+ * inline content 的占位尺寸必须在组合期定死，而图片真实尺寸要等网络回来才知道 ——
+ * 定小了把图挤扁，定大了留一片空白。整段交给 [MarkdownImage] 就能按容器宽度自适应。
+ *
+ * 返回 `图片节点 to 外层链接url`；不是「单图段」则返回 null（走文本渲染）。
+ */
+private fun List<MarkdownInline>.soleImage(): Pair<MarkdownInline, String?>? {
+    val only = filterNot { it.isBlankInline() }.singleOrNull() ?: return null
+    if (only.type == MarkdownInlineType.IMAGE) return only to null
+    // [![alt](img)](link) —— 链接里只包着一张图。
+    if (only.type == MarkdownInlineType.LINK) {
+        val inner = only.children.filterNot { it.isBlankInline() }.singleOrNull()
+        if (inner?.type == MarkdownInlineType.IMAGE) return inner to only.url
+    }
+    return null
+}
+
+/** 空白文本节点（图片前后的缩进/换行常产生这种节点）。 */
+private fun MarkdownInline.isBlankInline(): Boolean =
+    type == MarkdownInlineType.TEXT && literal.orEmpty().isBlank()
 
 private fun listMarkerText(prefix: MarkdownPrefixContext): String = when (prefix.containerType) {
     MarkdownContainerType.NUMBERED_LIST -> "${prefix.numberListIndex}."
@@ -240,8 +331,10 @@ private fun HeadingBlock(
         4 -> bodyFontSize * 1.06f
         else -> bodyFontSize
     }
+    val inline = block.content.toAnnotatedString(currentTheme, bodyFontSize)
     Text(
-        text = block.content.toAnnotatedString(currentTheme, bodyFontSize),
+        text = inline.text,
+        inlineContent = inline.inlineContent,
         fontSize = size,
         fontWeight = FontWeight.SemiBold,
         color = baseColor,
@@ -505,8 +598,10 @@ private fun TableBlock(
                     .padding(vertical = 6.dp)
             ) {
                 row.cells.forEach { cell ->
+                    val inline = cell.content.toAnnotatedString(currentTheme, bodyFontSize)
                     Text(
-                        text = cell.content.toAnnotatedString(currentTheme, bodyFontSize),
+                        text = inline.text,
+                        inlineContent = inline.inlineContent,
                         fontSize = (bodyFontSize.value * 0.92f).sp,
                         fontWeight = if (row.isHeader) FontWeight.SemiBold else FontWeight.Normal,
                         color = baseColor,
@@ -536,7 +631,18 @@ private fun TableBlock(
 // ── 行内 → AnnotatedString ──────────────────────────────────────────────
 
 /**
- * 把行内节点树折成 [AnnotatedString]。
+ * 行内渲染的产物：样式化文本 + 需要以 Composable 形式嵌进文本流的内容（目前只有图片）。
+ *
+ * `Text` 组件同时接受这两样，所以调用点必须成对传下去 —— 只传 text 的话，图片位置会
+ * 变成一个不可见的空占位。
+ */
+private class InlineRenderResult(
+    val text: AnnotatedString,
+    val inlineContent: Map<String, InlineTextContent>,
+)
+
+/**
+ * 把行内节点树折成 [InlineRenderResult]。
  *
  * 行内样式（强调/粗体/删除线/下划线/高亮/代码/链接）在这里映射成 SpanStyle；
  * 结构是递归的，与 native 侧的 Inline.children 一一对应。
@@ -544,14 +650,43 @@ private fun TableBlock(
 private fun List<MarkdownInline>.toAnnotatedString(
     theme: CssVariables,
     bodyFontSize: TextUnit,
-): AnnotatedString = buildAnnotatedString {
-    appendInlines(this@toAnnotatedString, theme, bodyFontSize)
+): InlineRenderResult {
+    // 图片要先在遍历中登记、再由调用方交给 Text，所以边遍历边往这里塞。
+    val images = mutableMapOf<String, InlineTextContent>()
+    val text = buildAnnotatedString {
+        appendInlines(this@toAnnotatedString, theme, bodyFontSize, images)
+    }
+    return InlineRenderResult(text, images)
+}
+
+/** 行内图片 → inline content。占位尺寸取行高，跟着字号走，不撑变形。 */
+private fun inlineImageContent(
+    url: String,
+    theme: CssVariables,
+    bodyFontSize: TextUnit,
+): InlineTextContent {
+    val size = (bodyFontSize.value * 1.15f).sp
+    return InlineTextContent(
+        placeholder = Placeholder(
+            width = size,
+            height = size,
+            placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter,
+        ),
+    ) { alternate ->
+        AsyncImage(
+            model = url,
+            contentDescription = alternate,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
 }
 
 private fun androidx.compose.ui.text.AnnotatedString.Builder.appendInlines(
     nodes: List<MarkdownInline>,
     theme: CssVariables,
     bodyFontSize: TextUnit,
+    images: MutableMap<String, InlineTextContent>,
 ) {
     nodes.forEach { node ->
         when (node.type) {
@@ -569,27 +704,27 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendInlines(
             ) { append(node.literal.orEmpty()) }
 
             MarkdownInlineType.EMPHASIS -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
-                appendInlines(node.children, theme, bodyFontSize)
+                appendInlines(node.children, theme, bodyFontSize, images)
             }
 
             MarkdownInlineType.STRONG -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
-                appendInlines(node.children, theme, bodyFontSize)
+                appendInlines(node.children, theme, bodyFontSize, images)
             }
 
             MarkdownInlineType.STRIKETHROUGH -> withStyle(
                 SpanStyle(textDecoration = TextDecoration.LineThrough)
-            ) { appendInlines(node.children, theme, bodyFontSize) }
+            ) { appendInlines(node.children, theme, bodyFontSize, images) }
 
             // [腾讯扩展] ==高亮== —— 对应 ima 的 <mark> 渲染。
             MarkdownInlineType.HIGHLIGHT -> withStyle(
                 SpanStyle(background = theme.accent.copy(alpha = 0.28f))
-            ) { appendInlines(node.children, theme, bodyFontSize) }
+            ) { appendInlines(node.children, theme, bodyFontSize, images) }
 
             // [腾讯扩展] ~下划线~ —— 对应 ima 的 <u>。web 端白名单没有 u，
             // 这是 native 侧独有的能力（见逆向包 FULL_RECOVERY.md §4）。
             MarkdownInlineType.UNDERLINE -> withStyle(
                 SpanStyle(textDecoration = TextDecoration.Underline)
-            ) { appendInlines(node.children, theme, bodyFontSize) }
+            ) { appendInlines(node.children, theme, bodyFontSize, images) }
 
             MarkdownInlineType.LINK -> withStyle(
                 SpanStyle(
@@ -597,15 +732,13 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendInlines(
                     textDecoration = TextDecoration.Underline,
                     fontWeight = FontWeight.Medium,
                 )
-            ) { appendInlines(node.children, theme, bodyFontSize) }
+            ) { appendInlines(node.children, theme, bodyFontSize, images) }
 
-            // 无图片加载库：退化为 alt 文本（见文件头「取舍」说明）。
-            MarkdownInlineType.IMAGE -> withStyle(
-                SpanStyle(color = theme.mutedForeground, fontStyle = FontStyle.Italic)
-            ) {
-                val alt = node.children.plainText().ifEmpty { node.url.orEmpty() }
-                append("🖼 ")
-                append(alt)
+            // 行内图片：嵌进文本流，由 Coil 加载。
+            MarkdownInlineType.IMAGE -> {
+                val id = "md-image-" + images.size
+                appendInlineContent(id, alternateText = node.children.plainText())
+                images[id] = inlineImageContent(node.url.orEmpty(), theme, bodyFontSize)
             }
 
             MarkdownInlineType.FORMULA -> withStyle(
@@ -617,7 +750,7 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendInlines(
             else -> if (node.children.isEmpty()) {
                 append(node.literal.orEmpty())
             } else {
-                appendInlines(node.children, theme, bodyFontSize)
+                appendInlines(node.children, theme, bodyFontSize, images)
             }
         }
     }

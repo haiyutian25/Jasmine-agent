@@ -64,6 +64,8 @@ dependencies {
   implementation(libs.androidx.compose.material.icons.extended)
   // 保存图片在 API 28 及以下要运行时申请 WRITE_EXTERNAL_STORAGE。
   implementation(libs.androidx.activity.compose)
+  // markdown 里的图片（![alt](url)）由它加载。
+  implementation(libs.coil.compose)
 
   // 渲染层取色/圆角一律走设计系统令牌（CssVariables），与 core:ui 的组件同一约定。
   api(project(":core:ui"))
