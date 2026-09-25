@@ -13,17 +13,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -134,11 +131,11 @@ private const val TabColorAnimMillis = 200
  * [excludedStartZone] keeps the left edge reserved for a host edge gesture
  * (the drawer's edge swipe).
  *
- * The bar is pinned to the window bottom and deliberately does not consume the IME
- * inset, so the keyboard covers it — the behaviour Material 3 bottom bars have by
- * default (they apply only the system-bar insets). The page above it is inset by
- * the keyboard's *excess over the bar*, which lifts a focused composer onto the
- * keyboard without leaving a bar-height gap between the two.
+ * The bar is pinned to the window bottom and steps aside while the keyboard is up,
+ * so a focused composer can sit flush against the keyboard. The page above it only
+ * has to clear `WindowInsets.ime` (the bar's own height is taken by the sibling
+ * node below it in the Column) — that is exactly the official `imePadding()`
+ * semantics, no manual inset arithmetic.
  *
  * Bar styling follows Linear / Vercel / Material 3 standards:
  * - 66dp content height + navigationBarsPadding(); the host renders the bar
@@ -150,6 +147,7 @@ private const val TabColorAnimMillis = 200
  *
  * @param content renders the page for a given tab (hosted above the bar)
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ProductionBottomNavBar(
     currentTab: NavigationTab,
@@ -168,108 +166,111 @@ fun ProductionBottomNavBar(
     // nears the system gesture bar. Icon-label spacing stays at 0 — a negative
     // padding is deliberately avoided; the tighter line box reclaims the room.
     val labelLineHeight = if (fontScale > 1f) TabLabelLineHeight else TextUnit.Unspecified
-    // The bar stays pinned to the window bottom and the keyboard covers it, so the
-    // page above it only has to clear the keyboard's excess over the bar. Written
-    // as an inset subtraction rather than a manual read of the IME height: the
-    // built-in inset modifiers resolve in the layout phase, whereas reading an
-    // inset during composition would lag the keyboard animation by a frame.
-    val barInsets = WindowInsets(0.dp, 0.dp, 0.dp, TabDividerHeight + TabBarHeight)
-        .union(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
-    val pageInsets = WindowInsets.ime.exclude(barInsets)
+    // 键盘弹出时把底栏收起来。
+    //
+    // 底栏留在布局里会占掉一个底栏的高度，输入框就永远差这一段贴不到键盘；
+    // 而把它叠到内容上又会直接盖住输入框（两种都试过）。收起来之后内容让到
+    // 键盘顶部，输入框正好贴在键盘上 —— 微信 / Telegram 一类聊天界面就是这个做法。
+    val imeVisible = WindowInsets.isImeVisible
 
     Column(modifier = modifier.fillMaxSize()) {
         // 1. Page content area (optionally swipeable)
+        //
+        // 只让出键盘（WindowInsets.ime），底栏的高度由下面的兄弟节点自然占掉，
+        // 不需要在这里再算一次 —— 这正是官方 imePadding() 的语义。
         if (swipeable) {
             SwipeableTabPages(
                 currentTab = currentTab,
                 onTabChange = onTabSelected,
                 enabled = swipeEnabled,
                 excludedStartZone = excludedStartZone,
-                modifier = Modifier.weight(1f).windowInsetsPadding(pageInsets),
+                modifier = Modifier.weight(1f).windowInsetsPadding(WindowInsets.ime),
                 content = content
             )
         } else {
-            Box(modifier = Modifier.weight(1f).windowInsetsPadding(pageInsets)) {
+            Box(modifier = Modifier.weight(1f).windowInsetsPadding(WindowInsets.ime)) {
                 content(currentTab)
             }
         }
 
         // 2. Tab bar
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(currentTheme.background)
-                .navigationBarsPadding()
-        ) {
-            // 1px Subtle Top Border
-            Box(
+        if (!imeVisible) {
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(TabDividerHeight)
-                    .background(currentTheme.border)
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(TabBarHeight)
-                    .padding(horizontal = TabRowPaddingHorizontal, vertical = TabRowPaddingVertical),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
+                    .background(currentTheme.background)
+                    .navigationBarsPadding()
             ) {
-                NavigationTab.entries.forEach { tab ->
-                    val isSelected = currentTab == tab
+                // 1px Subtle Top Border
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(TabDividerHeight)
+                        .background(currentTheme.border)
+                )
 
-                    val iconColor by animateColorAsState(
-                        targetValue = if (isSelected) currentTheme.primary else currentTheme.mutedForeground,
-                        animationSpec = tween(TabColorAnimMillis),
-                        label = "tab_icon_color"
-                    )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(TabBarHeight)
+                        .padding(horizontal = TabRowPaddingHorizontal, vertical = TabRowPaddingVertical),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    NavigationTab.entries.forEach { tab ->
+                        val isSelected = currentTab == tab
 
-                    val textColor by animateColorAsState(
-                        targetValue = if (isSelected) currentTheme.foreground else currentTheme.mutedForeground,
-                        animationSpec = tween(TabColorAnimMillis),
-                        label = "tab_text_color"
-                    )
+                        val iconColor by animateColorAsState(
+                            targetValue = if (isSelected) currentTheme.primary else currentTheme.mutedForeground,
+                            animationSpec = tween(TabColorAnimMillis),
+                            label = "tab_icon_color"
+                        )
 
-                    val pillBackground by animateColorAsState(
-                        targetValue = if (isSelected) currentTheme.subtleSurface else currentTheme.background.copy(alpha = 0f),
-                        animationSpec = tween(TabColorAnimMillis),
-                        label = "tab_pill_bg"
-                    )
+                        val textColor by animateColorAsState(
+                            targetValue = if (isSelected) currentTheme.foreground else currentTheme.mutedForeground,
+                            animationSpec = tween(TabColorAnimMillis),
+                            label = "tab_text_color"
+                        )
 
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(TabPillHeight)
-                            .clip(RoundedCornerShape(currentTheme.radiusSm))
-                            .background(pillBackground)
-                            .clickable {
-                                onTabSelected(tab)
-                            }
-                            .padding(vertical = TabPillPaddingVertical)
-                            .testTag(tab.testTag),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
+                        val pillBackground by animateColorAsState(
+                            targetValue = if (isSelected) currentTheme.subtleSurface else currentTheme.background.copy(alpha = 0f),
+                            animationSpec = tween(TabColorAnimMillis),
+                            label = "tab_pill_bg"
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(TabPillHeight)
+                                .clip(RoundedCornerShape(currentTheme.radiusSm))
+                                .background(pillBackground)
+                                .clickable {
+                                    onTabSelected(tab)
+                                }
+                                .padding(vertical = TabPillPaddingVertical)
+                                .testTag(tab.testTag),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
-                                contentDescription = stringResource(tab.titleRes),
-                                tint = iconColor,
-                                modifier = Modifier.size(TabIconSize)
-                            )
-                            Text(
-                                text = stringResource(tab.titleRes),
-                                fontSize = TabLabelFontSize,
-                                lineHeight = labelLineHeight,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = textColor,
-                                letterSpacing = TabLabelLetterSpacing,
-                                modifier = Modifier.padding(top = TabIconLabelSpacing)
-                            )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
+                                    contentDescription = stringResource(tab.titleRes),
+                                    tint = iconColor,
+                                    modifier = Modifier.size(TabIconSize)
+                                )
+                                Text(
+                                    text = stringResource(tab.titleRes),
+                                    fontSize = TabLabelFontSize,
+                                    lineHeight = labelLineHeight,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = textColor,
+                                    letterSpacing = TabLabelLetterSpacing,
+                                    modifier = Modifier.padding(top = TabIconLabelSpacing)
+                                )
+                            }
                         }
                     }
                 }
