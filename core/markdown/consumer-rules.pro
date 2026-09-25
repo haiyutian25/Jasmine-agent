@@ -31,3 +31,14 @@
 
 # 回调参数/返回值模型：类名必须稳定（签名串里用到），成员也保留。
 -keep class com.lhzkml.jasmine.core.markdown.model.** { *; }
+
+# ---------------------------------------------------------------------------
+# MicroTeX（io.nano.tex）—— 同样的道理，native 侧按名字找 Java 方法
+#
+# tex/port/jni_*.cpp 里的 JNI 入口全部是「Java_io_nano_tex_<类>_<方法>」形式，
+# 而 LaTeX / TeXRender 上的 nInit / nParse / nDraw / nGetWidth … 都是 native 方法。
+# R8 改名或删除其中任何一个，都会在 System.loadLibrary("tex") 或首次 parse 时失败。
+#
+# 这条规则照抄上游 libtex/consumer-rules.pro。
+# ---------------------------------------------------------------------------
+-keep class io.nano.tex.** { *; }

@@ -11,7 +11,7 @@
 # 产物：libincremark_jni.so
 # ============================================================================
 cmake_minimum_required(VERSION 3.22.1)
-project(incremark_jni C)
+project(incremark_jni C CXX)
 
 set(CMAKE_C_STANDARD 11)
 
@@ -111,4 +111,46 @@ target_link_options(incremark_jni PRIVATE "-Wl,--gc-sections")
 set_target_properties(incremark_jni PROPERTIES
     C_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON
+)
+
+# ============================================================================
+# MicroTeX —— 数学公式渲染（开源，MIT）
+#
+# 来源：
+#   https://github.com/NanoMichael/AndroidLaTeXMath  （Android 绑定 + JNI 胶水）
+#   https://github.com/NanoMichael/cLaTeXMath       （C++ 核心，MicroTeX 的旧名）
+#
+# 上游用 ndk-build（jni/Android.mk：递归收所有 .cpp + APP_STL=c++_static）。
+# 这里做等价的 CMake 翻译 —— 源文件按上游那样递归收集，编译选项照抄。
+#
+# 产物：libtex.so（与 ima 的同名库对应）
+# ============================================================================
+set(TEX_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tex)
+
+file(GLOB_RECURSE TEX_SRC
+    ${TEX_DIR}/port/*.cpp
+    ${TEX_DIR}/microtex/src/*.cpp
+)
+
+add_library(tex SHARED ${TEX_SRC})
+
+target_include_directories(tex PRIVATE
+    ${TEX_DIR}/microtex/src
+    ${TEX_DIR}/port
+)
+
+# 只保留功能必需的选项。
+#
+# ⚠️ 上游 Android.mk 还有 -fvisibility=hidden / -ffunction-sections / -fdata-sections /
+# -Os / -Wl,--gc-sections 这套体积优化，但照搬后 nParse 会 SIGSEGV —— 这套选项会把
+# MicroTeX 内部跨编译单元的符号裁掉。先保证功能正确，体积后面单独处理。
+target_compile_options(tex PRIVATE
+    -fexceptions
+    -frtti
+)
+target_link_libraries(tex PRIVATE log m)
+
+set_target_properties(tex PROPERTIES
+    CXX_STANDARD 11
+    CXX_STANDARD_REQUIRED ON
 )

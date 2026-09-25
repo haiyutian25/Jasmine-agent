@@ -2,9 +2,11 @@ package com.lhzkml.jasmine.core.markdown.ui
 
 import android.Manifest
 import android.content.Context
+import android.graphics.Bitmap
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,16 +38,20 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -63,6 +69,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -70,7 +77,9 @@ import coil.compose.AsyncImage
 import com.lhzkml.jasmine.core.markdown.model.MarkdownBlock
 import com.lhzkml.jasmine.core.markdown.model.MarkdownBlockType
 import com.lhzkml.jasmine.core.markdown.model.MarkdownCellAlignment
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.lhzkml.jasmine.core.markdown.model.MarkdownContainerType
 import com.lhzkml.jasmine.core.markdown.model.MarkdownInline
 import com.lhzkml.jasmine.core.markdown.model.MarkdownInlineType
@@ -91,9 +100,9 @@ import com.lhzkml.jasmine.core.ui.theme.CssVariables
  *
  * ## 明确的取舍（不是遗漏）
  *
- * - **数学公式**：ima 的 native 侧只把公式抽成 `MATH_BLOCK` / `FORMULA` 节点，
- *   真正的排版由上层（web 端用 KaTeX）完成。本工程没有引入公式排版库，
- *   所以公式按等宽文本原样显示。
+ * - **数学公式**：`MATH_BLOCK` / `FORMULA` 都交给 [MicroTexRenderer]（与 ima 同一套引擎）。
+ *   行内公式用 `InlineTextContent` 嵌进文本流，因此**必须在组合期同步渲染** ——
+ *   占位尺寸当场就得定下来。ima 的做法一样（`xd0.c` 直接在构造函数里 `LaTeX.parse`）。
  * - **HTML 块/行内**：只按字面量显示，不解析执行。
  * - **图片**：由 Coil 加载。
  */
@@ -105,6 +114,10 @@ fun MarkdownBlockList(
     bodyFontSize: TextUnit = 15.sp,
     baseColor: Color = currentTheme.cardForeground,
 ) {
+    // 行内公式在组合期同步渲染，所以引擎要尽早备好（详见 MicroTexRenderer.warmUp）。
+    val context = LocalContext.current
+    LaunchedEffect(context) { MicroTexRenderer.warmUp(context) }
+
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -166,7 +179,9 @@ private fun MarkdownBlockView(
                 )
             } else {
                 // 兜底：结构不是「一张图」时仍按文本走，不至于整块消失。
-                val inline = block.content.toAnnotatedString(currentTheme, bodyFontSize)
+                val inline = block.content.toAnnotatedString(
+                    currentTheme, bodyFontSize, rememberMathEnv(baseColor),
+                )
                 Text(
                     text = inline.text,
                     inlineContent = inline.inlineContent,
@@ -190,7 +205,9 @@ private fun ParagraphBlock(
 ) {
     val quote = block.prefix.firstOrNull { it.containerType == MarkdownContainerType.QUOTE }
     val list = block.prefix.lastOrNull { it.containerType != MarkdownContainerType.QUOTE }
-    val inline = block.content.toAnnotatedString(currentTheme, bodyFontSize)
+    val inline = block.content.toAnnotatedString(
+        currentTheme, bodyFontSize, rememberMathEnv(baseColor),
+    )
     // 整段只有一张图（可能被链接包裹）时交给图片组件，见 soleImage 的说明。
     val image = block.content.soleImage()
 
@@ -347,7 +364,9 @@ private fun HeadingBlock(
         4 -> bodyFontSize * 1.06f
         else -> bodyFontSize
     }
-    val inline = block.content.toAnnotatedString(currentTheme, bodyFontSize)
+    val inline = block.content.toAnnotatedString(
+        currentTheme, bodyFontSize, rememberMathEnv(baseColor),
+    )
     Text(
         text = inline.text,
         inlineContent = inline.inlineContent,
@@ -581,7 +600,23 @@ private fun MathBlock(
     bodyFontSize: TextUnit,
     baseColor: Color,
 ) {
-    // 公式不引排版库，按等宽斜体显示原文（见文件头「取舍」说明）。
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    val mathSize = bodyFontSize.value * 0.95f
+
+    // 解析 + 光栅化不算便宜，按「源码 / 字号 / 颜色 / 密度」缓存。
+    val bitmap by produceState<Bitmap?>(null, block.literal, mathSize, baseColor, density.density) {
+        value = withContext(Dispatchers.Default) {
+            MicroTexRenderer.render(
+                context = context,
+                latex = block.literal,
+                textSizeSp = mathSize,
+                color = baseColor.toArgb(),
+                density = density.density,
+            )
+        }
+    }
+
     Box(
         Modifier
             .fillMaxWidth()
@@ -589,14 +624,29 @@ private fun MathBlock(
             .background(currentTheme.subtleSurface)
             .padding(10.dp)
     ) {
-        Text(
-            text = block.literal,
-            fontSize = (bodyFontSize.value * 0.95f).sp,
-            fontFamily = FontFamily.Monospace,
-            fontStyle = FontStyle.Italic,
-            color = baseColor,
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-        )
+        val rendered = bitmap
+        if (rendered != null) {
+            // 位图是按 density 放大的，除回去就是它该占的 dp 尺寸。
+            val width = with(density) { rendered.width.toDp() }
+            val height = with(density) { rendered.height.toDp() }
+            Box(Modifier.horizontalScroll(rememberScrollState())) {
+                Image(
+                    bitmap = rendered.asImageBitmap(),
+                    contentDescription = block.literal,
+                    modifier = Modifier.size(width, height),
+                )
+            }
+        } else {
+            // 还没渲出来（或公式有语法错）：退回显示源码，不留空白。
+            Text(
+                text = block.literal,
+                fontSize = mathSize.sp,
+                fontFamily = FontFamily.Monospace,
+                fontStyle = FontStyle.Italic,
+                color = baseColor,
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+            )
+        }
     }
 }
 
@@ -652,7 +702,9 @@ private fun TableBlock(
                     .padding(vertical = 6.dp)
             ) {
                 row.cells.forEachIndexed { index, cell ->
-                    val inline = cell.content.toAnnotatedString(currentTheme, bodyFontSize)
+                    val inline = cell.content.toAnnotatedString(
+                        currentTheme, bodyFontSize, rememberMathEnv(baseColor),
+                    )
                     Text(
                         text = inline.text,
                         inlineContent = inline.inlineContent,
@@ -707,13 +759,66 @@ private class InlineRenderResult(
 private fun List<MarkdownInline>.toAnnotatedString(
     theme: CssVariables,
     bodyFontSize: TextUnit,
+    math: MathEnv? = null,
 ): InlineRenderResult {
-    // 图片要先在遍历中登记、再由调用方交给 Text，所以边遍历边往这里塞。
-    val images = mutableMapOf<String, InlineTextContent>()
+    // 图片和公式都要先在遍历中登记、再由调用方交给 Text，所以边遍历边往这里塞。
+    val contents = mutableMapOf<String, InlineTextContent>()
     val text = buildAnnotatedString {
-        appendInlines(this@toAnnotatedString, theme, bodyFontSize, images)
+        appendInlines(this@toAnnotatedString, theme, bodyFontSize, contents, math)
     }
-    return InlineRenderResult(text, images)
+    return InlineRenderResult(text, contents)
+}
+
+/**
+ * 行内公式的渲染环境。
+ *
+ * 行内公式**只能在组合期同步渲染** —— `InlineTextContent` 的占位尺寸在组合时就得定下来，
+ * 异步拿不到（ima 也是这么做的：`xd0.c` 直接在构造函数里 `LaTeX.parse`）。
+ * 所以 context / density / 文字色要一路传到行内遍历里。
+ *
+ * 传 null 表示不渲染公式（比如只测量文本宽度时），此时公式退化成等宽文本。
+ */
+private class MathEnv(
+    val context: Context,
+    val density: Density,
+    val color: Color,
+)
+
+/** 组合期取一次 [MathEnv]，避免每次重组都新建对象、让下游的 key 失效。 */
+@Composable
+private fun rememberMathEnv(color: Color): MathEnv {
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    return remember(context, density, color) { MathEnv(context, density, color) }
+}
+
+/** 行内公式字号比正文略小，与块级保持一致。 */
+private fun mathSize(bodyFontSize: TextUnit): Float = bodyFontSize.value * 0.95f
+
+/**
+ * 行内公式 → inline content。
+ *
+ * 位图是按 `字号 × density` 光栅化的，所以「位图宽 ÷ density」就是它在 dp 下的宽度；
+ * 再用 [Density.toSp] 换成 sp，才能跟着系统字号缩放一起走。
+ */
+private fun inlineFormulaContent(bitmap: Bitmap, density: Density): InlineTextContent {
+    // ⚠️ Density.toSp() 的输入约定是【像素】，它内部自己会除 density 和 fontScale。
+    //    这里若先手动除一次 density，公式会被压到 1/density（实测 32px 算成 4.2sp 而不是 11.6sp）。
+    val w = with(density) { bitmap.width.toFloat().toSp() }
+    val h = with(density) { bitmap.height.toFloat().toSp() }
+    return InlineTextContent(
+        placeholder = Placeholder(
+            width = w,
+            height = h,
+            placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter,
+        ),
+    ) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
 }
 
 /** 行内图片 → inline content。占位尺寸取行高，跟着字号走，不撑变形。 */
@@ -743,7 +848,8 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendInlines(
     nodes: List<MarkdownInline>,
     theme: CssVariables,
     bodyFontSize: TextUnit,
-    images: MutableMap<String, InlineTextContent>,
+    contents: MutableMap<String, InlineTextContent>,
+    math: MathEnv?,
 ) {
     nodes.forEach { node ->
         when (node.type) {
@@ -761,27 +867,27 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendInlines(
             ) { append(node.literal.orEmpty()) }
 
             MarkdownInlineType.EMPHASIS -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
-                appendInlines(node.children, theme, bodyFontSize, images)
+                appendInlines(node.children, theme, bodyFontSize, contents, math)
             }
 
             MarkdownInlineType.STRONG -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
-                appendInlines(node.children, theme, bodyFontSize, images)
+                appendInlines(node.children, theme, bodyFontSize, contents, math)
             }
 
             MarkdownInlineType.STRIKETHROUGH -> withStyle(
                 SpanStyle(textDecoration = TextDecoration.LineThrough)
-            ) { appendInlines(node.children, theme, bodyFontSize, images) }
+            ) { appendInlines(node.children, theme, bodyFontSize, contents, math) }
 
             // [腾讯扩展] ==高亮== —— 对应 ima 的 <mark> 渲染。
             MarkdownInlineType.HIGHLIGHT -> withStyle(
                 SpanStyle(background = theme.accent.copy(alpha = 0.28f))
-            ) { appendInlines(node.children, theme, bodyFontSize, images) }
+            ) { appendInlines(node.children, theme, bodyFontSize, contents, math) }
 
             // [腾讯扩展] ~下划线~ —— 对应 ima 的 <u>。web 端白名单没有 u，
             // 这是 native 侧独有的能力（见逆向包 FULL_RECOVERY.md §4）。
             MarkdownInlineType.UNDERLINE -> withStyle(
                 SpanStyle(textDecoration = TextDecoration.Underline)
-            ) { appendInlines(node.children, theme, bodyFontSize, images) }
+            ) { appendInlines(node.children, theme, bodyFontSize, contents, math) }
 
             MarkdownInlineType.LINK -> {
                 val inner = node.children.filterNot { it.isBlankInline() }.singleOrNull()
@@ -795,7 +901,7 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendInlines(
                             textDecoration = TextDecoration.Underline,
                             fontWeight = FontWeight.Medium,
                         )
-                    ) { appendInlines(node.children, theme, bodyFontSize, images) }
+                    ) { appendInlines(node.children, theme, bodyFontSize, contents, math) }
                 }
             }
 
@@ -803,25 +909,44 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendInlines(
             MarkdownInlineType.IMAGE -> {
                 val url = node.url.orEmpty()
                 if (isImageUrl(url)) {
-                    val id = "md-image-" + images.size
+                    val id = "md-image-" + contents.size
                     appendInlineContent(id, alternateText = node.children.plainText())
-                    images[id] = inlineImageContent(url, theme, bodyFontSize)
+                    contents[id] = inlineImageContent(url, theme, bodyFontSize)
                 } else {
                     // 源码里的地址不是链接（`![alt](图片地址)` 这类示例写法），按原始写法显示。
                     append("![${node.children.plainText()}]($url)")
                 }
             }
 
-            MarkdownInlineType.FORMULA -> withStyle(
-                SpanStyle(fontFamily = FontFamily.Monospace, fontStyle = FontStyle.Italic)
-            ) { append(node.literal.orEmpty()) }
+            MarkdownInlineType.FORMULA -> {
+                val latex = node.literal.orEmpty()
+                val bitmap = math?.let {
+                    MicroTexRenderer.render(
+                        context = it.context,
+                        latex = latex,
+                        textSizeSp = mathSize(bodyFontSize),
+                        color = it.color.toArgb(),
+                        density = it.density.density,
+                    )
+                }
+                if (bitmap != null) {
+                    val id = "md-formula-" + contents.size
+                    appendInlineContent(id, alternateText = latex)
+                    contents[id] = inlineFormulaContent(bitmap, math.density)
+                } else {
+                    // 引擎不可用或公式语法错误时退化成等宽文本，内容不丢。
+                    withStyle(
+                        SpanStyle(fontFamily = FontFamily.Monospace, fontStyle = FontStyle.Italic)
+                    ) { append(latex) }
+                }
+            }
 
             MarkdownInlineType.HTML -> append(node.literal.orEmpty())
 
             else -> if (node.children.isEmpty()) {
                 append(node.literal.orEmpty())
             } else {
-                appendInlines(node.children, theme, bodyFontSize, images)
+                appendInlines(node.children, theme, bodyFontSize, contents, math)
             }
         }
     }

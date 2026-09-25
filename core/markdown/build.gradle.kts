@@ -49,7 +49,11 @@ android {
     targetCompatibility = JavaVersion.VERSION_11
   }
 
-  buildFeatures { compose = true }
+  buildFeatures {
+    compose = true
+    // MicroTeX 的 ActionRecorder 用 BuildConfig.DEBUG 控制绘制日志（上游模块自带生成）。
+    buildConfig = true
+  }
 }
 
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11) } }

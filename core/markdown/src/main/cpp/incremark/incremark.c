@@ -75,6 +75,37 @@ static char *im_strndup(const char *s, size_t n) {
   return out;
 }
 
+/*
+ * 取公式节点的正文。
+ *
+ * ⚠️ 不能直接 cmark_node_get_literal()：它只认 TEXT/CODE 等标准类型，自定义的
+ * CMARK_NODE_FOMULA 会返回 NULL，结果就是块渲染成空白。
+ * 公式正文其实在**子节点**里 —— fomula.c 的 insert 回调把定界符之间的内容
+ * append 成了 children，节点自身只留着开定界符。所以这里把子节点文本拼起来。
+ */
+static char *fomula_text(cmark_node *node) {
+  size_t need = 0;
+  cmark_node *c;
+  for (c = cmark_node_first_child(node); c != NULL; c = cmark_node_next(c)) {
+    const char *lit = cmark_node_get_literal(c);
+    if (lit != NULL) need += strlen(lit);
+  }
+  if (need == 0) return NULL;
+  char *out = (char *)malloc(need + 1);
+  if (out == NULL) return NULL;
+  size_t n = 0;
+  for (c = cmark_node_first_child(node); c != NULL; c = cmark_node_next(c)) {
+    const char *lit = cmark_node_get_literal(c);
+    if (lit != NULL) {
+      size_t l = strlen(lit);
+      memcpy(out + n, lit, l);
+      n += l;
+    }
+  }
+  out[n] = '\0';
+  return out;
+}
+
 /* ==========================================================================
  * 行级谓词（稳定边界扫描与渲染层共用）
  * ========================================================================== */
@@ -445,7 +476,7 @@ static void flatten_inlines(cmark_node *node, inline_vec *out) {
   }
   if (g_fomula != NULL && t == CMARK_NODE_FOMULA) {
     incremark_inline *x = new_inline(INCREMARK_INLINE_FORMULA);
-    x->literal = im_strdup(cmark_node_get_literal(node));
+    x->literal = fomula_text(node);
     iv_push(out, x);
     return;
   }
@@ -717,7 +748,7 @@ static void flatten_block(cmark_node *node, prefix_stack *prefix, block_vec *out
   }
   if (g_fomula != NULL && t == CMARK_NODE_FOMULA) {
     incremark_block *b = new_block(INCREMARK_BLOCK_MATH_BLOCK, node);
-    b->literal = im_strdup(cmark_node_get_literal(node));
+    b->literal = fomula_text(node);
     assign_prefix(b, prefix);
     bv_push(out, b);
     return;
