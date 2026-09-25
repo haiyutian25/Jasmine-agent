@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lhzkml.jasmine.core.data.model.ChatRole
 import com.lhzkml.jasmine.core.data.model.Conversation
+import com.lhzkml.jasmine.core.markdown.ui.MarkdownBlockList
 import com.lhzkml.jasmine.core.ui.components.BottomSheet
 import com.lhzkml.jasmine.core.ui.components.Button
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
@@ -234,11 +235,17 @@ private fun MessageList(
 ) {
     val listState = rememberLazyListState()
     // Follow the tail: new messages and streaming chunks both grow the last item.
+    //
+    // Only when the list is already at the bottom — streaming chunks arrive many times
+    // a second, and without this guard scrolling back through history while the model
+    // is still writing would be yanked down on every chunk.
     val lastText = state.messages.lastOrNull()?.text
     LaunchedEffect(state.messages.size, lastText) {
-        if (state.messages.isNotEmpty()) {
-            listState.scrollToItem(state.messages.lastIndex)
-        }
+        if (state.messages.isEmpty()) return@LaunchedEffect
+        val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+        // null = first layout, nothing rendered yet: following is the right default.
+        val atBottom = lastVisible == null || lastVisible >= state.messages.lastIndex - 1
+        if (atBottom) listState.scrollToItem(state.messages.lastIndex)
     }
 
     LazyColumn(
@@ -279,6 +286,22 @@ private fun MessageBubble(message: ChatMessage, currentTheme: CssVariables) {
     val text = message.text.ifEmpty { if (message.isStreaming) "…" else "" }
 
     if (!isUser) {
+        // The model's reply renders as Markdown blocks, built incrementally as chunks
+        // arrive. `text` is still the fallback: a message with no blocks (a plain
+        // transcript row that failed to parse, or a tool-only turn) shows as text.
+        if (message.blocks.isNotEmpty()) {
+            MarkdownBlockList(
+                blocks = message.blocks,
+                currentTheme = currentTheme,
+                bodyFontSize = ChatBodyFontSize,
+                baseColor = if (message.isError) {
+                    currentTheme.mutedForeground
+                } else {
+                    currentTheme.cardForeground
+                },
+            )
+            return
+        }
         Text(
             text = text,
             fontSize = ChatBodyFontSize,

@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    html, body { margin: 0; padding: 0; background: transparent; }
+    /* 渲染容器只用来给 mermaid 量尺寸，永远不出现在屏幕上。 */
+    #stage { position: absolute; left: 0; top: 0; visibility: hidden; }
+  </style>
+</head>
+<body>
+<!--
+  ⚠️ 这两个容器都不能删。
+
+  `mermaid.core-*.js` 会静态 import `./index-BIQgJnGN.js`（取 3 个具名导出）——
+  而那个文件同时是 ima 的 **应用入口**（含 React 挂载）。ES 模块求值顺序决定它会先执行，
+  没有 #root 就会抛 "Minified React error #299"（Target container is not a DOM element），
+  整个 import 链失败。给它一个隐藏的 #root，让那段挂载代码跑过去。
+
+  #stage 是我们自己的渲染容器，永远不可见。
+-->
+<div id="root" style="display:none"></div>
+<div id="stage"></div>
+<script type="module">
+// ---------------------------------------------------------------------------
+// mermaid 离屏渲染宿主页
+//
+// 这个页面**从不显示**：它只负责把 mermaid 源码变成一张 PNG。
+//
+// 为什么不用 WebView.draw() 抓像素：离屏（未挂进窗口）的 Chromium WebView
+// 不保证产出帧，draw() 常常拿到空白。所以改成在页面内部走
+//   mermaid.render() → SVG 字符串 → <img> → <canvas> → toDataURL('image/png')
+// 整条链路都在 JS 里完成，WebView 自身不需要被绘制，也就不需要挂进窗口。
+//
+// 资产来自 ima 的 markdown-viewer-mobile（Vite 打包的浏览器 ESM 包）：
+// 内核是 ./mermaid.core-BvUqehv2.js，各图种 chunk 由内核按相对路径 import() 懒加载，
+// 所以本页必须与它们同目录、且经 HTTP(S) 提供（file:// 下 ESM 会被 CORS 拦）。
+//
+// 调用约定与 ima 的 MermaidBlock 一致（见其 yCe 组件）：
+//   ① 先 parse(code, {suppressErrors:true}) 校验语法 —— 失败就报 failed
+//   ② 成功才 render(id, code) 拿 SVG
+//   ③ 与 ima 相同的上限：超过 500 行直接放弃
+// ---------------------------------------------------------------------------
+const MAX_LINES = 500;
+const CORE = './mermaid.core-BvUqehv2.js';
+
+let seq = 0;
+let mermaidPromise = null;
+let themeName = 'default';
+
+function options() {
+  return {
+    startOnLoad: false,
+    suppressErrorRendering: true,
+    // 锁定严格模式：mermaid 会对生成的 SVG 做 DOMPurify 清洗（输出侧的核心防线）。
+    // 显式声明，防止被 mermaid 默认值变化影响；输入侧还有 sanitizeMermaidSource 兜底。
+    securityLevel: 'strict',
+    theme: themeName,
+    // ⚠️ 必须指定一个**两边都能解析到同一族**的字体。
+    //    mermaid 用页面的字体测量文字宽度来定节点大小；而 SVG 光栅化时（<img> 里）
+    //    无法使用 webfont、会回退到别的字体 —— 若两者不同，字会比节点宽，右侧被裁。
+    //    'sans-serif' 是通用族，页面与光栅化都解析到系统默认无衬线字体。
+    fontFamily: 'sans-serif',
+    // ⚠️ 关掉 HTML 标签：默认情况下 mermaid 把节点标签放进 <foreignObject> 里的 HTML，
+    //    而这段 HTML 一旦被 XMLSerializer 序列化、再作为独立文档解析回来，
+    //    <span> 会丢失 XHTML 命名空间 → 页面 CSS 的类选择器失效 → 退回默认字体 →
+    //    字变宽 → 溢出 <foreignObject> 被裁（长标签最后一个字缺半边）。
+    //    关掉后标签变成纯 SVG <text>，只依赖 SVG 自身的 font 属性，两个文档必然一致。
+    htmlLabels: false,
+    flowchart: { htmlLabels: false },
+    class: { htmlLabels: false },
+    state: { htmlLabels: false },
+    sequence: { htmlLabels: false },
+    er: { htmlLabels: false },
+  };
+}
+
+function loadMermaid() {
+  if (!mermaidPromise) {
+    mermaidPromise = import(CORE)
+      .then(function (mod) {
+        // Vite 打包后的命名空间挂在 bC 导出上；两种形状都兼容。
+        const ns = mod.bC;
+        const mm = (ns && ns.default) ? ns.default : ns;
+        mm.initialize(options());
+        window.__mm = mm;
+        return mm;
+      })
+      .catch(function (err) {
+        mermaidPromise = null;
+        throw err;
+      });
+  }
+  return mermaidPromise;
+}
+
+// Kotlin 侧在每次渲染前先调这个，把当前主题告诉宿主页。
+window.setTheme = function (dark) {
+  const want = dark ? 'dark' : 'default';
+  if (themeName === want) return;
+  themeName = want;
+  if (mermaidPromise) {
+    mermaidPromise
+      .then(function (mm) { mm.initialize(options()); })
+      .catch(function () { /* 内核没起来就算了，renderDiagram 会再报一次 */ });
+  }
+};
+
+function report(status, dataUrl, width, height, message) {
+  const bridge = window.__mermaidBridge;
+  if (!bridge || !bridge.onRendered) return;
+  bridge.onRendered(status, dataUrl || '', width | 0, height | 0, message || '');
+}
+
+/**
+ * SVG 字符串 → PNG data URL。
+ *
+ * ⚠️ 必须用 data: URL 而不是 Blob URL 来喂 <img>。
+ *    通过 Blob URL 载入的 SVG，其文档来源是 opaque，画进 <canvas> 会把 canvas 标记为
+ *    被污染，随后 toDataURL 抛 SecurityError。data: URL 继承页面来源，不会污染。
+ */
+/**
+ * 把 SVG 放进真实 DOM、量出真实尺寸、再序列化出来。
+ *
+ * 之前是在 SVG 字符串上做正则替换 —— 那是"查文本"，不是渲染：字符串里的 width/height
+ * 未必是最终布局依据，量出来的也不是真实排版结果。ima 的 SCe 也是拿真实 DOM 元素
+ * （el.getAttribute("viewBox") / el.setAttribute(...)）在做。
+ *
+ * 流程：stage.innerHTML = svg → 读 live 节点的 viewBox + getBBox() → 把固有尺寸写进属性
+ * → XMLSerializer 序列化（此时字符串才真正反映排版结果）→ 交给 <img> 光栅化。
+ *
+ * 注意 #stage 用的是 visibility:hidden（不是 display:none）—— 隐藏元素仍然参与布局，
+ * getBBox() 才有真实值。
+ */
+/**
+ * 保底转换：把 <foreignObject> 标签换成纯 SVG <text>。
+ *
+ * mermaid 默认把节点标签放进 foreignObject 里的 HTML。这段 HTML 被 XMLSerializer
+ * 序列化、再作为独立文档（<img>）解析回来时，字体/字号/行盒都会与页面里不同 ——
+ * 于是字比框宽，被 foreignObject 裁掉（长标签最后一个字缺半边）。
+ *
+ * 与其依赖配置去关掉它（flowchart.htmlLabels 这条没能生效），不如渲染完直接把
+ * 标签转成纯 SVG 文本：不依赖任何 CSS，两个文档必然一致。
+ */
+function freezeForeignObjects(svg) {
+  let converted = 0;
+  svg.querySelectorAll('foreignObject').forEach(function (fo) {
+    const inner = fo.firstElementChild;
+    if (!inner) return;
+    // 逐行取文本：mermaid 的多行标签在 HTML 里是多个块级子元素。
+    let lines = [];
+    const blocks = inner.querySelectorAll('p, div, span');
+    if (blocks.length) {
+      blocks.forEach(function (b) {
+        const t = (b.textContent || '').trim();
+        if (t && lines.indexOf(t) === -1) lines.push(t);
+      });
+    }
+    if (!lines.length) {
+      const t = (inner.textContent || '').trim();
+      if (t) lines = [t];
+    }
+    if (!lines.length) return;
+
+    const x = parseFloat(fo.getAttribute('x') || '0');
+    const y = parseFloat(fo.getAttribute('y') || '0');
+    const w = parseFloat(fo.getAttribute('width') || '0');
+    const h = parseFloat(fo.getAttribute('height') || '0');
+    const cs = getComputedStyle(inner);
+    const fontSize = parseFloat(cs.fontSize) || 16;
+    const lineHeight = parseFloat(cs.lineHeight) || fontSize * 1.2;
+
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', String(x + w / 2));
+    text.setAttribute('y', String(y + h / 2));
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('dominant-baseline', 'central');
+    text.setAttribute('font-family', 'sans-serif');
+    text.setAttribute('font-size', String(fontSize));
+    text.setAttribute('font-weight', cs.fontWeight);
+    text.setAttribute('fill', cs.color);
+    text.setAttribute('style', 'white-space:pre');
+
+    const startDy = -((lines.length - 1) * lineHeight) / 2;
+    lines.forEach(function (line, i) {
+      const ts = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+      ts.setAttribute('x', String(x + w / 2));
+      if (i === 0) {
+        ts.setAttribute('dy', String(startDy));
+      } else {
+        ts.setAttribute('dy', String(lineHeight));
+      }
+      ts.textContent = line;
+      text.appendChild(ts);
+    });
+
+    fo.parentNode.replaceChild(text, fo);
+    converted++;
+  });
+  return converted;
+}
+
+function measureSvg(svgText) {
+  const stage = document.getElementById('stage');
+  stage.innerHTML = svgText;
+  const svg = stage.querySelector('svg');
+  if (!svg) return null;
+
+  // 先把 HTML 标签转成 SVG 文本，再做后续测量/序列化。
+  const converted = freezeForeignObjects(svg);
+  window.__lastConverted = converted;
+
+  // ① live 节点上的 viewBox（不是从字符串里抠出来的）
+  const vb = svg.viewBox && svg.viewBox.baseVal ? svg.viewBox.baseVal : null;
+  // ② 真实渲染出来的内容包围盒
+  let bbox = null;
+  try {
+    bbox = svg.getBBox();
+  } catch (e) {
+    bbox = null;
+  }
+
+  let w = vb && vb.width > 0 ? vb.width : 0;
+  let h = vb && vb.height > 0 ? vb.height : 0;
+  if (bbox && bbox.width > 0 && bbox.height > 0) {
+    // 取两者的并集：viewBox 是 mermaid 设计的画布，bbox 是真实内容 —— 谁大用谁，
+    // 这样既不会裁掉内容，也不会把画布缩掉。
+    const x = Math.min(vb ? vb.x : 0, bbox.x);
+    const y = Math.min(vb ? vb.y : 0, bbox.y);
+    const x2 = Math.max(vb ? vb.x + vb.width : 0, bbox.x + bbox.width);
+    const y2 = Math.max(vb ? vb.y + vb.height : 0, bbox.y + bbox.height);
+    w = Math.max(w, x2 - x);
+    h = Math.max(h, y2 - y);
+    if (w > 0 && h > 0) {
+      svg.setAttribute('viewBox', x + ' ' + y + ' ' + w + ' ' + h);
+    }
+  }
+  if (!(w > 0) || !(h > 0)) return null;
+
+  // ③ 把固有尺寸写进 live 节点（ima 的 SCe 做的就是这一步），内容才不会按小视口被裁
+  svg.setAttribute('width', String(w));
+  svg.setAttribute('height', String(h));
+  svg.style.maxWidth = 'none';
+  svg.style.width = w + 'px';
+  svg.style.height = h + 'px';
+
+  // ④ 把标签的真实计算样式固化进 SVG 自己。
+  //
+  // ⚠️ 这是裁字的根因所在：SVG 经 <img> 载入时是**独立文档，拿不到页面的 CSS**，
+  //    而 mermaid 的节点标签是 <foreignObject> 里的 HTML —— 在页面里它继承页面的
+  //    字体/字号（如 system-ui / 13.76px），到了 <img> 里却退回默认值 → 字变宽 →
+  //    溢出 <foreignObject> → 被裁掉（每个节点右侧缺半个字）。
+  //    量出 live DOM 的实际计算值写进 SVG 的 <style>，两边才会渲染成一样。
+  try {
+    const probe = svg.querySelector('foreignObject > *') ||
+      svg.querySelector('foreignObject') ||
+      svg.querySelector('text');
+    if (probe) {
+      const cs = getComputedStyle(probe);
+      // 除了 <style>，再给 foreignObject 里的每个元素写**内联样式** —— 内联样式不依赖
+      // 类选择器，序列化后也照常生效，这样即使 XML 往返丢了命名空间，字体也钉得住。
+      const inlineCss = 'font-family:sans-serif;font-size:' + cs.fontSize +
+        ';font-weight:' + cs.fontWeight + ';font-style:' + cs.fontStyle +
+        ';line-height:' + cs.lineHeight + ';';
+      svg.querySelectorAll('foreignObject *').forEach(function (el) {
+        el.setAttribute('style', (el.getAttribute('style') || '') + ';' + inlineCss);
+      });
+      // ⚠️ 只钉**单一通用族**，绝不抄整条 font-family 链。
+      //    SVG 经 <img> 载入后是独立文档：链首的 system-ui 在那里解析不到，
+      //    会落到链里其它项，于是与页面里的测量结果宽度不同 —— 残留的"少半个字"就是这么来的。
+      //    'sans-serif' 是通用族，两个文档都解析到平台默认无衬线字体（Android = Roboto），
+      //    与 mermaid 测量时用的字体一致。
+      const css = 'foreignObject, foreignObject *, text {' +
+        'font-family:sans-serif !important;' +
+        'font-size:' + cs.fontSize + ' !important;' +
+        'font-weight:' + cs.fontWeight + ' !important;' +
+        'font-style:' + cs.fontStyle + ' !important;' +
+        'line-height:' + cs.lineHeight + ' !important;' +
+        '}';
+      const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+      style.textContent = css;
+      svg.insertBefore(style, svg.firstChild);
+    }
+  } catch (e) {
+    // 拿不到就按原样走，不阻断渲染。
+  }
+
+  return { text: new XMLSerializer().serializeToString(svg), width: w, height: h };
+}
+
+function svgToPng(svgText, scale) {
+  const measured = measureSvg(svgText);
+  if (!measured) {
+    return Promise.reject(new Error('无法测量 SVG 尺寸'));
+  }
+  const vw = measured.width;
+  const vh = measured.height;
+  svgText = measured.text;
+
+  return new Promise(function (resolve, reject) {
+    const dataUri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText);
+    const img = new Image();
+    img.onload = function () {
+      try {
+        const baseW = vw || img.naturalWidth || img.width || 300;
+        const baseH = vh || img.naturalHeight || img.height || 150;
+        // 上限保护。
+        // ⚠️ 不能用「最长边 ≤ N」——那会把宽高比悬殊的图（甘特图约 20:1）整体压扁，
+        //    短边被缩到几十像素，看起来就是一片空白。改成双约束：
+        //      · 单边 ≤ 4096（纹理/内存友好）
+        //      · 总面积 ≤ 4M 像素（约 16 MB 位图）
+        //    宽图只会被轻微缩，不会被压扁。
+        const MAX_DIM = 4096;
+        const MAX_PIXELS = 4000000;
+        const k = Math.min(
+          scale,
+          MAX_DIM / Math.max(baseW, baseH),
+          Math.sqrt(MAX_PIXELS / (baseW * baseH))
+        );
+        const w = Math.max(1, Math.ceil(baseW * k));
+        const h = Math.max(1, Math.ceil(baseH * k));
+        window.__lastSize = Math.round(baseW) + 'x' + Math.round(baseH) + ' k=' + k.toFixed(3);
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        // 不填底色，保留透明 —— 让 App 的主题底色透出来。
+        ctx.drawImage(img, 0, 0, w, h);
+        // 位图尺寸 + **固有尺寸**都要回报：位图被 k 缩放过，只有固有尺寸（CSS px）
+        // 才对应「1 CSS px = 1 dp」这个映射，Kotlin 侧靠它定显示宽度。
+        resolve({
+          url: canvas.toDataURL('image/png'),
+          width: w,
+          height: h,
+          baseWidth: baseW,
+          baseHeight: baseH,
+        });
+      } catch (e) {
+        reject(e);
+      }
+    };
+    img.onerror = function () {
+      reject(new Error('svg load failed'));
+    };
+    img.src = dataUri;
+  });
+}
+
+// 模块执行完毕 → 告诉 Kotlin 可以发指令了。
+//
+// ⚠️ 不能依赖 WebView 的 onPageFinished：module 脚本是 defer 的，
+//    onPageFinished 可能先于本脚本执行 —— 那一刻 window.renderDiagram 还不存在，
+//    evaluateJavascript 会静默失败，桥回调永远不来（表现为一直转圈）。
+window.__mermaidReady = function () {
+  const bridge = window.__mermaidBridge;
+  if (bridge && bridge.onReady) bridge.onReady();
+};
+
+// ===========================================================================
+// 输入侧清洗（与 ima 的 dCe 等价）
+//
+// ima 在喂给 mermaid 之前会对源码做一层 HTML 清洗：DOMPurify 只保留 <br>、剥掉
+// 其余标签与属性，防止源码里混入的恶意 HTML 被 mermaid 渲染进 foreignObject。
+// 我们 htmlLabels:false 已关闭这条注入路径、最终产物又是纯位图（天然无脚本），
+// 风险本就比 ima（活 SVG）低 —— 保留这一层是纵深防御，并与 ima 对齐。
+//
+// mermaid 源码本身含箭头/比较符（<-> 、--> 、<|-- 等），直接剥标签会误伤它们，
+// 所以分三步：① 占位保护 → ② 剥标签（只留 <br> 与文字）→ ③ 还原。
+// 占位符用私有区字符（\uE000–\uE007），几乎不可能出现在 mermaid 源码里。
+// ===========================================================================
+var SANITIZE_ESC = [
+  ['<|>', '\uE000'], ['<->', '\uE001'], ['<|', '\uE002'],
+  ['->>', '\uE003'], ['<-', '\uE004'], ['->', '\uE005'],
+  ['|>', '\uE006'], ['&', '\uE007'],
+];
+
+function sanitizeMermaidSource(code) {
+  var s = code;
+  // ① 占位保护（长符号在前，避免 <-> 被 <- 先替换）
+  SANITIZE_ESC.forEach(function (p) { s = s.split(p[0]).join(p[1]); });
+
+  // ② 剥标签：解析成 DOM，只保留 <br> 与文本，其余标签删掉（文字内容保留）
+  var doc = new DOMParser().parseFromString(s, 'text/html');
+  var out = [];
+  (function walk(n) {
+    if (n.nodeType === 3) { out.push(n.textContent); return; }
+    if (n.nodeType === 1 && n.tagName === 'BR') { out.push('<br>'); return; }
+    if (n.nodeType === 1) {
+      for (var c = n.firstChild; c; c = c.nextSibling) walk(c);
+    }
+  })(doc.body);
+  s = out.join('');
+
+  // ③ 还原
+  SANITIZE_ESC.forEach(function (p) { s = s.split(p[1]).join(p[0]); });
+  return s;
+}
+
+window.renderDiagram = function (source, scale) {
+  if (!source) { report('failed', '', 0, 0, 'empty source'); return; }
+  if (source.split('\n').length > MAX_LINES) { report('failed', '', 0, 0, 'too many lines'); return; }
+
+  // 不再做 parse 前置校验：回退逻辑已经删掉，校验的唯一用途（决定是否回退）不存在了。
+  // 直接 render —— 语法错它会抛，我们照样只报 failed，不停留在「图片」页。
+  loadMermaid().then(function (mm) {
+    return mm.render('mmd-' + (++seq), sanitizeMermaidSource(source)).then(function (res) {
+      return svgToPng(res.svg, scale || 1).then(function (png) {
+        let diag = '';
+        try {
+          diag = window.diagnose();
+        } catch (e) {
+          diag = 'diagnose 失败: ' + e;
+        }
+        // width/height 传的是**固有尺寸**（CSS px），Kotlin 侧据此定显示宽度；
+        // 诊断信息塞进 message，Kotlin 侧会打到 logcat 上。
+        report('rendered', png.url, Math.round(png.baseWidth), Math.round(png.baseHeight), diag);
+      });
+    }).catch(function (err) {
+      // 带上源码首行，方便定位是哪张图出的问题。
+      const head = source.split('\n')[0].slice(0, 60);
+      report('failed', '', 0, 0, 'render failed [' + head + ']: ' + String(err));
+    });
+  }).catch(function (err) {
+    report('failed', '', 0, 0, 'load failed: ' + String(err));
+  });
+};
+
+/**
+ * 诊断：把「标签被裁」这件事量出来。
+ *
+ * 假设是 mermaid 用 <foreignObject> 装 HTML 标签，而 foreignObject 会裁剪溢出内容；
+ * 标签里的 HTML 用页面 CSS 的字体，比 mermaid 测量时用的宽 → 溢出 → 被裁。
+ *
+ * 这里统计：标签元素类型、每个标签的实际宽度 vs 其容器宽度、是否溢出。
+ */
+window.diagnose = function () {
+  const stage = document.getElementById('stage');
+  const svg = stage.querySelector('svg');
+  if (!svg) return 'no svg';
+
+  const fo = svg.querySelectorAll('foreignObject');
+  const tx = svg.querySelectorAll('text');
+  const lines = ['foreignObject=' + fo.length + ' text=' + tx.length +
+    ' 已转换=' + (window.__lastConverted || 0) +
+    '  固有尺寸=' + (window.__lastSize || '?')];
+
+  // 生效配置：定位 htmlLabels 为什么没起作用
+  try {
+    const cfg = window.__mm && window.__mm.mermaidAPI && window.__mm.mermaidAPI.getConfig
+      ? window.__mm.mermaidAPI.getConfig() : null;
+    if (cfg) {
+      lines.push('config.flowchart.htmlLabels=' +
+        (cfg.flowchart ? cfg.flowchart.htmlLabels : 'n/a') +
+        '  config.htmlLabels=' + cfg.htmlLabels +
+        '  securityLevel=' + cfg.securityLevel);
+    } else {
+      lines.push('拿不到 getConfig');
+    }
+  } catch (e) {
+    lines.push('读配置失败: ' + e);
+  }
+
+  let over = 0;
+  fo.forEach(function (el, i) {
+    const r = el.getBoundingClientRect();
+    const inner = el.firstElementChild;
+    let w = 0;
+    let txt = '';
+    if (inner) {
+      w = inner.scrollWidth || inner.getBoundingClientRect().width;
+      txt = (inner.textContent || '').trim().slice(0, 12);
+    }
+    const bad = w > r.width + 0.5;
+    if (bad) over++;
+    if (i < 6) {
+      lines.push('  fo[' + i + '] "' + txt + '" container=' + Math.round(r.width) +
+        ' content=' + Math.round(w) + (bad ? '  ← 溢出' : ''));
+    }
+  });
+  lines.push('溢出标签数=' + over + '/' + fo.length);
+
+  // 页面给标签用的字体
+  const probe = document.createElement('span');
+  probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap';
+  probe.textContent = '条件判断';
+  document.body.appendChild(probe);
+  const cs = getComputedStyle(probe);
+  lines.push('页面字体: ' + cs.fontFamily + ' / ' + cs.fontSize);
+  lines.push('测宽(条件判断): ' + Math.round(probe.getBoundingClientRect().width));
+  probe.remove();
+
+  return lines.join('\n');
+};
+
+// 放在最后：此时上面的函数都已挂到 window 上。
+window.__mermaidReady();
+</script>
+</body>
+</html>

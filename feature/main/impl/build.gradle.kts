@@ -27,6 +27,8 @@ dependencies {
   implementation(project(":core:ui"))
   implementation(project(":core:data"))
   implementation(project(":core:navigation"))
+  // 流式回复的增量 Markdown 渲染（native incremark 引擎）
+  implementation(project(":core:markdown"))
   // 设置流：导航契约走 :api，屏幕实现由外壳的 NavDisplay 组装
   implementation(project(":feature:settings:api"))
   implementation(project(":feature:settings:impl"))

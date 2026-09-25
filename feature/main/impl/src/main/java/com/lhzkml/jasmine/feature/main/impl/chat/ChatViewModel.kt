@@ -11,6 +11,12 @@ import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import com.lhzkml.jasmine.core.data.model.TranscriptMessage
 import com.lhzkml.jasmine.core.data.repository.ProviderRepository
 import com.lhzkml.jasmine.core.data.repository.UserPreferencesRepository
+import com.lhzkml.jasmine.core.markdown.IncrementalMarkdownDocument
+import com.lhzkml.jasmine.core.markdown.IncrementalMarkdownParser
+import com.lhzkml.jasmine.core.markdown.model.MarkdownBlock
+import com.lhzkml.jasmine.core.markdown.model.MarkdownBlockType
+import com.lhzkml.jasmine.core.markdown.model.MarkdownInline
+import com.lhzkml.jasmine.core.markdown.model.MarkdownInlineType
 import com.lhzkml.jasmine.core.ui.base.BaseViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
@@ -38,6 +44,14 @@ data class ChatMessage(
     val isStreaming: Boolean = false,
     val isError: Boolean = false,
     val tool: ChatToolActivity? = null,
+    /**
+     * 增量解析出的块列表 —— 渲染层用它，[text] 只用于写回会话记录。
+     *
+     * 这是 ima 的做法：它同样把模型输出以纯文本回写 transcript，而 UI 走
+     * Block 列表。块的 `id` 由 native 侧保证跨增量稳定，所以 Compose 能
+     * 复用节点、只重绘真正变化的块。
+     */
+    val blocks: List<MarkdownBlock> = emptyList(),
 )
 
 /**
@@ -162,6 +176,25 @@ class ChatViewModel @Inject constructor(
 
     /** Id of the assistant message currently being streamed, for chunk appends. */
     private var streamingMessageId: String? = null
+
+    /**
+     * Incremental Markdown parser for the segment currently streaming.
+     *
+     * One parser per assistant segment: a tool call closes the segment and the text
+     * after its result is a fresh segment, so the parser starts over with it. The
+     * native handle is NOT thread-safe — every use happens synchronously inside
+     * `handleAction`, which is where the action channel's single consumer runs.
+     */
+    private var streamParser: IncrementalMarkdownParser? = null
+
+    /**
+     * Length of the text the parser was last fed.
+     *
+     * Mirrors `gt.h0`'s `l` field: the FULL path in ima skips the re-parse when the
+     * incoming text has the same length as the one it last parsed, and it *assigns*
+     * here rather than accumulating (the DELTA path is the one that accumulates).
+     */
+    private var streamParsedLength: Int = 0
 
     /**
      * Assistant segments written during the current turn. A turn can hold several —
@@ -478,14 +511,56 @@ class ChatViewModel @Inject constructor(
     /**
      * Appends streamed text, opening a new assistant segment when the previous one
      * was closed by a tool call.
+     *
+     * ## FULL semantics — matches ima's `gt.h0.g(String, Continuation)`
+     *
+     * ima drives its renderer two ways, and **all seven call sites use the FULL one**:
+     * the renderer is handed the whole accumulated text each time and re-parses it from
+     * scratch (`b6/a` mode `gt.c0.b` → `parser.reset(); parser.append(full)`), skipping
+     * only when the incoming length equals the length it last parsed
+     * (`if (str.length() == 0 || this.l == str.length()) return`).
+     *
+     * This mirrors that exactly: accumulate, `reset()`, append the whole thing, remember
+     * the length. The only difference from ima's call shape is *where* accumulation
+     * happens — the transport hands us deltas, so we accumulate here instead of in the
+     * caller. The text the engine ends up holding is identical.
+     *
+     * ## What this does and does not cost
+     *
+     * Block-level incrementality is unaffected: `Update.index` is still the truncation
+     * point, so `applied()` reuses every block before it and Compose only redraws what
+     * changed. What FULL costs is the re-parse itself — O(n) per chunk instead of O(tail),
+     * which is exactly why ima pairs it with the length guard above.
+     *
+     * A side benefit of FULL: it is self-healing. If the parser is dropped mid-segment
+     * (a tool call closes the segment, `finalizeStreamInto` closes the handle), the next
+     * chunk rebuilds the whole document from `message.text` rather than appending to an
+     * empty buffer.
      */
     private fun appendReplyChunk(text: String) {
         val targetId = streamingMessageId ?: startAssistantSegment()
+        val parser = streamParser ?: IncrementalMarkdownParser().also {
+            streamParser = it
+            streamParsedLength = 0
+        }
+        val fullText = (state.messages.firstOrNull { it.id == targetId }?.text ?: "") + text
+        // Same guard as ima's g(): nothing new to parse, so leave the state alone.
+        if (fullText.isEmpty() || fullText.length == streamParsedLength) return
+        // FULL: re-parse from scratch rather than appending the delta.
+        parser.reset()
+        val update = parser.append(fullText)
+        streamParsedLength = fullText.length
         updateState {
             copy(
                 messages = messages.map { message ->
-                    if (message.id == targetId) message.copy(text = message.text + text)
-                    else message
+                    if (message.id == targetId) {
+                        message.copy(
+                            text = fullText,
+                            blocks = IncrementalMarkdownDocument.applied(update, message.blocks),
+                        )
+                    } else {
+                        message
+                    }
                 }
             )
         }
@@ -493,6 +568,8 @@ class ChatViewModel @Inject constructor(
 
     /** Opens an assistant segment and returns its id. */
     private fun startAssistantSegment(): String {
+        // A segment owns its parser; the previous one (if any) is done with.
+        closeStreamParser()
         val id = UUID.randomUUID().toString()
         streamingMessageId = id
         turnAssistantIds += id
@@ -507,6 +584,42 @@ class ChatViewModel @Inject constructor(
             )
         }
         return id
+    }
+
+    /**
+     * Runs the engine's end-of-stream pass and folds the result into the message.
+     *
+     * This is what closes the block a chunk left open mid-line: a table still missing
+     * its delimiter row, a fence without its closing marker, a trailing paragraph.
+     * `finalizeStream()` returns final blocks for the tail; `applied()` merges them
+     * the same way a chunk update is merged.
+     */
+    private fun finalizeStreamInto(targetId: String?) {
+        val parser = streamParser ?: return
+        if (targetId != null) {
+            val update = parser.finalizeStream()
+            updateState {
+                copy(
+                    messages = messages.map { message ->
+                        if (message.id == targetId) {
+                            message.copy(
+                                blocks = IncrementalMarkdownDocument.applied(update, message.blocks)
+                            )
+                        } else {
+                            message
+                        }
+                    }
+                )
+            }
+        }
+        closeStreamParser()
+    }
+
+    private fun closeStreamParser() {
+        streamParser?.close()
+        streamParser = null
+        // Length tracking belongs to the parser instance, so it goes with it.
+        streamParsedLength = 0
     }
 
     /**
@@ -545,6 +658,8 @@ class ChatViewModel @Inject constructor(
         val targetId = streamingMessageId ?: return
         streamingMessageId = null
         val isEmpty = state.messages.firstOrNull { it.id == targetId }?.text.isNullOrEmpty()
+        // Close the segment's blocks before dropping the parser (no-op when empty).
+        if (!isEmpty) finalizeStreamInto(targetId) else closeStreamParser()
         updateState {
             copy(
                 messages = if (isEmpty) {
@@ -562,6 +677,15 @@ class ChatViewModel @Inject constructor(
         // the failure, so open one rather than swallowing it.
         val targetId = streamingMessageId ?: startAssistantSegment()
         streamingMessageId = null
+        // Close the partial answer's open block first, then append the reason as a
+        // block of its own so it renders through the same path as everything else.
+        finalizeStreamInto(targetId)
+        val errorBlock = MarkdownBlock(
+            id = "error:${UUID.randomUUID()}",
+            type = MarkdownBlockType.PARAGRAPH,
+            isClosed = true,
+            content = listOf(MarkdownInline(MarkdownInlineType.TEXT, literal = detail)),
+        )
         val finalText = state.messages.firstOrNull { it.id == targetId }?.let { message ->
             if (message.text.isEmpty()) detail else "${message.text}\n\n$detail"
         }
@@ -572,7 +696,12 @@ class ChatViewModel @Inject constructor(
                     if (message.id != targetId) {
                         message
                     } else {
-                        message.copy(text = finalText.orEmpty(), isStreaming = false, isError = true)
+                        message.copy(
+                            text = finalText.orEmpty(),
+                            isStreaming = false,
+                            isError = true,
+                            blocks = message.blocks + errorBlock,
+                        )
                     }
                 },
             )
@@ -583,6 +712,8 @@ class ChatViewModel @Inject constructor(
     private fun finishTurn() {
         val targetId = streamingMessageId
         streamingMessageId = null
+        // Close whatever the last chunk left open before the turn ends.
+        finalizeStreamInto(targetId)
         updateState {
             copy(
                 isSending = false,
@@ -615,6 +746,7 @@ class ChatViewModel @Inject constructor(
         agentChat.endConversation()
         sessionKey = null
         streamingMessageId = null
+        closeStreamParser()
         turnAssistantIds.clear()
         // A question belongs to the conversation that asked it.
         updateState { copy(pendingPrompt = null) }
@@ -641,4 +773,30 @@ private fun TranscriptMessage.toChatMessage(): ChatMessage = ChatMessage(
     role = role,
     text = text,
     isError = isError,
+    // Stored rows are plain text; parse them once so restored history renders as
+    // Markdown too. Never a live stream, so a single pass is enough.
+    blocks = parseMarkdownBlocks(text),
 )
+
+/**
+ * One-shot parse of an already-finished message.
+ *
+ * Two steps, in this order: the append result carries every block (the parser starts
+ * at offset 0), then the finalize result carries the tail that only becomes final
+ * once the stream ends. Skipping the first step would drop the stable prefix.
+ */
+private fun parseMarkdownBlocks(markdown: String): List<MarkdownBlock> {
+    if (markdown.isEmpty()) return emptyList()
+    val parser = IncrementalMarkdownParser()
+    return try {
+        val ast = mutableListOf<MarkdownBlock>()
+        IncrementalMarkdownParser.apply(parser.append(markdown), ast)
+        IncrementalMarkdownParser.apply(parser.finalizeStream(), ast)
+        ast
+    } catch (error: Throwable) {
+        // Native boundary: a failure here must not take down history restore.
+        emptyList()
+    } finally {
+        parser.close()
+    }
+}

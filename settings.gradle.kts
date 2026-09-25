@@ -23,6 +23,7 @@ rootProject.name = "jasmine"
 include(":app")
 include(":core:agent")
 include(":core:data")
+include(":core:markdown")
 
 include(":core:navigation")
 include(":core:network")
