@@ -15,7 +15,6 @@ import com.lhzkml.jasmine.core.data.repository.UserPreferencesRepository
 import com.lhzkml.jasmine.core.ui.base.BaseViewModel
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.core.ui.theme.ThemeResolver
-import com.lhzkml.jasmine.core.ui.components.NavigationTab
 import com.lhzkml.jasmine.feature.main.impl.fonts.CustomFontFamilyCache
 import com.lhzkml.jasmine.feature.settings.impl.screens.AppTypographyChoice
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -46,7 +45,6 @@ data class MainState(
     val theme: CssVariables,
     val activeContentFont: FontFamily,
     // Navigation / chrome
-    val currentTab: NavigationTab,
     val isSidebarOpen: Boolean,
     // Typography
     val typographyChoice: AppTypographyChoice,
@@ -69,7 +67,6 @@ sealed interface MainEvent {
  */
 sealed interface MainAction {
 
-    data class TabSelected(val tab: NavigationTab) : MainAction
     data object SidebarOpened : MainAction
     data object SidebarClosed : MainAction
     data object SidebarToggled : MainAction
@@ -144,7 +141,6 @@ class MainViewModel @Inject constructor(
                 isSystemDark = isSystemDark,
             ),
             activeContentFont = AppTypographyChoice.EDITORIAL.font,
-            currentTab = NavigationTab.CHAT,
             isSidebarOpen = false,
             typographyChoice = AppTypographyChoice.EDITORIAL,
             fontScale = UserPreferences.DEFAULT.fontScale,
@@ -177,7 +173,6 @@ class MainViewModel @Inject constructor(
 
     override fun handleAction(action: MainAction) {
         when (action) {
-            is MainAction.TabSelected -> updateState { copy(currentTab = action.tab) }
             MainAction.SidebarOpened -> updateState { copy(isSidebarOpen = true) }
             MainAction.SidebarClosed -> updateState { copy(isSidebarOpen = false) }
             MainAction.SidebarToggled -> updateState { copy(isSidebarOpen = !isSidebarOpen) }
@@ -280,9 +275,8 @@ class MainViewModel @Inject constructor(
                     ?: AppTypographyChoice.EDITORIAL,
                 fontScale = prefs.fontScale,
                 activeCustomFontId = prefs.activeCustomFontId,
-                // Navigation chrome state (currentTab / isSidebarOpen) is
-                // intentionally NOT restored here — it is session-transient and
-                // always starts fresh (default tab) after process death.
+                // Sidebar-open state is intentionally NOT restored here — it is
+                // session-transient and always starts closed after process death.
             )
         }
     }
@@ -316,10 +310,10 @@ class MainViewModel @Inject constructor(
      * Updates [mutableStateFlow] and re-derives the derived fields ([MainState.theme],
      * [MainState.activeContentFont]) so they always stay consistent with the raw inputs.
      *
-     * Note: navigation chrome state (currentTab / isSidebarOpen) is deliberately NOT
-     * persisted to DataStore — it is transient per-session UI position. The settings
-     * flow is not tracked here at all: it lives on the Navigation 3 back stack, which
-     * is serialized and restored across process death by the navigation library.
+     * Note: sidebar-open state is deliberately NOT persisted to DataStore — it is
+     * transient per-session UI position. The settings flow is not tracked here at all:
+     * it lives on the Navigation 3 back stack, which is serialized and restored across
+     * process death by the navigation library.
      */
     private inline fun updateState(block: MainState.() -> MainState) {
         mutableStateFlow.update { current ->

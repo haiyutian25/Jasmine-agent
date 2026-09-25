@@ -58,7 +58,10 @@ val SidebarDrawerEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
 
 /**
  * Left-edge zone (in dp) where a rightward swipe can open the closed drawer.
- * Exposed so other gesture owners (e.g. [SwipeTabContainer]) can exclude it.
+ *
+ * Exposed so other gesture owners can exclude it. (The bottom bar's swipe-to-
+ * switch used to reserve it; that bar is gone, so the drawer is currently the
+ * only consumer.)
  */
 val SidebarEdgeZone = 32.dp
 

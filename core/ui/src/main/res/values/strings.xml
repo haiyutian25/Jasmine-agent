@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- 组件自用文案（随组件从 feature:main:impl 下沉到 core:ui） -->
-    <string name="nav_tab_chat">Chat</string>
     <string name="top_nav_cd_back">Back</string>
     <string name="top_nav_cd_open_sidebar">Open Sidebar Menu</string>
     <string name="sidebar_cd_settings">Settings</string>

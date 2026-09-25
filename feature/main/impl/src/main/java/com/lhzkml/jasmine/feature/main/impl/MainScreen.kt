@@ -5,27 +5,23 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.lhzkml.jasmine.core.ui.components.NavigationTab
-import com.lhzkml.jasmine.core.ui.components.ProductionBottomNavBar
 import com.lhzkml.jasmine.core.ui.components.ProductionTopNavBar
 import com.lhzkml.jasmine.core.ui.components.SidebarDrawer
-import com.lhzkml.jasmine.core.ui.components.SidebarEdgeZone
 import com.lhzkml.jasmine.feature.main.impl.chat.ChatScreen
 import com.lhzkml.jasmine.feature.main.impl.chat.ChatViewModel
 
 /**
- * Main destination: push-canvas sidebar + a single chat tab. Stateless renderer of
+ * Main destination: push-canvas sidebar + the chat surface. Stateless renderer of
  * [MainState]: every user intent leaves through [onAction] (wired to
  * [MainViewModel.trySendAction] by the host), keeping the single stateFlow
  * subscription at the activity root.
@@ -34,6 +30,11 @@ import com.lhzkml.jasmine.feature.main.impl.chat.ChatViewModel
  * stack as sibling destinations (see [MainNavHost]), so system back,
  * predictive back and process-death restore come from the navigation library.
  * The chat has its own [ChatViewModel], scoped to this navigation entry.
+ *
+ * There is no bottom navigation bar: the app has a single top-level surface, so a
+ * tab bar would only cost vertical space and drag a whole layer of IME/inset
+ * choreography along with it (the bar had to step aside for the keyboard, which
+ * made a focused composer jump).
  */
 @Composable
 fun MainScreen(
@@ -72,46 +73,36 @@ fun MainScreen(
                         onOpenSidebar = { onAction(MainAction.SidebarToggled) },
                     )
                 },
+                // safeDrawing = systemBars ∪ displayCutout ∪ ime ∪ tappableElement
+                // — it already includes the keyboard. Scaffold consumes all of it
+                // and hands the result back as innerPadding, so the content only
+                // needs Modifier.padding(innerPadding).
+                //
+                // Do NOT also apply imePadding() here: safeDrawing already covers
+                // the IME, and applying both double-counts the bottom inset (the
+                // official insets guide calls this out explicitly — "导航栏 inset
+                // 与 IME inset 被同时应用 → 底部出现两个条形空白"). Pick one owner:
+                // either Scaffold via contentWindowInsets, or the content via
+                // imePadding() — never both.
+                contentWindowInsets = WindowInsets.safeDrawing,
                 modifier = Modifier.fillMaxSize()
             ) { innerPadding ->
-                // Bottom navigation hosts the pages itself; swipe-to-switch
-                // is its optional feature. While the drawer is open, drags
-                // keep closing it, and the left edge zone stays reserved
-                // for the drawer's edge swipe.
-                ProductionBottomNavBar(
-                    currentTab = state.currentTab,
-                    onTabSelected = { onAction(MainAction.TabSelected(it)) },
-                    currentTheme = state.theme,
-                    swipeable = true,
-                    swipeEnabled = !state.isSidebarOpen,
-                    excludedStartZone = SidebarEdgeZone,
-                    // Flush with the screen bottom: the bar must stay exactly
-                    // its 66dp content height, so drop the Scaffold's
-                    // navigation-bar inset from its bottom padding.
-                    modifier = Modifier.padding(
-                        PaddingValues(
-                            start = innerPadding.calculateLeftPadding(LocalLayoutDirection.current),
-                            top = innerPadding.calculateTopPadding(),
-                            end = innerPadding.calculateRightPadding(LocalLayoutDirection.current),
-                            bottom = 0.dp
-                        )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                ) {
+                    // Collect the chat state here rather than at the root: a
+                    // streaming reply then recomposes only the chat surface,
+                    // not the whole NavHost tree.
+                    val chatViewModel: ChatViewModel = hiltViewModel()
+                    val chatState by chatViewModel.stateFlow.collectAsStateWithLifecycle()
+                    ChatScreen(
+                        state = chatState,
+                        onAction = chatViewModel::trySendAction,
+                        currentTheme = state.theme,
+                        onOpenSettings = onOpenSettings,
                     )
-                ) { tab ->
-                    when (tab) {
-                        NavigationTab.CHAT -> {
-                            // Collect the chat state here rather than at the root: a
-                            // streaming reply then recomposes only the chat surface,
-                            // not the whole NavHost tree.
-                            val chatViewModel: ChatViewModel = hiltViewModel()
-                            val chatState by chatViewModel.stateFlow.collectAsStateWithLifecycle()
-                            ChatScreen(
-                                state = chatState,
-                                onAction = chatViewModel::trySendAction,
-                                currentTheme = state.theme,
-                                onOpenSettings = onOpenSettings,
-                            )
-                        }
-                    }
                 }
             }
         }
