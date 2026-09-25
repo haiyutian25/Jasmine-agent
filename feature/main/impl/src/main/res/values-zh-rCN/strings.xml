@@ -57,13 +57,9 @@
     <string name="chat_input_hint">输入消息…</string>
     <string name="chat_send_cd">发送消息</string>
     <string name="chat_stop_cd">停止</string>
-    <string name="chat_new_conversation">新对话</string>
+    <string name="chat_choose_model">选择模型</string>
     <string name="chat_pick_model_title">选择模型</string>
     <string name="chat_pick_model_empty">尚未配置任何模型，请先在「模型提供商」中添加。</string>
-    <string name="chat_history_cd">历史对话</string>
-    <string name="chat_history_title">历史对话</string>
-    <string name="chat_history_empty">暂无历史对话。</string>
-    <string name="chat_history_delete_cd">删除对话</string>
     <string name="chat_tool_call">调用 %1$s</string>
     <string name="chat_tool_result">%1$s 返回</string>
     <string name="chat_prompt_title">智能体正在等待你的回答</string>

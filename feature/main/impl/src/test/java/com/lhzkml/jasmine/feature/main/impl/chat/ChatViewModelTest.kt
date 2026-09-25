@@ -25,6 +25,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -462,10 +463,28 @@ class ChatViewModelTest {
             val state = viewModel.stateFlow.value
             assertEquals("conv-b", state.activeConversationId)
             assertEquals(listOf("from B"), state.messages.map { it.text })
-            assertFalse(state.isHistoryOpen)
             // Switching conversations must rebuild the session for the new history.
             assertEquals(1, agentChat.conversationsEnded)
         }
+
+    @Test
+    fun `reselecting the current conversation rebuilds nothing`() = runTest(testDispatcher) {
+        // 侧边栏里点当前这条路：抽屉由 UI 关，ViewModel 不该重建 session、
+        // 也不该重读转写。
+        conversationStore.seedConversation("conv-a", "A", listOf(TranscriptMessage(ChatRole.USER, "hi")))
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        val current = viewModel.stateFlow.value.activeConversationId
+        assertNotNull(current)
+
+        viewModel.trySendAction(ChatAction.ConversationSelected(current!!))
+        advanceUntilIdle()
+
+        assertEquals(current, viewModel.stateFlow.value.activeConversationId)
+        assertEquals(listOf("hi"), viewModel.stateFlow.value.messages.map { it.text })
+        assertEquals(0, agentChat.conversationsEnded)
+    }
 
     @Test
     fun `deleting the current conversation clears the transcript`() =

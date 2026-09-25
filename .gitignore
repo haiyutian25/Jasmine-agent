@@ -25,6 +25,7 @@ my-upload-key.jks
 .git_commit_msg.txt
 .tmp_frp/
 
+
 # Local clone of Google ADK for Kotlin (reference only, not part of this project)
 /adk-kotlin/
 /.codebuddy/

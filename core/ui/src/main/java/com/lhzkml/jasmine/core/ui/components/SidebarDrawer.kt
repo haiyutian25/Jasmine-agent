@@ -12,20 +12,27 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,6 +41,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -41,6 +49,8 @@ import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -77,6 +87,31 @@ private val SidebarContentPaddingVertical = 14.dp
 /** Settings entry: icon size. */
 private val SidebarSettingsIconSize = 32.dp
 
+/** 「新建对话」按钮：图标尺寸 / 内边距，以及与列表之间的间距。 */
+private val SidebarNewConversationIconSize = 16.dp
+private val SidebarNewConversationPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+private val SidebarNewConversationGap = 8.dp
+
+/** 历史对话行：字号沿用聊天区的正文 / 说明两级。 */
+private val SidebarConversationTitleFontSize = 13.5.sp
+private val SidebarConversationMetaFontSize = 11.sp
+private val SidebarConversationRowPaddingVertical = 11.dp
+private val SidebarConversationDeleteIconSize = 16.dp
+
+/**
+ * 侧边栏里的一条历史对话。
+ *
+ * 这里用中性类型而不是 core:data 的 `Conversation` —— core:ui 不依赖 core:data
+ * （也不该依赖），由调用方映射后传进来。
+ *
+ * @param subtitle 次要说明，例如产生这条对话的模型名
+ */
+data class SidebarConversation(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+)
+
 /**
  * Self-contained push-style sidebar drawer with gesture support.
  *
@@ -94,6 +129,10 @@ private val SidebarSettingsIconSize = 32.dp
  * visual progress internally and notify the host via [onOpen]/[onClose].
  *
  * @param content main UI that gets pushed to the right when the drawer opens
+ * @param conversations 历史对话列表；空列表时显示空态文案
+ * @param activeConversationId 当前对话，用于高亮
+ * @param onNewConversation 「新建对话」按钮（位于列表顶部）
+ * @param onConversationSelected / [onConversationDeleted] 列表行的选择与删除
  */
 @Composable
 fun SidebarDrawer(
@@ -103,6 +142,11 @@ fun SidebarDrawer(
     onOpenSettings: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    conversations: List<SidebarConversation> = emptyList(),
+    activeConversationId: String? = null,
+    onNewConversation: () -> Unit = {},
+    onConversationSelected: (String) -> Unit = {},
+    onConversationDeleted: (String) -> Unit = {},
     content: @Composable () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -262,6 +306,11 @@ fun SidebarDrawer(
                 currentTheme = currentTheme,
                 onOpenSettings = onOpenSettings,
                 onCloseDrawer = onClose,
+                conversations = conversations,
+                activeConversationId = activeConversationId,
+                onNewConversation = onNewConversation,
+                onConversationSelected = onConversationSelected,
+                onConversationDeleted = onConversationDeleted,
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -269,8 +318,12 @@ fun SidebarDrawer(
 }
 
 /**
- * Minimal sidebar content:
- * - Settings entry pinned to the bottom (moved here from the top nav bar).
+ * 侧边栏内容：顶部「新建对话」+ 历史对话列表 + 底部设置入口。
+ *
+ * 历史对话原来挂在聊天页顶部的历史图标上、用 ModalBottomSheet 弹出；现在整体搬进
+ * 侧边栏 —— 弹层会遮住聊天区，而侧边栏本来就是为导航准备的。聊天页顶部那一行
+ * （当前模型 / 历史图标 / 新建对话）随之删除，聊天区因此多出约 48dp。
+ *
  * The former workspace/brand header was intentionally removed.
  */
 @Composable
@@ -278,7 +331,12 @@ fun AppSidebarContent(
     currentTheme: CssVariables,
     onOpenSettings: () -> Unit,
     onCloseDrawer: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    conversations: List<SidebarConversation> = emptyList(),
+    activeConversationId: String? = null,
+    onNewConversation: () -> Unit = {},
+    onConversationSelected: (String) -> Unit = {},
+    onConversationDeleted: (String) -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -290,12 +348,69 @@ fun AppSidebarContent(
             .padding(horizontal = SidebarContentPaddingHorizontal, vertical = SidebarContentPaddingVertical)
             .testTag("app_sidebar_drawer")
     ) {
-        // 1. Workspace / Profile Header
-        // （已按需求整体移除：品牌头像、名称、徽章与副标题）
+        // 1. 新建对话（放在历史列表顶部）
+        Button(
+            onClick = {
+                onNewConversation()
+                onCloseDrawer()
+            },
+            currentTheme = currentTheme,
+            fillWidth = true,
+            contentPadding = SidebarNewConversationPadding,
+            contentAlignment = Alignment.Center,
+            testTag = "sidebar_new_conversation_btn"
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = null,
+                    tint = currentTheme.foreground,
+                    modifier = Modifier.size(SidebarNewConversationIconSize)
+                )
+                Spacer(modifier = Modifier.width(SidebarNewConversationGap))
+                Text(
+                    text = stringResource(R.string.sidebar_new_conversation),
+                    fontSize = SidebarConversationTitleFontSize,
+                    fontWeight = FontWeight.Medium,
+                    color = currentTheme.foreground
+                )
+            }
+        }
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(SidebarNewConversationGap))
 
-        // 2. Settings Entry (moved from the top nav bar, pinned to the bottom,
+        // 2. 历史对话列表：占满剩余高度（空态也在这块里），超出可滚。
+        //    设置入口因此始终贴在底部。
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+        ) {
+            if (conversations.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.sidebar_history_empty),
+                    fontSize = SidebarConversationMetaFontSize,
+                    color = currentTheme.mutedForeground,
+                    modifier = Modifier.padding(vertical = 12.dp)
+                )
+            } else {
+                conversations.forEach { conversation ->
+                    SidebarConversationRow(
+                        conversation = conversation,
+                        isCurrent = conversation.id == activeConversationId,
+                        currentTheme = currentTheme,
+                        onSelect = {
+                            onConversationSelected(conversation.id)
+                            onCloseDrawer()
+                        },
+                        onDelete = { onConversationDeleted(conversation.id) },
+                    )
+                }
+            }
+        }
+
+        // 3. Settings Entry (moved from the top nav bar, pinned to the bottom,
         // aligned to the right edge). Bare icon button (no chrome).
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -314,6 +429,64 @@ fun AppSidebarContent(
                     contentDescription = stringResource(R.string.sidebar_cd_settings),
                     tint = currentTheme.foreground,
                     modifier = Modifier.size(SidebarSettingsIconSize)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 历史对话行：标题 + 次要说明（产生它的模型），右侧删除按钮。
+ * 当前对话用 primary 色 + SemiBold 标出 —— 与原来 BottomSheet 里的行保持一致。
+ */
+@Composable
+private fun SidebarConversationRow(
+    conversation: SidebarConversation,
+    isCurrent: Boolean,
+    currentTheme: CssVariables,
+    onSelect: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Button(
+        onClick = onSelect,
+        modifier = Modifier.fillMaxWidth(),
+        testTag = "sidebar_conversation_${conversation.id}"
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = SidebarConversationRowPaddingVertical),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = conversation.title,
+                    fontSize = SidebarConversationTitleFontSize,
+                    fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Medium,
+                    color = if (isCurrent) currentTheme.primary else currentTheme.foreground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = conversation.subtitle,
+                    fontSize = SidebarConversationMetaFontSize,
+                    color = currentTheme.mutedForeground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Button(
+                onClick = onDelete,
+                rippleEnabled = false,
+                testTag = "sidebar_conversation_delete_${conversation.id}"
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Delete,
+                    contentDescription = stringResource(R.string.sidebar_cd_delete_conversation),
+                    tint = currentTheme.mutedForeground,
+                    modifier = Modifier
+                        .padding(8.dp)
+                        .size(SidebarConversationDeleteIconSize)
                 )
             }
         }

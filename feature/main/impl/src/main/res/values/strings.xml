@@ -56,13 +56,9 @@
     <string name="chat_input_hint">Message…</string>
     <string name="chat_send_cd">Send message</string>
     <string name="chat_stop_cd">Stop</string>
-    <string name="chat_new_conversation">New chat</string>
+    <string name="chat_choose_model">Choose model</string>
     <string name="chat_pick_model_title">Choose model</string>
     <string name="chat_pick_model_empty">No models configured yet. Add one under Model Providers.</string>
-    <string name="chat_history_cd">Chat history</string>
-    <string name="chat_history_title">Chats</string>
-    <string name="chat_history_empty">No saved chats yet.</string>
-    <string name="chat_history_delete_cd">Delete chat</string>
     <string name="chat_tool_call">Called %1$s</string>
     <string name="chat_tool_result">%1$s returned</string>
     <string name="chat_prompt_title">The agent is waiting for you</string>

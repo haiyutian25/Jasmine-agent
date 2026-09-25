@@ -33,8 +33,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -59,7 +57,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lhzkml.jasmine.core.data.model.ChatRole
-import com.lhzkml.jasmine.core.data.model.Conversation
 import com.lhzkml.jasmine.core.markdown.ui.MarkdownBlockList
 import com.lhzkml.jasmine.core.ui.components.BottomSheet
 import com.lhzkml.jasmine.core.ui.components.Button
@@ -69,8 +66,6 @@ import com.lhzkml.jasmine.feature.main.impl.R
 
 // ── Chat dimensions ────────────────────────────────────────────────────
 
-/** Header row: active model on the left, "new chat" on the right (48dp touch target). */
-private val ChatHeaderHeight = 48.dp
 private val ChatDividerHeight = 1.dp
 
 private val ChatContentPaddingHorizontal = 16.dp
@@ -85,9 +80,8 @@ private val ChatBodyFontSize = 13.5.sp
 private val ChatMetaFontSize = 11.sp
 private val ChatTitleFontSize = 16.sp
 
-private val ChatHeaderIconSize = 18.dp
-private val ChatHistoryRowActionIconSize = 16.dp
-private val ChatHistoryRowPaddingVertical = 11.dp
+/** 模型选择行的行高（历史对话行已随侧边栏一起搬走）。 */
+private val ChatModelRowPaddingVertical = 11.dp
 
 private val ChatComposerVerticalPadding = 10.dp
 
@@ -157,15 +151,17 @@ private val ChatPickerListMaxHeight = 380.dp
  * entirely by [ChatState] — every intent leaves through [onAction].
  *
  * When no usable model is selected the transcript is replaced by a setup
- * prompt, because a chat without an endpoint is a dead end. [onOpenSettings]
- * is the escape hatch to the provider list (settings → Model Providers).
+ * prompt, because a chat without an endpoint is a dead end.
+ *
+ * 顶部原来有一行（当前模型 / 历史对话图标 / 新建对话）。它已整体删除：历史对话与
+ * 新建对话都搬进了侧边栏（见 `AppSidebarContent`），当前模型在输入区左下角已有
+ * 入口 —— 这一行占掉的 48dp 现在还给聊天区。
  */
 @Composable
 fun ChatScreen(
     state: ChatState,
     onAction: (ChatAction) -> Unit,
     currentTheme: CssVariables,
-    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -174,7 +170,6 @@ fun ChatScreen(
             .background(currentTheme.background)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            ChatHeader(state = state, currentTheme = currentTheme, onAction = onAction)
             MessageList(
                 state = state,
                 currentTheme = currentTheme,
@@ -194,78 +189,13 @@ fun ChatScreen(
             }
         }
 
-        if (state.isHistoryOpen) {
-            HistorySheet(state = state, currentTheme = currentTheme, onAction = onAction)
+        if (state.isModelPickerOpen) {
+            ModelSheet(state = state, currentTheme = currentTheme, onAction = onAction)
         }
     }
 }
 
 // ── Header ─────────────────────────────────────────────────────────────
-
-@Composable
-private fun ChatHeader(
-    state: ChatState,
-    currentTheme: CssVariables,
-    onAction: (ChatAction) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(ChatHeaderHeight)
-            .padding(horizontal = ChatContentPaddingHorizontal),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // The active model doubles as the entry point for switching models.
-        Button(
-            onClick = { onAction(ChatAction.ModelPickerOpened) },
-            rippleEnabled = false,
-            modifier = Modifier.weight(1f),
-            testTag = "chat_active_model_btn"
-        ) {
-            Text(
-                text = state.activeModel?.modelId.orEmpty(),
-                fontSize = ChatMetaFontSize,
-                color = currentTheme.mutedForeground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        if (state.conversations.isNotEmpty()) {
-            Button(
-                onClick = { onAction(ChatAction.HistoryOpened) },
-                rippleEnabled = false,
-                testTag = "chat_history_btn"
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.History,
-                    contentDescription = stringResource(R.string.chat_history_cd),
-                    tint = currentTheme.mutedForeground,
-                    modifier = Modifier.size(ChatHeaderIconSize)
-                )
-            }
-        }
-        if (state.messages.isNotEmpty()) {
-            Button(
-                onClick = { onAction(ChatAction.NewConversationClicked) },
-                rippleEnabled = false,
-                testTag = "chat_new_conversation_btn"
-            ) {
-                Text(
-                    text = stringResource(R.string.chat_new_conversation),
-                    fontSize = ChatMetaFontSize,
-                    fontWeight = FontWeight.Medium,
-                    color = currentTheme.mutedForeground
-                )
-            }
-        }
-    }
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(ChatDividerHeight)
-            .background(currentTheme.border)
-    )
-}
 
 // ── Transcript ─────────────────────────────────────────────────────────
 
@@ -513,14 +443,18 @@ private fun Composer(
                 .height(ChatSendButtonSize),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left: the active model doubles as the entry point for switching models.
+            // Left: 模型入口，点击打开模型选择。有激活模型时显示模型名；没有时以前是空串，
+            // 按钮虽然存在却完全看不见，看起来就像「没有选择模型的按钮」。这里给个占位文案，
+            // 让它始终可见。
             Button(
                 onClick = { onAction(ChatAction.ModelPickerOpened) },
                 rippleEnabled = false,
                 testTag = "chat_active_model_btn"
             ) {
+                val modelLabel = state.activeModel?.modelId?.takeIf { it.isNotEmpty() }
+                    ?: stringResource(R.string.chat_choose_model)
                 Text(
-                    text = state.activeModel?.modelId.orEmpty(),
+                    text = modelLabel,
                     fontSize = ChatMetaFontSize,
                     color = currentTheme.mutedForeground,
                     maxLines = 1,
@@ -702,22 +636,24 @@ private fun FreeTextAnswer(currentTheme: CssVariables, onAnswer: (String) -> Uni
     }
 }
 
-// ── History ────────────────────────────────────────────────────────────
+// ── Model picker ───────────────────────────────────────────────────────
 
 /**
- * Persisted conversations, most recently updated first. Selecting one loads its
- * transcript and rebuilds the ADK session with that history replayed into it.
+ * 模型选择：列出所有 provider 下已配置的模型，按 provider 分组（模型名 + 所属 provider）。
+ *
+ * 选中后由 `ChatViewModel.handleModelSelected` 落库并**重建 ADK session** ——
+ * 一个 session 绑定一个模型，所以切换模型会重新挂载（转写记录本身保留）。
  */
 @Composable
-private fun HistorySheet(
+private fun ModelSheet(
     state: ChatState,
     currentTheme: CssVariables,
     onAction: (ChatAction) -> Unit,
 ) {
     BottomSheet(
-        onDismiss = { onAction(ChatAction.HistoryDismissed) },
+        onDismiss = { onAction(ChatAction.ModelPickerDismissed) },
         currentTheme = currentTheme,
-        modifier = Modifier.testTag("chat_history_sheet")
+        modifier = Modifier.testTag("chat_model_sheet")
     ) {
         Column(
             modifier = Modifier
@@ -726,16 +662,20 @@ private fun HistorySheet(
                 .padding(bottom = 16.dp)
         ) {
             Text(
-                text = stringResource(R.string.chat_history_title),
+                text = stringResource(R.string.chat_pick_model_title),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = currentTheme.foreground
             )
             Spacer(modifier = Modifier.height(12.dp))
 
-            if (state.conversations.isEmpty()) {
+            val options = state.providers.flatMap { provider ->
+                provider.models.map { model -> provider to model }
+            }
+            if (options.isEmpty()) {
+                // 还没在「模型提供商」里配过任何模型 —— 给出可执行的下一步，而不是空列表。
                 Text(
-                    text = stringResource(R.string.chat_history_empty),
+                    text = stringResource(R.string.chat_pick_model_empty),
                     fontSize = ChatBodyFontSize,
                     color = currentTheme.mutedForeground,
                     modifier = Modifier.padding(vertical = 20.dp)
@@ -747,13 +687,17 @@ private fun HistorySheet(
                         .heightIn(max = ChatPickerListMaxHeight)
                         .verticalScroll(rememberScrollState())
                 ) {
-                    state.conversations.forEach { conversation ->
-                        HistoryRow(
-                            conversation = conversation,
-                            isCurrent = conversation.id == state.activeConversationId,
+                    options.forEach { (provider, model) ->
+                        ModelRow(
+                            providerId = provider.id,
+                            providerName = provider.name,
+                            modelId = model.modelId,
+                            isCurrent = provider.id == state.activeProviderId &&
+                                model.id == state.activeModelId,
                             currentTheme = currentTheme,
-                            onSelect = { onAction(ChatAction.ConversationSelected(conversation.id)) },
-                            onDelete = { onAction(ChatAction.ConversationDeleted(conversation.id)) },
+                            onSelect = {
+                                onAction(ChatAction.ModelSelected(provider.id, model.id))
+                            },
                         )
                     }
                 }
@@ -763,56 +707,39 @@ private fun HistorySheet(
 }
 
 @Composable
-private fun HistoryRow(
-    conversation: Conversation,
+private fun ModelRow(
+    providerId: String,
+    providerName: String,
+    modelId: String,
     isCurrent: Boolean,
     currentTheme: CssVariables,
     onSelect: () -> Unit,
-    onDelete: () -> Unit,
 ) {
     Button(
         onClick = onSelect,
         modifier = Modifier.fillMaxWidth(),
-        testTag = "chat_history_${conversation.id}"
+        testTag = "chat_model_${providerId}_$modelId"
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = ChatHistoryRowPaddingVertical),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(vertical = ChatModelRowPaddingVertical)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = conversation.title,
-                    fontSize = ChatBodyFontSize,
-                    fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Medium,
-                    color = if (isCurrent) currentTheme.primary else currentTheme.foreground,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    // The model that produced it — not necessarily the current one.
-                    text = conversation.modelId,
-                    fontSize = ChatMetaFontSize,
-                    color = currentTheme.mutedForeground,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Button(
-                onClick = onDelete,
-                rippleEnabled = false,
-                testTag = "chat_history_delete_${conversation.id}"
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Delete,
-                    contentDescription = stringResource(R.string.chat_history_delete_cd),
-                    tint = currentTheme.mutedForeground,
-                    modifier = Modifier
-                        .padding(8.dp)
-                        .size(ChatHistoryRowActionIconSize)
-                )
-            }
+            Text(
+                text = modelId,
+                fontSize = ChatBodyFontSize,
+                fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Medium,
+                color = if (isCurrent) currentTheme.primary else currentTheme.foreground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = providerName,
+                fontSize = ChatMetaFontSize,
+                color = currentTheme.mutedForeground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

@@ -12,13 +12,18 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lhzkml.jasmine.core.ui.components.ProductionTopNavBar
+import com.lhzkml.jasmine.core.ui.components.SidebarConversation
 import com.lhzkml.jasmine.core.ui.components.SidebarDrawer
+import com.lhzkml.jasmine.feature.main.impl.chat.ChatAction
 import com.lhzkml.jasmine.feature.main.impl.chat.ChatScreen
 import com.lhzkml.jasmine.feature.main.impl.chat.ChatViewModel
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 /**
  * Main destination: push-canvas sidebar + the chat surface. Stateless renderer of
@@ -55,6 +60,36 @@ fun MainScreen(
         onAction(MainAction.SidebarClosed)
     }
 
+    // 侧边栏要展示「新建对话 + 历史对话」，这两份数据都在 ChatViewModel 里。
+    //
+    // 只订阅用得到的切片：流式回复每秒会改很多次 ChatState，整份订阅会让抽屉跟着
+    // 重组 —— 抽屉虽然收着，但它仍在组合树里。映射成一个 data class 后
+    // distinctUntilChanged 才按值比较，只在真正变化时重组。
+    //
+    // 顺带把 conversation.modelId 解析成模型名：那里存的是 ModelConfig.id（本机上是
+    // 一个 UUID），直接显示会出现一长串 UUID。解析失败时退回原值，不吞掉信息。
+    val chatViewModel: ChatViewModel = hiltViewModel()
+    val sidebar by remember(chatViewModel) {
+        chatViewModel.stateFlow
+            .map { chatState ->
+                SidebarState(
+                    conversations = chatState.conversations.map { conversation ->
+                        SidebarConversation(
+                            id = conversation.id,
+                            title = conversation.title,
+                            subtitle = chatState.providers
+                                .firstOrNull { it.id == conversation.providerId }
+                                ?.models?.firstOrNull { it.id == conversation.modelId }
+                                ?.modelId
+                                ?: conversation.modelId,
+                        )
+                    },
+                    activeConversationId = chatState.activeConversationId,
+                )
+            }
+            .distinctUntilChanged()
+    }.collectAsStateWithLifecycle(initialValue = SidebarState())
+
     Box(modifier = modifier.fillMaxSize()) {
         // Push-canvas sidebar drawer; the main scaffold is its pushed content.
         SidebarDrawer(
@@ -62,7 +97,18 @@ fun MainScreen(
             currentTheme = state.theme,
             onOpen = { onAction(MainAction.SidebarOpened) },
             onOpenSettings = onOpenSettings,
-            onClose = { onAction(MainAction.SidebarClosed) }
+            onClose = { onAction(MainAction.SidebarClosed) },
+            conversations = sidebar.conversations,
+            activeConversationId = sidebar.activeConversationId,
+            onNewConversation = {
+                chatViewModel.trySendAction(ChatAction.NewConversationClicked)
+            },
+            onConversationSelected = {
+                chatViewModel.trySendAction(ChatAction.ConversationSelected(it))
+            },
+            onConversationDeleted = {
+                chatViewModel.trySendAction(ChatAction.ConversationDeleted(it))
+            }
         ) {
             Scaffold(
                 containerColor = animatedBg,
@@ -94,17 +140,27 @@ fun MainScreen(
                 ) {
                     // Collect the chat state here rather than at the root: a
                     // streaming reply then recomposes only the chat surface,
-                    // not the whole NavHost tree.
-                    val chatViewModel: ChatViewModel = hiltViewModel()
+                    // not the whole NavHost tree. （ViewModel 实例在上面已取过一次，
+                    // 同一个 ViewModelStoreOwner 拿到的是同一个对象。）
                     val chatState by chatViewModel.stateFlow.collectAsStateWithLifecycle()
                     ChatScreen(
                         state = chatState,
                         onAction = chatViewModel::trySendAction,
                         currentTheme = state.theme,
-                        onOpenSettings = onOpenSettings,
                     )
                 }
             }
         }
     }
 }
+
+/**
+ * 侧边栏需要的那一小片聊天状态。
+ *
+ * 单独包一层是为了让 `distinctUntilChanged` 能按值比较：直接订阅整个 [ChatState]
+ * 的话，流式回复每个 chunk 都会让抽屉重组一次。
+ */
+private data class SidebarState(
+    val conversations: List<SidebarConversation> = emptyList(),
+    val activeConversationId: String? = null,
+)

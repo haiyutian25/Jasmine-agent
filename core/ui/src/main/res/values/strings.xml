@@ -4,4 +4,7 @@
     <string name="top_nav_cd_back">Back</string>
     <string name="top_nav_cd_open_sidebar">Open Sidebar Menu</string>
     <string name="sidebar_cd_settings">Settings</string>
+    <string name="sidebar_new_conversation">New chat</string>
+    <string name="sidebar_history_empty">No conversations yet.</string>
+    <string name="sidebar_cd_delete_conversation">Delete conversation</string>
 </resources>

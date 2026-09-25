@@ -97,7 +97,6 @@ data class ChatState(
     /** Persisted conversation behind [messages]; null until the first send. */
     val activeConversationId: String? = null,
     val isModelPickerOpen: Boolean = false,
-    val isHistoryOpen: Boolean = false,
     /** Set while the agent is blocked on a question; see [ChatUserPrompt]. */
     val pendingPrompt: ChatUserPrompt? = null,
 ) {
@@ -122,8 +121,6 @@ sealed interface ChatAction {
     data object ModelPickerOpened : ChatAction
     data object ModelPickerDismissed : ChatAction
     data class ModelSelected(val providerId: String, val modelId: String) : ChatAction
-    data object HistoryOpened : ChatAction
-    data object HistoryDismissed : ChatAction
     data class ConversationSelected(val id: String) : ChatAction
     data class ConversationDeleted(val id: String) : ChatAction
 
@@ -237,8 +234,6 @@ class ChatViewModel @Inject constructor(
             ChatAction.ModelPickerOpened -> updateState { copy(isModelPickerOpen = true) }
             ChatAction.ModelPickerDismissed -> updateState { copy(isModelPickerOpen = false) }
             is ChatAction.ModelSelected -> handleModelSelected(action)
-            ChatAction.HistoryOpened -> updateState { copy(isHistoryOpen = true) }
-            ChatAction.HistoryDismissed -> updateState { copy(isHistoryOpen = false) }
             is ChatAction.ConversationSelected -> handleConversationSelected(action)
             is ChatAction.ConversationDeleted -> handleConversationDeleted(action)
             is ChatAction.PromptAnswered -> handlePromptAnswered(action)
@@ -361,14 +356,13 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun handleConversationSelected(action: ChatAction.ConversationSelected) {
-        if (action.id == state.activeConversationId) {
-            updateState { copy(isHistoryOpen = false) }
-            return
-        }
+        // 选中的就是当前这条：抽屉由调用方（侧边栏）负责关，这里什么都不用做 ——
+        // 否则会把 ADK session 重建、转写重读一遍，白费一次。
+        if (action.id == state.activeConversationId) return
+
         resetSession()
         updateState {
             copy(
-                isHistoryOpen = false,
                 messages = emptyList(),
                 isSending = false,
                 activeConversationId = action.id,
