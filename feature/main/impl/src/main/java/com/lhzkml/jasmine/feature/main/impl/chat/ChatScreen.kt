@@ -52,10 +52,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import com.lhzkml.jasmine.feature.main.impl.relativeTimeText
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -272,7 +269,7 @@ private fun MessageList(
 private fun MessageBubble(message: ChatMessage, currentTheme: CssVariables) {
     val isUser = message.role == ChatRole.USER
     val text = message.text.ifEmpty { if (message.isStreaming) "…" else "" }
-    val time = messageTimeText(message)
+    val time = relativeTimeText(message.timestamp)
 
     if (!isUser) {
         // The model's reply renders as Markdown blocks, built incrementally as chunks
@@ -386,23 +383,6 @@ private fun MessageMetaChip(text: String, currentTheme: CssVariables) {
     )
 }
 
-/**
- * 消息时间的显示文本；没有时间信息（0）时返回 null，界面不显示时间。
- *
- * 同一天只给 `HH:mm` —— 聊天里绝大多数是当天；跨天补日期，跨年再补年份，
- * 避免历史会话里出现一堆分不清是哪天的 `09:15`。
- */
-private fun messageTimeText(message: ChatMessage): String? {
-    val ts = message.timestamp
-    if (ts <= 0L) return null
-    val at = Instant.ofEpochMilli(ts).atZone(ZoneId.systemDefault())
-    val today = LocalDate.now(ZoneId.systemDefault())
-    return when {
-        at.toLocalDate() == today -> at.format(DateTimeFormatter.ofPattern("HH:mm"))
-        at.year == today.year -> at.format(DateTimeFormatter.ofPattern("M月d日 HH:mm"))
-        else -> at.format(DateTimeFormatter.ofPattern("yyyy年M月d日 HH:mm"))
-    }
-}
 
 // ── Tool activity ──────────────────────────────────────────────────────
 

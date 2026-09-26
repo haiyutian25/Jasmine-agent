@@ -66,8 +66,9 @@ fun MainScreen(
     // 重组 —— 抽屉虽然收着，但它仍在组合树里。映射成一个 data class 后
     // distinctUntilChanged 才按值比较，只在真正变化时重组。
     //
-    // 顺带把 conversation.modelId 解析成模型名：那里存的是 ModelConfig.id（本机上是
-    // 一个 UUID），直接显示会出现一长串 UUID。解析失败时退回原值，不吞掉信息。
+    // 每行底部显示这条对话**最后一条消息的时间**（会话记录里的 updatedAt 就是 session 的
+    // lastUpdateTime，每写入一条事件都会推进）。以前这里显示模型名，但列表里的模型名
+    // 绝大多数都一样，看不出哪条是新聊的、哪条很久没动。
     val chatViewModel: ChatViewModel = hiltViewModel()
     val sidebar by remember(chatViewModel) {
         chatViewModel.stateFlow
@@ -77,11 +78,7 @@ fun MainScreen(
                         SidebarConversation(
                             id = conversation.id,
                             title = conversation.title,
-                            subtitle = chatState.providers
-                                .firstOrNull { it.id == conversation.providerId }
-                                ?.models?.firstOrNull { it.id == conversation.modelId }
-                                ?.modelId
-                                ?: conversation.modelId,
+                            subtitle = relativeTimeText(conversation.updatedAt).orEmpty(),
                         )
                     },
                     activeConversationId = chatState.activeConversationId,
