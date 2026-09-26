@@ -52,6 +52,18 @@ data class ChatMessage(
      * 复用节点、只重绘真正变化的块。
      */
     val blocks: List<MarkdownBlock> = emptyList(),
+    /**
+     * 这条消息的时间（epoch 毫秒）。0 表示未知（例如历史里没有时间信息的老条目），
+     * 界面此时不显示时间。
+     */
+    val timestamp: Long = 0L,
+    /**
+     * 产生这条消息的模型名（界面上跟时间并排的小标签）。null = 不知道，不显示。
+     *
+     * 实时那一轮是发送时生效的模型；从历史恢复时用会话记录里的模型 —— ADK 的事件里
+     * 没有模型名，所以会话中途换过模型的话，老消息会显示成会话当前记录的那个模型。
+     */
+    val modelLabel: String? = null,
 )
 
 /**
@@ -294,9 +306,27 @@ class ChatViewModel @Inject constructor(
         updateState {
             copy(
                 activeConversationId = action.conversationId,
-                messages = action.messages.map { it.toChatMessage() },
+                messages = action.messages.map {
+                    it.toChatMessage(fallbackModelLabel = modelLabelOf(action.conversationId))
+                },
             )
         }
+    }
+
+    /**
+     * 会话记录里的模型 → 界面上显示的模型名。
+     *
+     * `Conversation.modelId` 存的是 `ModelConfig.id`（不是模型名），所以要按 id 找回配置、
+     * 取它的 `modelId` 来显示；找不到就用原值兜底。规则与侧边栏会话列表同一套。
+     */
+    private fun modelLabelOf(conversationId: String?): String? {
+        val conversation = state.conversations.firstOrNull { it.id == conversationId } ?: return null
+        return state.providers
+            .firstOrNull { it.id == conversation.providerId }
+            ?.models
+            ?.firstOrNull { it.id == conversation.modelId }
+            ?.modelId
+            ?: conversation.modelId
     }
 
     // endregion
@@ -316,6 +346,8 @@ class ChatViewModel @Inject constructor(
         val assistantId = UUID.randomUUID().toString()
         streamingMessageId = assistantId
         turnAssistantIds += assistantId
+        // 用户消息和它的回复占同一个时间点（这一轮是同时开始的）。
+        val now = System.currentTimeMillis()
         updateState {
             copy(
                 input = "",
@@ -325,12 +357,15 @@ class ChatViewModel @Inject constructor(
                         id = UUID.randomUUID().toString(),
                         role = ChatRole.USER,
                         text = text,
+                        timestamp = now,
                     ) +
                     ChatMessage(
                         id = assistantId,
                         role = ChatRole.ASSISTANT,
                         text = "",
                         isStreaming = true,
+                        timestamp = now,
+                        modelLabel = model.modelId,
                     ),
             )
         }
@@ -427,7 +462,13 @@ class ChatViewModel @Inject constructor(
                 .getOrDefault(emptyList())
             // Bail out if the selection moved on while the query ran.
             if (state.activeConversationId != action.id) return@launch
-            updateState { copy(messages = messages.map { it.toChatMessage() }) }
+            updateState {
+                copy(
+                    messages = messages.map {
+                        it.toChatMessage(fallbackModelLabel = modelLabelOf(action.id))
+                    }
+                )
+            }
         }
     }
 
@@ -628,6 +669,8 @@ class ChatViewModel @Inject constructor(
                     role = ChatRole.ASSISTANT,
                     text = "",
                     isStreaming = true,
+                    timestamp = System.currentTimeMillis(),
+                    modelLabel = activeModel?.modelId,
                 )
             )
         }
@@ -714,6 +757,7 @@ class ChatViewModel @Inject constructor(
                     role = ChatRole.ASSISTANT,
                     text = "",
                     tool = ChatToolActivity(name = name, detail = detail, result = result),
+                    timestamp = System.currentTimeMillis(),
                 )
             )
         }
@@ -842,7 +886,11 @@ class ChatViewModel @Inject constructor(
     }
 }
 
-private fun TranscriptMessage.toChatMessage(): ChatMessage = ChatMessage(
+/**
+ * @param fallbackModelLabel 事件里**没有**记模型名时用的兜底值（由 [ChatViewModel.modelLabelOf]
+ *   从会话记录里取）。事件里记着（`Event.modelVersion`）就优先用它 —— 那是逐条精确的。
+ */
+private fun TranscriptMessage.toChatMessage(fallbackModelLabel: String? = null): ChatMessage = ChatMessage(
     id = UUID.randomUUID().toString(),
     role = role,
     text = text,
@@ -855,6 +903,9 @@ private fun TranscriptMessage.toChatMessage(): ChatMessage = ChatMessage(
     // Markdown too. Never a live stream, so a single pass is enough.
     // 工具条目没有正文，跳过解析 —— 免得为一次空文档白跑 native。
     blocks = if (text.isEmpty()) emptyList() else parseMarkdownBlocks(text),
+    timestamp = timestamp,
+    // 优先用事件自己记的模型名；旧数据没有，才回退到会话记录的模型。
+    modelLabel = modelLabel ?: fallbackModelLabel,
 )
 
 /**

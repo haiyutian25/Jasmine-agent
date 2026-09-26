@@ -29,6 +29,19 @@ data class TranscriptMessage(
      * 这样「重新加载出来的转写」和「实时那一轮」是同一个形状。
      */
     val tool: TranscriptToolActivity? = null,
+    /**
+     * 这条消息的时间（epoch 毫秒，取自 ADK 事件的 `timestamp`，也就是 `StorageEvent.timestamp`）。
+     *
+     * 0 表示没有时间信息（老数据 / 造不出来源的条目），界面会直接不显示时间。
+     */
+    val timestamp: Long = 0L,
+    /**
+     * 产生这条消息的模型名（取自 ADK 事件的 `modelVersion`）。
+     *
+     * null 表示事件里没记（这份 ADK 移植版以前没填 `modelVersion`，所以旧数据都是 null）——
+     * 界面这时回退到「会话记录里的模型」，会话中途换过模型的旧消息因此可能显示得不准。
+     */
+    val modelLabel: String? = null,
 )
 
 /**

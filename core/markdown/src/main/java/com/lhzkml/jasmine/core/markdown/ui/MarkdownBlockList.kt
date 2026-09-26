@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -41,6 +42,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -66,8 +68,10 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Density
@@ -104,8 +108,12 @@ import com.lhzkml.jasmine.core.ui.theme.CssVariables
  * - **数学公式**：`MATH_BLOCK` / `FORMULA` 都交给 [MicroTexRenderer]（与 ima 同一套引擎）。
  *   行内公式用 `InlineTextContent` 嵌进文本流，因此**必须在组合期同步渲染** ——
  *   占位尺寸当场就得定下来。ima 的做法一样（`xd0.c` 直接在构造函数里 `LaTeX.parse`）。
- * - **HTML 块/行内**：只按字面量显示，不解析执行。
+ * - **HTML 块/行内**：只认白名单（`<p align>` 的对齐、加粗/斜体/下划线/highlight 等样式
+ *   标签、`<br>`），其余一律按字面量输出，不解析执行任意标记。
  * - **图片**：由 Coil 加载。
+ * - **解析器不认的三样写法在渲染层补**：脚注 `[^1]`（注意它会被解析成链接引用，
+ *   见 [collectFootnotes]）、上标 `^2^`、定义列表（`术语` + `: 定义`）。
+ *   而 `~2~` **不是**下标 —— 单 `~` 被 native 的 underline 扩展占了（腾讯语法的下划线）。
  */
 @Composable
 fun MarkdownBlockList(
@@ -118,6 +126,9 @@ fun MarkdownBlockList(
     // 行内公式在组合期同步渲染，所以引擎要尽早备好（详见 MicroTexRenderer.warmUp）。
     val context = LocalContext.current
     LaunchedEffect(context) { MicroTexRenderer.warmUp(context) }
+
+    // 脚注正文先整棵树收集、再统一渲在末尾 —— 它不可能按块拿到，原因见 collectFootnotes。
+    val footnotes = remember(blocks) { blocks.collectFootnotes() }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -132,6 +143,24 @@ fun MarkdownBlockList(
                     currentTheme = currentTheme,
                     bodyFontSize = bodyFontSize,
                     baseColor = baseColor,
+                )
+            }
+        }
+
+        // 脚注区：正文里只留上标序号，内容统一列在文末（与常见 Markdown 渲染器一致）。
+        if (footnotes.isNotEmpty()) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(currentTheme.border)
+            )
+            footnotes.forEach { (id, body) ->
+                FootnoteLine(
+                    id = id,
+                    text = body,
+                    currentTheme = currentTheme,
+                    bodyFontSize = bodyFontSize,
                 )
             }
         }
@@ -161,17 +190,19 @@ private fun MarkdownBlockView(
                 .background(currentTheme.border)
         )
         MarkdownBlockType.TABLE -> TableBlock(block, currentTheme, bodyFontSize, baseColor)
-        MarkdownBlockType.HTML_BLOCK -> Text(
-            text = block.literal,
-            fontSize = bodyFontSize,
-            fontFamily = FontFamily.Monospace,
-            color = currentTheme.mutedForeground,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        MarkdownBlockType.HTML_BLOCK -> HtmlBlock(block, currentTheme, bodyFontSize, baseColor)
         // 图片块：`![alt](url)` 独占一行时解析成这个类型。
         MarkdownBlockType.IMAGE -> {
             val image = block.content.soleImage()
-            if (image != null) {
+            if (image != null && failedImageUrls.containsKey(image.first.url.orEmpty())) {
+                // 加载失败过 —— 原样显示这一句源码（同一规则：失败就显示完整的原始内容）。
+                Text(
+                    text = rawImageMarkdown(image.first),
+                    fontSize = bodyFontSize,
+                    color = currentTheme.mutedForeground,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else if (image != null) {
                 MarkdownImage(
                     url = image.first.url.orEmpty(),
                     alt = image.first.children.plainText(),
@@ -192,7 +223,17 @@ private fun MarkdownBlockView(
                 )
             }
         }
-        else -> ParagraphBlock(block, currentTheme, bodyFontSize, baseColor)
+        else -> {
+            val definitions = block.definitionList()
+            when {
+                // 脚注定义行（`[^1]: 内容`）在这里**不渲染** —— 它已经由 collectFootnotes
+                // 收走、统一显示在文末脚注区。若就地再渲染一次就会重复。
+                footnoteDefinitionOf(block) != null -> Unit
+                definitions != null ->
+                    DefinitionListBlock(definitions, currentTheme, bodyFontSize, baseColor)
+                else -> ParagraphBlock(block, currentTheme, bodyFontSize, baseColor)
+            }
+        }
     }
 }
 
@@ -214,11 +255,19 @@ private fun ParagraphBlock(
 
     if (quote != null) {
         // 引用：左侧竖线 + 缩进，与 ima 的 showQuoteMarker 对应。
-        Row(Modifier.fillMaxWidth()) {
+        //
+        // ⚠️ 行高必须显式给 IntrinsicSize.Min、竖线用 fillMaxHeight —— 之前把
+        // IntrinsicSize.Min 放在竖线自己身上，结果它量到高度 0、整条竖线画不出来
+        // （真机截图实测：引用只有灰字和缩进，左侧是空的）。
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min)
+        ) {
             Box(
                 Modifier
+                    .fillMaxHeight()
                     .width(3.dp)
-                    .height(IntrinsicSize.Min)
                     .background(currentTheme.border)
             )
             Spacer(Modifier.width(10.dp))
@@ -325,6 +374,34 @@ private fun List<MarkdownInline>.soleImage(): Pair<MarkdownInline, String?>? {
         }
     }
     return null
+}
+
+/**
+ * 加载失败过的图片地址。
+ *
+ * 为什么要模块级状态：行内图片的失败发生在 [InlineTextContent] **内部**（组合期之后），
+ * 而「改显源码」必须重建 AnnotatedString —— 用一份可观察的集合，读过它的组合函数会在
+ * 失败时自动重组、把那一小格换成原文；否则得把失败状态一层层透传下来。
+ *
+ * 键是 url：同一个地址记一次即可。
+ */
+private val failedImageUrls = mutableStateMapOf<String, Boolean>()
+
+/** 图片加载失败 → 记下地址，交给下一次重组按原文显示。 */
+internal fun markImageFailed(url: String) {
+    if (url.isNotEmpty()) failedImageUrls[url] = true
+}
+
+/**
+ * 图片的原始 Markdown 写法。
+ *
+ * 用途统一：地址不是真链接（`![alt](图片地址)` 这类示例写法）、或图片加载失败时，
+ * 都把这句话原样显示出来，而不是留一块空白。
+ */
+private fun rawImageMarkdown(node: MarkdownInline): String {
+    val title = node.title.orEmpty()
+    val titlePart = if (title.isEmpty()) "" else " \"$title\""
+    return "![${node.children.plainText()}](${node.url.orEmpty()}$titlePart)"
 }
 
 /** 源码里的地址是不是一个真链接；`![alt](图片地址)` 这种占位文字不算。 */
@@ -647,9 +724,10 @@ private fun MathBlock(
                 )
             }
         } else {
-            // 还没渲出来（或公式有语法错）：退回显示源码，不留空白。
+            // 还没渲出来（或公式有语法错）：退回显示**完整原文**（带 `$$` 定界符），
+            // 既不留空白也不丢定界符 —— 与图片失败同一条规则。
             Text(
-                text = block.literal,
+                text = "\$\$" + block.literal + "\$\$",
                 fontSize = mathSize.sp,
                 fontFamily = FontFamily.Monospace,
                 fontStyle = FontStyle.Italic,
@@ -859,9 +937,346 @@ private fun inlineImageContent(
             model = url,
             contentDescription = alternate,
             contentScale = ContentScale.Fit,
+            // 失败只登记地址：行内槽位（1.15 行高）塞不下整段源码，所以由上层在下一次
+            // 重组时把这一格整段换成原文，而不是在这里硬塞。
+            onError = { markImageFailed(url) },
             modifier = Modifier.fillMaxSize(),
         )
     }
+}
+
+// ── HTML 行内标签（白名单）与脚注 ──────────────────────────────────────
+//
+// 解析器把 HTML 当字面量给出来（行内是 HTML 节点、块级是 HTML_BLOCK）。这一节在**渲染层**
+// 按白名单把它补上：不执行任意标记（安全边界不变），白名单外的标签照旧原样显示。
+// 完全不碰 native，所以 LaTeX 那边 `\` 的转义保护集不受影响。
+
+/** 可以跨节点生效的行内标签 —— 开标签之后、对应闭标签之前的内容都受影响。 */
+private val HtmlInlineTags: Set<String> = setOf(
+    "b", "strong", "i", "em", "u", "s", "del", "strike", "mark", "sup", "sub",
+)
+
+/** 折成硬换行的标签。 */
+private val HtmlBreakTags: Set<String> = setOf("br", "hr")
+
+private val HtmlTagRegex = Regex("""^<\s*(/?)\s*([A-Za-z][A-Za-z0-9]*)\b[^>]*?(/?)\s*>$""")
+
+private data class HtmlTag(val name: String, val isClosing: Boolean)
+
+private fun parseHtmlTag(raw: String): HtmlTag? {
+    val match = HtmlTagRegex.find(raw.trim()) ?: return null
+    return HtmlTag(
+        name = match.groupValues[2].lowercase(),
+        isClosing = match.groupValues[1] == "/",
+    )
+}
+
+/** 上下标字号比例（对齐 HTML `sup`/`sub` 的默认视觉效果）。 */
+private const val SupSubFontScale = 0.78f
+
+/** 标签对应的文字样式；不在白名单或不需要样式的返回 null。 */
+private fun htmlTagStyle(tag: String, theme: CssVariables, bodyFontSize: TextUnit): SpanStyle? =
+    when (tag) {
+        "b", "strong" -> SpanStyle(fontWeight = FontWeight.Bold)
+        "i", "em" -> SpanStyle(fontStyle = FontStyle.Italic)
+        "u" -> SpanStyle(textDecoration = TextDecoration.Underline)
+        "s", "del", "strike" -> SpanStyle(textDecoration = TextDecoration.LineThrough)
+        "mark" -> SpanStyle(background = theme.accent.copy(alpha = 0.28f))
+        "sup" -> SpanStyle(
+            baselineShift = BaselineShift(0.35f),
+            fontSize = (bodyFontSize.value * SupSubFontScale).sp,
+        )
+        "sub" -> SpanStyle(
+            baselineShift = BaselineShift(-0.2f),
+            fontSize = (bodyFontSize.value * SupSubFontScale).sp,
+        )
+        else -> null
+    }
+
+/** 把当前打开的白名单标签样式叠在 [block] 的输出上（从内到外嵌套，等价于样式叠加）。 */
+private fun androidx.compose.ui.text.AnnotatedString.Builder.withHtmlStyles(
+    openTags: List<String>,
+    theme: CssVariables,
+    bodyFontSize: TextUnit,
+    block: () -> Unit,
+) {
+    val styles = openTags.mapNotNull { htmlTagStyle(it, theme, bodyFontSize) }
+    fun apply(index: Int) {
+        if (index >= styles.size) {
+            block()
+        } else {
+            withStyle(styles[index]) { apply(index + 1) }
+        }
+    }
+    apply(0)
+}
+
+// ── 脚注 ───────────────────────────────────────────────────────────────
+//
+// 脚注不是 CommonMark 的一部分，而 `[^1]` 这个写法**恰好撞上链接引用的语法**：
+//
+//     [^1]: 这是脚注的内容。        ← 形状 = `[label]: destination`
+//
+// 于是解析器的行为是（真机实测）：
+//   * 定义行被当成**链接引用定义**吃掉 —— 它不是「块」，正文里根本不会出现，
+//     所以永远不可能靠遍历块把它渲染出来；
+//   * 段落里的 `[^1]` 被解析成 **LINK 节点**：可见文字是标签 `^1`，destination
+//     就是刚才那条定义的内容。
+//
+// 截图证据：正文里显示成「˄1」（链接样式的 `^1`），定义行整行消失。
+//
+// 所以正确做法是顺着解析器的实际产物来：从 LINK 节点取回「序号 + 正文」，把引用改回
+// 上标序号，正文统一收集到文末渲染。下面 [FootnoteRefRegex] 是另一条兜底路径 ——
+// 若某天解析器不再把 `[^1]` 当链接（例如只有引用、没有定义时），它仍留在文本里。
+
+/** 兜底路径：留在普通文本里的脚注引用 `[^1]`。 */
+private val FootnoteRefRegex = Regex("""\[\^([^\]]+)]""")
+
+/** 主路径：被解析成链接的脚注引用，其可见文字形状为 `^1`。 */
+private val FootnoteRefLinkTextRegex = Regex("""^\^(\S+)$""")
+
+/** 脚注定义行：`[^1]: 内容`（有些写法下解析器不认，会以普通段落过来）。 */
+private val FootnoteDefRegex =
+    Regex("""^\[\^([^\]]+)]\s*:?\s*(.*)$""", RegexOption.DOT_MATCHES_ALL)
+
+/** 上标样式：序号比正文小一档、基线抬高。脚注序号与上下标共用。 */
+private fun superscriptStyle(bodyFontSize: TextUnit) = SpanStyle(
+    baselineShift = BaselineShift(0.35f),
+    fontSize = (bodyFontSize.value * SupSubFontScale).sp,
+)
+
+/** 上标 `^2^`（Pandoc 扩展）。`^` 在本方言里没有别的含义，所以成对出现即上标。 */
+private val SuperscriptRegex = Regex("""\^([^\^\n]+?)\^""")
+
+/**
+ * 把文本里残留的 `[^1]` 渲染成上标序号，其余部分照常输出。
+ *
+ * 只处理「没被解析成链接」的那种（见上面的说明），是兜底而不是主路径。
+ * 普通片段再交给 [appendWithSuperscripts] —— 两套语法不重叠（`[^1]` vs `^…^`）。
+ */
+private fun androidx.compose.ui.text.AnnotatedString.Builder.appendWithFootnotes(
+    text: String,
+    bodyFontSize: TextUnit,
+) {
+    var cursor = 0
+    for (match in FootnoteRefRegex.findAll(text)) {
+        if (match.range.first > cursor) {
+            appendWithSuperscripts(text.substring(cursor, match.range.first), bodyFontSize)
+        }
+        withStyle(superscriptStyle(bodyFontSize)) { append(match.groupValues[1]) }
+        cursor = match.range.last + 1
+    }
+    if (cursor < text.length) {
+        appendWithSuperscripts(text.substring(cursor), bodyFontSize)
+    }
+}
+
+/** 把 `^2^` 渲染成上标、其余照常输出。 */
+private fun androidx.compose.ui.text.AnnotatedString.Builder.appendWithSuperscripts(
+    text: String,
+    bodyFontSize: TextUnit,
+) {
+    var cursor = 0
+    for (match in SuperscriptRegex.findAll(text)) {
+        if (match.range.first > cursor) append(text.substring(cursor, match.range.first))
+        withStyle(superscriptStyle(bodyFontSize)) { append(match.groupValues[1]) }
+        cursor = match.range.last + 1
+    }
+    if (cursor < text.length) append(text.substring(cursor))
+}
+
+/**
+ * 按软/硬换行把段落切成若干行。
+ *
+ * 不能用 [plainText] —— 它把换行折成了空格（正文渲染需要那样），定义列表却必须知道
+ * 模型到底在哪儿换了行，否则 `术语` 和 `: 定义` 会被拼成一行、识别不出来。
+ */
+private fun List<MarkdownInline>.splitLines(): List<String> = buildString {
+    fun walk(nodes: List<MarkdownInline>) {
+        nodes.forEach { node ->
+            when (node.type) {
+                MarkdownInlineType.SOFT_BREAK, MarkdownInlineType.LINE_BREAK -> append('\n')
+                else -> if (node.children.isEmpty()) {
+                    append(node.literal.orEmpty())
+                } else {
+                    walk(node.children)
+                }
+            }
+        }
+    }
+    walk(this@splitLines)
+}.split('\n')
+
+/**
+ * 定义列表的形状：
+ *
+ *     术语
+ *     : 术语的定义内容。
+ *
+ * CommonMark 没有定义列表（那是 Pandoc 扩展），解析器给的是**一个普通段落**、
+ * 行间是软换行。所以按行识别：以 `:` 开头的行算定义，紧邻上一行算术语。
+ *
+ * 不满足形状（连着两行术语、只有术语没有定义、定义为空）就返回 null，仍按普通段落渲染。
+ */
+private fun MarkdownBlock.definitionList(): List<Pair<String, String>>? {
+    // 列表项 / 引用里的段落不处理：那里的 `:` 更可能是正文的一部分。
+    if (prefix.isNotEmpty()) return null
+    val items = mutableListOf<Pair<String, String>>()
+    var term: String? = null
+    for (raw in content.splitLines()) {
+        val line = raw.trim()
+        when {
+            line.isEmpty() -> Unit
+            line.startsWith(":") -> {
+                val t = term ?: return null
+                items += t to line.removePrefix(":").trim()
+                term = null
+            }
+            // 上一行还是「待配定义的术语」时又来一行术语 → 不是定义列表。
+            term != null -> return null
+            else -> term = line
+        }
+    }
+    // 以术语结尾（没有对应定义）不算定义列表。
+    if (term != null) return null
+    return items.takeIf { list -> list.isNotEmpty() && list.all { (_, def) -> def.isNotEmpty() } }
+}
+
+/** 定义列表：术语一行、定义缩进一行。 */
+@Composable
+private fun DefinitionListBlock(
+    items: List<Pair<String, String>>,
+    currentTheme: CssVariables,
+    bodyFontSize: TextUnit,
+    baseColor: Color,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        items.forEach { (term, definition) ->
+            Text(
+                text = term,
+                fontSize = bodyFontSize,
+                fontWeight = FontWeight.Medium,
+                color = baseColor,
+            )
+            Text(
+                text = definition,
+                fontSize = bodyFontSize,
+                color = currentTheme.mutedForeground,
+                modifier = Modifier.padding(start = 12.dp),
+            )
+        }
+    }
+}
+
+/** 段落文本若是一条脚注定义，返回 `序号 to 内容`。 */
+private fun footnoteDefinitionOf(block: MarkdownBlock): Pair<String, String>? =
+    FootnoteDefRegex.find(block.content.plainText().trim())?.let { match ->
+        match.groupValues[1] to match.groupValues[2]
+    }
+
+/**
+ * 若 [node] 是「脚注引用」（解析器给的 LINK 节点），返回 `序号 to 脚注正文`。
+ *
+ * 判据只看**链接的可见文字**是不是 `^xxx` —— 正常链接不会把 `^1` 显示给用户，
+ * 这个形状足以把脚注和真链接分开；正文取自链接的 destination。
+ */
+private fun footnoteRefOf(node: MarkdownInline): Pair<String, String>? {
+    if (node.type != MarkdownInlineType.LINK) return null
+    val id = FootnoteRefLinkTextRegex
+        .matchEntire(node.children.plainText().trim())
+        ?.groupValues?.get(1)
+        ?: return null
+    return id to node.url.orEmpty().trim()
+}
+
+/** 遍历整棵块树，收集所有脚注的 `序号 to 正文`（按出现顺序，同序号只留第一条）。 */
+private fun List<MarkdownBlock>.collectFootnotes(): List<Pair<String, String>> {
+    val found = LinkedHashMap<String, String>()
+    fun walk(nodes: List<MarkdownInline>) {
+        nodes.forEach { node ->
+            val (id, body) = footnoteRefOf(node) ?: return@forEach
+            if (body.isNotEmpty() && id !in found) found[id] = body
+            walk(node.children)
+        }
+    }
+    forEach { block ->
+        walk(block.content)
+        footnoteDefinitionOf(block)?.let { (id, body) ->
+            if (id !in found) found[id] = body
+        }
+    }
+    return found.toList()
+}
+
+/** 脚注定义渲染成一行小字，而不是带着 `[^1]:` 标记的普通段落。 */
+@Composable
+private fun FootnoteLine(
+    id: String,
+    text: String,
+    currentTheme: CssVariables,
+    bodyFontSize: TextUnit,
+) {
+    Row(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "$id.",
+            fontSize = (bodyFontSize.value * SupSubFontScale).sp,
+            fontWeight = FontWeight.Medium,
+            color = currentTheme.mutedForeground,
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = text,
+            fontSize = (bodyFontSize.value * SupSubFontScale).sp,
+            color = currentTheme.mutedForeground,
+        )
+    }
+}
+
+/** `<p align="center">…</p>` 这类块级 HTML：只取对齐属性 + 内部文本。 */
+private val HtmlAlignBlockRegex = Regex(
+    """^\s*<\s*p\b[^>]*\balign\s*=\s*["']?(left|center|right|justify)["']?[^>]*>(.*)</\s*p\s*>\s*$""",
+    setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
+)
+
+/**
+ * HTML 块。
+ *
+ * 只认「带 align 的 `<p>`」这一种形状（模型最常用它做居中/右对齐），其余 HTML 块保持
+ * 原样输出 —— 与之前的策略一致：不执行任意标记。
+ */
+@Composable
+private fun HtmlBlock(
+    block: MarkdownBlock,
+    currentTheme: CssVariables,
+    bodyFontSize: TextUnit,
+    baseColor: Color,
+) {
+    val aligned = HtmlAlignBlockRegex.find(block.literal)
+    if (aligned != null) {
+        Text(
+            text = aligned.groupValues[2].trim(),
+            fontSize = bodyFontSize,
+            color = baseColor,
+            textAlign = when (aligned.groupValues[1].lowercase()) {
+                "center" -> TextAlign.Center
+                "right" -> TextAlign.End
+                "justify" -> TextAlign.Justify
+                else -> TextAlign.Start
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        return
+    }
+    Text(
+        text = block.literal,
+        fontSize = bodyFontSize,
+        fontFamily = FontFamily.Monospace,
+        color = currentTheme.mutedForeground,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 private fun androidx.compose.ui.text.AnnotatedString.Builder.appendInlines(
@@ -870,10 +1285,17 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendInlines(
     bodyFontSize: TextUnit,
     contents: MutableMap<String, InlineTextContent>,
     math: MathEnv?,
+    // 当前打开的 HTML 标签（白名单内）。跨节点生效，所以由调用方持有；顶层是空表。
+    openTags: MutableList<String> = mutableListOf(),
 ) {
     nodes.forEach { node ->
         when (node.type) {
-            MarkdownInlineType.TEXT -> append(node.literal.orEmpty())
+            MarkdownInlineType.TEXT -> {
+                // 文字既要套上「当前打开的 HTML 标签」的样式，又要处理脚注引用。
+                withHtmlStyles(openTags, theme, bodyFontSize) {
+                    appendWithFootnotes(node.literal.orEmpty(), bodyFontSize)
+                }
+            }
 
             MarkdownInlineType.SOFT_BREAK -> append('\n')
             MarkdownInlineType.LINE_BREAK -> append('\n')
@@ -887,54 +1309,63 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendInlines(
             ) { append(node.literal.orEmpty()) }
 
             MarkdownInlineType.EMPHASIS -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
-                appendInlines(node.children, theme, bodyFontSize, contents, math)
+                appendInlines(node.children, theme, bodyFontSize, contents, math, openTags)
             }
 
             MarkdownInlineType.STRONG -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
-                appendInlines(node.children, theme, bodyFontSize, contents, math)
+                appendInlines(node.children, theme, bodyFontSize, contents, math, openTags)
             }
 
             MarkdownInlineType.STRIKETHROUGH -> withStyle(
                 SpanStyle(textDecoration = TextDecoration.LineThrough)
-            ) { appendInlines(node.children, theme, bodyFontSize, contents, math) }
+            ) { appendInlines(node.children, theme, bodyFontSize, contents, math, openTags) }
 
             // [腾讯扩展] ==高亮== —— 对应 ima 的 <mark> 渲染。
             MarkdownInlineType.HIGHLIGHT -> withStyle(
                 SpanStyle(background = theme.accent.copy(alpha = 0.28f))
-            ) { appendInlines(node.children, theme, bodyFontSize, contents, math) }
+            ) { appendInlines(node.children, theme, bodyFontSize, contents, math, openTags) }
 
             // [腾讯扩展] ~下划线~ —— 对应 ima 的 <u>。web 端白名单没有 u，
             // 这是 native 侧独有的能力（见逆向包 FULL_RECOVERY.md §4）。
             MarkdownInlineType.UNDERLINE -> withStyle(
                 SpanStyle(textDecoration = TextDecoration.Underline)
-            ) { appendInlines(node.children, theme, bodyFontSize, contents, math) }
+            ) { appendInlines(node.children, theme, bodyFontSize, contents, math, openTags) }
 
             MarkdownInlineType.LINK -> {
+                val footnote = footnoteRefOf(node)
                 val inner = node.children.filterNot { it.isBlankInline() }.singleOrNull()
-                if (inner?.type == MarkdownInlineType.IMAGE && !isImageUrl(inner.url.orEmpty())) {
-                    // 链接里包的是一张「地址不是链接」的图，整块按原始写法显示。
-                    append("[![${inner.children.plainText()}](${inner.url})](${node.url})")
-                } else {
-                    withStyle(
+                when {
+                    // 脚注引用：`[^1]` 会被解析器当成链接引用（见「脚注」一节），
+                    // 这里把它改回上标序号；正文由 collectFootnotes 收到文末。
+                    footnote != null ->
+                        withStyle(superscriptStyle(bodyFontSize)) { append(footnote.first) }
+
+                    inner?.type == MarkdownInlineType.IMAGE && !isImageUrl(inner.url.orEmpty()) ->
+                        // 链接里包的是一张「地址不是链接」的图，整块按原始写法显示。
+                        append("[${rawImageMarkdown(inner)}](${node.url})")
+
+                    else -> withStyle(
                         SpanStyle(
                             color = theme.primary,
                             textDecoration = TextDecoration.Underline,
                             fontWeight = FontWeight.Medium,
                         )
-                    ) { appendInlines(node.children, theme, bodyFontSize, contents, math) }
+                    ) { appendInlines(node.children, theme, bodyFontSize, contents, math, openTags) }
                 }
             }
 
             // 行内图片：嵌进文本流，由 Coil 加载。
             MarkdownInlineType.IMAGE -> {
                 val url = node.url.orEmpty()
-                if (isImageUrl(url)) {
+                if (isImageUrl(url) && !failedImageUrls.containsKey(url)) {
                     val id = "md-image-" + contents.size
                     appendInlineContent(id, alternateText = node.children.plainText())
                     contents[id] = inlineImageContent(url, theme, bodyFontSize)
                 } else {
-                    // 源码里的地址不是链接（`![alt](图片地址)` 这类示例写法），按原始写法显示。
-                    append("![${node.children.plainText()}]($url)")
+                    // 两种情况都按原始写法显示（同一条规则）：
+                    //   ① 地址不是真链接（`![alt](图片地址)` 这类示例写法）
+                    //   ② 这张图加载失败过（见 failedImageUrls）
+                    append(rawImageMarkdown(node))
                 }
             }
 
@@ -954,19 +1385,34 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendInlines(
                     appendInlineContent(id, alternateText = latex)
                     contents[id] = inlineFormulaContent(bitmap, math.density)
                 } else {
-                    // 引擎不可用或公式语法错误时退化成等宽文本，内容不丢。
+                    // 引擎不可用或公式语法错误：退回**完整原文**（带 `$` 定界符），
+                    // 而不是只给 latex 正文 —— 与图片失败同一条规则：失败就显示完整原文。
                     withStyle(
                         SpanStyle(fontFamily = FontFamily.Monospace, fontStyle = FontStyle.Italic)
-                    ) { append(latex) }
+                    ) { append("\$${latex}\$") }
                 }
             }
 
-            MarkdownInlineType.HTML -> append(node.literal.orEmpty())
+            // HTML 标签按白名单处理：白名单内的转成样式/换行，白名单外原样输出。
+            MarkdownInlineType.HTML -> {
+                val tag = parseHtmlTag(node.literal.orEmpty())
+                when {
+                    tag == null -> append(node.literal.orEmpty())
+                    tag.name in HtmlBreakTags -> append('\n')
+                    tag.isClosing -> {
+                        // 只回退最近一个同名标签，多余闭标签不会弹掉别人的样式。
+                        val index = openTags.indexOfLast { it == tag.name }
+                        if (index >= 0) openTags.removeAt(index)
+                    }
+                    tag.name in HtmlInlineTags -> openTags.add(tag.name)
+                    else -> append(node.literal.orEmpty())
+                }
+            }
 
             else -> if (node.children.isEmpty()) {
                 append(node.literal.orEmpty())
             } else {
-                appendInlines(node.children, theme, bodyFontSize, contents, math)
+                appendInlines(node.children, theme, bodyFontSize, contents, math, openTags)
             }
         }
     }

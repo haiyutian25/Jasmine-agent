@@ -764,7 +764,18 @@ static void flatten_block(cmark_node *node, prefix_stack *prefix, block_vec *out
         item_no++;
         incremark_prefix lp;
         memset(&lp, 0, sizeof(lp));
-        if (lt == CMARK_ORDERED_LIST) {
+        /* 任务列表条目：cmark-gfm 的 tasklist 扩展会把条目节点的类型换成它的
+         * "tasklist" 节点，并把勾选状态记在节点上 —— `[x]` / `[ ]` 文本已经被它
+         * 吃掉了。这里原来只认有序/无序两种，于是条目退化成普通圆点，勾选状态整条
+         * 丢失，渲染层的 ☑/☐ 永远拿不到数据。优先判任务条目。 */
+        const char *item_type = cmark_node_get_type_string(item);
+        bool item_is_task = item->extension != NULL && item_type != NULL &&
+                            strcmp(item_type, "tasklist") == 0;
+        if (item_is_task) {
+          lp.container_type = INCREMARK_CONTAINER_TASK_LIST;
+          lp.task_list_checked =
+              cmark_gfm_extensions_get_tasklist_item_checked(item);
+        } else if (lt == CMARK_ORDERED_LIST) {
           lp.container_type = INCREMARK_CONTAINER_NUMBERED_LIST;
           lp.number_list_index = start + item_no - 1;
         } else {
@@ -772,8 +783,10 @@ static void flatten_block(cmark_node *node, prefix_stack *prefix, block_vec *out
           int depth = 0;
           for (int i = 0; i < prefix->count; i++) {
             int ct = prefix->items[i]->container_type;
-            if (ct >= INCREMARK_CONTAINER_BULLETED_LIST_1 &&
-                ct <= INCREMARK_CONTAINER_BULLETED_LIST_4) {
+            /* 任务条目也是列表的一层 —— 漏了它，任务条目里的嵌套无序列表会少缩一级。 */
+            if ((ct >= INCREMARK_CONTAINER_BULLETED_LIST_1 &&
+                 ct <= INCREMARK_CONTAINER_BULLETED_LIST_4) ||
+                ct == INCREMARK_CONTAINER_TASK_LIST) {
               depth++;
             }
           }

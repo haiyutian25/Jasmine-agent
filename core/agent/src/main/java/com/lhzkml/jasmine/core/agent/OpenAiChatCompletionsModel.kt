@@ -70,16 +70,27 @@ class OpenAiChatCompletionsModel(
     override fun generateContent(request: LlmRequest, stream: Boolean): Flow<LlmResponse> =
         flow {
                 val aggregator = StreamingResponseAggregator()
-                streamChat(request).collect { chunk -> emit(aggregator.processResponse(chunk)) }
+                streamChat(request).collect { chunk ->
+                    emit(aggregator.processResponse(chunk).withModelVersion())
+                }
                 // No stream events at all means the provider did not stream — typically it
                 // answered with a plain JSON body (some gateways ignore `stream`). Say so
                 // rather than ending the turn with nothing, which leaves the caller waiting
                 // on a reply that will never come.
                 val aggregated = aggregator.aggregate()
                     ?: throw IOException("The provider returned no stream events")
-                emit(aggregated)
+                emit(aggregated.withModelVersion())
             }
             .flowOn(ioDispatcher)
+
+    /**
+     * 把模型名标在响应上。
+     *
+     * ADK 的 `finalizeModelResponseEvent` 会把 `LlmResponse.modelVersion` 原样搬到事件上
+     * （我们的响应由本类构造，所以只能在这里标）——不标的话事件里永远是 null，落库后就无从
+     * 知道某条回复是哪个模型产生的，会话中途换过模型时界面只能猜会话记录里的那个。
+     */
+    private fun LlmResponse.withModelVersion(): LlmResponse = copy(modelVersion = modelId)
 
     // ── 传输：SSE 流式（手写，不依赖任何 OpenAI SDK） ────────────────────
 

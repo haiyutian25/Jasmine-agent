@@ -18,6 +18,9 @@ import com.lhzkml.jasmine.core.ui.theme.CssVariables
  *
  * 宽度铺满容器、高度按图片自身比例 —— 与 markdown 的默认行为一致。
  *
+ * 加载失败这里**不自己画兜底**：失败只登记地址（[markImageFailed]），由调用方在
+ * 下一次重组时把整块换成原始源码 —— 这样「失败就显示完整原文」只有一处规则。
+ *
  * @param linkUrl 非空表示这张图被链接包裹（`[![alt](img)](url)`），点击打开它
  */
 @Composable
@@ -33,6 +36,7 @@ internal fun MarkdownImage(
         model = url,
         contentDescription = alt.ifEmpty { null },
         contentScale = ContentScale.FillWidth,
+        onError = { markImageFailed(url) },
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(currentTheme.radiusSm))

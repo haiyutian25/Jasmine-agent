@@ -185,6 +185,7 @@ private fun Event.toTranscriptMessage(): TranscriptMessage? {
                 name = call.name,
                 detail = call.args.abbreviated(),
             ),
+            timestamp = this.timestamp,
         )
     }
 
@@ -206,6 +207,7 @@ private fun Event.toTranscriptMessage(): TranscriptMessage? {
                 detail = "",
                 result = response.response.abbreviated(),
             ),
+            timestamp = this.timestamp,
         )
     }
 
@@ -220,6 +222,10 @@ private fun Event.toTranscriptMessage(): TranscriptMessage? {
         role = if (author == USER_AUTHOR) ChatRole.USER else ChatRole.ASSISTANT,
         text = body,
         isError = failure != null,
+        // 事件自带时间（写库时落进 StorageEvent.timestamp），重新加载历史也拿得到。
+        timestamp = timestamp,
+        // 产生这条回复的模型名（ADK 事件里的 modelVersion）。用户那条事件没有这个值，是 null。
+        modelLabel = modelVersion,
     )
 }
 

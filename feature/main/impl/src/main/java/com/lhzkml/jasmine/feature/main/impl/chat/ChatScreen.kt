@@ -52,6 +52,10 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -77,6 +81,19 @@ private const val ChatBubbleMaxWidthFraction = 0.85f
 
 private val ChatBodyFontSize = 13.5.sp
 private val ChatMetaFontSize = 11.sp
+
+/** 消息时间小标签与正文之间的间距。 */
+private val ChatMessageTimeGap = 4.dp
+
+/** 底部两个 meta 标签（时间、模型名）之间的间距。 */
+private val ChatMessageMetaGap = 6.dp
+
+/** 时间小标签的内边距 —— 小小的就够，别做成按钮。纵向刻意只给 1dp，别撑高。 */
+private val ChatTimeChipPaddingHorizontal = 6.dp
+private val ChatTimeChipPaddingVertical = 1.dp
+
+/** 时间小标签的行高（比字号略大一点点，既不裁字也不虚高）。 */
+private val ChatMessageTimeLineHeight = 12.sp
 private val ChatTitleFontSize = 16.sp
 
 /** 模型选择行的行高（历史对话行已随侧边栏一起搬走）。 */
@@ -255,34 +272,63 @@ private fun MessageList(
 private fun MessageBubble(message: ChatMessage, currentTheme: CssVariables) {
     val isUser = message.role == ChatRole.USER
     val text = message.text.ifEmpty { if (message.isStreaming) "…" else "" }
+    val time = messageTimeText(message)
 
     if (!isUser) {
         // The model's reply renders as Markdown blocks, built incrementally as chunks
         // arrive. `text` is still the fallback: a message with no blocks (a plain
         // transcript row that failed to parse, or a tool-only turn) shows as text.
-        if (message.blocks.isNotEmpty()) {
-            MarkdownBlockList(
-                blocks = message.blocks,
-                currentTheme = currentTheme,
-                bodyFontSize = ChatBodyFontSize,
-                baseColor = if (message.isError) {
-                    currentTheme.mutedForeground
-                } else {
-                    currentTheme.cardForeground
-                },
-            )
-            return
+        Column(modifier = Modifier.fillMaxWidth()) {
+            if (message.blocks.isNotEmpty()) {
+                MarkdownBlockList(
+                    blocks = message.blocks,
+                    currentTheme = currentTheme,
+                    bodyFontSize = ChatBodyFontSize,
+                    baseColor = if (message.isError) {
+                        currentTheme.mutedForeground
+                    } else {
+                        currentTheme.cardForeground
+                    },
+                )
+            } else {
+                Text(
+                    text = text,
+                    fontSize = ChatBodyFontSize,
+                    color = if (message.isError) {
+                        currentTheme.mutedForeground
+                    } else {
+                        currentTheme.cardForeground
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            // 底部一行 meta：时间 + 产生这条回复的模型名（都是小标签）。
+            // 模型名紧跟时间后面 —— 先看「什么时候」，再看「谁答的」。
+            if (time != null || message.modelLabel != null) {
+                Spacer(modifier = Modifier.height(ChatMessageTimeGap))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(ChatMessageMetaGap),
+                ) {
+                    if (time != null) {
+                        MessageMetaChip(text = time, currentTheme = currentTheme)
+                    }
+                    message.modelLabel?.let { label ->
+                        MessageMetaChip(text = label, currentTheme = currentTheme)
+                    }
+                }
+            }
         }
-        Text(
-            text = text,
-            fontSize = ChatBodyFontSize,
-            color = if (message.isError) currentTheme.mutedForeground else currentTheme.cardForeground,
-            modifier = Modifier.fillMaxWidth(),
-        )
         return
     }
 
     val shape = RoundedCornerShape(currentTheme.radiusMd)
+    // 气泡贴右；时间在**气泡正下方、和气泡左边缘对齐**（小标签）。
+    //
+    // 三层约束都要满足：不进气泡（会跟正文抢地方、跟着气泡底色走）、
+    // 不跑到屏幕最左（离气泡太远，看不出属于谁）、也不越过气泡的左边界。
+    // 做法是外层容器（宽度跟着气泡 wrap）承载「气泡 + 时间」，两者都贴这个容器的左边，
+    // 容器本身再靠右 —— 于是时间的左边缘正好落在气泡左边缘上。
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.End,
@@ -290,20 +336,71 @@ private fun MessageBubble(message: ChatMessage, currentTheme: CssVariables) {
         Column(
             modifier = Modifier
                 .fillMaxWidth(ChatBubbleMaxWidthFraction)
-                .wrapContentWidth(Alignment.End)
-                .clip(shape)
-                .background(currentTheme.primary)
-                .padding(
-                    horizontal = ChatBubblePaddingHorizontal,
-                    vertical = ChatBubblePaddingVertical
-                )
+                .wrapContentWidth(Alignment.End),
+            horizontalAlignment = Alignment.Start,
         ) {
-            Text(
-                text = text,
-                fontSize = ChatBodyFontSize,
-                color = currentTheme.primaryForeground,
-            )
+            Column(
+                modifier = Modifier
+                    .clip(shape)
+                    .background(currentTheme.primary)
+                    .padding(
+                        horizontal = ChatBubblePaddingHorizontal,
+                        vertical = ChatBubblePaddingVertical
+                    )
+            ) {
+                Text(
+                    text = text,
+                    fontSize = ChatBodyFontSize,
+                    color = currentTheme.primaryForeground,
+                )
+            }
+            if (time != null) {
+                Spacer(modifier = Modifier.height(ChatMessageTimeGap))
+                MessageMetaChip(text = time, currentTheme = currentTheme)
+            }
         }
+    }
+}
+
+/**
+ * 底部 meta 的小标签（时间、模型名共用）：灰底圆角小卡片。
+ *
+ * 这些字和正文都是同一种灰字，不加底色会和正文糊在一起分不清；给一层浅底就明确是
+ * 「meta 信息」而不是消息内容。时间与模型名共用同一种样式，读起来是一组。
+ */
+@Composable
+private fun MessageMetaChip(text: String, currentTheme: CssVariables) {
+    Text(
+        text = text,
+        fontSize = ChatMetaFontSize,
+        // 行高必须显式压下来：默认行距（约 1.33 倍）会把这个小标签撑得又高又空。
+        lineHeight = ChatMessageTimeLineHeight,
+        color = currentTheme.mutedForeground,
+        modifier = Modifier
+            .clip(RoundedCornerShape(currentTheme.radiusSm))
+            .background(currentTheme.muted)
+            .padding(
+                horizontal = ChatTimeChipPaddingHorizontal,
+                vertical = ChatTimeChipPaddingVertical,
+            ),
+    )
+}
+
+/**
+ * 消息时间的显示文本；没有时间信息（0）时返回 null，界面不显示时间。
+ *
+ * 同一天只给 `HH:mm` —— 聊天里绝大多数是当天；跨天补日期，跨年再补年份，
+ * 避免历史会话里出现一堆分不清是哪天的 `09:15`。
+ */
+private fun messageTimeText(message: ChatMessage): String? {
+    val ts = message.timestamp
+    if (ts <= 0L) return null
+    val at = Instant.ofEpochMilli(ts).atZone(ZoneId.systemDefault())
+    val today = LocalDate.now(ZoneId.systemDefault())
+    return when {
+        at.toLocalDate() == today -> at.format(DateTimeFormatter.ofPattern("HH:mm"))
+        at.year == today.year -> at.format(DateTimeFormatter.ofPattern("M月d日 HH:mm"))
+        else -> at.format(DateTimeFormatter.ofPattern("yyyy年M月d日 HH:mm"))
     }
 }
 
