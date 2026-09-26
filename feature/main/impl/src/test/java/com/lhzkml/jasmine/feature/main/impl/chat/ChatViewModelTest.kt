@@ -12,6 +12,13 @@ import com.lhzkml.jasmine.core.data.model.UserPreferences
 import com.lhzkml.jasmine.core.agent.ConversationStore
 import com.lhzkml.jasmine.core.data.repository.ProviderRepository
 import com.lhzkml.jasmine.core.data.repository.UserPreferencesRepository
+import com.lhzkml.jasmine.core.markdown.MarkdownParser
+import com.lhzkml.jasmine.core.markdown.MarkdownParserFactory
+import com.lhzkml.jasmine.core.markdown.model.MarkdownBlock
+import com.lhzkml.jasmine.core.markdown.model.MarkdownBlockType
+import com.lhzkml.jasmine.core.markdown.model.MarkdownInline
+import com.lhzkml.jasmine.core.markdown.model.MarkdownInlineType
+import com.lhzkml.jasmine.core.markdown.model.MarkdownUpdate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
@@ -21,10 +28,8 @@ import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -48,10 +53,12 @@ class ChatViewModelTest {
     private lateinit var preferencesRepository: FakeUserPreferencesRepository
     private lateinit var conversationStore: FakeConversationStore
     private lateinit var agentChat: FakeAgentChat
+    private lateinit var markdownParserFactory: FakeMarkdownParserFactory
 
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        markdownParserFactory = FakeMarkdownParserFactory()
         providerRepository = FakeProviderRepository(listOf(PROVIDER))
         preferencesRepository =
             FakeUserPreferencesRepository(
@@ -64,10 +71,13 @@ class ChatViewModelTest {
         agentChat = FakeAgentChat()
     }
 
-    @After
-    fun tearDown() {
-        Dispatchers.resetMain()
-    }
+    // 刻意**不**在 @After 里 `Dispatchers.resetMain()`：流式解析的 worker 会
+    // `withContext(Dispatchers.Default)`，那一步可能在本用例结束后才回到 Main，
+    // 而回来需要 Main 仍在位 —— 拆掉它，这批被泄漏的续体会在**下一个**用例开头
+    // 抛 "Dispatchers.Main was accessed ..."（实测 5 例）。
+    //
+    // 这是「ChatViewModel 自己持有后台跳转」的副作用（`DispatcherManager` 的文档
+    // 写的是线程归属数据层、ViewModel 不该拿调度器）。等那层理顺后再恢复 resetMain。
 
     // ── Selection & basic flow ─────────────────────────────────────────
 
@@ -119,7 +129,7 @@ class ChatViewModelTest {
         advanceUntilIdle()
         agentChat.nextEvents = listOf(
             ChatEvent.Text("Let me check."),
-            ChatEvent.ToolCall("current_time", ""),
+            ChatEvent.ToolCall("current_time", "—"),
             ChatEvent.ToolResult("current_time", "2026-09-24 09:00"),
             ChatEvent.Text("It is 09:00."),
             ChatEvent.Completed,
@@ -146,8 +156,11 @@ class ChatViewModelTest {
     fun `a turn that opens with a tool call leaves no empty bubble`() = runTest(testDispatcher) {
         val viewModel = createViewModel()
         advanceUntilIdle()
+        // 参数是 `—` 而不是空串：`AgentChat` 对无参调用渲染的就是 `—`
+        // （`Map.abbreviated()` 的 `ifEmpty`），而界面把**空** detail 定义为
+        // 「只有返回、没有配对调用」，喂空串会让调用卡被当成返回卡、合并不上。
         agentChat.nextEvents = listOf(
-            ChatEvent.ToolCall("current_time", ""),
+            ChatEvent.ToolCall("current_time", "—"),
             ChatEvent.ToolResult("current_time", "09:00"),
             ChatEvent.Text("It is 09:00."),
             ChatEvent.Completed,
@@ -552,6 +565,7 @@ class ChatViewModelTest {
         userPreferencesRepository = preferencesRepository,
         conversationStore = conversationStore,
         agentChat = agentChat,
+        markdownParserFactory = markdownParserFactory,
     )
 
     private companion object {
@@ -576,6 +590,60 @@ private class FakeProviderRepository(initial: List<ProviderConfig>) : ProviderRe
     override suspend fun upsertProvider(provider: ProviderConfig) = Unit
     override suspend fun deleteProvider(id: String) = Unit
     override suspend fun fetchModels(provider: ProviderConfig): List<String> = emptyList()
+}
+
+/**
+ * 纯 Kotlin 解析器工厂。
+ *
+ * 生产的解析器是 JNI 的（`NativeBridge` 在 `init` 里就 `System.loadLibrary`），
+ * 纯 JVM 单测加载不了 .so；换成这个替身，被测的 ViewModel 逻辑一行都不用改。
+ *
+ * 块内容不是这些用例的断言对象，所以实现刻意最简：**整段文本 = 一个段落块**，
+ * 且每次 `append` 都当作 FULL 重解析（与 ViewModel 的调用方式一致）。
+ */
+private class FakeMarkdownParserFactory : MarkdownParserFactory {
+    val created = mutableListOf<FakeMarkdownParser>()
+
+    override fun create(): MarkdownParser = FakeMarkdownParser().also { created += it }
+}
+
+private class FakeMarkdownParser : MarkdownParser {
+
+    private val text = StringBuilder()
+
+    override fun append(chunk: String): MarkdownUpdate {
+        text.append(chunk)
+        return MarkdownUpdate(
+            index = 0,
+            advanced = false,
+            newlyCompletedCount = 0,
+            blocks = blocks(),
+        )
+    }
+
+    override fun reset() {
+        text.clear()
+    }
+
+    /** 一次流只产生一个块，收尾没有额外内容，故为空增量。 */
+    override fun finalizeStream(): MarkdownUpdate = MarkdownUpdate.EMPTY
+
+    override fun close() = Unit
+
+    private fun blocks(): List<MarkdownBlock> =
+        if (text.isEmpty()) {
+            emptyList()
+        } else {
+            listOf(
+                MarkdownBlock(
+                    id = "block-0",
+                    type = MarkdownBlockType.PARAGRAPH,
+                    content = listOf(
+                        MarkdownInline(MarkdownInlineType.TEXT, literal = text.toString())
+                    ),
+                )
+            )
+        }
 }
 
 private class FakeUserPreferencesRepository(initial: UserPreferences) : UserPreferencesRepository {

@@ -2,7 +2,6 @@ package com.lhzkml.jasmine.core.markdown
 
 import com.lhzkml.jasmine.core.markdown.model.MarkdownBlock
 import com.lhzkml.jasmine.core.markdown.model.MarkdownUpdate
-import java.io.Closeable
 import java.nio.charset.StandardCharsets
 
 /**
@@ -13,10 +12,11 @@ import java.nio.charset.StandardCharsets
  *
  * ★ 实测要点（沿用逆向结论）：ima 的真实调用方 `gt.h0` **并不使用**
  *   [IncrementalMarkdownDocument] 这个上层封装，而是直接持有本类的实例，
- *   配一把锁使用。本工程在 `ChatViewModel` 里同样直接持有（所有调用都发生在
- *   `handleAction` 的同步执行段内，天然串行）。
+ *   配一把锁使用。本工程是 [MarkdownParser] 端口的默认（也是唯一生产）实现，
+ *   由 `DefaultMarkdownParserFactory` 创建 —— 消费方不直接引用本类，因为
+ *   `NativeBridge` 在 `init` 里就加载 .so，引用它会连带纯 JVM 单测一起失效。
  */
-class IncrementalMarkdownParser : Closeable {
+class IncrementalMarkdownParser : MarkdownParser {
 
     /** native parser handle。0 表示已关闭。 */
     private var handle: Long = NativeBridge.nativeNew()
@@ -30,14 +30,14 @@ class IncrementalMarkdownParser : Closeable {
      *
      * 文本以 UTF-8 编码后传给 native（native 只吃 ByteArray）—— 与 ima 相同。
      */
-    fun append(chunk: String): MarkdownUpdate {
+    override fun append(chunk: String): MarkdownUpdate {
         val h = handle
         check(h != 0L) { "parser already closed" }
         return NativeBridge.nativeAppend(h, chunk.toByteArray(StandardCharsets.UTF_8))
     }
 
     /** 结束流式输入，返回收尾增量（未闭合块在此闭合）。 */
-    fun finalizeStream(): MarkdownUpdate {
+    override fun finalizeStream(): MarkdownUpdate {
         val h = handle
         check(h != 0L) { "parser already closed" }
         return NativeBridge.nativeFinalize(h)
@@ -69,7 +69,7 @@ class IncrementalMarkdownParser : Closeable {
      * 清空解析状态但保留 handle。
      * 调用方在「整篇重解析」（FULL 模式）时先 reset 再 append。
      */
-    fun reset() {
+    override fun reset() {
         val h = handle
         check(h != 0L) { "parser already closed" }
         NativeBridge.nativeReset(h)

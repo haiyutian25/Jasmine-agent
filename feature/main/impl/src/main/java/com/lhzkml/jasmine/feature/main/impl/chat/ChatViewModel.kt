@@ -14,6 +14,8 @@ import com.lhzkml.jasmine.core.data.repository.ProviderRepository
 import com.lhzkml.jasmine.core.data.repository.UserPreferencesRepository
 import com.lhzkml.jasmine.core.markdown.IncrementalMarkdownDocument
 import com.lhzkml.jasmine.core.markdown.IncrementalMarkdownParser
+import com.lhzkml.jasmine.core.markdown.MarkdownParser
+import com.lhzkml.jasmine.core.markdown.MarkdownParserFactory
 import com.lhzkml.jasmine.core.markdown.model.MarkdownBlock
 import com.lhzkml.jasmine.core.markdown.model.MarkdownBlockType
 import com.lhzkml.jasmine.core.markdown.model.MarkdownInline
@@ -197,6 +199,7 @@ class ChatViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val conversationStore: ConversationStore,
     private val agentChat: AgentChat,
+    private val markdownParserFactory: MarkdownParserFactory,
 ) : BaseViewModel<ChatState, Nothing, ChatAction>(initialState = ChatState()) {
 
     /** ADK session identity: the conversation + model it was built for. */
@@ -355,7 +358,10 @@ class ChatViewModel @Inject constructor(
             copy(
                 activeConversationId = action.conversationId,
                 messages = action.messages.map {
-                    it.toChatMessage(fallbackModelLabel = modelLabelOf(action.conversationId))
+                    it.toChatMessage(
+                        fallbackModelLabel = modelLabelOf(action.conversationId),
+                        parserFactory = markdownParserFactory,
+                    )
                 },
             )
         }
@@ -513,7 +519,10 @@ class ChatViewModel @Inject constructor(
             updateState {
                 copy(
                     messages = messages.map {
-                        it.toChatMessage(fallbackModelLabel = modelLabelOf(action.id))
+                        it.toChatMessage(
+                            fallbackModelLabel = modelLabelOf(action.id),
+                            parserFactory = markdownParserFactory,
+                        )
                     }
                 )
             }
@@ -729,7 +738,7 @@ class ChatViewModel @Inject constructor(
      */
     private fun startStreamParseWorker() {
         viewModelScope.launch {
-            var parser: IncrementalMarkdownParser? = null
+            var parser: MarkdownParser? = null
             for (command in streamCommands) {
                 when (command) {
                     StreamCommand.Parse -> {
@@ -738,7 +747,7 @@ class ChatViewModel @Inject constructor(
                             val startedAt = System.currentTimeMillis()
                             // FULL: re-parse from scratch rather than appending the delta.
                             val update = withContext(Dispatchers.Default) {
-                                val active = parser ?: IncrementalMarkdownParser().also { parser = it }
+                                val active = parser ?: markdownParserFactory.create().also { parser = it }
                                 active.reset()
                                 active.append(request.text)
                             }
@@ -1049,8 +1058,12 @@ class ChatViewModel @Inject constructor(
 /**
  * @param fallbackModelLabel 事件里**没有**记模型名时用的兜底值（由 [ChatViewModel.modelLabelOf]
  *   从会话记录里取）。事件里记着（`Event.modelVersion`）就优先用它 —— 那是逐条精确的。
+ * @param parserFactory 一次性解析正文用的解析器工厂（解析端口注入，见 [MarkdownParserFactory]）。
  */
-private fun TranscriptMessage.toChatMessage(fallbackModelLabel: String? = null): ChatMessage = ChatMessage(
+private fun TranscriptMessage.toChatMessage(
+    fallbackModelLabel: String? = null,
+    parserFactory: MarkdownParserFactory,
+): ChatMessage = ChatMessage(
     id = UUID.randomUUID().toString(),
     role = role,
     text = text,
@@ -1062,7 +1075,7 @@ private fun TranscriptMessage.toChatMessage(fallbackModelLabel: String? = null):
     // Stored rows are plain text; parse them once so restored history renders as
     // Markdown too. Never a live stream, so a single pass is enough.
     // 工具条目没有正文，跳过解析 —— 免得为一次空文档白跑 native。
-    blocks = if (text.isEmpty()) emptyList() else parseMarkdownBlocks(text),
+    blocks = if (text.isEmpty()) emptyList() else parseMarkdownBlocks(text, parserFactory),
     timestamp = timestamp,
     // 优先用事件自己记的模型名；旧数据没有，才回退到会话记录的模型。
     modelLabel = modelLabel ?: fallbackModelLabel,
@@ -1074,10 +1087,16 @@ private fun TranscriptMessage.toChatMessage(fallbackModelLabel: String? = null):
  * Two steps, in this order: the append result carries every block (the parser starts
  * at offset 0), then the finalize result carries the tail that only becomes final
  * once the stream ends. Skipping the first step would drop the stable prefix.
+ *
+ * [IncrementalMarkdownParser.apply] 是伴生函数，纯 Kotlin、不碰 native，因此这里
+ * 与生产端共用同一条「截断+追加」的合并语义，而不是另写一份。
  */
-private fun parseMarkdownBlocks(markdown: String): List<MarkdownBlock> {
+private fun parseMarkdownBlocks(
+    markdown: String,
+    parserFactory: MarkdownParserFactory,
+): List<MarkdownBlock> {
     if (markdown.isEmpty()) return emptyList()
-    val parser = IncrementalMarkdownParser()
+    val parser = parserFactory.create()
     return try {
         val ast = mutableListOf<MarkdownBlock>()
         IncrementalMarkdownParser.apply(parser.append(markdown), ast)

@@ -54,7 +54,6 @@ class MainScreenshotTest {
           ),
           onAction = {},
           currentTheme = ProductionPalettes.GeistDark,
-          onOpenSettings = {},
         )
       }
     }

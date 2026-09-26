@@ -16,6 +16,10 @@ android {
   }
 
   buildFeatures { compose = true }
+
+  // 流式解析的后台协程会打 `Log.d`（解析耗时），而 `android.util.Log` 在纯 JVM 单测里
+  // 默认是抛异常的空壳；开这个开关让 android.* 桩方法返回默认值而不是抛。
+  testOptions { unitTests { isReturnDefaultValues = true } }
 }
 
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11) } }
