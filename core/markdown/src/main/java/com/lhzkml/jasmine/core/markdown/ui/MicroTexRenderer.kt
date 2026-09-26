@@ -84,7 +84,19 @@ internal object MicroTexRenderer {
     ): Bitmap? {
         val key = "$latex|$textSizeSp|$color|$density"
         cache.get(key)?.let { return it }
-        val bitmap = renderUncached(context, latex, textSizeSp, color, density) ?: return null
+        // ⚠️ MicroTeX 的 Java/native 接口**不是线程安全的**，解析必须串行化。
+        //
+        // 我们有两处并发入口：块级公式在后台线程解析（`MathBlock` 用 Dispatchers.Default），
+        // 行内公式在组合期主线程同步解析（InlineTextContent 的占位尺寸必须当场定下来）。
+        // 两边同时进 native 会直接 **SIGBUS 崩掉进程**，实测栈：
+        //     Fatal signal 7 (SIGBUS) ... tid (DefaultDispatcher)
+        //     #05 io.nano.tex.LaTeX.nParse  #12 io.nano.tex.LaTeX.parse
+        // 注意这种信号**catch(Throwable) 拦不住**，别指望上面的兜底。
+        //
+        // 与 `ensureInitialized` 共用同一把锁：初始化与解析同样不能重叠。
+        val bitmap = synchronized(lock) {
+            renderUncached(context, latex, textSizeSp, color, density)
+        } ?: return null
         cache.put(key, bitmap)
         return bitmap
     }

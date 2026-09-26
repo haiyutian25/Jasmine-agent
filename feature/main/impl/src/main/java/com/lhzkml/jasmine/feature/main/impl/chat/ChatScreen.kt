@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -53,7 +54,12 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import android.util.Log
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import com.lhzkml.jasmine.feature.main.impl.relativeTimeText
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -220,23 +226,66 @@ private fun MessageList(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
-    // Follow the tail: new messages and streaming chunks both grow the last item.
+    // 跟随尾部：新消息和流式分片都会让最后一条变长。
     //
-    // Only when the list is already at the bottom — streaming chunks arrive many times
-    // a second, and without this guard scrolling back through history while the model
-    // is still writing would be yanked down on every chunk.
-    val lastText = state.messages.lastOrNull()?.text
-    LaunchedEffect(state.messages.size, lastText) {
+    // 两个细节都不能少（都是踩过的坑）：
+    //  · 「在底部」要看**最后一条的底边是否贴到视口底**，不能只看最后一个 index 是否可见 ——
+    //    模型回复常常比一屏还长，那时 index 一直是最后，可用户正在往回翻，跟着跳会把人拽走，
+    //    而往下翻看结尾时又会被每个分片拉回顶部（表现为「滑不动」）。
+    //  · 滚动要滚到**列表末尾**（`scrollOffset` 给极大值让它夹到末尾）。`scrollToItem(lastIndex)`
+    //    只会把这一条的**顶部**对齐到视口顶 —— 回复越写越长，用户就永远看不到新内容。
+    // 是否跟随尾部。**必须由手势决定**，不能只看滚动位置 —— 见下面 effect 里的说明。
+    var followTail by remember { mutableStateOf(true) }
+    val lastMessage = state.messages.lastOrNull()
+    LaunchedEffect(state.messages.size, lastMessage?.text, lastMessage?.isStreaming) {
         if (state.messages.isEmpty()) return@LaunchedEffect
-        val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
-        // null = first layout, nothing rendered yet: following is the right default.
-        val atBottom = lastVisible == null || lastVisible >= state.messages.lastIndex - 1
-        if (atBottom) listState.scrollToItem(state.messages.lastIndex)
+        // 自己发了新消息 → 恢复跟随（发送后本来就该跳到最新）。
+        if (lastMessage?.role == ChatRole.USER) followTail = true
+
+        val atBottom = listState.isAtBottom()
+        Log.d(
+            CHAT_SCROLL_TAG,
+            "触发 size=${state.messages.size} 文本长=${lastMessage?.text?.length} " +
+                "streaming=${lastMessage?.isStreaming} follow=$followTail atBottom=$atBottom " +
+                "前=${listState.describe()}"
+        )
+        // ⚠️ 不能只用 `atBottom` 决定是否跟随。实测日志：
+        //     lastTop=205 lastBottom 从 8000 涨到 14125、viewportEnd=1546 —— 列表停在最顶部、
+        //     回复在下面不断变长，"不贴底"的原因是**内容变长**而不是用户滑走了。
+        //     用几何位置判断的话，回复一开始变长就永远算"不在底部"，一次都不会跟随。
+        //     所以判据是：用户没自己拖过（followTail），或者用户此刻确实在底部。
+        if (followTail || atBottom) {
+            // 滚动必须**不可取消**：key 里有流式文本，每个分片都会重启这个 effect，
+            // 上一次的 `scrollToItem`（挂起函数）会在滚完之前被取消掉。
+            withContext(NonCancellable) {
+                listState.scrollToItem(state.messages.lastIndex, Int.MAX_VALUE)
+            }
+            followTail = true
+            Log.d(CHAT_SCROLL_TAG, "已滚到末尾 后=${listState.describe()}")
+        }
     }
 
     LazyColumn(
         state = listState,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            // 用户一拖动列表就停止跟随。必须用**手势**判断：滚动位置无法区分
+            // 「内容变长了」和「用户滑走了」（见上面 effect 的日志说明）。
+            // 用 Initial 阶段，在列表自己的滚动消费掉事件之前看到它。
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        val dragged = event.changes.any { change ->
+                            change.pressed && change.position != change.previousPosition
+                        }
+                        if (dragged) {
+                            followTail = false
+                            Log.d(CHAT_SCROLL_TAG, "用户手动拖动 → 停止跟随")
+                        }
+                    }
+                }
+            },
         contentPadding = PaddingValues(
             horizontal = ChatContentPaddingHorizontal,
             vertical = 14.dp
@@ -269,6 +318,38 @@ private fun MessageList(
                 }
             }
         }
+    }
+}
+
+/** 跟随滚动的调试日志标签（`adb logcat -s ChatScroll`）。 */
+private const val CHAT_SCROLL_TAG = "ChatScroll"
+
+/**
+ * 列表是否停在底部 —— 判断依据是**最后一条的底边贴到视口底**。
+ *
+ * 只看「最后一个 index 可见」不够：一条比一屏还长的回复，index 从头到尾都在最后，
+ * 但用户可能正停在它中间往回看 —— 那时不该把他拽到底部。
+ */
+private fun LazyListState.isAtBottom(tolerancePx: Int = 8): Boolean {
+    val info = layoutInfo
+    val last = info.visibleItemsInfo.lastOrNull() ?: return true
+    return last.index == info.totalItemsCount - 1 &&
+        last.offset + last.size <= info.viewportEndOffset + tolerancePx
+}
+
+/** 布局快照，供日志定位「为什么不跟随」。 */
+private fun LazyListState.describe(): String {
+    val info = layoutInfo
+    val first = info.visibleItemsInfo.firstOrNull()
+    val last = info.visibleItemsInfo.lastOrNull()
+    return buildString {
+        append("items=").append(info.totalItemsCount)
+        append(" 可见=").append(info.visibleItemsInfo.size)
+        append(" first=").append(first?.index)
+        append(" last=").append(last?.index)
+        append(" lastTop=").append(last?.offset)
+        append(" lastBottom=").append(last?.let { it.offset + it.size })
+        append(" viewportEnd=").append(info.viewportEndOffset)
     }
 }
 

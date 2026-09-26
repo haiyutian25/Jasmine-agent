@@ -1,5 +1,6 @@
 package com.lhzkml.jasmine.feature.main.impl.chat
 
+import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.lhzkml.jasmine.core.agent.AgentChat
 import com.lhzkml.jasmine.core.agent.ChatEvent
@@ -17,12 +18,19 @@ import com.lhzkml.jasmine.core.markdown.model.MarkdownBlock
 import com.lhzkml.jasmine.core.markdown.model.MarkdownBlockType
 import com.lhzkml.jasmine.core.markdown.model.MarkdownInline
 import com.lhzkml.jasmine.core.markdown.model.MarkdownInlineType
+import com.lhzkml.jasmine.core.markdown.model.MarkdownUpdate
 import com.lhzkml.jasmine.core.ui.base.BaseViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
@@ -198,14 +206,28 @@ class ChatViewModel @Inject constructor(
     private var streamingMessageId: String? = null
 
     /**
-     * Incremental Markdown parser for the segment currently streaming.
+     * 流式解析的待办命令。
      *
-     * One parser per assistant segment: a tool call closes the segment and the text
-     * after its result is a fresh segment, so the parser starts over with it. The
-     * native handle is NOT thread-safe — every use happens synchronously inside
-     * `handleAction`, which is where the action channel's single consumer runs.
+     * 解析**不在** `handleAction` 里做了：那里跑在 `viewModelScope`（Main）上，而 FULL 模式
+     * 每来一个分片都要重解析整篇回复（O(n)）。长回复时主线程会被持续打满 —— 真机实测
+     * 主线程 100% CPU 持续 15 秒、`Skipped 438 frames!  Davey! duration=7738ms`。
+     *
+     * 现在改成投递给一个后台工作协程（[startStreamParseWorker]）：解析在 Default 上做，
+     * 主线程只负责把结果贴进状态。
      */
-    private var streamParser: IncrementalMarkdownParser? = null
+    private val streamCommands = Channel<StreamCommand>(Channel.UNLIMITED)
+
+    /**
+     * 待解析的最新文本。
+     *
+     * 关键在**合并**：模型一秒能吐几十个分片，而每次都是全量重解析，逐条排队会让解析
+     * 永远追不上、回复越来越滞后。所以只保留最新一份，工作协程取走时用 `getAndSet(null)`，
+     * 中间那些分片自然被跳过 —— 结果与逐条解析一致（FULL 模式本来就只认最终文本）。
+     */
+    private val pendingStreamParse = AtomicReference<StreamParseRequest?>(null)
+
+    /** 已经排了一次解析，不必再排（省掉每个分片一次入队）。 */
+    private val streamParseQueued = AtomicBoolean(false)
 
     /**
      * Length of the text the parser was last fed.
@@ -215,6 +237,30 @@ class ChatViewModel @Inject constructor(
      * here rather than accumulating (the DELTA path is the one that accumulates).
      */
     private var streamParsedLength: Int = 0
+
+    /** 一次流式解析请求：解析成 [text] 之后，块要贴到 [targetId] 这条消息上。 */
+    private class StreamParseRequest(val targetId: String, val text: String)
+
+    /** 交给后台工作协程的活。 */
+    private sealed interface StreamCommand {
+        /** 有新文本待解析（文本本身在 [pendingStreamParse] 里）。 */
+        data object Parse : StreamCommand
+
+        /**
+         * 这一段的正文写完了：收尾（闭合未结束的块），然后释放解析器。
+         *
+         * [trailingBlock] 是收尾之后要追加的块（失败原因那一块）。它**必须**走这条路而不是
+         * 直接往状态里加：`applied()` 会按 `update.index` 截断块列表，同步追加的块会被
+         * 收尾结果吃掉。
+         */
+        data class Finalize(
+            val targetId: String?,
+            val trailingBlock: MarkdownBlock? = null,
+        ) : StreamCommand
+
+        /** 直接释放解析器（段是空的 / 换会话 / 停止）。 */
+        data object Close : StreamCommand
+    }
 
     /**
      * Assistant segments written during the current turn. A turn can hold several —
@@ -247,6 +293,8 @@ class ChatViewModel @Inject constructor(
         // The session store is not observable, so the list has to be read once here.
         viewModelScope.launch { runCatching { conversationStore.refresh() } }
         viewModelScope.launch { restoreLatestConversation() }
+        // 流式解析的后台工作者：槽点见 startStreamParseWorker。
+        startStreamParseWorker()
     }
 
     override fun handleAction(action: ChatAction) {
@@ -652,25 +700,113 @@ class ChatViewModel @Inject constructor(
      */
     private fun appendReplyChunk(text: String) {
         val targetId = streamingMessageId ?: startAssistantSegment()
-        val parser = streamParser ?: IncrementalMarkdownParser().also {
-            streamParser = it
-            streamParsedLength = 0
-        }
         val fullText = (state.messages.firstOrNull { it.id == targetId }?.text ?: "") + text
         // Same guard as ima's g(): nothing new to parse, so leave the state alone.
         if (fullText.isEmpty() || fullText.length == streamParsedLength) return
-        // FULL: re-parse from scratch rather than appending the delta.
-        parser.reset()
-        val update = parser.append(fullText)
         streamParsedLength = fullText.length
+        // 文字先落进状态：这一步很便宜，而且要立刻可见（块还没解析出来时界面按 text 渲染）。
+        updateState {
+            copy(
+                messages = messages.map { message ->
+                    if (message.id == targetId) message.copy(text = fullText) else message
+                }
+            )
+        }
+        // 块交给后台解析（见 streamCommands）。同一时刻只排一次：工作协程跑完会再取一次
+        // 最新文本，期间到达的分片自然合并掉。
+        pendingStreamParse.set(StreamParseRequest(targetId, fullText))
+        if (streamParseQueued.compareAndSet(false, true)) {
+            streamCommands.trySend(StreamCommand.Parse)
+        }
+    }
+
+    /**
+     * 流式解析的后台工作协程：**只有它碰 native 解析器句柄**。
+     *
+     * 一个协程顺序处理所有命令，所以句柄永远不会被两个线程同时使用（native 侧不是线程安全的）；
+     * 命令按入队顺序处理，`Parse` 又会在自己内部把待办文本排空，因此「先解析完、再收尾」的顺序
+     * 天然成立，不需要额外加锁。
+     */
+    private fun startStreamParseWorker() {
+        viewModelScope.launch {
+            var parser: IncrementalMarkdownParser? = null
+            for (command in streamCommands) {
+                when (command) {
+                    StreamCommand.Parse -> {
+                        while (true) {
+                            val request = pendingStreamParse.getAndSet(null) ?: break
+                            val startedAt = System.currentTimeMillis()
+                            // FULL: re-parse from scratch rather than appending the delta.
+                            val update = withContext(Dispatchers.Default) {
+                                val active = parser ?: IncrementalMarkdownParser().also { parser = it }
+                                active.reset()
+                                active.append(request.text)
+                            }
+                            val parsedAt = System.currentTimeMillis()
+                            applyStreamBlocks(request.targetId, update)
+                            Log.d(
+                                CHAT_PARSE_TAG,
+                                "解析 ${request.text.length} 字 耗时 ${parsedAt - startedAt}ms，" +
+                                    "贴块 ${System.currentTimeMillis() - parsedAt}ms"
+                            )
+                            // 节流：贴块 + 重组才是主线程上的成本，控制它的频率。
+                            delay(STREAM_PARSE_MIN_INTERVAL_MS)
+                        }
+                        streamParseQueued.set(false)
+                        // 收尾竞态：清标志之后、工作协程再次挂起之前又来了新文本，就补排一次。
+                        if (pendingStreamParse.get() != null && streamParseQueued.compareAndSet(false, true)) {
+                            streamCommands.trySend(StreamCommand.Parse)
+                        }
+                    }
+
+                    is StreamCommand.Finalize -> {
+                        // 排在前面的 Parse 已经把文本排空了，这里直接收尾。
+                        val targetId = command.targetId
+                        val update = withContext(Dispatchers.Default) {
+                            if (targetId == null) null else parser?.finalizeStream()
+                        }
+                        if (targetId != null && update != null) applyStreamBlocks(targetId, update)
+                        // 收尾之后再追加尾块（失败原因），否则会被上面的截断吃掉。
+                        if (targetId != null && command.trailingBlock != null) {
+                            appendBlock(targetId, command.trailingBlock)
+                        }
+                        withContext(Dispatchers.Default) {
+                            parser?.close()
+                            parser = null
+                        }
+                    }
+
+                    StreamCommand.Close -> withContext(Dispatchers.Default) {
+                        parser?.close()
+                        parser = null
+                    }
+                }
+            }
+        }
+    }
+
+    /** 把一次解析结果贴到 [targetId] 那条消息上（块列表按 id 复用，Compose 只重绘变化的块）。 */
+    private fun applyStreamBlocks(targetId: String, update: MarkdownUpdate) {
         updateState {
             copy(
                 messages = messages.map { message ->
                     if (message.id == targetId) {
-                        message.copy(
-                            text = fullText,
-                            blocks = IncrementalMarkdownDocument.applied(update, message.blocks),
-                        )
+                        message.copy(blocks = IncrementalMarkdownDocument.applied(update, message.blocks))
+                    } else {
+                        message
+                    }
+                }
+            )
+        }
+    }
+
+    /** 往 [targetId] 的块列表末尾追加一块（只用于收尾之后的失败原因，见 StreamCommand.Finalize）。 */
+    private fun appendBlock(targetId: String, block: MarkdownBlock) {
+        updateState {
+            copy(
+                messages = messages.map { message ->
+                    if (message.id == targetId) {
+                        message.copy(blocks = message.blocks + block)
                     } else {
                         message
                     }
@@ -709,32 +845,15 @@ class ChatViewModel @Inject constructor(
      * `finalizeStream()` returns final blocks for the tail; `applied()` merges them
      * the same way a chunk update is merged.
      */
-    private fun finalizeStreamInto(targetId: String?) {
-        val parser = streamParser ?: return
-        if (targetId != null) {
-            val update = parser.finalizeStream()
-            updateState {
-                copy(
-                    messages = messages.map { message ->
-                        if (message.id == targetId) {
-                            message.copy(
-                                blocks = IncrementalMarkdownDocument.applied(update, message.blocks)
-                            )
-                        } else {
-                            message
-                        }
-                    }
-                )
-            }
-        }
-        closeStreamParser()
+    private fun finalizeStreamInto(targetId: String?, trailingBlock: MarkdownBlock? = null) {
+        // 交给工作协程：它排在前面那些 Parse 之后，顺序天然正确（见 startStreamParseWorker）。
+        streamCommands.trySend(StreamCommand.Finalize(targetId, trailingBlock))
     }
 
     private fun closeStreamParser() {
-        streamParser?.close()
-        streamParser = null
         // Length tracking belongs to the parser instance, so it goes with it.
         streamParsedLength = 0
+        streamCommands.trySend(StreamCommand.Close)
     }
 
     /**
@@ -818,15 +937,16 @@ class ChatViewModel @Inject constructor(
         // the failure, so open one rather than swallowing it.
         val targetId = streamingMessageId ?: startAssistantSegment()
         streamingMessageId = null
-        // Close the partial answer's open block first, then append the reason as a
-        // block of its own so it renders through the same path as everything else.
-        finalizeStreamInto(targetId)
         val errorBlock = MarkdownBlock(
             id = "error:${UUID.randomUUID()}",
             type = MarkdownBlockType.PARAGRAPH,
             isClosed = true,
             content = listOf(MarkdownInline(MarkdownInlineType.TEXT, literal = detail)),
         )
+        // Close the partial answer's open block first, then append the reason as a
+        // block of its own so it renders through the same path as everything else.
+        // 尾块必须交给收尾去做（见 StreamCommand.Finalize）—— 这里直接加会被 applied() 截掉。
+        finalizeStreamInto(targetId, errorBlock)
         val finalText = state.messages.firstOrNull { it.id == targetId }?.let { message ->
             if (message.text.isEmpty()) detail else "${message.text}\n\n$detail"
         }
@@ -841,7 +961,6 @@ class ChatViewModel @Inject constructor(
                             text = finalText.orEmpty(),
                             isStreaming = false,
                             isError = true,
-                            blocks = message.blocks + errorBlock,
                         )
                     }
                 },
@@ -912,6 +1031,18 @@ class ChatViewModel @Inject constructor(
 
         /** Conversation titles are the first user message, clipped for the list. */
         const val TITLE_MAX_LENGTH = 60
+
+        /** 流式解析的日志标签（`adb logcat -s ChatParse`）。 */
+        const val CHAT_PARSE_TAG = "ChatParse"
+
+        /**
+         * 两次「贴块 + 重组」之间的最小间隔。
+         *
+         * 解析本身已经在后台线程，主线程剩下的是把块合并进状态 + Compose 重组，这部分同样
+         * 跟着分片频率走。50ms（约 20 次/秒）比一帧略长，肉眼仍是逐字出来，但主线程的
+         * 峰值被压下来了。
+         */
+        const val STREAM_PARSE_MIN_INTERVAL_MS = 50L
     }
 }
 
