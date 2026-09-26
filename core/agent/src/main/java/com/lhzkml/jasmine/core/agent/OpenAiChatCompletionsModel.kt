@@ -156,6 +156,8 @@ class OpenAiChatCompletionsModel(
                 model = modelId,
                 messages = messages,
                 tools = tools,
+                // 只在带工具时声明：不带工具的请求里这个参数没有意义，也可能被个别网关嫌弃。
+                parallelToolCalls = if (tools.isNullOrEmpty()) null else false,
                 temperature = request.config.temperature,
                 topP = request.config.topP,
                 maxTokens = request.config.maxOutputTokens,

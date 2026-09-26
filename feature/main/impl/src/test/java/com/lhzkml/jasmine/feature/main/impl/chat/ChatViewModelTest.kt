@@ -703,8 +703,8 @@ private class FakeAgentChat : AgentChat {
 
     val answered = mutableListOf<String>()
 
-    override fun respondToPrompt(answer: String): Flow<ChatEvent> {
-        answered += answer
+    override fun respondToPrompts(answers: List<String>): Flow<ChatEvent> {
+        answered += answers
         return nextPromptEvents.asFlow()
     }
 }

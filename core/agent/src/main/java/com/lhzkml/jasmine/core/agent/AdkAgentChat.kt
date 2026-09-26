@@ -22,6 +22,7 @@ import com.google.adk.kt.types.Part
 import com.google.adk.kt.types.Role
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.flow
 
 /** How much of a tool's arguments/result is worth putting on screen. */
@@ -59,7 +60,7 @@ private const val ToolDetailMaxLength = 200
  * A *long-running* tool (ADK's `adk_request_input` / `get_user_choice`) returns
  * without a result, which makes the runner end the turn on the function-call
  * event instead of re-calling the model. Such a call is surfaced as
- * [ChatEvent.UserPromptRequested] and remembered; [respondToPrompt] then injects
+ * [ChatEvent.UserPromptRequested] and remembered; [respondToPrompts] then injects
  * the `functionResponse` the runner was waiting for and streams the rest of the
  * turn. ADK correlates it by call id, so the id is kept here rather than exposed.
  *
@@ -106,6 +107,27 @@ class AdkAgentChat(
      */
     private var activeInvocationId: String? = null
 
+    /**
+     * 已发出、还没被回答的交互调用（按提问顺序排队）。
+     *
+     * 以前这里只有一个槽位，后一个调用会把前一个**覆盖**掉 —— 模型一轮里同时调两个需要用户
+     * 参与的工具时（实测 `get_user_choice` + `adk_request_input`），前一个的提问界面从不出现，
+     * 于是它**永远拿不到 functionResponse**，历史里留下「有 tool_call、没有 tool_result」的
+     * 残缺记录，之后每次请求都被服务端以 HTTP 400 拒掉，整个会话永久卡死。
+     */
+    private val pendingPrompts = ArrayDeque<PendingPrompt>()
+
+    /**
+     * 本轮是否已经挂出提问（即模型停下来等用户回答）。
+     *
+     * ADK 在一轮里执行完普通工具后会**接着再调一次模型**，而那一刻「等用户回答」的调用还没有
+     * 结果 —— 服务端会以「An assistant message with 'tool_calls' must be followed by tool
+     * messages responding to each 'tool_call_id'」直接 400（实测 15:30:29 那次：5 个调用里只有
+     * 3 个普通工具的结果就发了请求）。所以一旦挂出提问就停掉这一轮的流，等用户答完由
+     * [respondToPrompts] 发起新一轮继续。
+     */
+    private var pausedForPrompt = false
+
     /** The long-running call the agent is waiting on, if any. */
     private var pendingPrompt: PendingPrompt? = null
 
@@ -146,14 +168,18 @@ class AdkAgentChat(
     override fun send(text: String): Flow<ChatEvent> =
         run(newMessage = Content(role = Role.USER, parts = listOf(Part(text = text))))
 
-    override fun respondToPrompt(answer: String): Flow<ChatEvent> {
-        val pending = checkNotNull(pendingPrompt) { "No prompt is waiting for an answer" }
-        pendingPrompt = null
-        val functionResponse = FunctionResponse(
-            name = pending.name,
-            response = mapOf(BaseTool.RESULT_KEY to answer),
-            id = pending.id,
-        )
+    override fun respondToPrompts(answers: List<String>): Flow<ChatEvent> {
+        check(pendingPrompts.isNotEmpty()) { "No prompt is waiting for an answer" }
+        // 与提问顺序一一对应：调用方是排队问完、把答案按同一顺序收齐后才提交的。
+        val pending = pendingPrompts.toList().take(answers.size)
+        pendingPrompts.clear()
+        val responses = pending.mapIndexed { index, prompt ->
+            prompt to FunctionResponse(
+                name = prompt.name,
+                response = mapOf(BaseTool.RESULT_KEY to answers[index]),
+                id = prompt.id,
+            )
+        }
         return flow {
             // 用户对提问的回答**不会**出现在事件流里：runner 不回显调用方自己的消息（下面
             // run() 里那个 USER_AUTHOR 跳过就是为它留的）。于是界面上那张工具卡片收不到
@@ -161,16 +187,18 @@ class AdkAgentChat(
             //
             // 格式必须与从 session 重建时一致 —— 两处都走 abbreviated()，卡片上的
             // `result=...` 才能一模一样。
-            emit(
-                ChatEvent.ToolResult(
-                    name = pending.name,
-                    result = functionResponse.response.abbreviated(),
+            responses.forEach { (_, response) ->
+                emit(
+                    ChatEvent.ToolResult(
+                        name = response.name,
+                        result = response.response.abbreviated(),
+                    )
                 )
-            )
+            }
             run(
                 newMessage = Content(
                     role = Role.USER,
-                    parts = listOf(Part(functionResponse = functionResponse)),
+                    parts = responses.map { Part(functionResponse = it.second) },
                 ),
             ).collect { emit(it) }
         }
@@ -181,7 +209,8 @@ class AdkAgentChat(
         runner = null
         attachedSessionId = null
         activeInvocationId = null
-        pendingPrompt = null
+        // 换会话/结束时清空：待答的调用属于**上一个 session**，留着会串到新会话上。
+        pendingPrompts.clear()
     }
 
     /**
@@ -214,6 +243,7 @@ class AdkAgentChat(
         val activeSessionId =
             checkNotNull(attachedSessionId) { "No conversation: call startConversation first" }
 
+        pausedForPrompt = false
         activeRunner
             .runAsync(
                 userId = USER_ID,
@@ -227,6 +257,9 @@ class AdkAgentChat(
                 // it is what makes the runner ask the model to stream.
                 runConfig = RunConfig(streamingMode = StreamingMode.SSE),
             )
+            // 挂出提问之后就停掉这一轮的流：否则 ADK 会在普通工具的返回落地后再调一次模型，
+            // 而那时交互调用还没有结果 → 服务端 400（见 [pausedForPrompt]）。
+            .takeWhile { !pausedForPrompt }
             .collect { event ->
                 // 记下本回合的 invocation id：停止时补写助手事件要用它。
                 activeInvocationId = event.invocationId ?: activeInvocationId
@@ -249,6 +282,9 @@ class AdkAgentChat(
                 if (event.isFinalResponse) emit(ChatEvent.Completed)
             }
 
+        // 因为暂停而提前掐断时，替 ADK 把「本轮结束」补上 —— 界面上那一轮才会正常落幕，
+        // 输入框交回给提问控件。
+        if (pausedForPrompt) emit(ChatEvent.Completed)
     }
 
     /**
@@ -284,7 +320,12 @@ class AdkAgentChat(
                 emit(ChatEvent.ToolCall(name = call.name, arguments = call.args.abbreviated()))
             } else {
                 // The call id is what ADK matches the answer against on resume.
-                pendingPrompt = PendingPrompt(name = call.name, id = call.id)
+                // 排队而不是覆盖：一轮里可能同时挂出多个提问（见 [pendingPrompts]）。
+                if (pendingPrompts.none { it.id == call.id }) {
+                    pendingPrompts.addLast(PendingPrompt(name = call.name, id = call.id))
+                }
+                // 挂出提问 → 本轮到此为止，别再让 ADK 往下跑（见 [pausedForPrompt]）。
+                pausedForPrompt = true
                 emit(ChatEvent.ToolCall(name = call.name, arguments = call.args.abbreviated()))
                 emit(prompt)
             }

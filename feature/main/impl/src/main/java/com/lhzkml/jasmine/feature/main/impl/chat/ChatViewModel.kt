@@ -545,6 +545,16 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
+     * 已挂出、还没被回答的提问（按提问顺序排队），以及已经收到的回答。
+     *
+     * 模型可能在一轮里**同时**挂出多个交互调用（实测 `get_user_choice` + `adk_request_input`）。
+     * 界面一次只问一个：答完当前这个再问下一个，答案按同样顺序攒着，全部收齐后**一起**提交 ——
+     * 少交一个，历史里就会留下没有结果的 tool_call，之后每次请求都被服务端 400 拒掉。
+     */
+    private val pendingPrompts = ArrayDeque<ChatUserPrompt>()
+    private val promptAnswers = mutableListOf<String>()
+
+    /**
      * The agent stopped to ask something. Its event flow ends here, so the usual
      * end-of-turn path releases the composer; [ChatState.pendingPrompt] is what
      * keeps the ordinary input out of the way until the question is answered.
@@ -554,22 +564,36 @@ class ChatViewModel @Inject constructor(
         // the empty placeholder created on send is dropped rather than left as a blank
         // bubble for the whole time the user takes to answer.
         sealAssistantSegment()
-        updateState {
-            copy(pendingPrompt = ChatUserPrompt(prompt = action.prompt, options = action.options))
-        }
+        pendingPrompts.addLast(
+            ChatUserPrompt(prompt = action.prompt, options = action.options)
+        )
+        // 展示队首：后面还有问题的话，答完这个会自动接着问（见 handlePromptAnswered）。
+        updateState { copy(pendingPrompt = pendingPrompts.first()) }
     }
 
     /** Sends the answer back and streams the rest of the paused turn. */
     private fun handlePromptAnswered(action: ChatAction.PromptAnswered) {
         val answer = action.answer.trim()
         if (answer.isEmpty() || state.pendingPrompt == null || state.isSending) return
+        promptAnswers += answer
+        pendingPrompts.removeFirstOrNull()
+
+        val next = pendingPrompts.firstOrNull()
+        if (next != null) {
+            // 还有下一个问题：继续问。这里**不算**在发送 —— 模型仍在等答案。
+            updateState { copy(pendingPrompt = next) }
+            return
+        }
+
+        val answers = promptAnswers.toList()
+        promptAnswers.clear()
         updateState { copy(pendingPrompt = null, isSending = true) }
-        turnJob = viewModelScope.launch { resumeTurn(answer) }
+        turnJob = viewModelScope.launch { resumeTurn(answers) }
     }
 
-    private suspend fun resumeTurn(answer: String) {
+    private suspend fun resumeTurn(answers: List<String>) {
         try {
-            collectEvents(agentChat.respondToPrompt(answer))
+            collectEvents(agentChat.respondToPrompts(answers))
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (error: Exception) {
@@ -870,6 +894,8 @@ class ChatViewModel @Inject constructor(
         agentChat.endConversation()
         sessionKey = null
         // A question belongs to the conversation that asked it.
+        pendingPrompts.clear()
+        promptAnswers.clear()
         updateState { copy(pendingPrompt = null) }
     }
 

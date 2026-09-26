@@ -40,7 +40,7 @@ object AgentToolsModule {
     /**
      * Lets the agent ask the user a question and wait for the answer. Long-running:
      * it returns without a result, the turn ends on the call, and the answer arrives
-     * through `AgentChat.respondToPrompt`.
+     * through `AgentChat.respondToPrompts`.
      */
     @Provides
     @IntoSet

@@ -21,6 +21,14 @@ internal data class ChatRequest(
     val messages: List<ChatMessage>,
     val tools: List<ChatTool>? = null,
     val temperature: Float? = null,
+    /**
+     * 明确禁止「一轮里并行发多个工具调用」。
+     *
+     * App 同一时刻只能向用户问一个问题（`AdkAgentChat.pendingPrompts` + 界面上的提问控件都是
+     * 单个），模型若在一轮里同时挂出两个「需要用户参与」的工具，就必然有一个答不上 —— 实测会让
+     * 会话永久 HTTP 400。关掉并行调用后，模型会逐个来：一次问一个，答完再问下一个。
+     */
+    @SerialName("parallel_tool_calls") val parallelToolCalls: Boolean? = null,
     @SerialName("top_p") val topP: Float? = null,
     @SerialName("max_tokens") val maxTokens: Int? = null,
     val stop: List<String>? = null,

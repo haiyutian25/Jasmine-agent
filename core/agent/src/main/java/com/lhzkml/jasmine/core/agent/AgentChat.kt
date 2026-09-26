@@ -28,7 +28,7 @@ sealed interface ChatEvent {
     /**
      * The agent stopped and is waiting on the user: a tool asked a question or offered
      * a choice. **The turn ends here** — no [Completed] follows, and nothing more is
-     * emitted until [AgentChat.respondToPrompt] is called.
+     * emitted until [AgentChat.respondToPrompts] is called.
      *
      * [options] is empty when free-form text is expected, otherwise it holds the
      * choices the user must pick from.
@@ -87,12 +87,16 @@ interface AgentChat {
     fun send(text: String): Flow<ChatEvent>
 
     /**
-     * Answers the pending [ChatEvent.UserPromptRequested] and resumes the paused turn,
+     * Answers the pending [ChatEvent.UserPromptRequested]s and resumes the paused turn,
      * streaming whatever the model does next — including another prompt.
      *
+     * @param answers 与**提问顺序一一对应**的回答。一轮里可能同时挂出多个交互调用
+     *   （实测模型会在一轮里并列调 `get_user_choice` 和 `adk_request_input`），界面会排队逐个
+     *   问、把答案按顺序收齐后一起提交。少交一个，历史里就会留下「有 tool_call、没有
+     *   tool_result」的残缺记录，之后每次请求都被服务端以 HTTP 400 拒掉、会话永久卡死。
      * @throws IllegalStateException when no prompt is pending.
      */
-    fun respondToPrompt(answer: String): Flow<ChatEvent>
+    fun respondToPrompts(answers: List<String>): Flow<ChatEvent>
 
     /**
      * Persists the partial reply left behind when the caller cancelled a [send].

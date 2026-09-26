@@ -293,7 +293,7 @@ class AdkAgentChatTest {
         assertTrue("the pause was not reported as the end of the turn", paused.any { it is ChatEvent.Completed })
         assertEquals(1, model.requests.size)
 
-        val resumed = chat.respondToPrompt("Beijing").toList()
+        val resumed = chat.respondToPrompts(listOf("Beijing")).toList()
 
         // The answer went back as the tool's result, correlated by call id.
         assertEquals(2, model.requests.size)
@@ -320,7 +320,8 @@ class AdkAgentChatTest {
             instruction = "be nice",
         )
 
-        val failure = runCatching { chat.respondToPrompt("hello").toList() }.exceptionOrNull()
+        val failure =
+            runCatching { chat.respondToPrompts(listOf("hello")).toList() }.exceptionOrNull()
 
         assertTrue("expected IllegalStateException, got $failure", failure is IllegalStateException)
     }
