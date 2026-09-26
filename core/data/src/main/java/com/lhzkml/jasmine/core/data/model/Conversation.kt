@@ -24,4 +24,27 @@ data class TranscriptMessage(
     val role: ChatRole,
     val text: String,
     val isError: Boolean = false,
+    /**
+     * 执行痕迹（工具调用 / 工具返回）。非 null 时 [text] 为空，界面按工具条目渲染而不是气泡 ——
+     * 这样「重新加载出来的转写」和「实时那一轮」是同一个形状。
+     */
+    val tool: TranscriptToolActivity? = null,
 )
+
+/**
+ * 存进转写的一条工具活动 —— 界面上就是一张卡片。
+ *
+ * 一次调用的「问了什么」和「回了什么」放在同一条里：[detail] 是调用参数，[result] 是返回。
+ * 返回可能是工具自己的输出，也可能是用户对提问的回答（ADK 把那种返回记成 author=user 的
+ * functionResponse，见 `AdkConversationStore.toTranscriptMessage`）。
+ */
+data class TranscriptToolActivity(
+    val name: String,
+    /** 调用参数。只有返回、没有配对调用时为空字符串。 */
+    val detail: String,
+    /** 工具返回；null 表示还没有返回。 */
+    val result: String? = null,
+) {
+    /** 没有配对的调用事件，只有返回 —— 界面标题画成「xxx 返回」。 */
+    val isResultOnly: Boolean get() = detail.isEmpty()
+}

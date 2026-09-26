@@ -24,7 +24,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -321,6 +320,7 @@ private fun MessageBubble(message: ChatMessage, currentTheme: CssVariables) {
 @Composable
 private fun ToolActivityRow(activity: ChatToolActivity, currentTheme: CssVariables) {
     val shape = RoundedCornerShape(currentTheme.radiusSm)
+    val resultOnly = activity.isResultOnly
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -334,7 +334,7 @@ private fun ToolActivityRow(activity: ChatToolActivity, currentTheme: CssVariabl
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = if (activity.isResult) Icons.Outlined.Check else Icons.Outlined.Build,
+            imageVector = if (resultOnly) Icons.Outlined.Check else Icons.Outlined.Build,
             contentDescription = null,
             tint = currentTheme.mutedForeground,
             modifier = Modifier.size(ChatToolIconSize)
@@ -343,20 +343,33 @@ private fun ToolActivityRow(activity: ChatToolActivity, currentTheme: CssVariabl
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = stringResource(
-                    if (activity.isResult) R.string.chat_tool_result else R.string.chat_tool_call,
+                    if (resultOnly) R.string.chat_tool_result else R.string.chat_tool_call,
                     activity.name
                 ),
                 fontSize = ChatMetaFontSize,
                 fontWeight = FontWeight.Medium,
                 color = currentTheme.foreground
             )
-            Text(
-                text = activity.detail,
-                fontSize = ChatMetaFontSize,
-                color = currentTheme.mutedForeground,
-                maxLines = ChatToolDetailMaxLines,
-                overflow = TextOverflow.Ellipsis
-            )
+            if (activity.detail.isNotEmpty()) {
+                Text(
+                    text = activity.detail,
+                    fontSize = ChatMetaFontSize,
+                    color = currentTheme.mutedForeground,
+                    maxLines = ChatToolDetailMaxLines,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            // 返回和调用参数同属这张卡片：文本自带 `result=` 前缀，与调用那边的 `message=`
+            // 用同一个 `key=value` 规则，一眼能区分开。
+            activity.result?.let { result ->
+                Text(
+                    text = result,
+                    fontSize = ChatMetaFontSize,
+                    color = currentTheme.mutedForeground,
+                    maxLines = ChatToolDetailMaxLines,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
@@ -402,10 +415,10 @@ private fun Composer(
             ),
             cursorBrush = SolidColor(currentTheme.primary),
             maxLines = 5,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-            keyboardActions = KeyboardActions(
-                onSend = { if (canSend) onAction(ChatAction.SendClicked) }
-            ),
+            // 回车键保持「换行」而不是「发送」：输入区本来就允许多行（maxLines = 5），
+            // 把 imeAction 设成 Send 会让 IME 把回车键画成发送按钮，换行就按不出来了。
+            // 发送只走右下角那个按钮。
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
             decorationBox = { innerTextField ->
                 // 两者放进同一个 Box：提示文字保持原位，输入区（光标 + 文字）额外下移，
                 // 让光标的行框和汉字墨迹对齐。原因见 ChatInputTextOffset。
@@ -604,8 +617,8 @@ private fun FreeTextAnswer(currentTheme: CssVariables, onAnswer: (String) -> Uni
             textStyle = TextStyle(fontSize = ChatBodyFontSize, color = currentTheme.foreground),
             cursorBrush = SolidColor(currentTheme.primary),
             maxLines = 3,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-            keyboardActions = KeyboardActions(onSend = { if (canSend) onAnswer(answer.trim()) }),
+            // 与输入区一致：回车保持「换行」，不画成发送按钮。发送走右边那个按钮。
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
             decorationBox = { innerTextField ->
                 if (answer.isEmpty()) {
                     Text(

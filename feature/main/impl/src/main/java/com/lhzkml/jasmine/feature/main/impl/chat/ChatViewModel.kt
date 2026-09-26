@@ -56,16 +56,24 @@ data class ChatMessage(
 
 /**
  * A tool invocation shown inline in the transcript, so the agent's work stays
- * visible while the model itself is silent. [detail] is the arguments for a call
- * and the tool's answer for a result.
+ * visible while the model itself is silent.
  *
- * Not persisted: the transcript stores the reply, not the execution trace.
+ * 一次调用的「问了什么」和「回了什么」同属这张卡片：[detail] 是参数，[result] 是返回。
+ * 返回可能是工具的输出，也可能是用户对提问的回答（那种事件的 author 是 user）。
+ *
+ * 实时这一轮不落库（转写里存的是回复本身），但重新加载时由 `ConversationStore`
+ * 从 session 的事件里还原出同样的形状。
  */
 data class ChatToolActivity(
     val name: String,
+    /** 调用参数；只有返回、没有配对调用时为空字符串。 */
     val detail: String,
-    val isResult: Boolean,
-)
+    /** 工具返回；null 表示还没有返回。 */
+    val result: String? = null,
+) {
+    /** 没有配对的调用事件，只有返回 —— 标题画成「xxx 返回」。 */
+    val isResultOnly: Boolean get() = detail.isEmpty()
+}
 
 /**
  * A question the agent is waiting on. [options] is empty when free-form text is
@@ -669,21 +677,43 @@ class ChatViewModel @Inject constructor(
      */
     private fun appendToolCall(action: ChatAction.Internal.ToolCalled) {
         sealAssistantSegment()
-        appendToolEntry(name = action.name, detail = action.arguments, isResult = false)
+        appendToolEntry(name = action.name, detail = action.arguments)
     }
 
+    /**
+     * 工具返回并进上面那张调用卡片 —— 一次调用的「问了什么 / 回了什么」放在同一张卡里
+     * （用户对提问的回答也走这里）。只有找不到配对调用时才单独成条。
+     */
     private fun appendToolResult(action: ChatAction.Internal.ToolReturned) {
-        appendToolEntry(name = action.name, detail = action.result, isResult = true)
+        val open = state.messages.lastOrNull()?.takeIf { message ->
+            val tool = message.tool
+            tool != null && !tool.isResultOnly && tool.result == null && tool.name == action.name
+        }
+        if (open != null) {
+            updateState {
+                copy(
+                    messages = messages.map { message ->
+                        if (message.id == open.id) {
+                            message.copy(tool = message.tool?.copy(result = action.result))
+                        } else {
+                            message
+                        }
+                    }
+                )
+            }
+            return
+        }
+        appendToolEntry(name = action.name, detail = "", result = action.result)
     }
 
-    private fun appendToolEntry(name: String, detail: String, isResult: Boolean) {
+    private fun appendToolEntry(name: String, detail: String, result: String? = null) {
         updateState {
             copy(
                 messages = messages + ChatMessage(
                     id = UUID.randomUUID().toString(),
                     role = ChatRole.ASSISTANT,
                     text = "",
-                    tool = ChatToolActivity(name = name, detail = detail, isResult = isResult),
+                    tool = ChatToolActivity(name = name, detail = detail, result = result),
                 )
             )
         }
@@ -817,9 +847,14 @@ private fun TranscriptMessage.toChatMessage(): ChatMessage = ChatMessage(
     role = role,
     text = text,
     isError = isError,
+    // 工具条目（调用 / 返回）没有正文，界面上按工具行渲染；正文为空的普通消息也一样。
+    tool = tool?.let {
+        ChatToolActivity(name = it.name, detail = it.detail, result = it.result)
+    },
     // Stored rows are plain text; parse them once so restored history renders as
     // Markdown too. Never a live stream, so a single pass is enough.
-    blocks = parseMarkdownBlocks(text),
+    // 工具条目没有正文，跳过解析 —— 免得为一次空文档白跑 native。
+    blocks = if (text.isEmpty()) emptyList() else parseMarkdownBlocks(text),
 )
 
 /**

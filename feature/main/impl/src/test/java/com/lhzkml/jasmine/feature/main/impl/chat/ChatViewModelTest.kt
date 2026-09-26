@@ -130,17 +130,16 @@ class ChatViewModelTest {
         advanceUntilIdle()
 
         val messages = viewModel.stateFlow.value.messages
-        // user, preamble, call, result, answer — the order things happened in.
-        assertEquals(5, messages.size)
+        // user, preamble, call(+result), answer — the order things happened in.
+        // 返回并进调用那张卡片，不再单独成条。
+        assertEquals(4, messages.size)
         assertEquals("what time", messages[0].text)
         assertEquals("Let me check.", messages[1].text)
         assertEquals("current_time", messages[2].tool?.name)
-        assertFalse(messages[2].tool!!.isResult)
-        assertEquals("current_time", messages[3].tool?.name)
-        assertTrue(messages[3].tool!!.isResult)
-        assertEquals("2026-09-24 09:00", messages[3].tool!!.detail)
-        assertEquals("It is 09:00.", messages[4].text)
-        assertFalse(messages[4].isStreaming)
+        assertFalse(messages[2].tool!!.isResultOnly)
+        assertEquals("2026-09-24 09:00", messages[2].tool!!.result)
+        assertEquals("It is 09:00.", messages[3].text)
+        assertFalse(messages[3].isStreaming)
     }
 
     @Test
@@ -161,7 +160,7 @@ class ChatViewModelTest {
         // The placeholder created on send is dropped rather than sealed, so the trace
         // does not start with a blank assistant bubble.
         val messages = viewModel.stateFlow.value.messages
-        assertEquals(4, messages.size)
+        assertEquals(3, messages.size)
         assertTrue(messages.none { it.tool == null && it.text.isEmpty() })
     }
 

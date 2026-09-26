@@ -149,20 +149,31 @@ class AdkAgentChat(
     override fun respondToPrompt(answer: String): Flow<ChatEvent> {
         val pending = checkNotNull(pendingPrompt) { "No prompt is waiting for an answer" }
         pendingPrompt = null
-        return run(
-            newMessage = Content(
-                role = Role.USER,
-                parts = listOf(
-                    Part(
-                        functionResponse = FunctionResponse(
-                            name = pending.name,
-                            response = mapOf(BaseTool.RESULT_KEY to answer),
-                            id = pending.id,
-                        )
-                    )
-                ),
-            ),
+        val functionResponse = FunctionResponse(
+            name = pending.name,
+            response = mapOf(BaseTool.RESULT_KEY to answer),
+            id = pending.id,
         )
+        return flow {
+            // 用户对提问的回答**不会**出现在事件流里：runner 不回显调用方自己的消息（下面
+            // run() 里那个 USER_AUTHOR 跳过就是为它留的）。于是界面上那张工具卡片收不到
+            // 「回了什么」，这里主动补一条返回。
+            //
+            // 格式必须与从 session 重建时一致 —— 两处都走 abbreviated()，卡片上的
+            // `result=...` 才能一模一样。
+            emit(
+                ChatEvent.ToolResult(
+                    name = pending.name,
+                    result = functionResponse.response.abbreviated(),
+                )
+            )
+            run(
+                newMessage = Content(
+                    role = Role.USER,
+                    parts = listOf(Part(functionResponse = functionResponse)),
+                ),
+            ).collect { emit(it) }
+        }
     }
 
     override fun endConversation() {
@@ -325,7 +336,7 @@ private fun FunctionCall.asUserPrompt(): ChatEvent.UserPromptRequested? = when (
 }
 
 /** Renders model-supplied arguments / tool responses compactly for a status line. */
-private fun Map<String, Any?>.abbreviated(): String =
+internal fun Map<String, Any?>.abbreviated(): String =
     entries.joinToString(", ") { (key, value) -> "$key=$value" }
         .ifEmpty { "—" }
         .let { if (it.length <= ToolDetailMaxLength) it else it.take(ToolDetailMaxLength - 1) + "…" }
