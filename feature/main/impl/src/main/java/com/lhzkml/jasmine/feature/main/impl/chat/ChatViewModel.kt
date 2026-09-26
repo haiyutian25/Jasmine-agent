@@ -117,6 +117,9 @@ data class ChatState(
 sealed interface ChatAction {
     data class InputChanged(val value: String) : ChatAction
     data object SendClicked : ChatAction
+
+    /** 停止正在进行的回复：取消对事件流的收集，见 [handleStopClicked]。 */
+    data object StopClicked : ChatAction
     data object NewConversationClicked : ChatAction
     data object ModelPickerOpened : ChatAction
     data object ModelPickerDismissed : ChatAction
@@ -230,6 +233,7 @@ class ChatViewModel @Inject constructor(
         when (action) {
             is ChatAction.InputChanged -> updateState { copy(input = action.value) }
             ChatAction.SendClicked -> handleSendClicked()
+            ChatAction.StopClicked -> handleStopClicked()
             ChatAction.NewConversationClicked -> handleNewConversation()
             ChatAction.ModelPickerOpened -> updateState { copy(isModelPickerOpen = true) }
             ChatAction.ModelPickerDismissed -> updateState { copy(isModelPickerOpen = false) }
@@ -324,6 +328,48 @@ class ChatViewModel @Inject constructor(
         }
 
         turnJob = viewModelScope.launch { runTurn(provider, model, text) }
+    }
+
+    /**
+     * 停止正在进行的回复。
+     *
+     * 手段就是**取消对事件流的收集**：adk-kotlin 的 `Runner.runAsync` 返回的是冷流
+     * （`AbstractRunner.runAsync` 里就是 `flow { ... }`，且对 `CancellationException`
+     * 直接 rethrow，不吞取消），所以取消会沿
+     * `runAsync → LlmAgent → Gemini.generateContentStream` 一路传播到底层 SSE 请求 ——
+     * 是真断流，不只是在本地不再收 chunk。SDK 本身没有 interrupt / cancel / stop 之类
+     * 的 API，`RunConfig` 里也没有开关，取消收集是唯一手段。
+     *
+     * 刻意**不**走 [resetSession]：那会 `endConversation()` 掉 ADK session 并清 sessionKey，
+     * 而这里要的是「已经生成的那半段留在气泡里 + session 里的事件也还在」，所以只掐这一轮。
+     */
+    private fun handleStopClicked() {
+        val running = turnJob ?: return
+        if (!running.isActive) return
+
+        // 先捞已生成的部分：finishTurn() 会把 streamingMessageId 和 turnAssistantIds 清掉。
+        // 本回合可能有多段（文本 → 工具调用 → 再文本），按产生顺序合起来。消息的 text
+        // 就是那一段的原始 Markdown —— appendReplyChunk 每次都写入整段。
+        val partial = turnAssistantIds
+            .mapNotNull { id ->
+                state.messages.firstOrNull { it.id == id }?.text?.takeIf { it.isNotBlank() }
+            }
+            .joinToString("\n\n")
+
+        running.cancel()
+        turnJob = null
+        // 取消之后 TurnCompleted 不会再来，收尾得自己做，否则那条助手消息会永远停在
+        // 转圈状态、isSending 也一直是 true。
+        finishTurn()
+
+        // ADK 只在回合结束时写一条「结算后」的助手事件，取消的回合在 session 里什么都
+        // 没有（流式分片从不单独落库）。而转写是从 session 重建的，不补写的话这半段下次
+        // 加载就没了、模型下一轮的上下文里也没有它。见 AgentChat.persistInterruptedReply。
+        if (partial.isNotBlank()) {
+            viewModelScope.launch {
+                runCatching { agentChat.persistInterruptedReply(partial) }
+            }
+        }
     }
 
     private fun handleNewConversation() {
@@ -733,15 +779,19 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch { runCatching { conversationStore.refresh() } }
     }
 
-    /** Cancels any in-flight turn and drops the ADK session (the transcript stays). */
+    /**
+     * Drops the ADK session so the next send re-attaches (the transcript stays).
+     *
+     * **刻意不取消进行中的回合**：回复途中切模型 / 切对话不该把那条回复掐掉，它会继续
+     * 跑完。要停止只有 [handleStopClicked]（输入框那个停止按钮）这一条路径。
+     *
+     * 因此这里也不做收尾 —— `streamingMessageId`、流式解析器和 `isSending` 都属于仍在
+     * 跑的那一轮，回合自己走到 [finishTurn] 时会清干净。切对话时消息被整体替换，后续
+     * 分片会因为按 id 找不到目标消息而被丢弃（见 [appendReplyChunk]），不会串进新对话。
+     */
     private fun resetSession() {
-        turnJob?.cancel()
-        turnJob = null
         agentChat.endConversation()
         sessionKey = null
-        streamingMessageId = null
-        closeStreamParser()
-        turnAssistantIds.clear()
         // A question belongs to the conversation that asked it.
         updateState { copy(pendingPrompt = null) }
     }

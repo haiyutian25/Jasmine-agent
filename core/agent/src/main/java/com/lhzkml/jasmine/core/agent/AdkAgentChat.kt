@@ -7,6 +7,7 @@ import com.google.adk.kt.agents.StreamingMode
 import com.google.adk.kt.apps.App
 import com.google.adk.kt.callbacks.AfterAgentCallback
 import com.google.adk.kt.callbacks.CallbackChoice
+import com.google.adk.kt.events.Event
 import com.google.adk.kt.memory.MemoryService
 import com.google.adk.kt.models.Model
 import com.google.adk.kt.runners.InMemoryRunner
@@ -96,6 +97,15 @@ class AdkAgentChat(
     /** The id of the session the runner is attached to. */
     private var attachedSessionId: String? = null
 
+    /**
+     * Id of the current turn's invocation, recorded from the events as they arrive.
+     *
+     * The interrupted-reply event has to carry it: one turn is one invocation in ADK,
+     * and the user's event and the assistant's share the same id (that is how the
+     * stored sessions look).
+     */
+    private var activeInvocationId: String? = null
+
     /** The long-running call the agent is waiting on, if any. */
     private var pendingPrompt: PendingPrompt? = null
 
@@ -159,7 +169,33 @@ class AdkAgentChat(
         runner?.close()
         runner = null
         attachedSessionId = null
+        activeInvocationId = null
         pendingPrompt = null
+    }
+
+    /**
+     * 见 [AgentChat.persistInterruptedReply]。
+     *
+     * 补写一条**非 partial** 的助手事件。两个必须遵守的点：
+     *
+     * 1. 事件不能是 partial —— `SessionService.appendEvent` 两处实现（默认实现与
+     *    `RoomSessionService`）都在开头 `if (event.partial) return event` 直接跳过。
+     * 2. 必须重新 `getSession` 拿一份最新的 session：`RoomSessionService.appendEvent`
+     *    以 `expectedUpdateTime = session.lastUpdateTime` 做乐观锁，复用旧引用会写失败。
+     */
+    override suspend fun persistInterruptedReply(text: String) {
+        if (text.isBlank()) return
+        val sessionId = attachedSessionId ?: return
+        val key = SessionKey(appName = APP_NAME, userId = USER_ID, id = sessionId)
+        val session = sessionService.getSession(key) ?: return
+        sessionService.appendEvent(
+            session,
+            Event(
+                invocationId = activeInvocationId,
+                author = AGENT_NAME,
+                content = Content(role = Role.MODEL, parts = listOf(Part(text = text))),
+            ),
+        )
     }
 
     private fun run(newMessage: Content): Flow<ChatEvent> = flow {
@@ -181,6 +217,8 @@ class AdkAgentChat(
                 runConfig = RunConfig(streamingMode = StreamingMode.SSE),
             )
             .collect { event ->
+                // 记下本回合的 invocation id：停止时补写助手事件要用它。
+                activeInvocationId = event.invocationId ?: activeInvocationId
                 val failure = event.errorMessage
                 if (failure != null) {
                     emit(ChatEvent.Failed(failure))

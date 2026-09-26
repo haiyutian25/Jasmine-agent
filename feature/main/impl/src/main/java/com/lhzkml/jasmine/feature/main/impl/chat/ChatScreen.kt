@@ -464,11 +464,17 @@ private fun Composer(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Right: the send button, two faces — send, or stop while a reply is in
-            // flight. 空输入时以前显示「加号」，现在统一显示发送箭头（不可发时置灰），
+            // Right: the send button, two faces — stop while a reply is in flight,
+            // send otherwise. 空输入时以前显示「加号」，现在统一显示发送箭头（不可发时置灰），
             // 这样按钮的含义始终一致，不需要用户猜那个加号是干什么的。
             Button(
-                onClick = { if (canSend) onAction(ChatAction.SendClicked) },
+                onClick = {
+                    when {
+                        // 回复中它是「停止」：取消对事件流的收集，见 handleStopClicked。
+                        state.isSending -> onAction(ChatAction.StopClicked)
+                        canSend -> onAction(ChatAction.SendClicked)
+                    }
+                },
                 rippleEnabled = false,
                 modifier = Modifier.size(ChatSendButtonSize),
                 testTag = "chat_send_btn"

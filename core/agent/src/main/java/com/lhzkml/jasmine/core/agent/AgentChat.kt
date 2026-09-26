@@ -94,6 +94,20 @@ interface AgentChat {
      */
     fun respondToPrompt(answer: String): Flow<ChatEvent>
 
+    /**
+     * Persists the partial reply left behind when the caller cancelled a [send].
+     *
+     * Needed because ADK writes an assistant reply as **one settled event at the end of
+     * the turn** — streaming chunks are never stored on their own. A cancelled turn
+     * therefore leaves only the user's event behind, and since the transcript is rebuilt
+     * from the session's events, that half-written reply would vanish on the next reload
+     * (and the model's context would not contain it either).
+     *
+     * A caller that keeps the partial text on screen must call this so both sides agree.
+     * No-op when [text] is blank or no conversation is attached.
+     */
+    suspend fun persistInterruptedReply(text: String)
+
     /** Releases the runner. Stored history is left untouched. */
     fun endConversation()
 }

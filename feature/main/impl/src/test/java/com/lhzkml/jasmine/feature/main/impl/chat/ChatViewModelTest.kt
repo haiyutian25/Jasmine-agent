@@ -14,9 +14,11 @@ import com.lhzkml.jasmine.core.data.repository.ProviderRepository
 import com.lhzkml.jasmine.core.data.repository.UserPreferencesRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -487,6 +489,32 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun `stopping mid-reply keeps the partial text and persists it into the session`() =
+        runTest(testDispatcher) {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            // 流式来一段之后挂住：回合仍在进行中，不会发 Completed。
+            agentChat.hangAfterEvents = true
+            agentChat.nextEvents = listOf(ChatEvent.Text("half a reply"))
+            viewModel.trySendAction(ChatAction.InputChanged("hi"))
+            viewModel.trySendAction(ChatAction.SendClicked)
+            advanceUntilIdle()
+            assertTrue("the turn should still be running", viewModel.stateFlow.value.isSending)
+
+            viewModel.trySendAction(ChatAction.StopClicked)
+            advanceUntilIdle()
+
+            val state = viewModel.stateFlow.value
+            // 半段留在界面上
+            assertEquals(listOf("hi", "half a reply"), state.messages.map { it.text })
+            // composer 释放，不卡在停止态
+            assertFalse(state.isSending)
+            // 并且补写进了 session —— 否则重建转写时这半段就没了、模型上下文里也没有
+            assertEquals(listOf("half a reply"), agentChat.persistedInterrupted)
+        }
+
+    @Test
     fun `deleting the current conversation clears the transcript`() =
         runTest(testDispatcher) {
             conversationStore.seedConversation("conv-a", "A", listOf(TranscriptMessage(ChatRole.USER, "hi")))
@@ -638,6 +666,9 @@ private class FakeAgentChat : AgentChat {
     var conversationsStarted = 0
     var conversationsEnded = 0
 
+    /** 发完 [nextEvents] 后挂住，不发 Completed —— 模拟「回复还在进行中」。 */
+    var hangAfterEvents = false
+
     override suspend fun startConversation(
         sessionId: String,
         provider: ProviderConfig,
@@ -650,11 +681,22 @@ private class FakeAgentChat : AgentChat {
 
     override fun send(text: String): Flow<ChatEvent> {
         sent += text
-        return nextEvents.asFlow()
+        return flow {
+            nextEvents.forEach { emit(it) }
+            // 挂住不回 Completed，用于测「回复途中停止」。
+            if (hangAfterEvents) awaitCancellation()
+        }
     }
 
     override fun endConversation() {
         conversationsEnded++
+    }
+
+    /** 停止时补写进 session 的半段回复。 */
+    val persistedInterrupted = mutableListOf<String>()
+
+    override suspend fun persistInterruptedReply(text: String) {
+        persistedInterrupted += text
     }
 
     /** Events the resumed turn streams, once the user answers. */
