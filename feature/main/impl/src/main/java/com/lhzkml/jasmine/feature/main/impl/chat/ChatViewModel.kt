@@ -728,7 +728,10 @@ class ChatViewModel @Inject constructor(
      * （用户对提问的回答也走这里）。只有找不到配对调用时才单独成条。
      */
     private fun appendToolResult(action: ChatAction.Internal.ToolReturned) {
-        val open = state.messages.lastOrNull()?.takeIf { message ->
+        // 按名字往前找最近一张「同名、还没有返回」的调用卡，与重建那条路径（`ConversationStore`
+        // 的 absorbIntoOpenCall）规则一致。只认紧邻上一条的话，一条事件里并行调用的几个工具
+        // 会各自多出一张独立的「xxx 返回」卡片，重启前后就对不上了。
+        val open = state.messages.lastOrNull { message ->
             val tool = message.tool
             tool != null && !tool.isResultOnly && tool.result == null && tool.name == action.name
         }

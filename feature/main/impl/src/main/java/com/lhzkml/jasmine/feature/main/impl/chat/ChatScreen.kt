@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -242,12 +243,30 @@ private fun MessageList(
         ),
         verticalArrangement = Arrangement.spacedBy(ChatMessageSpacing)
     ) {
-        items(state.messages, key = { it.id }) { message ->
+        itemsIndexed(state.messages, key = { _, message -> message.id }) { index, message ->
             val tool = message.tool
-            if (tool == null) {
-                MessageBubble(message = message, currentTheme = currentTheme)
-            } else {
-                ToolActivityRow(activity = tool, currentTheme = currentTheme)
+            // 一轮的末尾：后面没有消息了，或者下一条是用户的新消息。
+            val turnEnd = index == state.messages.lastIndex ||
+                state.messages[index + 1].role == ChatRole.USER
+            Column(modifier = Modifier.fillMaxWidth()) {
+                if (tool == null) {
+                    MessageBubble(message = message, currentTheme = currentTheme)
+                } else {
+                    ToolActivityRow(activity = tool, currentTheme = currentTheme)
+                }
+                // 一轮的「时间 + 模型名」只在**整条回复结束时**出现一次。
+                //
+                // 一轮回复常被工具调用切成好几段（先说一句 → 调工具 → 再接着说），
+                // 每段都挂标签就会冒出好几个标签，而且回复还没完就出现了。用户那条自己
+                // 在气泡下方已经有时间，这里不重复。
+                if (turnEnd && !message.isStreaming && message.role == ChatRole.ASSISTANT) {
+                    Spacer(modifier = Modifier.height(ChatMessageTimeGap))
+                    MessageMetaRow(
+                        time = relativeTimeText(message.timestamp),
+                        modelLabel = message.modelLabel,
+                        currentTheme = currentTheme,
+                    )
+                }
             }
         }
     }
@@ -299,22 +318,8 @@ private fun MessageBubble(message: ChatMessage, currentTheme: CssVariables) {
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            // 底部一行 meta：时间 + 产生这条回复的模型名（都是小标签）。
-            // 模型名紧跟时间后面 —— 先看「什么时候」，再看「谁答的」。
-            if (time != null || message.modelLabel != null) {
-                Spacer(modifier = Modifier.height(ChatMessageTimeGap))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(ChatMessageMetaGap),
-                ) {
-                    if (time != null) {
-                        MessageMetaChip(text = time, currentTheme = currentTheme)
-                    }
-                    message.modelLabel?.let { label ->
-                        MessageMetaChip(text = label, currentTheme = currentTheme)
-                    }
-                }
-            }
+            // 模型这侧的 meta（时间 + 模型名）不在这里画 —— 它属于「整轮回复」，由
+            // MessageList 在这一轮的最后一条消息之后统一画，见那里的说明。
         }
         return
     }
@@ -353,9 +358,26 @@ private fun MessageBubble(message: ChatMessage, currentTheme: CssVariables) {
             }
             if (time != null) {
                 Spacer(modifier = Modifier.height(ChatMessageTimeGap))
-                MessageMetaChip(text = time, currentTheme = currentTheme)
+                MessageMetaRow(time = time, modelLabel = null, currentTheme = currentTheme)
             }
         }
+    }
+}
+
+/**
+ * 消息底部的一行 meta：时间 + 模型名（都为空时什么都不画）。
+ *
+ * 模型名紧跟时间后面 —— 先看「什么时候」，再看「谁答的」；用户那条只给时间。
+ */
+@Composable
+private fun MessageMetaRow(time: String?, modelLabel: String?, currentTheme: CssVariables) {
+    if (time == null && modelLabel == null) return
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(ChatMessageMetaGap),
+    ) {
+        time?.let { MessageMetaChip(text = it, currentTheme = currentTheme) }
+        modelLabel?.let { MessageMetaChip(text = it, currentTheme = currentTheme) }
     }
 }
 

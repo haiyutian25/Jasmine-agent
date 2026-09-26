@@ -105,7 +105,7 @@ class AdkConversationStore(
             sessionService
                 .listEvents(sessionKey(conversationId))
                 .events
-                .mapNotNull(Event::toTranscriptMessage)
+                .flatMap(Event::toTranscriptMessages)
         )
 
     override suspend fun createConversation(
@@ -155,101 +155,111 @@ private fun Session.toConversation(): Conversation {
 }
 
 /**
- * One turn of a session as the transcript shows it, or null for events the transcript
- * does not carry.
+ * One turn of a session as the transcript shows it —— **事件里的每个 part 都产出对应条目**。
  *
- * Skipped: streaming chunks (`partial`) — the aggregator repeats them in full on the
- * settled event — and events with no text and no function response, which is how an
- * echo of the user's own message is left out.
+ * 准则是「照着事件原样搬」，不是「挑一个」：同一段里连续的文字合成一条文本条目；每个
+ * `functionCall` / `functionResponse` 各出一条条目（顺序严格按 parts 来）。调用与它的返回
+ * **仍然合成同一张卡片** —— 配对由 [mergeToolResults] 做，本函数只负责一条不漏地摆出来。
  *
- * Two shapes are reconstructed rather than read straight off: a tool call, and a tool's
- * response, become tool entries so a **reloaded** conversation looks the same as the
- * live turn did (the live side builds those in `ChatViewModel.appendToolEntry`); and a
- * failed turn is shown as its partial text plus the error, which is how the live turn
- * renders it too. Note that a user-authored function response — how a tool's question
- * comes back — is a tool response, not a message of the user's own.
+ * 以前这里只取**第一个** functionCall / functionResponse，且命中调用分支就 return：于是
+ * 一条事件里并行调用的三个工具只重建出一张卡、带正文的调用事件还把正文整段丢掉。结果是
+ * 「重启后能不能看全」取决于模型这次怎么发 —— 这正是要根除的。
+ *
+ * 只跳过一种：流式分片（`partial`）—— 聚合器会在 settled 事件里重复完整内容
+ * （且实测 ADK 根本不把 partial 事件落库）。
+ *
+ * 注意 author 为 user 的 functionResponse：那是「用户对工具提问的回答」，属于工具返回，
+ * 不是用户自己发的一条消息 —— 实时那边同样按工具返回处理（见 `AdkAgentChat.run` 的 user 分支）。
  */
-private fun Event.toTranscriptMessage(): TranscriptMessage? {
-    if (partial) return null
+private fun Event.toTranscriptMessages(): List<TranscriptMessage> {
+    if (partial) return emptyList()
 
     val parts = content?.parts.orEmpty()
-
-    // 工具调用：正文为空。以前这里因为「正文空」被整条丢掉，重新加载后界面上就没有
-    // 「调用 xxx」了 —— 与实时那一轮不一致。现在原样还原成工具条目。
-    val call = parts.firstNotNullOfOrNull { it.functionCall }
-    if (call != null) {
-        return TranscriptMessage(
-            role = ChatRole.ASSISTANT,
-            text = "",
-            tool = TranscriptToolActivity(
-                name = call.name,
-                detail = call.args.abbreviated(),
-            ),
-            timestamp = this.timestamp,
-        )
-    }
-
-    val text = parts.mapNotNull { it.text }.joinToString("")
-    val response = parts.firstNotNullOfOrNull { it.functionResponse }
     val failure = errorMessage
+    val role = if (author == USER_AUTHOR) ChatRole.USER else ChatRole.ASSISTANT
+    val out = mutableListOf<TranscriptMessage>()
 
-    // 工具返回：先产出「只有返回」的条目，再由 [mergeToolResults] 并进它上面那张调用卡片
-    // —— 一张卡片放「问了什么 + 回了什么」。这里包含 author 为 user 的那种：用户对提问的
-    // 回答，ADK 记成 author=user 的 functionResponse；实时那边同样把它当 ToolResult 发出去
-    // （见 AdkAgentChat.run 的 user 分支），两边形状一致。以前它被当成普通用户消息，重启后
-    // 会凭空多出一条「像是用户主动发的」气泡。
-    if (response != null) {
-        return TranscriptMessage(
-            role = ChatRole.ASSISTANT,
-            text = "",
-            tool = TranscriptToolActivity(
-                name = response.name,
-                detail = "",
-                result = response.response.abbreviated(),
-            ),
-            timestamp = this.timestamp,
+    fun flushText(buffer: StringBuilder, isError: Boolean = false) {
+        if (buffer.isEmpty()) return
+        val body = buffer.toString()
+        buffer.setLength(0)
+        out += TranscriptMessage(
+            role = role,
+            text = body,
+            isError = isError,
+            timestamp = timestamp,
+            modelLabel = modelVersion,
         )
     }
 
-    val body = when {
-        failure == null -> text
-        text.isEmpty() -> failure
-        else -> "$text\n\n$failure"
+    fun addTool(name: String, detail: String, result: String?) {
+        out += TranscriptMessage(
+            role = ChatRole.ASSISTANT,
+            text = "",
+            tool = TranscriptToolActivity(name = name, detail = detail, result = result),
+            timestamp = timestamp,
+            modelLabel = modelVersion,
+        )
     }
-    if (body.isEmpty()) return null
 
-    return TranscriptMessage(
-        role = if (author == USER_AUTHOR) ChatRole.USER else ChatRole.ASSISTANT,
-        text = body,
-        isError = failure != null,
-        // 事件自带时间（写库时落进 StorageEvent.timestamp），重新加载历史也拿得到。
-        timestamp = timestamp,
-        // 产生这条回复的模型名（ADK 事件里的 modelVersion）。用户那条事件没有这个值，是 null。
-        modelLabel = modelVersion,
-    )
+    val text = StringBuilder()
+    parts.forEach { part ->
+        // 有文字先结一段：part 的先后就是实时那一轮的先后（先说话、再调工具）。
+        part.text?.let { text.append(it) }
+        part.functionCall?.let { call ->
+            flushText(text)
+            addTool(name = call.name, detail = call.args.abbreviated(), result = null)
+        }
+        part.functionResponse?.let { response ->
+            flushText(text)
+            addTool(name = response.name, detail = "", result = response.response.abbreviated())
+        }
+    }
+    // 失败的那一轮：正文后面接上原因（与实时一致）。
+    if (failure != null) {
+        if (text.isNotEmpty()) text.append("\n\n")
+        text.append(failure)
+    }
+    flushText(text, isError = failure != null)
+
+    return out
 }
 
 /**
- * 把「工具返回」并进它上面那张「工具调用」卡片 —— 一次调用的问与答属于同一张卡片。
+ * 把「工具返回」并进它对应的那张「工具调用」卡片 —— 一次调用的问与答属于同一张卡片。
  *
  * ADK 把调用和返回记成两条事件，而界面（以及实时那一轮，见 `ChatViewModel.appendToolResult`）
- * 是合在一张卡片里的。只有紧跟其后、同名、且尚未有返回的调用才吸收它；找不到配对的返回
- * 单独成条，界面上画成「xxx 返回」。
+ * 是合在一张卡片里的。两边的配对规则必须完全一致：**按名字往前找最近一张「同名、还没有返回」
+ * 的调用卡**。以前只认紧邻上一条，于是「一条事件里并行调了 3 个工具、下一条事件回 3 个结果」
+ * 那种情况全都配不上对，界面上会凭空多出一堆独立的「xxx 返回」卡片。
+ *
+ * 找不到配对的返回单独成条，画成「xxx 返回」。
  */
 private fun mergeToolResults(messages: List<TranscriptMessage>): List<TranscriptMessage> {
     val merged = mutableListOf<TranscriptMessage>()
     for (message in messages) {
-        val tool = message.tool
-        val open = merged.lastOrNull()?.tool
-        val absorbed = tool != null && tool.isResultOnly &&
-            open != null && open.name == tool.name && open.result == null
-        if (absorbed) {
-            merged[merged.lastIndex] = merged.last().copy(
-                tool = open?.copy(result = tool?.result)
-            )
-        } else {
-            merged += message
-        }
+        if (absorbIntoOpenCall(merged, message)) continue
+        merged += message
     }
     return merged
+}
+
+/**
+ * [message] 若是一条「只有返回」的工具条目，就把它并进 [merged] 里最近那张同名、尚无返回的调用卡。
+ *
+ * @return true 表示已经并进去了，调用方不要再单独添加这一条。
+ */
+private fun absorbIntoOpenCall(
+    merged: MutableList<TranscriptMessage>,
+    message: TranscriptMessage,
+): Boolean {
+    val tool = message.tool ?: return false
+    if (!tool.isResultOnly) return false
+    val index = merged.indexOfLast { candidate ->
+        val open = candidate.tool
+        open != null && !open.isResultOnly && open.name == tool.name && open.result == null
+    }
+    if (index < 0) return false
+    merged[index] = merged[index].copy(tool = merged[index].tool?.copy(result = tool.result))
+    return true
 }
