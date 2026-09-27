@@ -14,7 +14,6 @@ pub use list::delete_session;
 pub use list::find_session_path;
 pub use list::interrupted_turn;
 pub use list::list_sessions;
-pub use list::read_items;
 pub use list::read_response_items;
 pub use list::read_session;
 pub use list::read_timed_items;

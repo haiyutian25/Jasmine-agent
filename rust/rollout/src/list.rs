@@ -81,14 +81,6 @@ pub fn read_session(path: &Path) -> Option<(SessionMeta, String)> {
     Some((meta, updated_at))
 }
 
-/// Everything the conversation recorded, in order.
-pub fn read_items(path: &Path) -> std::io::Result<Vec<RolloutItem>> {
-    Ok(read_lines(path)?
-        .into_iter()
-        .map(|line| line.item)
-        .collect())
-}
-
 /// Everything the conversation recorded, in order, each with the moment it was written.
 ///
 /// The stamp is what a platform shows next to a line, so the reader keeps it instead of dropping

@@ -570,19 +570,15 @@ impl AgentChatService {
                     }
                     RolloutItem::ResponseItem(recorded) => transcript_entry(recorded),
                     // A turn that stopped is a line of its own on the platform, between the two
-                    // messages it sits between. A file from before the length was recorded has no
-                    // seconds to show, so it gets no line.
-                    RolloutItem::TurnAborted { duration_ms, .. } if *duration_ms > 0 => {
-                        Some(HistoryEntry {
-                            role: Role::Model,
-                            text: String::new(),
-                            tool_call_id: None,
-                            stopped_after_ms: Some(*duration_ms),
-                            recorded_at: at,
-                            model_label: None,
-                        })
-                    }
-                    RolloutItem::TurnAborted { .. } => None,
+                    // messages it sits between.
+                    RolloutItem::TurnAborted { duration_ms, .. } => Some(HistoryEntry {
+                        role: Role::Model,
+                        text: String::new(),
+                        tool_call_id: None,
+                        stopped_after_ms: Some(*duration_ms),
+                        recorded_at: at,
+                        model_label: None,
+                    }),
                     RolloutItem::SessionMeta(_) | RolloutItem::TurnComplete { .. } => None,
                 };
                 entry.map(|mut entry| {
