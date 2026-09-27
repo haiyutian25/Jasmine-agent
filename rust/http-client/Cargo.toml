@@ -1,0 +1,24 @@
+[package]
+name = "jasmine-http-client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+bytes = { workspace = true }
+futures = { workspace = true }
+http = { workspace = true }
+httpdate = { workspace = true }
+reqwest = { workspace = true, features = ["json", "rustls-tls", "rustls-tls-native-roots", "stream"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_urlencoded = "0.7"
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt", "time", "sync"] }
+tracing = { workspace = true }
+
+[lints]
+workspace = true
+
+[lib]
+doctest = false

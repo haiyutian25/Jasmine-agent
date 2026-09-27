@@ -1,0 +1,325 @@
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
+//! 跨语言边界。
+//!
+//! # 这一层是新增的
+//!
+//! Android 侧没有对应物 —— 那边核心与界面在同一个运行时里，不存在边界。
+//! 一旦核心搬进 Rust，就多出这一层，所以它必须尽量薄：**只做翻译，不做决策**。
+//! 任何"顺手在这里处理一下"的逻辑，最后都会变成两个平台各有一份、
+//! 且没人知道哪份是对的。
+//!
+//! # 边界两侧的形状
+//!
+//! | 方向 | 平台侧 | 这里 | 核心侧 |
+//! |---|---|---|---|
+//! | 调用进来 | `startConversation` / `send` / `respondToPrompts` / `endConversation` | [`AgentHandle`] | [`jasmine_core::session::AgentChatService`] |
+//! | 事件出去 | 界面消费 | [`EventListener`] | [`jasmine_core::session::ChatSink`] |
+//! | 数据进来 | 会话索引、时钟 | [`HostConversations`] / [`HostClock`] + 两个适配器 | [`jasmine_core::host`] 的 trait |
+//!
+//! # 为什么事件是回调
+//!
+//! 平台侧的核心抽象是"流"，而跨语言边界上 Rust 的流没法直接交给平台侧，
+//! 只能反向由 Rust 主动调平台。所以核心内部（[`jasmine_core::session::ChatSink`]）
+//! 就已经是回调形态，这里只做一次转发 —— 若核心侧用流、边界再转回调，
+//! 就会多出一处"事件可能被缓冲/丢失"的地方。
+//!
+//! # 绑定
+//!
+//! 用 UniFFI：这里的注解是导出面的唯一来源，Kotlin 侧由生成物提供。
+//!
+//! ```text
+//! cargo run -p jasmine-ffi --features bindgen-cli --bin uniffi-bindgen -- \
+//!     generate --library <cdylib> --language kotlin --out-dir <输出目录>
+//! ```
+//!
+//! 跨边界类型定义在 `jasmine-protocol` / `jasmine-model-provider-info` 里（它们各自在
+//! `uniffi` 特性下生成脚手架，这里 reexport），所以注解长在真正的类型上，边界上不做镜像。
+
+uniffi::setup_scaffolding!();
+jasmine_protocol::uniffi_reexport_scaffolding!();
+jasmine_model_provider_info::uniffi_reexport_scaffolding!();
+
+use std::sync::Arc;
+
+use jasmine_core::host::Clock;
+use jasmine_core::session::{AgentChatService, AgentError, ChatSink};
+use jasmine_model_provider::ResolvedProvider;
+use jasmine_model_provider_info::ModelConfig;
+use jasmine_model_provider_info::{ModelProviderInfo, WireApi};
+use jasmine_protocol::{ChatEvent, SessionId};
+
+/// 平台侧要显示的会话摘要。
+///
+/// 时间给的是毫秒时间戳：界面自己按设备时区显示（时区属于平台）。
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct ConversationSummary {
+    pub session_id: String,
+    pub title: String,
+    pub provider_id: String,
+    pub model_id: String,
+    pub updated_at: i64,
+}
+
+/// 平台侧要显示的一条转写。
+///
+/// 工具结果带 `tool_call_id`：它是把结果放回发起它的那次调用旁边的唯一线索。
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct HistoryEntry {
+    pub role: jasmine_protocol::Role,
+    pub text: String,
+    pub tool_call_id: Option<String>,
+}
+
+/// 平台侧实现的时钟。
+#[uniffi::export(with_foreign)]
+pub trait HostClock: Send + Sync {
+    /// 形如 `2026-09-27 10:31:05 GMT+08:00`。
+    fn now(&self) -> String;
+
+    /// 同一形状，但针对一个已经记录下来的时刻：列表要按设备时区读。
+    fn format(&self, timestamp: String) -> String;
+}
+
+/// 核心往平台推的事件。
+#[uniffi::export(with_foreign)]
+pub trait EventListener: Send + Sync {
+    fn on_event(&self, event: ChatEvent);
+}
+
+/// 平台侧配置进来的 provider。
+///
+/// 密钥在最后一刻才拼进来（[`ResolvedProvider`]），这样"元信息"可以被界面随便传阅，
+/// 而密钥只在必要的那一层出现。
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct ProviderInput {
+    pub id: String,
+    pub name: String,
+    pub base_url: String,
+    pub wire_api: WireApi,
+    pub api_key: String,
+}
+
+impl ProviderInput {
+    pub fn into_resolved(self) -> ResolvedProvider {
+        let info = ModelProviderInfo {
+            id: self.id,
+            name: self.name,
+            base_url: self.base_url,
+            wire_api: self.wire_api,
+            is_built_in: false,
+            models: Vec::new(),
+            // 重试次数与空闲超时用统一默认值：界面不该让用户配这个，配错只会更难排查。
+            request_max_retries: None,
+            stream_idle_timeout_ms: None,
+        };
+        ResolvedProvider::from_config(info, self.api_key)
+    }
+}
+
+/// 把平台的时钟接成核心要的形状。
+pub struct ClockAdapter {
+    host: Arc<dyn HostClock>,
+}
+
+impl ClockAdapter {
+    pub fn new(host: Arc<dyn HostClock>) -> Self {
+        Self { host }
+    }
+}
+
+impl Clock for ClockAdapter {
+    fn now_formatted(&self) -> String {
+        self.host.now()
+    }
+
+    fn format(&self, timestamp: &str) -> String {
+        self.host.format(timestamp.to_string())
+    }
+}
+
+/// 把核心的事件出口接到平台的事件监听。
+struct ListenerSink {
+    listener: Arc<dyn EventListener>,
+}
+
+impl ChatSink for ListenerSink {
+    fn emit(&mut self, event: ChatEvent) {
+        self.listener.on_event(event);
+    }
+}
+
+/// 暴露给平台的会话句柄。
+///
+/// 方法名与 Android 侧现有的会话接口保持一致（`startConversation` / `send` /
+/// `respondToPrompts` / `endConversation`）—— 这样界面层的改动只在于"实现换了一个"，
+/// 调用点不用重写。
+/// 跨边界的失败：只带一句可显示的原因（HTTP 状态、服务端错误文本、调用顺序错误…）。
+///
+/// 跨语言传递完整的错误类型需要两边同步维护一套枚举，而平台真正需要的只是一句能显示的
+/// 话；需要区分时按原因文本判断即可。
+#[derive(Debug, thiserror::Error, uniffi::Error)]
+pub enum AgentFailure {
+    #[error("{detail}")]
+    Failed { detail: String },
+}
+
+#[derive(uniffi::Object)]
+pub struct AgentHandle {
+    inner: AgentChatService,
+}
+
+#[uniffi::export]
+impl AgentHandle {
+    /// 装配。平台给出会话目录与自己的时钟。
+    #[uniffi::constructor]
+    pub fn new(sessions_dir: String, clock: Arc<dyn HostClock>) -> Self {
+        Self {
+            inner: AgentChatService::new(
+                std::path::PathBuf::from(sessions_dir),
+                Arc::new(ClockAdapter::new(clock)),
+            ),
+        }
+    }
+
+    /// 附着会话。失败原因是给界面看的字符串（跨边界不做错误类型学）。
+    pub fn start_conversation(
+        &self,
+        session_id: String,
+        provider: ProviderInput,
+        model_id: String,
+        instruction: String,
+    ) -> Result<(), AgentFailure> {
+        // 平台这一层只给模型 id；能力（能不能读图片/音频）等界面能按模型声明时再一并传进来。
+        let model = ModelConfig {
+            id: model_id.clone(),
+            model_id,
+            ..ModelConfig::default()
+        };
+        self.inner
+            .start_conversation(
+                &SessionId::new(session_id),
+                provider.into_resolved(),
+                &model,
+                &instruction,
+            )
+            .map_err(|error| AgentFailure::Failed {
+                detail: error.detail(),
+            })
+    }
+
+    /// 建会话：平台的"新建对话"调它，标题/provider/model 由平台给。
+    pub fn create_conversation(
+        &self,
+        session_id: String,
+        provider_id: String,
+        model_id: String,
+        title: String,
+    ) -> Result<(), AgentFailure> {
+        self.inner
+            .create_conversation(&SessionId::new(session_id), &provider_id, &model_id, &title)
+            .map_err(|error| AgentFailure::Failed {
+                detail: error.detail(),
+            })
+    }
+
+    /// 删会话：连同它的会话文件一起删掉。
+    pub fn delete_conversation(&self, session_id: String) -> Result<(), AgentFailure> {
+        self.inner
+            .delete_conversation(&SessionId::new(session_id))
+            .map_err(|error| AgentFailure::Failed {
+                detail: error.detail(),
+            })
+    }
+
+    /// 上下文里当前有多少条消息。
+    ///
+    /// 给平台做诊断用（也可以在附着会话后自检"历史是否装载成功"）。
+    pub fn context_len(&self) -> u64 {
+        self.inner.context_len() as u64
+    }
+
+    /// 平台侧栏要的会话列表（最新的在前）。
+    pub fn conversations(&self) -> Vec<ConversationSummary> {
+        self.inner
+            .conversations()
+            .into_iter()
+            .map(|summary| ConversationSummary {
+                session_id: summary.session_id,
+                title: summary.title,
+                provider_id: summary.provider_id,
+                model_id: summary.model_id,
+                updated_at: summary.updated_at,
+            })
+            .collect()
+    }
+
+    /// 某个会话的转写（按发生顺序）。
+    pub fn transcript(&self, session_id: String) -> Vec<HistoryEntry> {
+        self.inner
+            .transcript(&SessionId::new(session_id))
+            .into_iter()
+            .map(|entry| HistoryEntry {
+                role: entry.role,
+                text: entry.text,
+                tool_call_id: entry.tool_call_id,
+            })
+            .collect()
+    }
+
+    /// 发一轮并流式回调事件。
+    pub fn send(&self, text: String, listener: Arc<dyn EventListener>) -> Result<(), AgentFailure> {
+        let mut sink = ListenerSink { listener };
+        self.inner
+            .send(&text, &mut sink)
+            .map_err(|error| AgentFailure::Failed {
+                detail: error.detail(),
+            })
+    }
+
+    /// 提交提问的答案（按提问顺序收齐后一起提交）。
+    pub fn respond_to_prompts(
+        &self,
+        answers: Vec<String>,
+        listener: Arc<dyn EventListener>,
+    ) -> Result<(), AgentFailure> {
+        let mut sink = ListenerSink { listener };
+        self.inner
+            .respond_to_prompts(&answers, &mut sink)
+            .map_err(|error| AgentFailure::Failed {
+                detail: error.detail(),
+            })
+    }
+
+    /// 把取消时留下的半段回复写回会话。
+    pub fn persist_interrupted_reply(&self, text: String) -> Result<(), AgentFailure> {
+        self.inner
+            .persist_interrupted_reply(&text)
+            .map_err(|error| AgentFailure::Failed {
+                detail: error.detail(),
+            })
+    }
+
+    /// 释放会话（历史不动）。
+    pub fn end_conversation(&self) {
+        self.inner.end_conversation();
+    }
+}
+
+/// 探测：这条配置能不能答话。
+#[uniffi::export]
+pub fn probe(provider: ProviderInput, model_id: String) -> jasmine_protocol::ProbeResult {
+    jasmine_core::probe::probe(&provider.into_resolved(), &model_id)
+}
+
+/// [`AgentError`] 在边界上的呈现方式：只给一句原因，不带类型。
+///
+/// 跨语言传递错误类型需要两边同步维护一套枚举，而界面真正需要的只是一句能显示的话；
+/// 需要区分时再按原因文本判断即可。
+#[allow(dead_code)]
+fn error_text(error: AgentError) -> String {
+    error.detail()
+}
+
+#[cfg(test)]
+#[path = "ffi_tests.rs"]
+mod tests;

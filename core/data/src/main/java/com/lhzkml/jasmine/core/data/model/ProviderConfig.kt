@@ -46,13 +46,13 @@ data class ProviderConfig(
     val models: List<ModelConfig> = emptyList(),
 ) {
     companion object {
-        /** Factory preset: DeepSeek (OpenAI-compatible Chat Completions). */
+        /** Factory preset: DeepSeek (native Responses API). */
         val DEEPSEEK = ProviderConfig(
             id = "deepseek",
             name = "DeepSeek",
             baseUrl = "https://api.deepseek.com",
             apiKey = "",
-            apiType = ProviderApiType.CHAT_COMPLETIONS,
+            apiType = ProviderApiType.RESPONSES,
             isBuiltIn = true,
         )
 

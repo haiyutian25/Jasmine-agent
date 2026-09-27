@@ -1,0 +1,32 @@
+[package]
+name = "jasmine-ffi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "跨语言边界：把核心的能力暴露给平台侧，并把平台侧实现接回来"
+
+[dependencies]
+jasmine-core = { workspace = true }
+jasmine-protocol = { workspace = true, features = ["uniffi"] }
+jasmine-tools = { workspace = true }
+jasmine-model-provider = { workspace = true }
+jasmine-model-provider-info = { workspace = true, features = ["uniffi"] }
+thiserror = { workspace = true }
+uniffi = { workspace = true }
+
+[features]
+# 生成 Kotlin 绑定用的命令行入口；平台侧构建不需要它（不引入 clap/camino）。
+bindgen-cli = ["uniffi/cli"]
+
+# 这一层是给平台调用的入口，产物是动态库。
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+required-features = ["bindgen-cli"]
+
+[lints]
+workspace = true

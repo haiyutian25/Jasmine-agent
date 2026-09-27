@@ -1,0 +1,15 @@
+[package]
+name = "jasmine-rollout"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "会话落盘：每个会话一个只追加的 JSONL，首行是会话元信息"
+
+[dependencies]
+jasmine-protocol = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true

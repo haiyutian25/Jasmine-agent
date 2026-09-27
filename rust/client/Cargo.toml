@@ -1,0 +1,17 @@
+[package]
+name = "jasmine-client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+http = { workspace = true }
+jasmine-http-client = { workspace = true }
+rand = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt", "time", "sync"] }
+
+[lints]
+workspace = true
+
+[lib]
+doctest = false

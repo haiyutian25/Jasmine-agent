@@ -30,3 +30,7 @@ my-upload-key.jks
 /adk-kotlin/
 /.codebuddy/
 /.trae/
+
+# Rust build output: the workspace compiles the core for four Android ABIs, so the target
+# tree is tens of thousands of object files that belong to nobody's clone.
+/rust/target/

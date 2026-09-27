@@ -1,0 +1,22 @@
+[package]
+name = "jasmine-model-provider-info"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+http = { workspace = true }
+jasmine-client = { workspace = true }
+jasmine-protocol = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+uniffi = { workspace = true, optional = true }
+
+[features]
+# 跨语言边界用：只有平台侧构建（ffi）才打开。
+uniffi = ["dep:uniffi"]
+
+[lints]
+workspace = true
+
+[lib]
+doctest = false
