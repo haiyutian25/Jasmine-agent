@@ -100,9 +100,7 @@ pub async fn run_turn<T: HttpTransport>(
             break;
         }
 
-        // Every call of one answer goes in before any of its results: a provider in thinking mode
-        // reads a call that follows a result as one whose reasoning was dropped, and refuses the
-        // whole request.
+        // Every call of one answer goes in before any of its results.
         for call in &round.tool_calls {
             turn.history.push(call.clone());
         }

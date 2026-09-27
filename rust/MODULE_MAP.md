@@ -173,13 +173,10 @@
 - **Android 明确关掉了**：`OpenAiChatCompletionsModel.kt:160` → `parallelToolCalls = if (tools.isNullOrEmpty()) null else false`。
 - **参照实现是开的**：`parallel_tool_calls: true`，并有 `core/src/tools/parallel.rs` 做并行分发
   （可并行判定 → `tokio::spawn`）。
-- **已定**：请求侧**不主动声明**并行（`parallel_tool_calls: false`，与 Android 一致），
-  但**模型仍可能在一轮里返回多个调用**（DeepSeek 实测如此），我们必须正确处理这种一轮多调用；
-  执行仍是**串行**（`core/src/session/turn.rs`），不补 `parallel.rs`。
-- ⚠️ **一轮多调用有一条硬性顺序要求**：同一轮的**所有工具调用必须相邻写进历史，且都排在该轮的
-  `reasoning` 条目之后**；把第一条调用的**结果**插在两次调用之间，DeepSeek 会判定"第二个调用
-  没有带着思考回来"并整轮 400（报错文本只说 `reasoning_text must be passed back`，极易误导）。
-  修法见 `DEEPSEEK_THINKING_TOOL_CALLS.md`（含形状矩阵实测表与修法代码）。
+- **请求侧**：与 Android 一致，`parallel_tool_calls: false`（`core/src/client.rs` 两套 wire 都写死）。
+- **执行侧**：照参照实现补了 `rust/core/src/tools/parallel.rs`（`ToolCallRuntime`；工具用
+  `supports_parallel` 声明能否共用会话 —— 可并行的共用读锁，其余排写锁；结果按完成顺序返回）。
+- **写进历史的顺序**：`core/src/session/turn.rs` —— 同一轮的**调用先全部写入，再写结果**。
 
 ### 3.3 模型配置（`contextLength` / `maxOutputLength`）没有落脚点
 

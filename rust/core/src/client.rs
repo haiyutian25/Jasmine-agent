@@ -125,7 +125,6 @@ fn responses_request(
         store: false,
         stream: request.stream,
         stream_options: None,
-        // 让服务端把思考以加密形态交回来：下一轮要原样带回它，这轮才被认作连续。
         include: vec!["reasoning.encrypted_content".to_string()],
         service_tier: None,
         prompt_cache_key: None,

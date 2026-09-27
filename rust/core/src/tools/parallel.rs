@@ -1,12 +1,11 @@
 //! Running the tool calls one answer asked for.
 //!
-//! Every call of an answer is written into the transcript **before** any of its results: a
-//! provider in thinking mode reads a call that follows a result as one whose reasoning was
-//! dropped and refuses the whole request (see `DEEPSEEK_THINKING_TOOL_CALLS.md`).
-//!
 //! Execution hands each call its own task, gated by one `RwLock`: a tool that declares it can
 //! share the session runs under a read guard alongside the others, anything else queues under a
 //! write guard. Results come back in the order they finish.
+//!
+//! Every call of an answer is written into the transcript before any of its results; see
+//! `session/turn.rs`, which owns that order.
 
 use crate::tools::registry::ToolRegistry;
 use jasmine_protocol::ChatEvent;

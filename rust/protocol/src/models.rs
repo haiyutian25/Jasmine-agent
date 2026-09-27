@@ -61,9 +61,8 @@ pub enum ResponseItem {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         id: Option<ResponseItemId>,
         summary: Vec<ReasoningItemReasoningSummary>,
-        /// The model's own words ride back with the turn that continues them: a provider in
-        /// thinking mode refuses the follow-up that drops them, and asks for exactly this
-        /// field. An absent one is left out rather than sent as null.
+        /// The model's own words ride back with the turn that continues them. An absent one is left
+        /// out rather than sent as null.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         content: Option<Vec<ReasoningItemContent>>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
