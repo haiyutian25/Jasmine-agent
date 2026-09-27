@@ -41,6 +41,7 @@ class RustConversationStore(
                 TranscriptMessage(
                     role = if (entry.role == Role.USER) ChatRole.USER else ChatRole.ASSISTANT,
                     text = entry.text,
+                    stoppedAfterMs = entry.stoppedAfterMs?.toLong(),
                 )
             }
         }
@@ -67,6 +68,9 @@ class RustConversationStore(
         withContext(Dispatchers.IO) { handle.deleteConversation(id) }
         read()
     }
+
+    override suspend fun interruptedTurn(conversationId: String): String? =
+        withContext(Dispatchers.IO) { handle.interruptedTurn(conversationId) }
 
     override suspend fun refresh() {
         read()

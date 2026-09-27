@@ -58,6 +58,7 @@
     <string name="chat_send_cd">发送消息</string>
     <string name="chat_stop_cd">停止</string>
     <string name="chat_continue_cd">继续</string>
+    <string name="chat_turn_stopped">你在 %1$d秒 后停止了</string>
     <string name="chat_choose_model">选择模型</string>
     <string name="chat_pick_model_title">选择模型</string>
     <string name="chat_pick_model_empty">尚未配置任何模型，请先在「模型提供商」中添加。</string>

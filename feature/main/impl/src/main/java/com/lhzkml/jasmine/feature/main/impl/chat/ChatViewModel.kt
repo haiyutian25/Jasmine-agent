@@ -74,6 +74,13 @@ data class ChatMessage(
      * 没有模型名，所以会话中途换过模型的话，老消息会显示成会话当前记录的那个模型。
      */
     val modelLabel: String? = null,
+    /**
+     * 这一条是「上一回合被停止」的状态行：值是那一回合跑了多久（毫秒）。
+     *
+     * 非 null 时界面只画一行浅灰小字 + 一条分隔线，不画气泡；它两侧的间距与消息之间
+     * 的间距相同（见 ChatScreen 的 ChatMessageSpacing）。
+     */
+    val stoppedAfterMs: Long? = null,
 )
 
 /**
@@ -183,7 +190,7 @@ sealed interface ChatAction {
         data class PromptRequested(val prompt: String, val options: List<String>) : Internal
         data class TurnFailed(val detail: String) : Internal
         data object TurnCompleted : Internal
-        data object TurnInterrupted : Internal
+        data class TurnInterrupted(val durationMs: Long) : Internal
     }
 }
 
@@ -327,14 +334,24 @@ class ChatViewModel @Inject constructor(
             is ChatAction.Internal.ActiveModelReceived -> updateState {
                 copy(activeProviderId = action.providerId, activeModelId = action.modelId)
             }
-            is ChatAction.Internal.TranscriptRestored -> handleTranscriptRestored(action)
+            is ChatAction.Internal.TranscriptRestored -> {
+                handleTranscriptRestored(action)
+                // 这条会话是不是有一个还没写完的回合，决定发送键要不要是「继续」。
+                // 它是会话文件里的事实，所以重启之后打开这条会话同样拿得到。
+                viewModelScope.launch {
+                    val unfinished = runCatching {
+                        conversationStore.interruptedTurn(action.conversationId)
+                    }.getOrNull()
+                    updateState { copy(canContinue = unfinished != null) }
+                }
+            }
             is ChatAction.Internal.ReplyChunk -> appendReplyChunk(action.text)
             is ChatAction.Internal.ToolCalled -> appendToolCall(action)
             is ChatAction.Internal.ToolReturned -> appendToolResult(action)
             is ChatAction.Internal.PromptRequested -> handlePromptRequested(action)
             is ChatAction.Internal.TurnFailed -> failTurn(action.detail)
             ChatAction.Internal.TurnCompleted -> finishTurn()
-            ChatAction.Internal.TurnInterrupted -> handleTurnInterrupted()
+            is ChatAction.Internal.TurnInterrupted -> handleTurnInterrupted(action.durationMs)
         }
     }
 
@@ -455,46 +472,85 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { agentChat.interrupt() }
         }
-        }
+    }
 
-        /**
-        * 继续被中断的那一回合。
-        *
-        * 和「发送」只差一点：**不加用户消息**，也不新起回合 —— 核心在同一个回合里接着采样
-        * （见 [AgentChat.continueTurn]），续出来的文字落在上一条助手气泡里。
-        */
-        private fun handleContinueClicked() {
+    /**
+     * 继续被中断的那一回合。
+     *
+     * 和「发送」只差一点：**不加用户消息**，也不新起回合 —— 核心在同一个回合里接着采样
+     * （见 [AgentChat.continueTurn]）。续出来的文字**另起一条助手气泡**：文件里它同样是
+     * 同一回合下的第二条助手条目，上游的界面也是两条，所以这里不并回上一条。
+     */
+    private fun handleContinueClicked() {
         if (state.isSending || !state.canContinue) return
         val provider = state.activeProvider ?: return
         val model = state.activeModel ?: return
         if (provider.apiKey.isBlank()) return
 
-        val resumedId = state.messages.lastOrNull { it.role == ChatRole.ASSISTANT }?.id ?: return
         turnAssistantIds.clear()
-        streamingMessageId = resumedId
-        turnAssistantIds += resumedId
+        val assistantId = UUID.randomUUID().toString()
+        streamingMessageId = assistantId
+        turnAssistantIds += assistantId
         updateState {
             copy(
                 canContinue = false,
                 isSending = true,
-                messages = messages.map { message ->
-                    if (message.id == resumedId) message.copy(isStreaming = true) else message
-                },
+                messages = messages + ChatMessage(
+                    id = assistantId,
+                    role = ChatRole.ASSISTANT,
+                    text = "",
+                    isStreaming = true,
+                    timestamp = System.currentTimeMillis(),
+                    modelLabel = model.modelId,
+                ),
             )
         }
 
         turnJob = viewModelScope.launch { runContinuedTurn(provider, model) }
-        }
+    }
 
-        /** 回合被平台停下了：收尾，并把发送键换成「继续」。 */
-        private fun handleTurnInterrupted() {
+    /**
+     * 回合被平台停下了：收尾、把发送键换成「继续」，并在这一段回答后面插一行状态
+     * （「你在 N秒 后停止了」+ 分隔线）。
+     *
+     * 状态行是列表里独立的一项，所以它两侧的空白和消息之间的一模一样。
+     */
+    private fun handleTurnInterrupted(durationMs: Long) {
         finishTurn()
-        updateState { copy(canContinue = true) }
+        updateState {
+            copy(
+                canContinue = true,
+                messages = messages + ChatMessage(
+                    id = UUID.randomUUID().toString(),
+                    role = ChatRole.ASSISTANT,
+                    text = "",
+                    stoppedAfterMs = durationMs,
+                    timestamp = System.currentTimeMillis(),
+                ),
+            )
         }
+    }
 
-        /** 照 [runTurn] 的做法跑完这一轮，只是入口换成「续采样」。 */
-        private suspend fun runContinuedTurn(provider: ProviderConfig, model: ModelConfig) {
+    /** 照 [runTurn] 的做法跑完这一轮，只是入口换成「续采样」。 */
+    private suspend fun runContinuedTurn(provider: ProviderConfig, model: ModelConfig) {
         try {
+            val id = state.activeConversationId ?: throw IllegalStateException(
+                "Could not continue a conversation that is not open."
+            )
+
+            val key = "$id|${provider.id}|${model.id}"
+            if (sessionKey != key) {
+                // 继续之前先把这条会话交给核心：它要从会话文件里认出那个没写完的回合，
+                // 重启之后（或者换过模型之后）这一步是必须的。
+                agentChat.startConversation(
+                    sessionId = id,
+                    provider = provider,
+                    modelId = model.modelId,
+                    instruction = CHAT_INSTRUCTION,
+                )
+                sessionKey = key
+            }
+
             collectEvents(agentChat.continueTurn())
         } catch (cancellation: CancellationException) {
             throw cancellation
@@ -503,7 +559,7 @@ class ChatViewModel @Inject constructor(
                 ChatAction.Internal.TurnFailed(error.message ?: error::class.simpleName.orEmpty())
             )
         }
-        }
+    }
 
     private fun handleNewConversation() {
         resetSession()
@@ -632,7 +688,7 @@ class ChatViewModel @Inject constructor(
                         ChatAction.Internal.PromptRequested(event.prompt, event.options)
                     is ChatEvent.Failed -> ChatAction.Internal.TurnFailed(event.detail)
                     ChatEvent.Completed -> ChatAction.Internal.TurnCompleted
-                    ChatEvent.Aborted -> ChatAction.Internal.TurnInterrupted
+                    is ChatEvent.Aborted -> ChatAction.Internal.TurnInterrupted(event.durationMs)
                 }
             )
         }
@@ -1116,6 +1172,7 @@ private fun TranscriptMessage.toChatMessage(
     timestamp = timestamp,
     // 优先用事件自己记的模型名；旧数据没有，才回退到会话记录的模型。
     modelLabel = modelLabel ?: fallbackModelLabel,
+    stoppedAfterMs = stoppedAfterMs,
 )
 
 /**

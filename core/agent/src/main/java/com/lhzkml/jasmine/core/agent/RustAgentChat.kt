@@ -117,7 +117,7 @@ private fun CoreChatEvent.toChatEvent(): ChatEvent = when (this) {
     is CoreChatEvent.UserPromptRequested -> ChatEvent.UserPromptRequested(prompt, options)
     is CoreChatEvent.Failed -> ChatEvent.Failed(v1)
     CoreChatEvent.Completed -> ChatEvent.Completed
-    CoreChatEvent.Aborted -> ChatEvent.Aborted
+    is CoreChatEvent.Aborted -> ChatEvent.Aborted(this.durationMs.toLong())
     }
 
 /** Whether this event is the last one of its turn. */
@@ -125,7 +125,7 @@ private fun ChatEvent.endsTurn(): Boolean = when (this) {
     // A prompt stops the turn: the interactive call has no result yet, and nothing more arrives
     // until the answers are submitted.
     ChatEvent.Completed,
-    ChatEvent.Aborted,
+    is ChatEvent.Aborted,
     is ChatEvent.Failed,
     is ChatEvent.UserPromptRequested,
     -> true

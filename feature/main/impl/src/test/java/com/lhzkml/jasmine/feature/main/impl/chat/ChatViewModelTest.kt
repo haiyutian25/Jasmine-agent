@@ -518,8 +518,9 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             val state = viewModel.stateFlow.value
-            // 半段留在界面上
-            assertEquals(listOf("hi", "half a reply"), state.messages.map { it.text })
+            // 半段留在界面上；它后面跟一行「你在 4秒 后停止了」的状态（那行没有正文）。
+            assertEquals(listOf("hi", "half a reply", ""), state.messages.map { it.text })
+            assertEquals(4_000L, state.messages.last().stoppedAfterMs)
             // composer 释放，不卡在停止态
             assertFalse(state.isSending)
             // 中断送到了核心：半段由核心按条目写进会话文件，平台不再补写
@@ -694,6 +695,11 @@ private class FakeConversationStore : ConversationStore {
     }
 
     /** ADK's session store is not observable; the ViewModel re-reads it explicitly. */
+    /** 让用例把它设成真，模拟"这条会话有一个没写完的回合"。 */
+    var hasUnfinishedTurn: String? = null
+
+    override suspend fun interruptedTurn(conversationId: String): String? = hasUnfinishedTurn
+
     override suspend fun refresh() = Unit
 
     override suspend fun latestConversation(): Conversation? = latest
@@ -755,7 +761,7 @@ private class FakeAgentChat : AgentChat {
             // 挂住不回 Completed；核心被中断时以 Aborted 收尾（照 Rust 那边的事件契约）。
             if (hangAfterEvents) {
                 interruptSignal.await()
-                emit(ChatEvent.Aborted)
+                emit(ChatEvent.Aborted(durationMs = 4_000))
             }
         }
     }
@@ -763,9 +769,6 @@ private class FakeAgentChat : AgentChat {
     override fun endConversation() {
         conversationsEnded++
     }
-
-    /** 停止时补写进 session 的半段回复。 */
-    val persistedInterrupted = mutableListOf<String>()
 
     /** 中断是否送到了核心（现在是核心自己收手，平台不再补写半段）。 */
     var interrupted = false
@@ -779,9 +782,7 @@ private class FakeAgentChat : AgentChat {
 
     override fun continueTurn(): Flow<ChatEvent> = kotlinx.coroutines.flow.emptyFlow()
 
-    override suspend fun persistInterruptedReply(text: String) {
-        persistedInterrupted += text
-    }
+    override suspend fun persistInterruptedReply(text: String) {}
 
     /** Events the resumed turn streams, once the user answers. */
     var nextPromptEvents: List<ChatEvent> = emptyList()

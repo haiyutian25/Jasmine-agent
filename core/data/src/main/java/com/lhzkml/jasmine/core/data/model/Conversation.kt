@@ -42,6 +42,12 @@ data class TranscriptMessage(
      * 界面这时回退到「会话记录里的模型」，会话中途换过模型的旧消息因此可能显示得不准。
      */
     val modelLabel: String? = null,
+    /**
+     * 这一条不是消息，而是「上一回合被停止」的状态行：值是那一回合跑了多久（毫秒）。
+     *
+     * 非 null 时界面画成一行浅灰小字 + 一条分隔线，不画气泡。
+     */
+    val stoppedAfterMs: Long? = null,
 )
 
 /**

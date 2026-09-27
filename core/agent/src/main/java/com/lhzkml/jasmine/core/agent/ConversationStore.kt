@@ -66,6 +66,12 @@ interface ConversationStore {
     suspend fun deleteConversation(id: String)
 
     /** Re-reads the conversation list from the session store. */
+    /**
+     * The conversation's turn that stopped before finishing, if it has one, so its answer can be
+     * picked up again. It is a fact about the stored conversation, not about the live turn.
+     */
+    suspend fun interruptedTurn(conversationId: String): String?
+
     suspend fun refresh()
 }
 
@@ -84,6 +90,9 @@ class AdkConversationStore(
 
     override val conversationsStateFlow: StateFlow<List<Conversation>> =
         conversations.asStateFlow()
+
+    /** ADK 那条路不再装配，也没有"未写完的回合"这个事实可答。 */
+    override suspend fun interruptedTurn(conversationId: String): String? = null
 
     override suspend fun refresh() {
         conversations.value = sessionService

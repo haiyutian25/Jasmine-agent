@@ -37,6 +37,8 @@ pub enum RolloutItem {
     TurnAborted {
         turn_id: String,
         reason: TurnAbortReason,
+        /// How long the turn had been running, which the platform shows as "stopped after N s".
+        duration_ms: u64,
     },
 }
 

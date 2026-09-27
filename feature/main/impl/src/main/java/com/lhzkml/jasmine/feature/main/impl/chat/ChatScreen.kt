@@ -77,7 +77,7 @@ import com.lhzkml.jasmine.feature.main.impl.R
 private val ChatDividerHeight = 1.dp
 
 private val ChatContentPaddingHorizontal = 16.dp
-private val ChatMessageSpacing = 12.dp
+private val ChatMessageSpacing = 20.dp
 private val ChatBubblePaddingHorizontal = 12.dp
 private val ChatBubblePaddingVertical = 10.dp
 
@@ -89,6 +89,9 @@ private val ChatMetaFontSize = 11.sp
 
 /** 消息时间小标签与正文之间的间距。 */
 private val ChatMessageTimeGap = 4.dp
+
+/** 「上一回合被停止」那行小字与它下面那条分隔线之间的距离。 */
+private val ChatStopDividerGap = 8.dp
 
 /** 底部两个 meta 标签（时间、模型名）之间的间距。 */
 private val ChatMessageMetaGap = 6.dp
@@ -295,21 +298,30 @@ private fun MessageList(
     ) {
         itemsIndexed(state.messages, key = { _, message -> message.id }) { index, message ->
             val tool = message.tool
+            val stoppedAfterMs = message.stoppedAfterMs
             // 一轮的末尾：后面没有消息了，或者下一条是用户的新消息。
             val turnEnd = index == state.messages.lastIndex ||
                 state.messages[index + 1].role == ChatRole.USER
             Column(modifier = Modifier.fillMaxWidth()) {
-                if (tool == null) {
-                    MessageBubble(message = message, currentTheme = currentTheme)
-                } else {
-                    ToolActivityRow(activity = tool, currentTheme = currentTheme)
+                when {
+                    stoppedAfterMs != null -> TurnStoppedRow(
+                        stoppedAfterMs = stoppedAfterMs,
+                        currentTheme = currentTheme,
+                    )
+                    tool == null -> MessageBubble(message = message, currentTheme = currentTheme)
+                    else -> ToolActivityRow(activity = tool, currentTheme = currentTheme)
                 }
                 // 一轮的「时间 + 模型名」只在**整条回复结束时**出现一次。
                 //
                 // 一轮回复常被工具调用切成好几段（先说一句 → 调工具 → 再接着说），
                 // 每段都挂标签就会冒出好几个标签，而且回复还没完就出现了。用户那条自己
-                // 在气泡下方已经有时间，这里不重复。
-                if (turnEnd && !message.isStreaming && message.role == ChatRole.ASSISTANT) {
+                // 在气泡下方已经有时间，这里不重复。状态行自己不是一条消息，不挂标签。
+                if (
+                    turnEnd &&
+                    !message.isStreaming &&
+                    message.role == ChatRole.ASSISTANT &&
+                    stoppedAfterMs == null
+                ) {
                     Spacer(modifier = Modifier.height(ChatMessageTimeGap))
                     MessageMetaRow(
                         time = relativeTimeText(message.timestamp),
@@ -319,6 +331,31 @@ private fun MessageList(
                 }
             }
         }
+    }
+}
+
+/**
+ * 一行「上一回合被停止」的状态：浅灰小字 + 它下面一条通栏细线。
+ *
+ * 它是列表里独立的一项，两侧因此吃到和消息之间同一个 [ChatMessageSpacing]；小字与细线
+ * 之间用 [ChatStopDividerGap]，所以整段读起来就是「消息 → 状态 → 消息」，两段空白一样。
+ */
+@Composable
+private fun TurnStoppedRow(stoppedAfterMs: Long, currentTheme: CssVariables) {
+    val seconds = stoppedAfterMs / 1000
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(R.string.chat_turn_stopped, seconds),
+            fontSize = ChatMetaFontSize,
+            color = currentTheme.mutedForeground,
+        )
+        Spacer(modifier = Modifier.height(ChatStopDividerGap))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(ChatDividerHeight)
+                .background(currentTheme.border)
+        )
     }
 }
 

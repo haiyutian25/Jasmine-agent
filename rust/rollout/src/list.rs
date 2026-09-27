@@ -101,6 +101,25 @@ pub fn read_response_items(path: &Path) -> std::io::Result<Vec<ResponseItem>> {
 }
 
 /// A line that does not parse is a line that was cut short: the transcript keeps what it has.
+/// The turn one conversation left unfinished, if its last boundary left one.
+///
+/// A finished turn writes its own closing boundary. A turn the platform interrupted was written
+/// down as interrupted, and a turn the process never closed has no boundary at all — both are the
+/// part a platform offers to pick up again, so both count as unfinished.
+pub fn interrupted_turn(path: &Path) -> Option<String> {
+    let lines = read_lines(path).ok()?;
+    for line in lines.iter().rev() {
+        match &line.item {
+            RolloutItem::TurnStarted { turn_id } | RolloutItem::TurnAborted { turn_id, .. } => {
+                return Some(turn_id.clone());
+            }
+            RolloutItem::TurnComplete { .. } => return None,
+            RolloutItem::SessionMeta(_) | RolloutItem::ResponseItem(_) => {}
+        }
+    }
+    None
+}
+
 fn read_lines(path: &Path) -> std::io::Result<Vec<RolloutLine>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);

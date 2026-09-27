@@ -22,7 +22,7 @@ pub enum ChatEvent {
     Completed,
     /// The turn stopped because the platform asked it to; whatever it had produced so far is
     /// already in the transcript.
-    Aborted,
+    Aborted { duration_ms: u64 },
 }
 
 impl ChatEvent {

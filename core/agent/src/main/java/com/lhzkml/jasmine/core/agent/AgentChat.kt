@@ -46,9 +46,9 @@ sealed interface ChatEvent {
 
     /**
      * The turn stopped because the platform asked it to; what it had produced so far is already
-     * in the transcript.
+     * in the transcript. [durationMs] is how long that turn had been running.
      */
-    data object Aborted : ChatEvent
+    data class Aborted(val durationMs: Long) : ChatEvent
 }
 
 /**

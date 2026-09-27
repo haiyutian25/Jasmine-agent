@@ -68,6 +68,8 @@ pub struct HistoryEntry {
     pub role: jasmine_protocol::Role,
     pub text: String,
     pub tool_call_id: Option<String>,
+    /// 这一行代表"被停止的回合"时给出它跑了多久（毫秒），否则为空。
+    pub stopped_after_ms: Option<u64>,
 }
 
 /// 平台侧实现的时钟。
@@ -262,6 +264,7 @@ impl AgentHandle {
                 role: entry.role,
                 text: entry.text,
                 tool_call_id: entry.tool_call_id,
+                stopped_after_ms: entry.stopped_after_ms,
             })
             .collect()
     }
@@ -285,6 +288,15 @@ impl AgentHandle {
         let mut sink = ListenerSink { listener };
         self.inner
             .respond_to_prompts(&answers, &mut sink)
+            .map_err(|error| AgentFailure::Failed {
+                detail: error.detail(),
+            })
+    }
+
+    /// 某个会话还没写完的回合（有值就说明可以继续）。答的是文件里的事实，不需要先附着。
+    pub fn interrupted_turn(&self, session_id: String) -> Result<Option<String>, AgentFailure> {
+        self.inner
+            .interrupted_turn(&session_id)
             .map_err(|error| AgentFailure::Failed {
                 detail: error.detail(),
             })

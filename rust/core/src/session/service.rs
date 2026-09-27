@@ -34,6 +34,7 @@ use jasmine_rollout::SessionMeta;
 use jasmine_rollout::delete_session;
 use jasmine_rollout::find_session_path;
 use jasmine_rollout::list_sessions;
+use jasmine_rollout::read_items;
 use jasmine_rollout::read_response_items;
 use jasmine_rollout::timestamp_now;
 use jasmine_tools::Clock as ToolClock;
@@ -102,6 +103,8 @@ pub struct HistoryEntry {
     pub role: Role,
     pub text: String,
     pub tool_call_id: Option<String>,
+    /// Set when the line stands for a turn that stopped: how long it had been running.
+    pub stopped_after_ms: Option<u64>,
 }
 
 /// Everything one attached conversation owns.
@@ -174,29 +177,33 @@ impl AgentChatService {
             ApiClient::Responses(client) => ModelClient::responses(*client, model.model_id.clone()),
         };
 
-        let (rollout, history) = match find_session_path(&self.sessions_dir, session_id.as_str())
-            .map_err(|error| AgentError::Transcript(error.to_string()))?
-        {
-            Some(path) => {
-                let history = read_response_items(&path)
-                    .map_err(|error| AgentError::Transcript(error.to_string()))?;
-                let rollout = RolloutRecorder::open(path)
-                    .map_err(|error| AgentError::Transcript(error.to_string()))?;
-                (rollout, history)
-            }
-            None => {
-                let meta = SessionMeta {
-                    session_id: session_id.as_str().to_string(),
-                    timestamp: timestamp_now(),
-                    title: String::new(),
-                    provider_id: provider.info().id.clone(),
-                    model_id: model.model_id.clone(),
-                };
-                let rollout = RolloutRecorder::create(&self.sessions_dir, &meta)
-                    .map_err(|error| AgentError::Transcript(error.to_string()))?;
-                (rollout, Vec::new())
-            }
-        };
+        let (rollout, history, unfinished) =
+            match find_session_path(&self.sessions_dir, session_id.as_str())
+                .map_err(|error| AgentError::Transcript(error.to_string()))?
+            {
+                Some(path) => {
+                    let history = read_response_items(&path)
+                        .map_err(|error| AgentError::Transcript(error.to_string()))?;
+                    // What the file says about its last turn: one it never closed is the part the
+                    // platform may ask to have continued.
+                    let unfinished = jasmine_rollout::interrupted_turn(&path);
+                    let rollout = RolloutRecorder::open(path)
+                        .map_err(|error| AgentError::Transcript(error.to_string()))?;
+                    (rollout, history, unfinished)
+                }
+                None => {
+                    let meta = SessionMeta {
+                        session_id: session_id.as_str().to_string(),
+                        timestamp: timestamp_now(),
+                        title: String::new(),
+                        provider_id: provider.info().id.clone(),
+                        model_id: model.model_id.clone(),
+                    };
+                    let rollout = RolloutRecorder::create(&self.sessions_dir, &meta)
+                        .map_err(|error| AgentError::Transcript(error.to_string()))?;
+                    (rollout, Vec::new(), None)
+                }
+            };
 
         let mut thread = ChatThread::new();
         thread.start_session(session_id.as_str());
@@ -209,8 +216,8 @@ impl AgentChatService {
             thread,
             rollout,
             cancellation: CancellationToken::new(),
-            turn_id: String::new(),
-            interrupted: false,
+            turn_id: unfinished.clone().unwrap_or_default(),
+            interrupted: unfinished.is_some(),
         });
         Ok(())
     }
@@ -244,6 +251,7 @@ impl AgentChatService {
         let mut emit = |event: ChatEvent| sink.emit(event);
         let recorded = history.len();
         *cancellation = self.fresh_cancellation()?;
+        let started = std::time::Instant::now();
         *turn_id = uuid::Uuid::new_v4().to_string();
         *interrupted = false;
         record_boundary(
@@ -267,8 +275,20 @@ impl AgentChatService {
             text.to_string(),
             &mut emit,
         ));
+        if matches!(outcome, Ok(Err(SessionError::TurnAborted))) {
+            // Recorded before the abort event, as upstream does: a client that re-reads the
+            // rollout on that event must already see why the turn ended.
+            history.push(interrupted_turn_marker());
+        }
         record_turn(rollout, history, recorded)?;
-        finish_turn(rollout, &mut emit, turn_id, interrupted, outcome?)
+        finish_turn(
+            rollout,
+            &mut emit,
+            turn_id,
+            interrupted,
+            started.elapsed().as_millis() as u64,
+            outcome?,
+        )
     }
 
     /// Answers the prompts a turn stopped on and continues that turn.
@@ -296,6 +316,7 @@ impl AgentChatService {
         let mut emit = |event: ChatEvent| sink.emit(event);
         let recorded = history.len();
         *cancellation = self.fresh_cancellation()?;
+        let started = std::time::Instant::now();
         *turn_id = uuid::Uuid::new_v4().to_string();
         *interrupted = false;
         record_boundary(
@@ -319,19 +340,39 @@ impl AgentChatService {
             answers,
             &mut emit,
         ));
+        if matches!(outcome, Ok(Err(SessionError::TurnAborted))) {
+            // Recorded before the abort event, as upstream does: a client that re-reads the
+            // rollout on that event must already see why the turn ended.
+            history.push(interrupted_turn_marker());
+        }
         record_turn(rollout, history, recorded)?;
-        finish_turn(rollout, &mut emit, turn_id, interrupted, outcome?)
+        finish_turn(
+            rollout,
+            &mut emit,
+            turn_id,
+            interrupted,
+            started.elapsed().as_millis() as u64,
+            outcome?,
+        )
     }
 
-    /// Keeps the half-written reply a cancelled turn left behind.
+    /// One conversation's unfinished turn, if it has one.
     ///
-    /// The platform owns the durable transcript; this puts the same text into the model's
-    /// context so both sides agree on what was said.
-    /// Resumes sampling for the turn the platform stopped.
+    /// It is a fact about the conversation's own file, so it answers whether or not the core is
+    /// attached to anything — a turn interrupted before the app restarted still counts, which is
+    /// what lets the platform keep offering to continue it.
+    pub fn interrupted_turn(&self, session_id: &str) -> Result<Option<String>, AgentError> {
+        let path = find_session_path(&self.sessions_dir, session_id)
+            .map_err(|error| AgentError::Transcript(error.to_string()))?;
+        Ok(path.and_then(|path| jasmine_rollout::interrupted_turn(&path)))
+    }
+
+    /// Continues the answer the last turn stopped on, as its own turn.
     ///
-    /// Nothing is added to the conversation: the model picks the answer up where it left off, under
-    /// the same turn id the file already carries. A turn that finished is not resumed — the call
-    /// does nothing.
+    /// Nothing is added to the conversation: sampling restarts under the turn id the file already
+    /// carries, which is what the platform's continue affordance asks for. What the model then does
+    /// with the interrupted transcript — pick the answer up or write it again — is the model's own
+    /// call. A turn that finished is not continued: the call does nothing.
     pub fn recover_turn(&self, sink: &mut dyn ChatSink) -> Result<(), AgentError> {
         let mut guard = self.lock()?;
         let attached = guard.as_mut().ok_or(AgentError::NoSession)?;
@@ -356,7 +397,17 @@ impl AgentChatService {
         let mut emit = |event: ChatEvent| sink.emit(event);
         let recorded = history.len();
         *cancellation = self.fresh_cancellation()?;
+        let started = std::time::Instant::now();
         *interrupted = false;
+        // The id stays as it is: sampling restarts under the id the file already recorded for that
+        // turn, which is what upstream keeps (`RecoverTurnRequest.turn_id` has to be an id that was
+        // already recorded) and what makes the resume read as the same turn.
+        record_boundary(
+            rollout,
+            RolloutItem::TurnStarted {
+                turn_id: turn_id.clone(),
+            },
+        )?;
 
         let outcome = block_on(crate::session::run_turn(
             Turn {
@@ -371,8 +422,20 @@ impl AgentChatService {
             },
             &mut emit,
         ));
+        if matches!(outcome, Ok(Err(SessionError::TurnAborted))) {
+            // Recorded before the abort event, as upstream does: a client that re-reads the
+            // rollout on that event must already see why the turn ended.
+            history.push(interrupted_turn_marker());
+        }
         record_turn(rollout, history, recorded)?;
-        finish_turn(rollout, &mut emit, turn_id, interrupted, outcome?)
+        finish_turn(
+            rollout,
+            &mut emit,
+            turn_id,
+            interrupted,
+            started.elapsed().as_millis() as u64,
+            outcome?,
+        )
     }
 
     /// Stops the turn that is running.
@@ -399,6 +462,10 @@ impl AgentChatService {
         Ok(token)
     }
 
+    /// Keeps the half-written reply a cancelled turn left behind.
+    ///
+    /// The platform owns the durable transcript; this puts the same text into the model's
+    /// context so both sides agree on what was said.
     pub fn persist_interrupted_reply(&self, text: &str) -> Result<(), AgentError> {
         if text.trim().is_empty() {
             return Ok(());
@@ -478,11 +545,27 @@ impl AgentChatService {
         let Ok(Some(path)) = find_session_path(&self.sessions_dir, session_id.as_str()) else {
             return Vec::new();
         };
-        let Ok(items) = read_response_items(&path) else {
+        let Ok(items) = read_items(&path) else {
             return Vec::new();
         };
 
-        items.iter().filter_map(transcript_entry).collect()
+        items
+            .iter()
+            .filter_map(|item| match item {
+                RolloutItem::ResponseItem(recorded) => transcript_entry(recorded),
+                // A turn that stopped is a line of its own on the platform, between the two
+                // messages it sits between.
+                RolloutItem::TurnAborted { duration_ms, .. } => Some(HistoryEntry {
+                    role: Role::Model,
+                    text: String::new(),
+                    tool_call_id: None,
+                    stopped_after_ms: Some(*duration_ms),
+                }),
+                RolloutItem::SessionMeta(_)
+                | RolloutItem::TurnStarted { .. }
+                | RolloutItem::TurnComplete { .. } => None,
+            })
+            .collect()
     }
 
     /// Releases the conversation. Its stored history is left untouched.
@@ -526,7 +609,8 @@ fn transcript_entry(item: &ResponseItem) -> Option<HistoryEntry> {
                     ContentItem::InputImage { .. } | ContentItem::InputAudio { .. } => None,
                 })
                 .collect::<String>();
-            if text.is_empty() {
+            // A developer item is context the core injected, not something the conversation said.
+            if text.is_empty() || role == "developer" {
                 return None;
             }
             Some(HistoryEntry {
@@ -537,6 +621,7 @@ fn transcript_entry(item: &ResponseItem) -> Option<HistoryEntry> {
                 },
                 text,
                 tool_call_id: None,
+                stopped_after_ms: None,
             })
         }
         ResponseItem::FunctionCallOutput {
@@ -548,6 +633,7 @@ fn transcript_entry(item: &ResponseItem) -> Option<HistoryEntry> {
                 .map(str::to_string)
                 .unwrap_or_default(),
             tool_call_id: call_id.clone(),
+            stopped_after_ms: None,
         }),
         ResponseItem::Reasoning { .. }
         | ResponseItem::FunctionCall { .. }
@@ -561,10 +647,27 @@ fn instruction_option(instruction: &str) -> Option<String> {
     (!trimmed.is_empty()).then(|| trimmed.to_string())
 }
 
-/// Writes what one turn added into the conversation's own file.
+/// The marker the core leaves in the conversation when a turn is interrupted on purpose.
 ///
-/// The file is the transcript: the platform's list and the next request's context both read
-/// it, so an item in the history is an item in the file.
+/// It is the shape upstream records on its interrupt path (`reason == Interrupted`): a developer
+/// item carrying the interrupted-turn guidance, written before the abort event so a client that
+/// re-reads the rollout on that event already sees it. The platform does not show it — see
+/// [transcript_entry] — and the next request sends it to the model.
+fn interrupted_turn_marker() -> ResponseItem {
+    ResponseItem::Message {
+        id: None,
+        role: "developer".to_string(),
+        content: vec![ContentItem::InputText {
+            text: "<turn_aborted>\n\
+                   The previous turn was interrupted on purpose. Any running unified exec \
+                   processes may still be running in the background. If any tools/commands were \
+                   aborted, they may have partially executed.\n\
+                   </turn_aborted>"
+                .to_string(),
+        }],
+    }
+}
+
 /// Appends one turn boundary, so the file says which turn is still open.
 fn record_boundary(rollout: &mut RolloutRecorder, item: RolloutItem) -> Result<(), AgentError> {
     rollout
@@ -574,13 +677,14 @@ fn record_boundary(rollout: &mut RolloutRecorder, item: RolloutItem) -> Result<(
 
 /// Closes a turn in the file and tells the platform how it ended.
 ///
-/// A turn that stopped before finishing stays open in the file, which is what makes it resumable
-/// under the same id.
+/// A turn that stopped before finishing is recorded as stopped, which is what lets the platform
+/// offer to continue it.
 fn finish_turn(
     rollout: &mut RolloutRecorder,
     emit: &mut dyn FnMut(ChatEvent),
     turn_id: &mut String,
     interrupted: &mut bool,
+    duration_ms: u64,
     outcome: Result<(), SessionError>,
 ) -> Result<(), AgentError> {
     match outcome {
@@ -597,15 +701,20 @@ fn finish_turn(
                 RolloutItem::TurnAborted {
                     turn_id: turn_id.clone(),
                     reason: jasmine_rollout::TurnAbortReason::Interrupted,
+                    duration_ms,
                 },
             )?;
-            emit(ChatEvent::Aborted);
+            emit(ChatEvent::Aborted { duration_ms });
             Ok(())
         }
         Err(error) => Err(error.into()),
     }
 }
 
+/// Writes what one turn added into the conversation's own file.
+///
+/// The file is the transcript: the platform's list and the next request's context both read
+/// it, so an item in the history is an item in the file.
 fn record_turn(
     rollout: &mut RolloutRecorder,
     history: &[ResponseItem],
