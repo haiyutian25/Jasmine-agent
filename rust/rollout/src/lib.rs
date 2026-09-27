@@ -17,6 +17,7 @@ pub use list::list_sessions;
 pub use list::read_items;
 pub use list::read_response_items;
 pub use list::read_session;
+pub use list::read_timed_items;
 pub use model::RolloutItem;
 pub use model::RolloutLine;
 pub use model::SessionMeta;

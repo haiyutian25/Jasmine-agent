@@ -89,6 +89,17 @@ pub fn read_items(path: &Path) -> std::io::Result<Vec<RolloutItem>> {
         .collect())
 }
 
+/// Everything the conversation recorded, in order, each with the moment it was written.
+///
+/// The stamp is what a platform shows next to a line, so the reader keeps it instead of dropping
+/// it with the line's wrapper.
+pub fn read_timed_items(path: &Path) -> std::io::Result<Vec<(String, RolloutItem)>> {
+    Ok(read_lines(path)?
+        .into_iter()
+        .map(|line| (line.timestamp, line.item))
+        .collect())
+}
+
 /// The model-visible items of one conversation, in order.
 pub fn read_response_items(path: &Path) -> std::io::Result<Vec<ResponseItem>> {
     Ok(read_lines(path)?
@@ -110,7 +121,7 @@ pub fn interrupted_turn(path: &Path) -> Option<String> {
     let lines = read_lines(path).ok()?;
     for line in lines.iter().rev() {
         match &line.item {
-            RolloutItem::TurnStarted { turn_id } | RolloutItem::TurnAborted { turn_id, .. } => {
+            RolloutItem::TurnStarted { turn_id, .. } | RolloutItem::TurnAborted { turn_id, .. } => {
                 return Some(turn_id.clone());
             }
             RolloutItem::TurnComplete { .. } => return None,

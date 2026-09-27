@@ -299,6 +299,9 @@ private fun MessageList(
         itemsIndexed(state.messages, key = { _, message -> message.id }) { index, message ->
             val tool = message.tool
             val stoppedAfterMs = message.stoppedAfterMs
+            // 用户那条的「时间」也等这一轮回复画完才出现：发送那刻回复还只是占位的流式气泡。
+            val turnSettled = index < state.messages.lastIndex &&
+                state.messages.subList(index + 1, state.messages.size).none { it.isStreaming }
             // 一轮的末尾：后面没有消息了，或者下一条是用户的新消息。
             val turnEnd = index == state.messages.lastIndex ||
                 state.messages[index + 1].role == ChatRole.USER
@@ -308,7 +311,11 @@ private fun MessageList(
                         stoppedAfterMs = stoppedAfterMs,
                         currentTheme = currentTheme,
                     )
-                    tool == null -> MessageBubble(message = message, currentTheme = currentTheme)
+                    tool == null -> MessageBubble(
+                        message = message,
+                        currentTheme = currentTheme,
+                        showTime = message.role != ChatRole.USER || turnSettled,
+                    )
                     else -> ToolActivityRow(activity = tool, currentTheme = currentTheme)
                 }
                 // 一轮的「时间 + 模型名」只在**整条回复结束时**出现一次。
@@ -404,7 +411,12 @@ private fun LazyListState.describe(): String {
  * as dead space to its right.
  */
 @Composable
-private fun MessageBubble(message: ChatMessage, currentTheme: CssVariables) {
+private fun MessageBubble(
+    message: ChatMessage,
+    currentTheme: CssVariables,
+    /** 用户那条的「时间」要等这一轮回复画完才出现，见 MessageList 里的判断。 */
+    showTime: Boolean = true,
+) {
     val isUser = message.role == ChatRole.USER
     val text = message.text.ifEmpty { if (message.isStreaming) "…" else "" }
     val time = relativeTimeText(message.timestamp)
@@ -475,7 +487,7 @@ private fun MessageBubble(message: ChatMessage, currentTheme: CssVariables) {
                     color = currentTheme.primaryForeground,
                 )
             }
-            if (time != null) {
+            if (time != null && showTime) {
                 Spacer(modifier = Modifier.height(ChatMessageTimeGap))
                 MessageMetaRow(time = time, modelLabel = null, currentTheme = currentTheme)
             }

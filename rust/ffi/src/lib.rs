@@ -70,6 +70,10 @@ pub struct HistoryEntry {
     pub tool_call_id: Option<String>,
     /// 这一行代表"被停止的回合"时给出它跑了多久（毫秒），否则为空。
     pub stopped_after_ms: Option<u64>,
+    /// 记录这条的时刻（epoch 毫秒）；0 表示文件里没有时间信息。
+    pub recorded_at: i64,
+    /// 这条属于的那个回合用的模型名 —— 也就是用户那条消息发给的模型。
+    pub model_label: Option<String>,
 }
 
 /// 平台侧实现的时钟。
@@ -265,6 +269,8 @@ impl AgentHandle {
                 text: entry.text,
                 tool_call_id: entry.tool_call_id,
                 stopped_after_ms: entry.stopped_after_ms,
+                recorded_at: entry.recorded_at,
+                model_label: entry.model_label,
             })
             .collect()
     }

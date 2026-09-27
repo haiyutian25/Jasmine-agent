@@ -25,9 +25,13 @@ pub enum RolloutItem {
     SessionMeta(SessionMeta),
     ResponseItem(ResponseItem),
     /// A turn's sampling began. The file carries the id, so a turn that never finishes can be
-    /// resumed under it.
+    /// resumed under it, and the model the turn ran on, so a conversation that switched models
+    /// still shows each answer's own.
     TurnStarted {
         turn_id: String,
+        /// Absent in files written before the model was recorded.
+        #[serde(default)]
+        model_id: String,
     },
     /// The turn finished.
     TurnComplete {
@@ -38,6 +42,8 @@ pub enum RolloutItem {
         turn_id: String,
         reason: TurnAbortReason,
         /// How long the turn had been running, which the platform shows as "stopped after N s".
+        /// Absent in files written before the length was recorded.
+        #[serde(default)]
         duration_ms: u64,
     },
 }

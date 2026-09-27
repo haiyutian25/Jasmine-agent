@@ -42,6 +42,8 @@ class RustConversationStore(
                     role = if (entry.role == Role.USER) ChatRole.USER else ChatRole.ASSISTANT,
                     text = entry.text,
                     stoppedAfterMs = entry.stoppedAfterMs?.toLong(),
+                    timestamp = entry.recordedAt,
+                    modelLabel = entry.modelLabel,
                 )
             }
         }

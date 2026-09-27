@@ -34,8 +34,8 @@ use jasmine_rollout::SessionMeta;
 use jasmine_rollout::delete_session;
 use jasmine_rollout::find_session_path;
 use jasmine_rollout::list_sessions;
-use jasmine_rollout::read_items;
 use jasmine_rollout::read_response_items;
+use jasmine_rollout::read_timed_items;
 use jasmine_rollout::timestamp_now;
 use jasmine_tools::Clock as ToolClock;
 use jasmine_tools::ConversationSummary as ToolConversationSummary;
@@ -105,6 +105,10 @@ pub struct HistoryEntry {
     pub tool_call_id: Option<String>,
     /// Set when the line stands for a turn that stopped: how long it had been running.
     pub stopped_after_ms: Option<u64>,
+    /// When the line was recorded, in milliseconds since the epoch (0 when the file has none).
+    pub recorded_at: i64,
+    /// The model the turn this line belongs to ran on — the model the user's message went to.
+    pub model_label: Option<String>,
 }
 
 /// Everything one attached conversation owns.
@@ -258,6 +262,7 @@ impl AgentChatService {
             rollout,
             RolloutItem::TurnStarted {
                 turn_id: turn_id.clone(),
+                model_id: model.model_id.clone(),
             },
         )?;
 
@@ -323,6 +328,7 @@ impl AgentChatService {
             rollout,
             RolloutItem::TurnStarted {
                 turn_id: turn_id.clone(),
+                model_id: model.model_id.clone(),
             },
         )?;
 
@@ -406,6 +412,7 @@ impl AgentChatService {
             rollout,
             RolloutItem::TurnStarted {
                 turn_id: turn_id.clone(),
+                model_id: model.model_id.clone(),
             },
         )?;
 
@@ -545,25 +552,44 @@ impl AgentChatService {
         let Ok(Some(path)) = find_session_path(&self.sessions_dir, session_id.as_str()) else {
             return Vec::new();
         };
-        let Ok(items) = read_items(&path) else {
+        let Ok(items) = read_timed_items(&path) else {
             return Vec::new();
         };
 
+        // A turn's model is written at its start, so every line it produced can say which model
+        // the user's message went to — a conversation that switched models keeps them apart.
+        let mut model_label: Option<String> = None;
         items
             .iter()
-            .filter_map(|item| match item {
-                RolloutItem::ResponseItem(recorded) => transcript_entry(recorded),
-                // A turn that stopped is a line of its own on the platform, between the two
-                // messages it sits between.
-                RolloutItem::TurnAborted { duration_ms, .. } => Some(HistoryEntry {
-                    role: Role::Model,
-                    text: String::new(),
-                    tool_call_id: None,
-                    stopped_after_ms: Some(*duration_ms),
-                }),
-                RolloutItem::SessionMeta(_)
-                | RolloutItem::TurnStarted { .. }
-                | RolloutItem::TurnComplete { .. } => None,
+            .filter_map(|(timestamp, item)| {
+                let at = millis(timestamp);
+                let entry = match item {
+                    RolloutItem::TurnStarted { model_id, .. } => {
+                        model_label = Some(model_id.clone());
+                        None
+                    }
+                    RolloutItem::ResponseItem(recorded) => transcript_entry(recorded),
+                    // A turn that stopped is a line of its own on the platform, between the two
+                    // messages it sits between. A file from before the length was recorded has no
+                    // seconds to show, so it gets no line.
+                    RolloutItem::TurnAborted { duration_ms, .. } if *duration_ms > 0 => {
+                        Some(HistoryEntry {
+                            role: Role::Model,
+                            text: String::new(),
+                            tool_call_id: None,
+                            stopped_after_ms: Some(*duration_ms),
+                            recorded_at: at,
+                            model_label: None,
+                        })
+                    }
+                    RolloutItem::TurnAborted { .. } => None,
+                    RolloutItem::SessionMeta(_) | RolloutItem::TurnComplete { .. } => None,
+                };
+                entry.map(|mut entry| {
+                    entry.recorded_at = at;
+                    entry.model_label = model_label.clone();
+                    entry
+                })
             })
             .collect()
     }
@@ -622,6 +648,8 @@ fn transcript_entry(item: &ResponseItem) -> Option<HistoryEntry> {
                 text,
                 tool_call_id: None,
                 stopped_after_ms: None,
+                recorded_at: 0,
+                model_label: None,
             })
         }
         ResponseItem::FunctionCallOutput {
@@ -634,6 +662,8 @@ fn transcript_entry(item: &ResponseItem) -> Option<HistoryEntry> {
                 .unwrap_or_default(),
             tool_call_id: call_id.clone(),
             stopped_after_ms: None,
+            recorded_at: 0,
+            model_label: None,
         }),
         ResponseItem::Reasoning { .. }
         | ResponseItem::FunctionCall { .. }
