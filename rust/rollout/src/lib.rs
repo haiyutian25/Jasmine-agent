@@ -19,6 +19,7 @@ pub use list::read_session;
 pub use model::RolloutItem;
 pub use model::RolloutLine;
 pub use model::SessionMeta;
+pub use model::TurnAbortReason;
 pub use model::timestamp_now;
 pub use recorder::RolloutRecorder;
 

@@ -15,6 +15,7 @@ use crate::session::respond_to_prompts as continue_turn;
 use crate::session::send_text;
 use crate::session::turn::Turn;
 use crate::thread::ChatThread;
+use crate::tools::ToolCallRuntime;
 use crate::tools::ToolRegistry;
 use jasmine_client::ReqwestTransport;
 use jasmine_http_client::HttpClientBuilder;
@@ -45,6 +46,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::MutexGuard;
+use tokio_util::sync::CancellationToken;
 
 /// Where the core pushes events on their way back to the platform.
 pub trait ChatSink {
@@ -110,14 +112,22 @@ struct Attached {
     history: Vec<ResponseItem>,
     thread: ChatThread,
     rollout: RolloutRecorder,
+    /// Cancelled when the platform stops the turn that is running.
+    cancellation: CancellationToken,
+    /// The turn the file currently holds open, and whether it stopped before finishing.
+    turn_id: String,
+    interrupted: bool,
 }
 
 /// One conversation, as the platform drives it.
 pub struct AgentChatService {
     sessions_dir: PathBuf,
     clock: Arc<dyn Clock>,
-    registry: ToolRegistry,
+    runtime: ToolCallRuntime,
     attached: Mutex<Option<Attached>>,
+    /// The running turn's own token, kept outside [Self::attached] so [Self::interrupt] can reach
+    /// it while a turn holds that lock for its whole run.
+    cancellation: Mutex<CancellationToken>,
 }
 
 impl AgentChatService {
@@ -137,8 +147,9 @@ impl AgentChatService {
         Self {
             sessions_dir,
             clock,
-            registry,
+            runtime: ToolCallRuntime::new(Arc::new(registry)),
             attached: Mutex::new(None),
+            cancellation: Mutex::new(CancellationToken::new()),
         }
     }
 
@@ -197,6 +208,9 @@ impl AgentChatService {
             history,
             thread,
             rollout,
+            cancellation: CancellationToken::new(),
+            turn_id: String::new(),
+            interrupted: false,
         });
         Ok(())
     }
@@ -220,26 +234,41 @@ impl AgentChatService {
             history,
             thread,
             rollout,
+            cancellation,
+            turn_id,
+            interrupted,
         } = attached;
         let instruction = instruction_option(instruction);
-        let registry = &self.registry;
+        let registry = self.runtime.registry();
+        let runtime = &self.runtime;
         let mut emit = |event: ChatEvent| sink.emit(event);
         let recorded = history.len();
+        *cancellation = self.fresh_cancellation()?;
+        *turn_id = uuid::Uuid::new_v4().to_string();
+        *interrupted = false;
+        record_boundary(
+            rollout,
+            RolloutItem::TurnStarted {
+                turn_id: turn_id.clone(),
+            },
+        )?;
 
-        block_on(send_text(
+        let outcome = block_on(send_text(
             Turn {
                 client,
                 thread,
                 registry,
+                runtime,
                 history,
                 instruction,
                 input_modalities: &model.input_modalities,
+                cancellation,
             },
             text.to_string(),
             &mut emit,
-        ))??;
+        ));
         record_turn(rollout, history, recorded)?;
-        Ok(())
+        finish_turn(rollout, &mut emit, turn_id, interrupted, outcome?)
     }
 
     /// Answers the prompts a turn stopped on and continues that turn.
@@ -257,32 +286,119 @@ impl AgentChatService {
             history,
             thread,
             rollout,
+            cancellation,
+            turn_id,
+            interrupted,
         } = attached;
         let instruction = instruction_option(instruction);
-        let registry = &self.registry;
+        let registry = self.runtime.registry();
+        let runtime = &self.runtime;
         let mut emit = |event: ChatEvent| sink.emit(event);
         let recorded = history.len();
+        *cancellation = self.fresh_cancellation()?;
+        *turn_id = uuid::Uuid::new_v4().to_string();
+        *interrupted = false;
+        record_boundary(
+            rollout,
+            RolloutItem::TurnStarted {
+                turn_id: turn_id.clone(),
+            },
+        )?;
 
-        block_on(continue_turn(
+        let outcome = block_on(continue_turn(
             Turn {
                 client,
                 thread,
                 registry,
+                runtime,
                 history,
                 instruction,
                 input_modalities: &model.input_modalities,
+                cancellation,
             },
             answers,
             &mut emit,
-        ))??;
+        ));
         record_turn(rollout, history, recorded)?;
-        Ok(())
+        finish_turn(rollout, &mut emit, turn_id, interrupted, outcome?)
     }
 
     /// Keeps the half-written reply a cancelled turn left behind.
     ///
     /// The platform owns the durable transcript; this puts the same text into the model's
     /// context so both sides agree on what was said.
+    /// Resumes sampling for the turn the platform stopped.
+    ///
+    /// Nothing is added to the conversation: the model picks the answer up where it left off, under
+    /// the same turn id the file already carries. A turn that finished is not resumed — the call
+    /// does nothing.
+    pub fn recover_turn(&self, sink: &mut dyn ChatSink) -> Result<(), AgentError> {
+        let mut guard = self.lock()?;
+        let attached = guard.as_mut().ok_or(AgentError::NoSession)?;
+        if !attached.interrupted {
+            return Ok(());
+        }
+
+        let Attached {
+            client,
+            model,
+            instruction,
+            history,
+            thread,
+            rollout,
+            cancellation,
+            turn_id,
+            interrupted,
+        } = attached;
+        let instruction = instruction_option(instruction);
+        let registry = self.runtime.registry();
+        let runtime = &self.runtime;
+        let mut emit = |event: ChatEvent| sink.emit(event);
+        let recorded = history.len();
+        *cancellation = self.fresh_cancellation()?;
+        *interrupted = false;
+
+        let outcome = block_on(crate::session::run_turn(
+            Turn {
+                client,
+                thread,
+                registry,
+                runtime,
+                history,
+                instruction,
+                input_modalities: &model.input_modalities,
+                cancellation,
+            },
+            &mut emit,
+        ));
+        record_turn(rollout, history, recorded)?;
+        finish_turn(rollout, &mut emit, turn_id, interrupted, outcome?)
+    }
+
+    /// Stops the turn that is running.
+    ///
+    /// Nothing is cut off mid-flight: the turn notices at its next await point, keeps whatever it
+    /// had already produced, and reports itself as aborted.
+    pub fn interrupt(&self) -> Result<(), AgentError> {
+        let token = self
+            .cancellation
+            .lock()
+            .map_err(|_| AgentError::Poisoned)?
+            .clone();
+        token.cancel();
+        Ok(())
+    }
+
+    /// A token for the turn about to run, shared with [Self::interrupt].
+    ///
+    /// The clone and the turn's own handle share one state, so cancelling through the service
+    /// reaches the turn that is running.
+    fn fresh_cancellation(&self) -> Result<CancellationToken, AgentError> {
+        let token = CancellationToken::new();
+        *self.cancellation.lock().map_err(|_| AgentError::Poisoned)? = token.clone();
+        Ok(token)
+    }
+
     pub fn persist_interrupted_reply(&self, text: &str) -> Result<(), AgentError> {
         if text.trim().is_empty() {
             return Ok(());
@@ -449,6 +565,47 @@ fn instruction_option(instruction: &str) -> Option<String> {
 ///
 /// The file is the transcript: the platform's list and the next request's context both read
 /// it, so an item in the history is an item in the file.
+/// Appends one turn boundary, so the file says which turn is still open.
+fn record_boundary(rollout: &mut RolloutRecorder, item: RolloutItem) -> Result<(), AgentError> {
+    rollout
+        .record_items(&[item])
+        .map_err(|error| AgentError::Transcript(error.to_string()))
+}
+
+/// Closes a turn in the file and tells the platform how it ended.
+///
+/// A turn that stopped before finishing stays open in the file, which is what makes it resumable
+/// under the same id.
+fn finish_turn(
+    rollout: &mut RolloutRecorder,
+    emit: &mut dyn FnMut(ChatEvent),
+    turn_id: &mut String,
+    interrupted: &mut bool,
+    outcome: Result<(), SessionError>,
+) -> Result<(), AgentError> {
+    match outcome {
+        Ok(()) => record_boundary(
+            rollout,
+            RolloutItem::TurnComplete {
+                turn_id: turn_id.clone(),
+            },
+        ),
+        Err(SessionError::TurnAborted) => {
+            *interrupted = true;
+            record_boundary(
+                rollout,
+                RolloutItem::TurnAborted {
+                    turn_id: turn_id.clone(),
+                    reason: jasmine_rollout::TurnAbortReason::Interrupted,
+                },
+            )?;
+            emit(ChatEvent::Aborted);
+            Ok(())
+        }
+        Err(error) => Err(error.into()),
+    }
+}
+
 fn record_turn(
     rollout: &mut RolloutRecorder,
     history: &[ResponseItem],

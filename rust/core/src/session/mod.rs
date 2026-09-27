@@ -17,6 +17,9 @@ pub enum SessionError {
     /// The answers arrived when no prompt was waiting for one.
     #[error("no prompt is waiting for an answer")]
     NoPromptWaiting,
+    /// The platform stopped the turn before it finished.
+    #[error("the turn was interrupted")]
+    TurnAborted,
     #[error(transparent)]
     Api(#[from] ApiError),
 }

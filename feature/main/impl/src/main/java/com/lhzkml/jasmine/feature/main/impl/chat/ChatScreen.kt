@@ -31,6 +31,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.Check
@@ -563,6 +564,8 @@ private fun Composer(
     onAction: (ChatAction) -> Unit,
 ) {
     val canSend = state.input.isNotBlank() && !state.isSending
+    // 暂停之后：输入框空着才是「继续」；一敲进内容它就变回「发送」——那条内容就是新的一轮。
+    val resume = state.canContinue && !canSend
     val shape = RoundedCornerShape(currentTheme.radiusMd)
 
     // One card holds both the text field and a tool row underneath it: model picker
@@ -657,14 +660,18 @@ private fun Composer(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Right: the send button, two faces — stop while a reply is in flight,
-            // send otherwise. 空输入时以前显示「加号」，现在统一显示发送箭头（不可发时置灰），
-            // 这样按钮的含义始终一致，不需要用户猜那个加号是干什么的。
+            // Right: the send button, three faces — stop while a reply is in flight, continue
+            // when the last turn was interrupted, send otherwise. 空输入时以前显示「加号」，
+            // 现在统一显示发送箭头（不可发时置灰），这样按钮的含义始终一致，不需要用户猜
+            // 那个加号是干什么的。
             Button(
                 onClick = {
                     when {
-                        // 回复中它是「停止」：取消对事件流的收集，见 handleStopClicked。
+                        // 回复中它是「停止」：让核心收手，见 handleStopClicked。
                         state.isSending -> onAction(ChatAction.StopClicked)
+                        // 空输入且上一回合被中断：它是「继续」，不加用户消息接着采样。
+                        resume -> onAction(ChatAction.ContinueClicked)
+                        // 输入框里有内容：它是「发送」，那条内容就是新的一轮。
                         canSend -> onAction(ChatAction.SendClicked)
                     }
                 },
@@ -677,7 +684,7 @@ private fun Composer(
                         .fillMaxSize()
                         .clip(CircleShape)
                         .background(
-                            if (canSend || state.isSending) {
+                            if (canSend || state.isSending || resume) {
                                 currentTheme.primary
                             } else {
                                 currentTheme.subtleSurface
@@ -689,6 +696,13 @@ private fun Composer(
                         Icon(
                             imageVector = Icons.Filled.Stop,
                             contentDescription = stringResource(R.string.chat_stop_cd),
+                            tint = currentTheme.primaryForeground,
+                            modifier = Modifier.size(ChatSendIconSize)
+                        )
+                    } else if (resume) {
+                        Icon(
+                            imageVector = Icons.Filled.PlayArrow,
+                            contentDescription = stringResource(R.string.chat_continue_cd),
                             tint = currentTheme.primaryForeground,
                             modifier = Modifier.size(ChatSendIconSize)
                         )

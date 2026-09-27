@@ -6,6 +6,7 @@ use crate::client::SamplingRequest;
 use crate::context_manager::normalize;
 use crate::session::SessionError;
 use crate::thread::ChatThread;
+use crate::tools::ToolCallRuntime;
 use crate::tools::ToolRegistry;
 use futures::StreamExt;
 use jasmine_api::ApiError;
@@ -17,6 +18,7 @@ use jasmine_protocol::models::ContentItem;
 use jasmine_protocol::models::FunctionCallOutputPayload;
 use jasmine_protocol::models::ResponseItem;
 use jasmine_protocol::openai_models::InputModality;
+use tokio_util::sync::CancellationToken;
 
 /// What one turn runs with: where to sample, what to offer, and the conversation so far.
 ///
@@ -26,9 +28,11 @@ pub struct Turn<'a, T: HttpTransport> {
     pub client: &'a ModelClient<T>,
     pub thread: &'a mut ChatThread,
     pub registry: &'a ToolRegistry,
+    pub runtime: &'a ToolCallRuntime,
     pub history: &'a mut Vec<ResponseItem>,
     pub instruction: Option<String>,
     pub input_modalities: &'a [InputModality],
+    pub cancellation: &'a CancellationToken,
 }
 
 /// What one sampling round produced.
@@ -59,7 +63,9 @@ pub async fn run_turn<T: HttpTransport>(
             .await
             .map_err(SessionError::from)?;
 
-        let round = match drain_stream(stream, &mut *turn.thread, emit).await {
+        // Stopping is noticed inside the stream read, which keeps the part that had already
+        // arrived: what is on screen is what the file will hold.
+        let round = match drain_stream(stream, &mut *turn.thread, emit, turn.cancellation).await {
             Ok(round) => round,
             Err(error) => {
                 emit(ChatEvent::Failed(error.to_string()));
@@ -79,6 +85,11 @@ pub async fn run_turn<T: HttpTransport>(
             });
         }
 
+        // The part that arrived is in the history, so the file keeps what the screen showed.
+        if turn.cancellation.is_cancelled() {
+            return Err(SessionError::TurnAborted);
+        }
+
         // A prompt stops the turn: the interactive call has no result yet, and asking the
         // model again would send it an assistant message whose calls are not all answered.
         if turn.thread.is_paused_for_prompt() {
@@ -96,29 +107,20 @@ pub async fn run_turn<T: HttpTransport>(
             turn.history.push(call.clone());
         }
 
-        for call in round.tool_calls {
-            let ResponseItem::FunctionCall {
-                name,
-                arguments,
-                call_id,
-                ..
-            } = call
-            else {
-                continue;
-            };
-
-            let output = match turn.registry.execute(&name, &arguments).await {
-                Ok(output) => output,
-                Err(error) => error.to_string(),
-            };
-            emit(ChatEvent::tool_result(name, &output));
+        // The batch runs to its end before a stop is honoured: a call whose result never reached
+        // the history is a request the provider refuses, so every call gets its output first.
+        for outcome in turn.runtime.run(&round.tool_calls, emit).await {
             turn.history.push(ResponseItem::FunctionCallOutput {
                 id: None,
-                call_id: Some(call_id),
+                call_id: Some(outcome.call_id),
                 name: None,
                 namespace: None,
-                output: FunctionCallOutputPayload::from_text(output),
+                output: FunctionCallOutputPayload::from_text(outcome.output),
             });
+        }
+
+        if turn.cancellation.is_cancelled() {
+            return Err(SessionError::TurnAborted);
         }
     }
 
@@ -131,9 +133,16 @@ async fn drain_stream(
     mut stream: ResponseStream,
     thread: &mut ChatThread,
     emit: &mut impl FnMut(ChatEvent),
+    cancellation: &CancellationToken,
 ) -> Result<SamplingRound, ApiError> {
     let mut round = SamplingRound::default();
-    while let Some(event) = stream.next().await {
+    loop {
+        let event = tokio::select! {
+            event = stream.next() => event,
+            // Stopping keeps whatever had already arrived, so the caller can put it in the history.
+            _ = cancellation.cancelled() => break,
+        };
+        let Some(event) = event else { break };
         let event = event?;
         match &event {
             ResponseEvent::Created { response_id } => {

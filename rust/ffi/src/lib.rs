@@ -290,6 +290,26 @@ impl AgentHandle {
             })
     }
 
+    /// 继续被中断的那一回合：不加用户消息，在同一个回合里接着采样。
+    pub fn recover_turn(&self, listener: Arc<dyn EventListener>) -> Result<(), AgentFailure> {
+        let mut sink = ListenerSink { listener };
+        self.inner
+            .recover_turn(&mut sink)
+            .map_err(|error| AgentFailure::Failed {
+                detail: error.detail(),
+            })
+    }
+
+    /// 停掉正在跑的回合。不是硬中断：回合在下一个等待点收手，已经产出的条目照旧落盘，
+    /// 并以「被中断」收尾。
+    pub fn interrupt(&self) -> Result<(), AgentFailure> {
+        self.inner
+            .interrupt()
+            .map_err(|error| AgentFailure::Failed {
+                detail: error.detail(),
+            })
+    }
+
     /// 把取消时留下的半段回复写回会话。
     pub fn persist_interrupted_reply(&self, text: String) -> Result<(), AgentFailure> {
         self.inner

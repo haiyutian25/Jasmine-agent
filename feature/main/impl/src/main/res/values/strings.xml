@@ -56,6 +56,7 @@
     <string name="chat_input_hint">Message…</string>
     <string name="chat_send_cd">Send message</string>
     <string name="chat_stop_cd">Stop</string>
+    <string name="chat_continue_cd">Continue</string>
     <string name="chat_choose_model">Choose model</string>
     <string name="chat_pick_model_title">Choose model</string>
     <string name="chat_pick_model_empty">No models configured yet. Add one under Model Providers.</string>

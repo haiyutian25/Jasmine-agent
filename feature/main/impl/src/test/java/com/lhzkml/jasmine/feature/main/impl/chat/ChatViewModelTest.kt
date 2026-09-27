@@ -762,6 +762,10 @@ private class FakeAgentChat : AgentChat {
     /** 停止时补写进 session 的半段回复。 */
     val persistedInterrupted = mutableListOf<String>()
 
+    override suspend fun interrupt() {}
+
+    override fun continueTurn(): Flow<ChatEvent> = kotlinx.coroutines.flow.emptyFlow()
+
     override suspend fun persistInterruptedReply(text: String) {
         persistedInterrupted += text
     }

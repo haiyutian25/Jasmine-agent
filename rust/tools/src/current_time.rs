@@ -47,6 +47,11 @@ impl Tool for CurrentTimeTool {
     fn execute<'a>(&'a self, _arguments: &'a str) -> ToolFuture<'a> {
         Box::pin(async move { Ok(self.clock.now_formatted()) })
     }
+
+    /// Reads the host's clock and nothing else, so it can share the turn.
+    fn supports_parallel(&self) -> bool {
+        true
+    }
 }
 
 #[cfg(test)]

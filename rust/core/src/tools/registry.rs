@@ -33,6 +33,14 @@ impl ToolRegistry {
         self.tools.iter().any(|tool| tool.spec().name == name)
     }
 
+    /// Whether the named tool may run alongside another call of the same answer.
+    pub fn supports_parallel(&self, name: &str) -> bool {
+        self.tools
+            .iter()
+            .find(|tool| tool.spec().name == name)
+            .is_some_and(|tool| tool.supports_parallel())
+    }
+
     pub fn execute<'a>(&'a self, name: &'a str, arguments: &'a str) -> ToolFuture<'a> {
         match self.tools.iter().find(|tool| tool.spec().name == name) {
             Some(tool) => tool.execute(arguments),

@@ -73,7 +73,7 @@ pub fn read_session(path: &Path) -> Option<(SessionMeta, String)> {
         .iter()
         .filter_map(|line| match &line.item {
             RolloutItem::SessionMeta(meta) => Some(meta.clone()),
-            RolloutItem::ResponseItem(_) => None,
+            _ => None,
         })
         .next_back()?;
     let updated_at = lines.last()?.timestamp.clone();
@@ -95,7 +95,7 @@ pub fn read_response_items(path: &Path) -> std::io::Result<Vec<ResponseItem>> {
         .into_iter()
         .filter_map(|line| match line.item {
             RolloutItem::ResponseItem(item) => Some(item),
-            RolloutItem::SessionMeta(_) => None,
+            _ => None,
         })
         .collect())
 }

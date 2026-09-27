@@ -20,6 +20,9 @@ pub enum ChatEvent {
     Failed(String),
     /// The turn finished.
     Completed,
+    /// The turn stopped because the platform asked it to; whatever it had produced so far is
+    /// already in the transcript.
+    Aborted,
 }
 
 impl ChatEvent {

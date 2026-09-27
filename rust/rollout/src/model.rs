@@ -24,6 +24,30 @@ pub struct SessionMeta {
 pub enum RolloutItem {
     SessionMeta(SessionMeta),
     ResponseItem(ResponseItem),
+    /// A turn's sampling began. The file carries the id, so a turn that never finishes can be
+    /// resumed under it.
+    TurnStarted {
+        turn_id: String,
+    },
+    /// The turn finished.
+    TurnComplete {
+        turn_id: String,
+    },
+    /// The turn stopped before finishing.
+    TurnAborted {
+        turn_id: String,
+        reason: TurnAbortReason,
+    },
+}
+
+/// Why a turn stopped before it finished.
+///
+/// Only the reason the platform itself produces is defined so far; the set grows with its callers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TurnAbortReason {
+    /// The platform asked the turn to stop.
+    Interrupted,
 }
 
 /// One JSONL line: an item with the moment it was recorded.

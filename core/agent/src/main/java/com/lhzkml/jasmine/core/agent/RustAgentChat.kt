@@ -52,6 +52,12 @@ class RustAgentChat(
     override fun respondToPrompts(answers: List<String>): Flow<ChatEvent> =
         turn { listener -> handle.respondToPrompts(answers, listener) }
 
+    override suspend fun interrupt() {
+        withContext(Dispatchers.IO) { handle.interrupt() }
+    }
+
+    override fun continueTurn(): Flow<ChatEvent> = turn { listener -> handle.recoverTurn(listener) }
+
     override suspend fun persistInterruptedReply(text: String) {
         withContext(Dispatchers.IO) { handle.persistInterruptedReply(text) }
     }
@@ -111,12 +117,17 @@ private fun CoreChatEvent.toChatEvent(): ChatEvent = when (this) {
     is CoreChatEvent.UserPromptRequested -> ChatEvent.UserPromptRequested(prompt, options)
     is CoreChatEvent.Failed -> ChatEvent.Failed(v1)
     CoreChatEvent.Completed -> ChatEvent.Completed
-}
+    CoreChatEvent.Aborted -> ChatEvent.Aborted
+    }
 
 /** Whether this event is the last one of its turn. */
 private fun ChatEvent.endsTurn(): Boolean = when (this) {
     // A prompt stops the turn: the interactive call has no result yet, and nothing more arrives
     // until the answers are submitted.
-    ChatEvent.Completed, is ChatEvent.Failed, is ChatEvent.UserPromptRequested -> true
+    ChatEvent.Completed,
+    ChatEvent.Aborted,
+    is ChatEvent.Failed,
+    is ChatEvent.UserPromptRequested,
+    -> true
     is ChatEvent.Text, is ChatEvent.ToolCall, is ChatEvent.ToolResult -> false
 }

@@ -120,6 +120,8 @@ data class ChatState(
     val messages: List<ChatMessage> = emptyList(),
     val input: String = "",
     val isSending: Boolean = false,
+    /** 上一回合被中断了，输入区的按钮因此是「继续」形态；见 [handleContinueClicked]。 */
+    val canContinue: Boolean = false,
     val providers: List<ProviderConfig> = ProviderConfig.DEFAULTS,
     val conversations: List<Conversation> = emptyList(),
     val activeProviderId: String = "",
@@ -148,8 +150,11 @@ sealed interface ChatAction {
     data class InputChanged(val value: String) : ChatAction
     data object SendClicked : ChatAction
 
-    /** 停止正在进行的回复：取消对事件流的收集，见 [handleStopClicked]。 */
+    /** 停止正在进行的回复：让核心收手，见 [handleStopClicked]。 */
     data object StopClicked : ChatAction
+
+    /** 继续被中断的回合：不加用户消息，接着采样，见 [handleContinueClicked]。 */
+    data object ContinueClicked : ChatAction
     data object NewConversationClicked : ChatAction
     data object ModelPickerOpened : ChatAction
     data object ModelPickerDismissed : ChatAction
@@ -178,6 +183,7 @@ sealed interface ChatAction {
         data class PromptRequested(val prompt: String, val options: List<String>) : Internal
         data class TurnFailed(val detail: String) : Internal
         data object TurnCompleted : Internal
+        data object TurnInterrupted : Internal
     }
 }
 
@@ -305,6 +311,7 @@ class ChatViewModel @Inject constructor(
             is ChatAction.InputChanged -> updateState { copy(input = action.value) }
             ChatAction.SendClicked -> handleSendClicked()
             ChatAction.StopClicked -> handleStopClicked()
+            ChatAction.ContinueClicked -> handleContinueClicked()
             ChatAction.NewConversationClicked -> handleNewConversation()
             ChatAction.ModelPickerOpened -> updateState { copy(isModelPickerOpen = true) }
             ChatAction.ModelPickerDismissed -> updateState { copy(isModelPickerOpen = false) }
@@ -327,6 +334,7 @@ class ChatViewModel @Inject constructor(
             is ChatAction.Internal.PromptRequested -> handlePromptRequested(action)
             is ChatAction.Internal.TurnFailed -> failTurn(action.detail)
             ChatAction.Internal.TurnCompleted -> finishTurn()
+            ChatAction.Internal.TurnInterrupted -> handleTurnInterrupted()
         }
     }
 
@@ -405,6 +413,7 @@ class ChatViewModel @Inject constructor(
         updateState {
             copy(
                 input = "",
+                canContinue = false,
                 isSending = true,
                 messages = messages +
                     ChatMessage(
@@ -430,44 +439,71 @@ class ChatViewModel @Inject constructor(
     /**
      * 停止正在进行的回复。
      *
-     * 手段就是**取消对事件流的收集**：adk-kotlin 的 `Runner.runAsync` 返回的是冷流
-     * （`AbstractRunner.runAsync` 里就是 `flow { ... }`，且对 `CancellationException`
-     * 直接 rethrow，不吞取消），所以取消会沿
-     * `runAsync → LlmAgent → Gemini.generateContentStream` 一路传播到底层 SSE 请求 ——
-     * 是真断流，不只是在本地不再收 chunk。SDK 本身没有 interrupt / cancel / stop 之类
-     * 的 API，`RunConfig` 里也没有开关，取消收集是唯一手段。
+     * 真正的中断在核心那边（见 [AgentChat.interrupt]）：核心在下一个等待点收手，把已经
+     * 产出的条目落进会话文件，并以 [ChatEvent.Aborted] 收尾 —— 这一回合的流因此照常走到
+     * 结束。
      *
-     * 刻意**不**走 [resetSession]：那会 `endConversation()` 掉 ADK session 并清 sessionKey，
-     * 而这里要的是「已经生成的那半段留在气泡里 + session 里的事件也还在」，所以只掐这一轮。
+     * 这里**不**取消对事件流的收集：核心已经吐出来的分片必须照常渲染完。取消收集会把
+     * 还在缓冲区里的分片一起丢掉，气泡里的文字就会比模型实际看到的那一份少一截（文件里
+     * 是完整的「一～八」，屏幕上却停在「无序列表」），于是下一轮「继续」从「九」接上，
+     * 两边对不上。收尾交给这一回合自己的结束事件（Aborted / Completed → TurnCompleted）。
      */
     private fun handleStopClicked() {
         val running = turnJob ?: return
         if (!running.isActive) return
 
-        // 先捞已生成的部分：finishTurn() 会把 streamingMessageId 和 turnAssistantIds 清掉。
-        // 本回合可能有多段（文本 → 工具调用 → 再文本），按产生顺序合起来。消息的 text
-        // 就是那一段的原始 Markdown —— appendReplyChunk 每次都写入整段。
-        val partial = turnAssistantIds
-            .mapNotNull { id ->
-                state.messages.firstOrNull { it.id == id }?.text?.takeIf { it.isNotBlank() }
-            }
-            .joinToString("\n\n")
-
-        running.cancel()
-        turnJob = null
-        // 取消之后 TurnCompleted 不会再来，收尾得自己做，否则那条助手消息会永远停在
-        // 转圈状态、isSending 也一直是 true。
-        finishTurn()
-
-        // ADK 只在回合结束时写一条「结算后」的助手事件，取消的回合在 session 里什么都
-        // 没有（流式分片从不单独落库）。而转写是从 session 重建的，不补写的话这半段下次
-        // 加载就没了、模型下一轮的上下文里也没有它。见 AgentChat.persistInterruptedReply。
-        if (partial.isNotBlank()) {
-            viewModelScope.launch {
-                runCatching { agentChat.persistInterruptedReply(partial) }
-            }
+        viewModelScope.launch {
+            runCatching { agentChat.interrupt() }
         }
-    }
+        }
+
+        /**
+        * 继续被中断的那一回合。
+        *
+        * 和「发送」只差一点：**不加用户消息**，也不新起回合 —— 核心在同一个回合里接着采样
+        * （见 [AgentChat.continueTurn]），续出来的文字落在上一条助手气泡里。
+        */
+        private fun handleContinueClicked() {
+        if (state.isSending || !state.canContinue) return
+        val provider = state.activeProvider ?: return
+        val model = state.activeModel ?: return
+        if (provider.apiKey.isBlank()) return
+
+        val resumedId = state.messages.lastOrNull { it.role == ChatRole.ASSISTANT }?.id ?: return
+        turnAssistantIds.clear()
+        streamingMessageId = resumedId
+        turnAssistantIds += resumedId
+        updateState {
+            copy(
+                canContinue = false,
+                isSending = true,
+                messages = messages.map { message ->
+                    if (message.id == resumedId) message.copy(isStreaming = true) else message
+                },
+            )
+        }
+
+        turnJob = viewModelScope.launch { runContinuedTurn(provider, model) }
+        }
+
+        /** 回合被平台停下了：收尾，并把发送键换成「继续」。 */
+        private fun handleTurnInterrupted() {
+        finishTurn()
+        updateState { copy(canContinue = true) }
+        }
+
+        /** 照 [runTurn] 的做法跑完这一轮，只是入口换成「续采样」。 */
+        private suspend fun runContinuedTurn(provider: ProviderConfig, model: ModelConfig) {
+        try {
+            collectEvents(agentChat.continueTurn())
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (error: Exception) {
+            sendAction(
+                ChatAction.Internal.TurnFailed(error.message ?: error::class.simpleName.orEmpty())
+            )
+        }
+        }
 
     private fun handleNewConversation() {
         resetSession()
@@ -596,6 +632,7 @@ class ChatViewModel @Inject constructor(
                         ChatAction.Internal.PromptRequested(event.prompt, event.options)
                     is ChatEvent.Failed -> ChatAction.Internal.TurnFailed(event.detail)
                     ChatEvent.Completed -> ChatAction.Internal.TurnCompleted
+                    ChatEvent.Aborted -> ChatAction.Internal.TurnInterrupted
                 }
             )
         }

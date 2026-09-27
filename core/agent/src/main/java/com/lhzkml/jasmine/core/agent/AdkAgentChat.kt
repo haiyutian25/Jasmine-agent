@@ -223,6 +223,16 @@ class AdkAgentChat(
      * 2. 必须重新 `getSession` 拿一份最新的 session：`RoomSessionService.appendEvent`
      *    以 `expectedUpdateTime = session.lastUpdateTime` 做乐观锁，复用旧引用会写失败。
      */
+    /**
+     * ADK 那条路已不再装配，真正的中断由 Rust 引擎负责；这里留空实现以维持接口完整。
+     */
+    override suspend fun interrupt() {}
+
+    /**
+     * ADK 那条路不再装配，续采样同样由 Rust 引擎负责；这里留空流以维持接口完整。
+     */
+    override fun continueTurn(): Flow<ChatEvent> = kotlinx.coroutines.flow.emptyFlow()
+
     override suspend fun persistInterruptedReply(text: String) {
         if (text.isBlank()) return
         val sessionId = attachedSessionId ?: return

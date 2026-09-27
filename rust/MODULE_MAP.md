@@ -32,9 +32,9 @@
 | `jasmine-model-provider` | `model-provider/` | 凭据注入、模型列表端点 | `ProviderConfig.apiKey` + `ProviderModelDataSource.kt` | ✅ 已实现 |
 | `jasmine-api` | `api/` | 两套协议报文 + SSE 解析 | `OpenAi*Model/Wire.kt`（1,123 行） | ⚠️ SSE 已实现，端点待接 |
 | `jasmine-tools` | `tools/` | 工具契约（`Tool`/`ToolError`/`ToolFuture`）+ 工具词汇表（声明、json schema、结果）+ jasmine 自带工具 | `JasmineTools.kt` 的声明部分 | ✅ 已实现 |
-| `jasmine-rollout` | `rollout/` | 会话落盘：每会话一个只追加 JSONL（首行是会话元信息），另附读取与发现 | `ConversationStore.kt` + ADK 的 `RoomSessionService` | 🚧 已实现，接线中（见 §2.6） |
+| `jasmine-rollout` | `rollout/` | 会话落盘：每会话一个只追加 JSONL（首行是会话元信息），另附读取与发现 | `ConversationStore.kt` + ADK 的 `RoomSessionService` | ✅ 已实现并接线（见 §2.6；ADK 那套不再参与） |
 | `jasmine-core` | `core/` | 会话门面（`AgentChatService`）、轮次主循环、模型客户端、上下文、工具注册表、宿主边界、探测 | `AgentChat.kt` / `AdkAgentChat.kt` / `ProviderProbe.kt` | ✅ 已实现（绑定待接） |
-| `jasmine-ffi` | `ffi/` | 跨语言边界（Android 无对应，必须新增）：`AgentHandle` / `EventListener` / `HostConversations` / `HostClock` + 两个适配器 + `probe` | `AgentChat.kt` / `ProviderProbe.kt` 的实现位 | ✅ 已接 UniFFI 0.32.2（注解 + 生成 Kotlin，见 §1.1）；Android 侧构建接线与 Kotlin 适配待做 |
+| `jasmine-ffi` | `ffi/` | 跨语言边界（Android 无对应，必须新增）：`AgentHandle`（附着 / 发送 / 回答提问 / 结束 + `create_conversation` / `delete_conversation` / `conversations` / `transcript`）/ `EventListener` / `HostClock`（`now` + `format`）+ 适配器 + `probe` | `AgentChat.kt` / `ProviderProbe.kt` 的实现位 | ✅ 已接 UniFFI 0.32.2（注解 + 生成 Kotlin，见 §1.1）；Android 侧构建接线与 Kotlin 适配已完成 |
 
 ### 1.1 跨语言绑定（UniFFI）
 
@@ -69,7 +69,7 @@
 | 能力 | Android 位置 | 参照实现的位置 | 骨架状态 |
 |---|---|---|---|
 | 会话门面契约（5 个方法 + 6 个事件） | `AgentChat.kt`（117 行） | `protocol` 的 `ChatEvent`/`SessionId`/`Role` + `core/src/session/service.rs` 的 `AgentChatService` | ✅ 已实现 |
-| 会话附着 / 释放 | `AdkAgentChat.kt`（383 行） | `AgentChatService::start_conversation` / `end_conversation`（附着时经宿主 trait 装载已有上下文） | ✅ 已实现 |
+| 会话附着 / 释放 | `AdkAgentChat.kt`（383 行） | `AgentChatService::start_conversation` / `end_conversation`（附着时从会话文件装载已有上下文） | ✅ 已实现 |
 | 轮次主循环 | ADK 内部（自研无代码） | `core/src/session/turn.rs`（`run_turn`） | ✅ 已实现 |
 | 轮内循环（工具调用 → 回填 → 再采样） | ADK 内部 | 同上（串行，见 §3.2） | ✅ 已实现（串行） |
 | 停止回复 | `ChatAction.StopClicked` + `handleStopClicked` | `Op::SuspendTurnAndShutdown` | ⚠️ 待接 |
@@ -127,12 +127,11 @@
 
 | 能力 | Android 位置 | 参照实现的位置 | 骨架状态 |
 |---|---|---|---|
-| 会话列表读取 | `ConversationStore.conversationsStateFlow` / `latestConversation` | `rollout/src/list.rs`（读各文件自己的 meta，最新在前） | 🚧 改核心侧（平台来问） |
-| 会话增 | `createConversation` | `rollout/src/recorder.rs`（创建即写首行元信息） | 🚧 已实现，接线中 |
-| 会话删 | `deleteConversation` | 参照是 `archived_sessions` 归档 | 未做 |
-| 读某会话的转写 | `messagesOf(conversationId)` | `rollout/src/list.rs` 的 `read_response_items` | 🚧 改核心侧 |
-| 已有上下文装载 | ADK 会话服务 | `rollout/src/list.rs` + `AgentChatService::start_conversation` | 🚧 从会话文件装载（不再由平台传） |
-| 回合落盘 | ADK 的 `SessionStore` 写 `StorageEvent` | `rollout/src/recorder.rs`（一行一条追加） | 🚧 接线中 |
+| 会话列表读取 | `ConversationStore.conversationsStateFlow` / `latestConversation` | `rollout/src/list.rs`（读各文件自己的 meta，最新在前）+ `AgentChatService::conversations` | ✅ 核心侧供给（平台来问；时间戳给毫秒，界面按设备时区显示） |
+| 会话建 / 删 | `createConversation` / `deleteConversation` | `rollout/src/recorder.rs`（创建即写首行元信息）/ `rollout/src/list.rs` 的 `delete_session` | ✅ 核心侧（`create_conversation` / `delete_conversation`） |
+| 读某会话的转写 | `messagesOf(conversationId)` | `rollout/src/list.rs` 的 `read_response_items` + `AgentChatService::transcript` | ✅ 核心侧 |
+| 已有上下文装载 | ADK 会话服务 | `rollout/src/list.rs` 的 `read_response_items` + `AgentChatService::start_conversation` | ✅ 从会话文件装载（不再由平台传） |
+| 回合落盘 | ADK 的 `SessionStore` 写 `StorageEvent` | `rollout/src/recorder.rs`（一行一条追加；`send` / `respond_to_prompts` / `persist_interrupted_reply` 三处） | ✅ 已实现 |
 | 会话重命名 / 归档 / 搜索 | **无** | `append_thread_name`、`ARCHIVED_SESSIONS_SUBDIR` | 参照有、Android 无（见 §5） |
 
 ### 2.7 界面与平台专有（不迁）
@@ -174,9 +173,13 @@
 - **Android 明确关掉了**：`OpenAiChatCompletionsModel.kt:160` → `parallelToolCalls = if (tools.isNullOrEmpty()) null else false`。
 - **参照实现是开的**：`parallel_tool_calls: true`，并有 `core/src/tools/parallel.rs` 做并行分发
   （可并行判定 → `tokio::spawn`）。
-- **结论**：这是**行为差异**，不是缺模块。要按参照实现来（默认并行 + 并行分发），
-  就需要在 `core/src/tools/` 下补一个 `parallel.rs`；要保持串行则应在文档里写明是**有意偏离**。
-  **待你定**。
+- **已定**：请求侧**不主动声明**并行（`parallel_tool_calls: false`，与 Android 一致），
+  但**模型仍可能在一轮里返回多个调用**（DeepSeek 实测如此），我们必须正确处理这种一轮多调用；
+  执行仍是**串行**（`core/src/session/turn.rs`），不补 `parallel.rs`。
+- ⚠️ **一轮多调用有一条硬性顺序要求**：同一轮的**所有工具调用必须相邻写进历史，且都排在该轮的
+  `reasoning` 条目之后**；把第一条调用的**结果**插在两次调用之间，DeepSeek 会判定"第二个调用
+  没有带着思考回来"并整轮 400（报错文本只说 `reasoning_text must be passed back`，极易误导）。
+  修法见 `DEEPSEEK_THINKING_TOOL_CALLS.md`（含形状矩阵实测表与修法代码）。
 
 ### 3.3 模型配置（`contextLength` / `maxOutputLength`）没有落脚点
 
@@ -193,7 +196,7 @@
 | 能力 | Android 位置 | 为什么参照没有 | 处理 |
 |---|---|---|---|
 | 连通性探测 | `ProviderProbe.kt` + `AdkProviderProbe.kt` | 参照不提供"这条配置能不能用"的功能 | 自主实现（`core/src/probe.rs`），已登记 |
-| 会话持久化 | `ConversationStore.kt`、`core:data` | 参照的持久化在 `rollout`/`thread-store`；jasmine 照参照做 `rust/rollout`（每会话一个只追加 JSONL，首行是会话元信息与标题/provider/model），列表与转写由核心给出 | 🚧 改核心侧 |
+| 会话持久化 | `ConversationStore.kt`、`core:data` | 参照的持久化在 `rollout`/`thread-store`；jasmine 照参照做 `rust/rollout`（每会话一个只追加 JSONL，首行是会话元信息与标题/provider/model），列表与转写由核心给出 | ✅ 已改核心侧（ADK 的 Room 会话库不再参与） |
 | Provider 配置持久化与界面 | `ProviderDataStore` + `feature:provider:impl` | 参照是配置文件驱动 | 留平台 |
 | Markdown/Mermaid 渲染与图片保存 | `core:markdown`、`MarkdownBlockList.kt` | 参照是终端渲染 | 留平台 |
 | 主题/字体/导航/界面 | `core:ui`、`core:navigation`、`feature:*` | 同上 | 留平台 |

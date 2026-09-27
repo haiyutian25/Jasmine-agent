@@ -43,6 +43,12 @@ sealed interface ChatEvent {
 
     /** The turn finished normally. */
     data object Completed : ChatEvent
+
+    /**
+     * The turn stopped because the platform asked it to; what it had produced so far is already
+     * in the transcript.
+     */
+    data object Aborted : ChatEvent
 }
 
 /**
@@ -110,6 +116,23 @@ interface AgentChat {
      * A caller that keeps the partial text on screen must call this so both sides agree.
      * No-op when [text] is blank or no conversation is attached.
      */
+    /**
+     * Stops the turn that is running.
+     *
+     * The turn is not cut off mid-flight: the core notices at its next await point, keeps what it
+     * had already produced (it is already in the transcript), and ends the flow with
+     * [ChatEvent.Aborted].
+     */
+    suspend fun interrupt()
+
+    /**
+     * Continues the turn that was stopped.
+     *
+     * Nothing is added to the conversation: the core resumes sampling under the same turn, so the
+     * model picks its answer up where it left off. A turn that finished is not resumed.
+     */
+    fun continueTurn(): Flow<ChatEvent>
+
     suspend fun persistInterruptedReply(text: String)
 
     /** Releases the runner. Stored history is left untouched. */

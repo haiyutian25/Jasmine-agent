@@ -73,6 +73,11 @@ impl Tool for ListPastConversationsTool {
                 .join("\n"))
         })
     }
+
+    /// Reads the conversation list and nothing else, so it can share the turn.
+    fn supports_parallel(&self) -> bool {
+        true
+    }
 }
 
 #[cfg(test)]
