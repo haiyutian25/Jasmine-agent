@@ -501,7 +501,7 @@ class ChatViewModelTest {
     }
 
     @Test
-    fun `stopping mid-reply keeps the partial text and persists it into the session`() =
+    fun `stopping mid-reply keeps the partial text and offers to continue`() =
         runTest(testDispatcher) {
             val viewModel = createViewModel()
             advanceUntilIdle()
@@ -522,8 +522,10 @@ class ChatViewModelTest {
             assertEquals(listOf("hi", "half a reply"), state.messages.map { it.text })
             // composer 释放，不卡在停止态
             assertFalse(state.isSending)
-            // 并且补写进了 session —— 否则重建转写时这半段就没了、模型上下文里也没有
-            assertEquals(listOf("half a reply"), agentChat.persistedInterrupted)
+            // 中断送到了核心：半段由核心按条目写进会话文件，平台不再补写
+            assertTrue(agentChat.interrupted)
+            // 发送键换成「继续」
+            assertTrue(state.canContinue)
         }
 
     @Test
@@ -750,8 +752,11 @@ private class FakeAgentChat : AgentChat {
         sent += text
         return flow {
             nextEvents.forEach { emit(it) }
-            // 挂住不回 Completed，用于测「回复途中停止」。
-            if (hangAfterEvents) awaitCancellation()
+            // 挂住不回 Completed；核心被中断时以 Aborted 收尾（照 Rust 那边的事件契约）。
+            if (hangAfterEvents) {
+                interruptSignal.await()
+                emit(ChatEvent.Aborted)
+            }
         }
     }
 
@@ -762,7 +767,15 @@ private class FakeAgentChat : AgentChat {
     /** 停止时补写进 session 的半段回复。 */
     val persistedInterrupted = mutableListOf<String>()
 
-    override suspend fun interrupt() {}
+    /** 中断是否送到了核心（现在是核心自己收手，平台不再补写半段）。 */
+    var interrupted = false
+
+    private val interruptSignal = kotlinx.coroutines.CompletableDeferred<Unit>()
+
+    override suspend fun interrupt() {
+        interrupted = true
+        interruptSignal.complete(Unit)
+    }
 
     override fun continueTurn(): Flow<ChatEvent> = kotlinx.coroutines.flow.emptyFlow()
 
