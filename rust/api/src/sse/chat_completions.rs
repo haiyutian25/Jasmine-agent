@@ -9,6 +9,7 @@ use eventsource_stream::Eventsource;
 use futures::StreamExt;
 use jasmine_client::ByteStream;
 use jasmine_client::StreamResponse;
+use jasmine_protocol::models::ReasoningItemContent;
 use jasmine_protocol::models::ResponseItem;
 use jasmine_protocol::protocol::TokenUsage;
 use std::sync::Arc;
@@ -126,6 +127,19 @@ fn to_token_usage(usage: ChatUsage) -> TokenUsage {
     }
 }
 
+/// The thinking of this answer, as an item of its own — the shape the transcript keeps it in.
+///
+/// The Responses protocol delivers it that way; a chat stream sends it in pieces, so it is gathered
+/// here into what the rest of the core already knows how to carry.
+fn reasoning_item(text: String) -> ResponseItem {
+    ResponseItem::Reasoning {
+        id: None,
+        summary: Vec::new(),
+        content: Some(vec![ReasoningItemContent::ReasoningText { text }]),
+        encrypted_content: None,
+    }
+}
+
 async fn process_sse(
     stream: ByteStream,
     tx_event: mpsc::Sender<Result<ResponseEvent, ApiError>>,
@@ -134,6 +148,7 @@ async fn process_sse(
 ) {
     let mut stream = stream.eventsource();
     let mut tool_calls = ToolCallFragments::default();
+    let mut reasoning = String::new();
     let mut response_error: Option<ApiError> = None;
 
     loop {
@@ -209,6 +224,16 @@ async fn process_sse(
             .delta
             .as_ref()
             .or(choice.message.as_ref())
+            .and_then(|delta| delta.reasoning_content.clone())
+            && !text.is_empty()
+        {
+            reasoning.push_str(&text);
+        }
+
+        if let Some(text) = choice
+            .delta
+            .as_ref()
+            .or(choice.message.as_ref())
             .and_then(|delta| delta.content.clone())
             && !text.is_empty()
             && tx_event
@@ -226,6 +251,18 @@ async fn process_sse(
         let end_turn = choice.finish_reason.as_deref() == Some("stop");
         let response_id = chunk.id.unwrap_or_default();
         let token_usage = chunk.usage.map(to_token_usage);
+        // The thinking goes out ahead of the calls it belongs to: that is the shape the transcript
+        // keeps (see `session/turn.rs`), and the one the provider expects to see again.
+        if !reasoning.trim().is_empty() {
+            let item = reasoning_item(std::mem::take(&mut reasoning));
+            if tx_event
+                .send(Ok(ResponseEvent::OutputItemDone(item)))
+                .await
+                .is_err()
+            {
+                return;
+            }
+        }
         for item in std::mem::take(&mut tool_calls).complete() {
             if tx_event
                 .send(Ok(ResponseEvent::OutputItemDone(item)))
@@ -247,6 +284,16 @@ async fn process_sse(
     }
 
     // `[DONE]` arrived without a finish reason: report what was reassembled and close.
+    if !reasoning.trim().is_empty() {
+        let item = reasoning_item(std::mem::take(&mut reasoning));
+        if tx_event
+            .send(Ok(ResponseEvent::OutputItemDone(item)))
+            .await
+            .is_err()
+        {
+            return;
+        }
+    }
     for item in tool_calls.complete() {
         if tx_event
             .send(Ok(ResponseEvent::OutputItemDone(item)))

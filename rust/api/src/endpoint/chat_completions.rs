@@ -50,6 +50,13 @@ pub struct ChatMessage {
     pub role: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<String>,
+    /// The thinking of the answer this message belongs to, when the model asked it back.
+    ///
+    /// A reasoning model refuses the follow-up that drops it, so it rides on the assistant message
+    /// that carries the calls it produced — the chat protocol's version of the `reasoning` item the
+    /// Responses protocol keeps in the transcript.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_content: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<ChatToolCallRequest>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -113,6 +120,12 @@ pub struct ChatChoice {
 pub struct ChatDelta {
     pub role: Option<String>,
     pub content: Option<String>,
+    /// The thinking of a reasoning model, streamed ahead of the answer.
+    ///
+    /// It has to ride back on the assistant message that follows it (see `client.rs`): the provider
+    /// refuses a follow-up that drops it.
+    #[serde(default)]
+    pub reasoning_content: Option<String>,
     #[serde(default)]
     pub tool_calls: Option<Vec<ChatToolCall>>,
 }

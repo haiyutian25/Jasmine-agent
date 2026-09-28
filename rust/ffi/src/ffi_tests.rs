@@ -45,7 +45,21 @@ fn provider_input() -> ProviderInput {
         base_url: "https://api.deepseek.com".to_string(),
         wire_api: WireApi::Responses,
         api_key: "sk-test".to_string(),
+        models: vec![crate::ModelInput {
+            id: "deepseek-flash".to_string(),
+            model_id: "deepseek-flash".to_string(),
+            context_length: 128_000,
+            max_output_length: 0,
+        }],
     }
+}
+
+#[test]
+fn provider_input_carries_model_token_budgets() {
+    let resolved = provider_input().into_resolved();
+    let models = &resolved.info().models;
+    assert_eq!(models.len(), 1);
+    assert_eq!(models[0].context_length, 128_000);
 }
 
 fn sessions_dir(name: &str) -> String {

@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.lhzkml.jasmine.core.agent.AgentChat
 import com.lhzkml.jasmine.core.agent.ChatEvent
+import com.lhzkml.jasmine.core.agent.ContextUsage
 import com.lhzkml.jasmine.core.agent.ConversationStore
 import com.lhzkml.jasmine.core.data.model.ChatRole
 import com.lhzkml.jasmine.core.data.model.Conversation
@@ -39,6 +40,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+/** 核心的默认上下文窗口（200K）在界面上的镜像；附着会话后立刻被核心报的值覆盖。 */
+private const val DEFAULT_CONTEXT_WINDOW_TOKENS = 200_000L
 
 /**
  * One rendered transcript entry: model output, or a tool the agent called.
@@ -136,6 +140,18 @@ data class ChatState(
     /** Persisted conversation behind [messages]; null until the first send. */
     val activeConversationId: String? = null,
     val isModelPickerOpen: Boolean = false,
+    /** 输入框左侧那个环形入口打开的面板（上下文容量）。 */
+    val isContextPanelOpen: Boolean = false,
+    /** 最近一轮回答之后核心报的上下文用量；一次都还没答过时为 null。 */
+    val contextUsage: ContextUsage? = null,
+
+    /**
+     * 当前会话的上下文窗口（token 数；模型面板里可改）。
+     *
+     * 初值是核心的默认值，附着会话后立刻用核心报的值覆盖 —— 那里才是权威：这个数在会话第一次
+     * 附着时就定下了，会话中途换模型不会变。
+     */
+    val contextWindow: Long = DEFAULT_CONTEXT_WINDOW_TOKENS,
     /** Set while the agent is blocked on a question; see [ChatUserPrompt]. */
     val pendingPrompt: ChatUserPrompt? = null,
 ) {
@@ -165,7 +181,14 @@ sealed interface ChatAction {
     data object NewConversationClicked : ChatAction
     data object ModelPickerOpened : ChatAction
     data object ModelPickerDismissed : ChatAction
+
+    /** 输入框左侧的环形入口：点一下弹出上下文容量面板。 */
+    data object ContextPanelOpened : ChatAction
+    data object ContextPanelDismissed : ChatAction
     data class ModelSelected(val providerId: String, val modelId: String) : ChatAction
+
+    /** 模型面板里改了当前会话的上下文窗口（token 数）。 */
+    data class ContextWindowSelected(val tokens: Long) : ChatAction
     data class ConversationSelected(val id: String) : ChatAction
     data class ConversationDeleted(val id: String) : ChatAction
 
@@ -191,6 +214,7 @@ sealed interface ChatAction {
         data class TurnFailed(val detail: String) : Internal
         data object TurnCompleted : Internal
         data class TurnInterrupted(val durationMs: Long) : Internal
+        data class UsageReceived(val usage: ContextUsage) : Internal
     }
 }
 
@@ -217,6 +241,14 @@ class ChatViewModel @Inject constructor(
 
     /** ADK session identity: the conversation + model it was built for. */
     private var sessionKey: String? = null
+
+    /**
+     * 界面在**还没附着会话**时先选好的上下文窗口。
+     *
+     * 新会话的第一条消息发出去之前没有会话文件，写不进去，所以先记在这里；附着时再写进那条
+     * 会话自己的文件（核心负责落盘与回报）。
+     */
+    private var pendingContextWindow: Long? = null
 
     /** Id of the assistant message currently being streamed, for chunk appends. */
     private var streamingMessageId: String? = null
@@ -322,7 +354,10 @@ class ChatViewModel @Inject constructor(
             ChatAction.NewConversationClicked -> handleNewConversation()
             ChatAction.ModelPickerOpened -> updateState { copy(isModelPickerOpen = true) }
             ChatAction.ModelPickerDismissed -> updateState { copy(isModelPickerOpen = false) }
+            ChatAction.ContextPanelOpened -> updateState { copy(isContextPanelOpen = true) }
+            ChatAction.ContextPanelDismissed -> updateState { copy(isContextPanelOpen = false) }
             is ChatAction.ModelSelected -> handleModelSelected(action)
+            is ChatAction.ContextWindowSelected -> handleContextWindowSelected(action.tokens)
             is ChatAction.ConversationSelected -> handleConversationSelected(action)
             is ChatAction.ConversationDeleted -> handleConversationDeleted(action)
             is ChatAction.PromptAnswered -> handlePromptAnswered(action)
@@ -331,8 +366,14 @@ class ChatViewModel @Inject constructor(
                 updateState { copy(providers = action.providers) }
             is ChatAction.Internal.ConversationsReceived ->
                 updateState { copy(conversations = action.conversations) }
-            is ChatAction.Internal.ActiveModelReceived -> updateState {
-                copy(activeProviderId = action.providerId, activeModelId = action.modelId)
+            is ChatAction.Internal.ActiveModelReceived -> {
+                updateState {
+                    copy(activeProviderId = action.providerId, activeModelId = action.modelId)
+                }
+                // 当前模型要等偏好读回来才知道，所以新会话的窗口在这里再对一次。
+                if (state.activeConversationId == null) {
+                    updateState { copy(contextWindow = newConversationContextWindow()) }
+                }
             }
             is ChatAction.Internal.TranscriptRestored -> {
                 handleTranscriptRestored(action)
@@ -343,6 +384,8 @@ class ChatViewModel @Inject constructor(
                         conversationStore.interruptedTurn(action.conversationId)
                     }.getOrNull()
                     updateState { copy(canContinue = unfinished != null) }
+                    // 窗口同样从它的文件里读回来 —— 重启之后要显示的是这条会话自己的值。
+                    restoreConversationState(action.conversationId)
                 }
             }
             is ChatAction.Internal.ReplyChunk -> appendReplyChunk(action.text)
@@ -352,6 +395,10 @@ class ChatViewModel @Inject constructor(
             is ChatAction.Internal.TurnFailed -> failTurn(action.detail)
             ChatAction.Internal.TurnCompleted -> finishTurn()
             is ChatAction.Internal.TurnInterrupted -> handleTurnInterrupted(action.durationMs)
+            // 用量只是这一轮的附带信息：面板开着就刷新，消息不动。
+            is ChatAction.Internal.UsageReceived -> updateState {
+                copy(contextUsage = action.usage)
+            }
         }
     }
 
@@ -531,8 +578,43 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 刚附着上会话：把上下文窗口对齐。
+     *
+     * 核心报的才是权威 —— 会话自己的选择优先，其次是模型配的，再次是默认值。但界面在新会话里
+     * 可能已经先选过了：那就以它为准写进这条会话的文件，并把核心随即回的那条用量收进来。
+     */
+    private suspend fun syncContextWindowAfterAttach() {
+        val pending = pendingContextWindow
+        if (pending != null) {
+            pendingContextWindow = null
+            updateState { copy(contextWindow = pending) }
+            collectEvents(agentChat.setContextWindow(pending))
+            return
+        }
+        agentChat.contextWindow()?.let { attached ->
+            updateState { copy(contextWindow = attached) }
+        }
+    }
+
+    /**
+     * 用户在模型面板里改了当前会话的上下文窗口。
+     *
+     * 会话已经附着就直接写进它的文件（核心会立刻回报一次用量，环与面板随之刷新）；还没附着
+     * —— 新会话的第一条消息还没发出去 —— 先记在界面上，等附着时一并写入。
+     */
+    private fun handleContextWindowSelected(tokens: Long) {
+        updateState { copy(contextWindow = tokens) }
+        if (sessionKey == null) {
+            pendingContextWindow = tokens
+            return
+        }
+        viewModelScope.launch { collectEvents(agentChat.setContextWindow(tokens)) }
+    }
+
     /** 照 [runTurn] 的做法跑完这一轮，只是入口换成「续采样」。 */
     private suspend fun runContinuedTurn(provider: ProviderConfig, model: ModelConfig) {
+
         try {
             val id = state.activeConversationId ?: throw IllegalStateException(
                 "Could not continue a conversation that is not open."
@@ -549,6 +631,7 @@ class ChatViewModel @Inject constructor(
                     instruction = CHAT_INSTRUCTION,
                 )
                 sessionKey = key
+                syncContextWindowAfterAttach()
             }
 
             collectEvents(agentChat.continueTurn())
@@ -566,6 +649,8 @@ class ChatViewModel @Inject constructor(
         updateState {
             copy(messages = emptyList(), isSending = false, activeConversationId = null)
         }
+        // 新会话的窗口按当前模型预设定；它第一次附着时核心会把这个值写进这条会话的文件。
+        updateState { copy(contextWindow = newConversationContextWindow()) }
     }
 
     private fun handleModelSelected(action: ChatAction.ModelSelected) {
@@ -584,6 +669,11 @@ class ChatViewModel @Inject constructor(
                 activeModelId = action.modelId,
                 isModelPickerOpen = false,
             )
+        }
+        // 会话里的窗口不跟着模型走：它在这条会话第一次附着时就定下了。只有还没有会话
+        // （新会话）时，界面上的窗口才跟着换后的模型预设。
+        if (state.activeConversationId == null) {
+            updateState { copy(contextWindow = newConversationContextWindow()) }
         }
         viewModelScope.launch {
             userPreferencesRepository.updateActiveModel(action.providerId, action.modelId)
@@ -618,7 +708,35 @@ class ChatViewModel @Inject constructor(
                     }
                 )
             }
+            restoreConversationState(action.id)
         }
+    }
+
+    /**
+     * 打开一条会话时，把它自己的两样东西从文件里读回来：窗口，以及上次报的用量。
+     *
+     * 窗口必须用它的（否则设置那一栏显示的会和这条会话实际用的不是一回事）；用量只活在内存里
+     * 的话，进程重启后面板就空了 —— 文件里的那份是重启后唯一的来源。从没记过（会话还没附着过）
+     * 时，窗口按当前模型的预设推一个，那是它第一次附着时会定下的值。
+     */
+    private suspend fun restoreConversationState(conversationId: String) {
+        val storedWindow = runCatching {
+            agentChat.conversationContextWindow(conversationId)
+        }.getOrNull()
+        val storedUsage = runCatching { agentChat.conversationUsage(conversationId) }.getOrNull()
+        if (state.activeConversationId != conversationId) return
+        updateState {
+            copy(
+                contextWindow = storedWindow ?: newConversationContextWindow(),
+                contextUsage = storedUsage,
+            )
+        }
+    }
+
+    /** 还没有会话时界面上的窗口：当前模型预设，没填就按默认值。 */
+    private fun newConversationContextWindow(): Long {
+        val preset = state.activeModel?.contextLength ?: 0
+        return if (preset > 0) preset.toLong() else DEFAULT_CONTEXT_WINDOW_TOKENS
     }
 
     private fun handleConversationDeleted(action: ChatAction.ConversationDeleted) {
@@ -659,6 +777,7 @@ class ChatViewModel @Inject constructor(
                     instruction = CHAT_INSTRUCTION,
                 )
                 sessionKey = key
+                syncContextWindowAfterAttach()
             }
 
             collectEvents(agentChat.send(text))
@@ -689,6 +808,7 @@ class ChatViewModel @Inject constructor(
                     is ChatEvent.Failed -> ChatAction.Internal.TurnFailed(event.detail)
                     ChatEvent.Completed -> ChatAction.Internal.TurnCompleted
                     is ChatEvent.Aborted -> ChatAction.Internal.TurnInterrupted(event.durationMs)
+                    is ChatEvent.Usage -> ChatAction.Internal.UsageReceived(event.usage)
                 }
             )
         }
@@ -1117,7 +1237,12 @@ class ChatViewModel @Inject constructor(
         // A question belongs to the conversation that asked it.
         pendingPrompts.clear()
         promptAnswers.clear()
-        updateState { copy(pendingPrompt = null) }
+        // 用量是那条会话的东西，换了会话就没有了。窗口不在这里复位：会话里的窗口不随模型变，
+        // 换会话 / 新建会话的调用点各自负责把它设成对的值。
+        pendingContextWindow = null
+        updateState {
+            copy(pendingPrompt = null, contextUsage = null, isContextPanelOpen = false)
+        }
     }
 
     // endregion

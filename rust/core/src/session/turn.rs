@@ -3,6 +3,7 @@
 
 use crate::client::ModelClient;
 use crate::client::SamplingRequest;
+use crate::client::tool_declaration;
 use crate::context_manager::normalize;
 use crate::session::SessionError;
 use crate::thread::ChatThread;
@@ -18,6 +19,10 @@ use jasmine_protocol::models::ContentItem;
 use jasmine_protocol::models::FunctionCallOutputPayload;
 use jasmine_protocol::models::ResponseItem;
 use jasmine_protocol::openai_models::InputModality;
+use jasmine_protocol::protocol::ContextUsageBreakdownItem;
+use jasmine_protocol::protocol::ContextUsageSource;
+use jasmine_tools::ResponsesApiTool;
+use jasmine_utils_string::approx_token_count;
 use tokio_util::sync::CancellationToken;
 
 /// What one turn runs with: where to sample, what to offer, and the conversation so far.
@@ -52,12 +57,17 @@ pub async fn run_turn<T: HttpTransport>(
         turn.thread.begin_turn();
         let mut request_input = turn.history.clone();
         normalize(&mut request_input, turn.input_modalities);
+        let tools = turn.registry.specs();
+        // What the request is about to send, by part. Read from the request itself rather than
+        // from the history, because this is exactly what goes on the wire.
+        let breakdown = context_breakdown(turn.instruction.as_deref(), &tools, &request_input);
+        turn.thread.note_request_breakdown(breakdown);
         let stream = turn
             .client
             .stream(SamplingRequest {
                 instruction: turn.instruction.clone(),
                 input: request_input,
-                tools: turn.registry.specs(),
+                tools,
                 stream: true,
             })
             .await
@@ -76,6 +86,12 @@ pub async fn run_turn<T: HttpTransport>(
         // A settled item belongs to the round that produced it: a thinking model's reasoning is
         // part of what the next request has to see.
         turn.history.extend(round.reasoning);
+
+        // What this round cost, once the model has said. The window and the request it was
+        // measured against come along, so the platform can show both without keeping its own tally.
+        if let Some(event) = turn.thread.usage_event() {
+            emit(event);
+        }
 
         if !round.text.is_empty() {
             turn.history.push(ResponseItem::Message {
@@ -164,4 +180,71 @@ async fn drain_stream(
         }
     }
     Ok(round)
+}
+
+/// Counts one request by part: the instruction, the tool schemas, the conversation.
+///
+/// Bytes over the core's usual bytes-per-token constant — the same estimate the truncation code
+/// uses, because no tokenizer is available. The shares it gives are what the platform shows; the
+/// total is replaced by the model's own count once it answers, since a real tokenizer only lives on
+/// the provider's side (and how a tool declaration is serialized is the provider's business too).
+///
+/// MCP tools are told apart by the `mcp__<server>__` namespace upstream puts them in. Skills have
+/// no source in the core yet, so that bucket is reported empty.
+fn context_breakdown(
+    instruction: Option<&str>,
+    tools: &[ResponsesApiTool],
+    input: &[ResponseItem],
+) -> Vec<ContextUsageBreakdownItem> {
+    let tokens = |text: &str| i64::try_from(approx_token_count(text)).unwrap_or(i64::MAX);
+
+    let system_prompt = instruction.map_or(0, tokens);
+    let mut system_tools = 0;
+    let mut mcp_tools = 0;
+    for tool in tools {
+        // The declaration as it goes on the wire, not the struct it was built from.
+        let encoded = tool_declaration(tool)
+            .and_then(|declaration| {
+                serde_json::to_string(&declaration)
+                    .map_err(|error| ApiError::Stream(format!("failed to encode tool: {error}")))
+            })
+            .unwrap_or_default();
+        if is_mcp_tool(&tool.name) {
+            mcp_tools += tokens(&encoded);
+        } else {
+            system_tools += tokens(&encoded);
+        }
+    }
+    let messages: i64 = input
+        .iter()
+        .map(|item| tokens(&serde_json::to_string(item).unwrap_or_default()))
+        .sum();
+
+    vec![
+        ContextUsageBreakdownItem {
+            source: ContextUsageSource::SystemPrompt,
+            tokens: system_prompt,
+        },
+        ContextUsageBreakdownItem {
+            source: ContextUsageSource::SystemToolSchemas,
+            tokens: system_tools,
+        },
+        ContextUsageBreakdownItem {
+            source: ContextUsageSource::Skills,
+            tokens: 0,
+        },
+        ContextUsageBreakdownItem {
+            source: ContextUsageSource::McpToolSchemas,
+            tokens: mcp_tools,
+        },
+        ContextUsageBreakdownItem {
+            source: ContextUsageSource::Messages,
+            tokens: messages,
+        },
+    ]
+}
+
+/// Whether a tool came from an MCP server: upstream namespaces those `mcp__<server>__<tool>`.
+fn is_mcp_tool(name: &str) -> bool {
+    name.starts_with("mcp__")
 }

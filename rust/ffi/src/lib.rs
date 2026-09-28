@@ -60,6 +60,13 @@ pub struct ConversationSummary {
     pub updated_at: i64,
 }
 
+/// 一条会话上次报的用量：给界面恢复面板用。
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct ContextUsageSnapshot {
+    pub info: jasmine_protocol::protocol::TokenUsageInfo,
+    pub breakdown: Vec<jasmine_protocol::protocol::ContextUsageBreakdownItem>,
+}
+
 /// 平台侧要显示的一条转写。
 ///
 /// 工具结果带 `tool_call_id`：它是把结果放回发起它的那次调用旁边的唯一线索。
@@ -107,6 +114,19 @@ pub struct ProviderInput {
     pub base_url: String,
     pub wire_api: WireApi,
     pub api_key: String,
+    /// 这个 provider 下配置的模型（界面填的 token 预算就挂在这里）。
+    pub models: Vec<ModelInput>,
+}
+
+/// 平台侧配置进来的一个模型。
+///
+/// 只带核心用得上的数：界面上那两栏 token 预算，0 表示"没设置"。
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct ModelInput {
+    pub id: String,
+    pub model_id: String,
+    pub context_length: u32,
+    pub max_output_length: u32,
 }
 
 impl ProviderInput {
@@ -117,7 +137,17 @@ impl ProviderInput {
             base_url: self.base_url,
             wire_api: self.wire_api,
             is_built_in: false,
-            models: Vec::new(),
+            models: self
+                .models
+                .into_iter()
+                .map(|model| jasmine_model_provider_info::ModelConfig {
+                    id: model.id,
+                    model_id: model.model_id,
+                    context_length: model.context_length,
+                    max_output_length: model.max_output_length,
+                    ..Default::default()
+                })
+                .collect(),
             // 重试次数与空闲超时用统一默认值：界面不该让用户配这个，配错只会更难排查。
             request_max_retries: None,
             stream_idle_timeout_ms: None,
@@ -199,12 +229,24 @@ impl AgentHandle {
         model_id: String,
         instruction: String,
     ) -> Result<(), AgentFailure> {
-        // 平台这一层只给模型 id；能力（能不能读图片/音频）等界面能按模型声明时再一并传进来。
-        let model = ModelConfig {
-            id: model_id.clone(),
-            model_id,
-            ..ModelConfig::default()
-        };
+        // 界面配的模型参数在这里落到核心：按 id 找到那个模型，带上它的 token 预算
+        // （上下文窗口等）；没配过就退回默认值（0 = 未设置）。
+        let model = provider
+            .models
+            .iter()
+            .find(|candidate| candidate.model_id == model_id)
+            .map(|candidate| ModelConfig {
+                id: candidate.id.clone(),
+                model_id: candidate.model_id.clone(),
+                context_length: candidate.context_length,
+                max_output_length: candidate.max_output_length,
+                ..ModelConfig::default()
+            })
+            .unwrap_or_else(|| ModelConfig {
+                id: model_id.clone(),
+                model_id,
+                ..ModelConfig::default()
+            });
         self.inner
             .start_conversation(
                 &SessionId::new(session_id),
@@ -246,6 +288,63 @@ impl AgentHandle {
     /// 给平台做诊断用（也可以在附着会话后自检"历史是否装载成功"）。
     pub fn context_len(&self) -> u64 {
         self.inner.context_len() as u64
+    }
+
+    /// 当前会话的上下文窗口（token 数）。
+    ///
+    /// 附着会话后读它，就能知道这个会话现在按多大的窗口算 —— 这个数在会话第一次附着时就定下
+    /// 了（当时选的模型的上下文长度，没配则默认 200K），会话中途换模型不会变。还没附着会话时
+    /// 没有可报的值。
+    pub fn context_window(&self) -> Option<i64> {
+        self.inner.context_window()
+    }
+
+    /// 某条会话自己记录的上下文窗口；没记录过就为 `None`。
+    ///
+    /// 不需要先附着 —— 界面刚打开一条会话、还没发消息时，用它把窗口设置显示成这条会话的值，
+    /// 而不是界面自己的默认值。
+    pub fn conversation_context_window(
+        &self,
+        session_id: String,
+    ) -> Result<Option<u64>, AgentFailure> {
+        self.inner
+            .conversation_context_window(&SessionId::new(session_id))
+            .map_err(|error| AgentFailure::Failed {
+                detail: error.detail(),
+            })
+    }
+
+    /// 某条会话上次报的用量（累计 + 最近一次 + 窗口，以及那轮请求的构成）；没记录过就为 `None`。
+    ///
+    /// 不需要先附着 —— 界面打开一条会话、还没发消息时用它把面板里的数补回来（进程重启后
+    /// 这是唯一来源）。
+    pub fn conversation_usage(
+        &self,
+        session_id: String,
+    ) -> Result<Option<ContextUsageSnapshot>, AgentFailure> {
+        self.inner
+            .conversation_usage(&SessionId::new(session_id))
+            .map(|usage| usage.map(|(info, breakdown)| ContextUsageSnapshot { info, breakdown }))
+            .map_err(|error| AgentFailure::Failed {
+                detail: error.detail(),
+            })
+    }
+
+    /// 设定当前会话的上下文窗口，落进它的会话文件。
+    ///
+    /// 选择权在平台。写完立刻回一条用量事件（如果这一轮已经报过用量），界面不必等到下一轮
+    /// 回答才更新。
+    pub fn set_context_window(
+        &self,
+        tokens: u64,
+        listener: Arc<dyn EventListener>,
+    ) -> Result<(), AgentFailure> {
+        let mut sink = ListenerSink { listener };
+        self.inner
+            .set_context_window(tokens, &mut sink)
+            .map_err(|error| AgentFailure::Failed {
+                detail: error.detail(),
+            })
     }
 
     /// 平台侧栏要的会话列表（最新的在前）。

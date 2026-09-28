@@ -11,9 +11,13 @@ import kotlinx.coroutines.withContext
 import uniffi.jasmine_ffi.AgentFailure
 import uniffi.jasmine_ffi.AgentHandle
 import uniffi.jasmine_ffi.EventListener
+import uniffi.jasmine_ffi.ModelInput
 import uniffi.jasmine_ffi.ProviderInput
 import uniffi.jasmine_model_provider_info.WireApi
 import uniffi.jasmine_protocol.ChatEvent as CoreChatEvent
+import uniffi.jasmine_protocol.ContextUsageBreakdownItem as CoreContextUsageBreakdownItem
+import uniffi.jasmine_protocol.ContextUsageSource as CoreContextUsageSource
+import uniffi.jasmine_protocol.TokenUsageInfo as CoreTokenUsageInfo
 
 /**
  * [AgentChat] backed by the Rust core.
@@ -58,6 +62,22 @@ class RustAgentChat(
 
     override fun continueTurn(): Flow<ChatEvent> = turn { listener -> handle.recoverTurn(listener) }
 
+    override suspend fun contextWindow(): Long? =
+        withContext(Dispatchers.IO) { handle.contextWindow() }
+
+    override suspend fun conversationContextWindow(sessionId: String): Long? =
+        withContext(Dispatchers.IO) { handle.conversationContextWindow(sessionId)?.toLong() }
+
+    override suspend fun conversationUsage(sessionId: String): ContextUsage? =
+        withContext(Dispatchers.IO) {
+            handle.conversationUsage(sessionId)?.let { snapshot ->
+                coreContextUsage(snapshot.info, snapshot.breakdown)
+            }
+        }
+
+    override fun setContextWindow(tokens: Long): Flow<ChatEvent> =
+        once { listener -> handle.setContextWindow(tokens.toULong(), listener) }
+
     override suspend fun persistInterruptedReply(text: String) {
         withContext(Dispatchers.IO) { handle.persistInterruptedReply(text) }
     }
@@ -95,7 +115,32 @@ class RustAgentChat(
         }
         awaitClose { job.cancel() }
     }
+
+    /**
+     * Runs one core call that reports events and then returns — setting the context window.
+     *
+     * Unlike [turn] this cannot wait for an end-of-turn event: the call is over once it returns, so
+     * the flow closes then, after everything the call emitted.
+     */
+    private fun once(run: (EventListener) -> Unit): Flow<ChatEvent> = callbackFlow {
+        val listener = object : EventListener {
+            override fun onEvent(event: CoreChatEvent) {
+                trySend(event.toChatEvent())
+            }
+        }
+        val job = launch(Dispatchers.IO) {
+            try {
+                run(listener)
+            } catch (failure: AgentFailure) {
+                trySend(ChatEvent.Failed(failure.message ?: failure.toString()))
+            }
+            close()
+        }
+        awaitClose { job.cancel() }
+    }
 }
+
+
 
 /** The provider entry the core's boundary takes. */
 internal fun ProviderConfig.toProviderInput(): ProviderInput = ProviderInput(
@@ -107,6 +152,16 @@ internal fun ProviderConfig.toProviderInput(): ProviderInput = ProviderInput(
         ProviderApiType.RESPONSES -> WireApi.RESPONSES
     },
     apiKey = apiKey,
+    // 界面给每个模型配的 token 预算（上下文长度 / 最大输出）随 provider 一起进核心；
+    // 0 表示没设置，核心自己决定默认。
+    models = models.map { model ->
+        ModelInput(
+            id = model.id,
+            modelId = model.modelId,
+            contextLength = model.contextLength.toUInt(),
+            maxOutputLength = model.maxOutputLength.toUInt(),
+        )
+    },
 )
 
 /** One core event, as this module's consumers see it. */
@@ -118,7 +173,31 @@ private fun CoreChatEvent.toChatEvent(): ChatEvent = when (this) {
     is CoreChatEvent.Failed -> ChatEvent.Failed(v1)
     CoreChatEvent.Completed -> ChatEvent.Completed
     is CoreChatEvent.Aborted -> ChatEvent.Aborted(this.durationMs.toLong())
-    }
+    is CoreChatEvent.Usage -> ChatEvent.Usage(coreContextUsage(info, breakdown))
+}
+
+/** 核心报的用量，翻译成本模块的；实时事件与从文件恢复走的是同一条路。 */
+private fun coreContextUsage(
+    info: CoreTokenUsageInfo,
+    breakdown: List<CoreContextUsageBreakdownItem>,
+): ContextUsage = ContextUsage(
+    // 与核心的 TokenUsage::tokens_in_context_window 同一个口径：一次请求放进窗口的总量。
+    usedTokens = info.lastTokenUsage.totalTokens,
+    totalTokens = info.totalTokenUsage.totalTokens,
+    modelContextWindow = info.modelContextWindow,
+    breakdown = breakdown.map { bucket ->
+        ContextUsageBucket(source = bucket.source.toContextUsageSource(), tokens = bucket.tokens)
+    },
+)
+
+/** 核心的来源枚举，翻译成本模块自己的。 */
+private fun CoreContextUsageSource.toContextUsageSource(): ContextUsageSource = when (this) {
+    CoreContextUsageSource.SYSTEM_PROMPT -> ContextUsageSource.SYSTEM_PROMPT
+    CoreContextUsageSource.SYSTEM_TOOL_SCHEMAS -> ContextUsageSource.SYSTEM_TOOL_SCHEMAS
+    CoreContextUsageSource.SKILLS -> ContextUsageSource.SKILLS
+    CoreContextUsageSource.MCP_TOOL_SCHEMAS -> ContextUsageSource.MCP_TOOL_SCHEMAS
+    CoreContextUsageSource.MESSAGES -> ContextUsageSource.MESSAGES
+}
 
 /** Whether this event is the last one of its turn. */
 private fun ChatEvent.endsTurn(): Boolean = when (this) {
@@ -130,4 +209,6 @@ private fun ChatEvent.endsTurn(): Boolean = when (this) {
     is ChatEvent.UserPromptRequested,
     -> true
     is ChatEvent.Text, is ChatEvent.ToolCall, is ChatEvent.ToolResult -> false
+    // 用量随每个采样轮一起到，不是回合的结束。
+    is ChatEvent.Usage -> false
 }

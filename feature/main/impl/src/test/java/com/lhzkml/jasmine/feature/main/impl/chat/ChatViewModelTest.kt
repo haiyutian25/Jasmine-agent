@@ -2,6 +2,7 @@ package com.lhzkml.jasmine.feature.main.impl.chat
 
 import com.lhzkml.jasmine.core.agent.AgentChat
 import com.lhzkml.jasmine.core.agent.ChatEvent
+import com.lhzkml.jasmine.core.agent.ContextUsage
 import com.lhzkml.jasmine.core.data.model.ChatRole
 import com.lhzkml.jasmine.core.data.model.Conversation
 import com.lhzkml.jasmine.core.data.model.ModelConfig
@@ -767,6 +768,32 @@ private class FakeAgentChat : AgentChat {
 
     override fun endConversation() {
         conversationsEnded++
+    }
+
+    /** 核心那边会话的窗口；测试默认给核心的默认值。 */
+    var contextWindow: Long = 200_000
+
+    /** 界面设过的窗口，按顺序记下来。 */
+    val contextWindowsSet = mutableListOf<Long>()
+
+    override suspend fun contextWindow(): Long = contextWindow
+
+    /** 各会话自己记录的窗口；没有记录（或没设过）时为 null。 */
+    val conversationContextWindows = mutableMapOf<String, Long>()
+
+    override suspend fun conversationContextWindow(sessionId: String): Long? =
+        conversationContextWindows[sessionId]
+
+    /** 各会话文件里记着的用量；测试按需塞。 */
+    val conversationUsages = mutableMapOf<String, ContextUsage>()
+
+    override suspend fun conversationUsage(sessionId: String): ContextUsage? =
+        conversationUsages[sessionId]
+
+    override fun setContextWindow(tokens: Long): Flow<ChatEvent> {
+        contextWindowsSet += tokens
+        contextWindow = tokens
+        return kotlinx.coroutines.flow.emptyFlow()
     }
 
     /** 中断是否送到了核心（现在是核心自己收手，平台不再补写半段）。 */

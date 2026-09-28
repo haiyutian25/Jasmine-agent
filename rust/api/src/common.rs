@@ -199,6 +199,10 @@ pub struct ResponsesApiRequest {
     pub prompt_cache_key: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<TextControls>,
+    /// The most the model may write in one response. Left out when the platform never said,
+    /// which leaves the provider's own default in place.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_output_tokens: Option<u32>,
 }
 
 pub fn create_text_param_for_request(

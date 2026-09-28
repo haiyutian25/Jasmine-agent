@@ -29,6 +29,7 @@
     <string name="provider_model_id_required_toast">请填写模型 ID</string>
     <string name="provider_context_length">上下文长度（tokens）</string>
     <string name="provider_max_output_length">输出长度（tokens）</string>
+    <string name="provider_max_output_hint">每次请求允许模型输出的上限；留空或不填（0）表示不限制，交给模型默认。</string>
     <string name="provider_model_edit_cd">编辑模型</string>
     <string name="provider_model_delete_cd">删除模型</string>
     <string name="provider_model_params">上下文 %1$d · 输出 %2$d</string>

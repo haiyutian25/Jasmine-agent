@@ -89,7 +89,7 @@
 | provider 静态表与内置预设 | `ProviderConfig.DEFAULTS` / `DEEPSEEK` | `model-provider-info` 的 `built_in_model_providers` | ✅ 已实现 |
 | 模型列表拉取（"获取模型"按钮） | `ProviderModelDataSource.kt`（~70 行） | `model-provider/src/models_endpoint.rs` | ✅ 已实现（`fetch_model_ids`，兼容 OpenAI `{data:[{id}]}` 与 DeepSeek `{models:[{id\|model_name}]}`；base_url 已以 `/v1` 结尾时不重叠加） |
 | 模型输入模态（文本/图片/音频） | 无（当前只走文字） | `protocol` 的 `InputModality` + `core/src/context_manager/normalize.rs` 的两个剥离 pass | ✅ 已实现（能力落在 `ModelConfig.input_modalities`，默认文本+图片） |
-| **token 用量解析** | `OpenAiChatWire.kt:95` / `OpenAiResponsesWire.kt:130` → `UsageMetadata` | 两套 wire 的 `sse/*.rs` → `ResponseEvent::Completed.token_usage` → `ChatThread::last_token_usage()` | ✅ 已实现（见 §3.1；不新增界面事件） |
+| **token 用量解析** | `OpenAiChatWire.kt:95` / `OpenAiResponsesWire.kt:130` → `UsageMetadata` | 两套 wire 的 `sse/*.rs` → `ResponseEvent::Completed.token_usage` → `ChatThread::token_usage_info()` → `ChatEvent::Usage` | ✅ 已实现（见 §3.1；每轮回答后交给界面） |
 | 连通性探测 | `ProviderProbe.kt` + `旧 Kotlin 探测（已删）`（107 行） | **参照无对应** | ✅ 自主实现（已登记，见 §4） |
 | 模型选择与当前模型 | `ChatAction.ModelSelected` + `UserPreferences` | `models-manager` + `config` | 留平台（选择与持久化在 UI 侧） |
 
@@ -113,7 +113,7 @@
 | 残缺记录归一化（有调用无结果等） | 靠流程约束（`respondToPrompts` 的注释） | `core/src/context_manager/normalize.rs` | ✅ 已实现（含模型读不了的模态替换为占位文本的两个 pass） |
 | 上下文片段注入（world state / 记忆等） | 旧引擎内部 | `core/src/context/` | 未建（用到再建） |
 | 上下文压缩 | **未启用**（`旧 Kotlin 引擎（已删）:158` 保持默认值） | `core/src/compact.rs` + `compact_remote_v2.rs` | 不做（见 §5） |
-| 上下文预算（`contextLength`/`maxOutputLength`） | `ModelConfig`（UI 可配） | token budget（`session/token_budget.rs`） | ❌ 缺落脚点（见 §3.3） |
+| 上下文预算（`contextLength`/`maxOutputLength`） | `ModelConfig`（UI 可配） | token budget（`session/token_budget.rs`） | 🚧 部分：`maxOutputLength`→每轮请求上限、`contextLength`→会话起始窗口；压缩阈值等未做（见 §3.3） |
 
 ### 2.5 交互
 
@@ -163,10 +163,18 @@
     `api/src/sse/responses.rs`（`input/output/total_tokens` + `input_tokens_details.cached_tokens`/
     `cache_write_tokens` + `output_tokens_details.reasoning_tokens`），都挂在 `ResponseEvent::Completed.token_usage` 上；
     结构与参照实现逐字一致（只去掉参照专有的 `codex_rollout_budget_units`）。
-  - 核心侧不再丢：`core/src/event_mapping.rs` 把用量带出 → `ChatThread::last_token_usage()`（会话状态里最近一次响应的用量）。
-  - **不新增界面事件**：Android 的 `ChatEvent` 只有 6 个事件、没有用量，用量在 旧引擎 里是挂在**响应**上的（`LlmResponse.usageMetadata`），
-    界面上不展示。所以 Rust 侧同样把它当"响应元数据"留在会话状态，宿主/FFI 需要时读 `last_token_usage()`。
-  - 单测：api 4 个（两套映射 + 缺字段按 0）、core 4 个（用量被记下 / 未报告时为空）。
+  - 核心侧不再丢：`core/src/event_mapping.rs` 把用量带出 → `ChatThread::token_usage_info()`
+    （`TokenUsageInfo` = 会话累计 + 最近一次 + 窗口，照参照实现的形状与命名，`new_or_append` 逐次累加）。
+  - **界面事件**：每轮回答结束后发一个 `ChatEvent::Usage`，带 `TokenUsageInfo`、这一轮请求按来源的
+    构成（系统提示词 / 系统工具 / 技能 / MCP 工具 / 消息）以及窗口上限。
+    - **构成的份额是本地估算、总量是 provider 的真值**：`session/turn.rs::context_breakdown` 用
+      `approx_token_count`（字节 ÷ 4，工具按 `client.rs::tool_declaration` 那份**真正上线**的 JSON 量，
+      领域 MCP 工具按 `mcp__<server>__` 前缀分流），随后 `ChatThread::scaled_request_breakdown`
+      按 `last_token_usage.input_tokens` 等比缩放、余数补给最大的一块 —— 核心没有分词器，provider 才有。
+    - 窗口上限来自平台配置的 `ModelConfig.context_length`（0 = 没设 → 默认 200K），核心不消费它、只报给界面。
+      界面显示在输入框左侧的环形入口里（见记忆 `project_context_usage_panel_port`）。
+  - 单测：api 4 个（两套映射 + 缺字段按 0）、`core/src/thread.rs` 5 个（记下 / 逐次累加 / 未报告时为空 /
+    按真值缩放 / 取整后总量仍等于真值）。
 
 ### 3.2 并行工具调用
 
@@ -178,13 +186,17 @@
   `supports_parallel` 声明能否共用会话 —— 可并行的共用读锁，其余排写锁；结果按完成顺序返回）。
 - **写进历史的顺序**：`core/src/session/turn.rs` —— 同一轮的**调用先全部写入，再写结果**。
 
-### 3.3 模型配置（`contextLength` / `maxOutputLength`）没有落脚点
+### 3.3 模型配置（`contextLength` / `maxOutputLength`）的落脚点
 
 - Android 的 `ModelConfig` 带这两个字段（UI 可配），`ProviderConfig.models` 里持久化。
-- 参照实现里对应的是 token budget（`session/token_budget.rs` + `context_manager`）。
-- **结论**：目前压缩没做，用不到；但一旦做上下文预算就得有位置。
-  候选：放 `model-provider-info`（与 `ModelProviderInfo` 平级），或每次请求由平台带进来。
-  **待你定**。
+- **`maxOutputLength` → 每轮请求的输出上限**（2026-09-28 接好）：`session/service.rs` 的
+  `output_token_cap`（0 = 没设 → 不发）→ `ModelClient::with_max_output_tokens`（`core/src/client.rs`）→
+  按协议自己的字段名上线：Responses 写 `max_output_tokens`（`api/src/common.rs`，上游 `ResponsesApiRequest`
+  没有这个字段 —— 上游根本不发输出上限），Chat 写 `max_tokens`。它属于**模型**而不是会话，所以会话中途换模型会跟着换。
+- **`contextLength` → 会话起始窗口**：新会话第一次附着时取它，没填则 200K（`starting_context_window`），
+  落进会话文件（`RolloutItem::ContextWindow`）；窗口一旦定下就冻结，会话中途换模型不改。
+- 参照实现里更进一步的用法（**我们没做**）：按窗口算自动压缩阈值、按剩余窗口二次裁输出、把窗口当界面分母
+  —— 那要等上下文压缩真做的时候再补（见 §5）。
 
 ---
 

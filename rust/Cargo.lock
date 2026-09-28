@@ -891,6 +891,7 @@ dependencies = [
  "jasmine-protocol",
  "jasmine-rollout",
  "jasmine-tools",
+ "jasmine-utils-string",
  "serde_json",
  "thiserror",
  "tokio",

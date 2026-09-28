@@ -4,6 +4,8 @@ use crate::model::RolloutLine;
 use crate::model::SessionMeta;
 use crate::rollout_file_name::RolloutFileName;
 use jasmine_protocol::models::ResponseItem;
+use jasmine_protocol::protocol::ContextUsageBreakdownItem;
+use jasmine_protocol::protocol::TokenUsageInfo;
 use std::fs;
 use std::fs::File;
 use std::io::BufRead;
@@ -103,7 +105,35 @@ pub fn read_response_items(path: &Path) -> std::io::Result<Vec<ResponseItem>> {
         .collect())
 }
 
-/// A line that does not parse is a line that was cut short: the transcript keeps what it has.
+/// The context window the conversation was last set to, if it was ever set at all.
+pub fn context_window_tokens(path: &Path) -> Option<u64> {
+    read_lines(path)
+        .ok()?
+        .iter()
+        .filter_map(|line| match &line.item {
+            RolloutItem::ContextWindow { tokens } => Some(*tokens),
+            _ => None,
+        })
+        .next_back()
+}
+
+/// What the conversation last reported costing, if it ever did.
+///
+/// A record is written per finished turn, so the last one in the file is the current picture — the
+/// same one a reopened conversation shows.
+pub fn token_usage(path: &Path) -> Option<(TokenUsageInfo, Vec<ContextUsageBreakdownItem>)> {
+    read_lines(path)
+        .ok()?
+        .iter()
+        .filter_map(|line| match &line.item {
+            RolloutItem::TokenUsageRecord { info, breakdown } => {
+                Some((info.clone(), breakdown.clone()))
+            }
+            _ => None,
+        })
+        .next_back()
+}
+
 /// The turn one conversation left unfinished, if its last boundary left one.
 ///
 /// A finished turn writes its own closing boundary. A turn the platform interrupted was written
@@ -117,7 +147,10 @@ pub fn interrupted_turn(path: &Path) -> Option<String> {
                 return Some(turn_id.clone());
             }
             RolloutItem::TurnComplete { .. } => return None,
-            RolloutItem::SessionMeta(_) | RolloutItem::ResponseItem(_) => {}
+            RolloutItem::SessionMeta(_)
+            | RolloutItem::ResponseItem(_)
+            | RolloutItem::ContextWindow { .. }
+            | RolloutItem::TokenUsageRecord { .. } => {}
         }
     }
     None

@@ -1,4 +1,6 @@
 use jasmine_protocol::models::ResponseItem;
+use jasmine_protocol::protocol::ContextUsageBreakdownItem;
+use jasmine_protocol::protocol::TokenUsageInfo;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -36,6 +38,23 @@ pub enum RolloutItem {
     /// The turn finished.
     TurnComplete {
         turn_id: String,
+    },
+    /// The context window this conversation runs against, in tokens.
+    ///
+    /// Written once — when the conversation is first attached, from the model the platform had
+    /// picked then — and again whenever the platform changes it, so the last one in the file is the
+    /// one that counts.
+    ContextWindow {
+        tokens: u64,
+    },
+    /// What a finished turn cost, and the makeup of the request that produced it.
+    ///
+    /// Written once per turn that reported a cost. Upstream records the same thing under the same
+    /// name; a conversation reopened later reads the last one back, so the usage it shows is not
+    /// lost with the process.
+    TokenUsageRecord {
+        info: TokenUsageInfo,
+        breakdown: Vec<ContextUsageBreakdownItem>,
     },
     /// The turn stopped before finishing.
     TurnAborted {

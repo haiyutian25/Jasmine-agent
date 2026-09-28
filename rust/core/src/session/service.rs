@@ -28,6 +28,8 @@ use jasmine_protocol::Role;
 use jasmine_protocol::SessionId;
 use jasmine_protocol::models::ContentItem;
 use jasmine_protocol::models::ResponseItem;
+use jasmine_protocol::protocol::ContextUsageBreakdownItem;
+use jasmine_protocol::protocol::TokenUsageInfo;
 use jasmine_rollout::RolloutItem;
 use jasmine_rollout::RolloutRecorder;
 use jasmine_rollout::SessionMeta;
@@ -129,6 +131,9 @@ struct Attached {
     /// The turn the file currently holds open, and whether it stopped before finishing.
     turn_id: String,
     interrupted: bool,
+    /// The window this conversation runs against, in tokens. Always set: it is decided when the
+    /// conversation is first attached, and a model switch inside the conversation does not move it.
+    context_window_tokens: u64,
 }
 
 /// One conversation, as the platform drives it.
@@ -184,9 +189,12 @@ impl AgentChatService {
                 ModelClient::chat_completions(*client, model.model_id.clone())
             }
             ApiClient::Responses(client) => ModelClient::responses(*client, model.model_id.clone()),
-        };
+        }
+        // How much this model may write per response. It belongs to the model rather than to the
+        // conversation, so a model switch inside a conversation does move it, unlike the window.
+        .with_max_output_tokens(output_token_cap(model));
 
-        let (rollout, history, unfinished) =
+        let (mut rollout, history, unfinished, stored_context_window, stored_usage) =
             match find_session_path(&self.sessions_dir, session_id.as_str())
                 .map_err(|error| AgentError::Transcript(error.to_string()))?
             {
@@ -196,9 +204,13 @@ impl AgentChatService {
                     // What the file says about its last turn: one it never closed is the part the
                     // platform may ask to have continued.
                     let unfinished = jasmine_rollout::interrupted_turn(&path);
+                    // The window the platform picked for this conversation, if it ever did.
+                    let window = jasmine_rollout::context_window_tokens(&path);
+                    // What it last reported costing — the platform shows this after a restart.
+                    let usage = jasmine_rollout::token_usage(&path);
                     let rollout = RolloutRecorder::open(path)
                         .map_err(|error| AgentError::Transcript(error.to_string()))?;
-                    (rollout, history, unfinished)
+                    (rollout, history, unfinished, window, usage)
                 }
                 None => {
                     let meta = SessionMeta {
@@ -210,12 +222,30 @@ impl AgentChatService {
                     };
                     let rollout = RolloutRecorder::create(&self.sessions_dir, &meta)
                         .map_err(|error| AgentError::Transcript(error.to_string()))?;
-                    (rollout, Vec::new(), None)
+                    (rollout, Vec::new(), None, None, None)
                 }
             };
 
+        // What window this conversation runs against. It is decided once — the first time the
+        // conversation is attached, from the model the platform had picked then — and written
+        // down, so a model switch inside the conversation leaves the window where it was.
+        let context_window_tokens = match stored_context_window {
+            Some(tokens) => tokens,
+            None => {
+                let tokens = starting_context_window(model);
+                record_boundary(&mut rollout, RolloutItem::ContextWindow { tokens })?;
+                tokens
+            }
+        };
+
         let mut thread = ChatThread::new();
         thread.start_session(session_id.as_str());
+        // Noted after the attach, which clears whatever the previous conversation had.
+        thread.note_context_window(to_tokens(context_window_tokens));
+        // And what it had cost, so the window the platform shows has its figure from the start.
+        if let Some((info, breakdown)) = stored_usage {
+            thread.note_usage_record(info, breakdown);
+        }
 
         *self.lock()? = Some(Attached {
             client,
@@ -227,8 +257,80 @@ impl AgentChatService {
             cancellation: CancellationToken::new(),
             turn_id: unfinished.clone().unwrap_or_default(),
             interrupted: unfinished.is_some(),
+            context_window_tokens,
         });
         Ok(())
+    }
+
+    /// The window the attached conversation runs against, in tokens.
+    ///
+    /// Nothing is attached before the platform has attached a conversation, and nothing to report
+    /// either — the platform's own default applies until then.
+    pub fn context_window(&self) -> Option<i64> {
+        self.lock().ok().and_then(|attached| {
+            attached
+                .as_ref()
+                .map(|attached| attached.thread.context_window())
+        })
+    }
+
+    /// Sets the window the attached conversation runs against and records it in its file.
+    ///
+    /// The platform owns the choice: it is written down so the same conversation is resumed with it,
+    /// and reported back straight away so the platform can redraw without waiting for a reply.
+    pub fn set_context_window(
+        &self,
+        tokens: u64,
+        sink: &mut dyn ChatSink,
+    ) -> Result<(), AgentError> {
+        let mut guard = self.lock()?;
+        let attached = guard.as_mut().ok_or(AgentError::NoSession)?;
+        let Attached {
+            thread,
+            rollout,
+            context_window_tokens,
+            ..
+        } = attached;
+        record_boundary(rollout, RolloutItem::ContextWindow { tokens })?;
+        *context_window_tokens = tokens;
+        thread.note_context_window(to_tokens(tokens));
+        if let Some(event) = thread.usage_event() {
+            sink.emit(event);
+        }
+        Ok(())
+    }
+
+    /// The window one conversation recorded, read straight from its file.
+    ///
+    /// The platform needs this before attaching — it is what the window picker shows for a
+    /// conversation it has just opened. `None` means the conversation never got one, which is what
+    /// the platform's own default fills in.
+    pub fn conversation_context_window(
+        &self,
+        session_id: &SessionId,
+    ) -> Result<Option<u64>, AgentError> {
+        let Some(path) = find_session_path(&self.sessions_dir, session_id.as_str())
+            .map_err(|error| AgentError::Transcript(error.to_string()))?
+        else {
+            return Ok(None);
+        };
+        Ok(jasmine_rollout::context_window_tokens(&path))
+    }
+
+    /// What one conversation last reported costing, read straight from its file.
+    ///
+    /// The platform shows this when a conversation is opened, before anything new is sent — without
+    /// it, a restarted app would have nothing to put next to the window it shows.
+    pub fn conversation_usage(
+        &self,
+        session_id: &SessionId,
+    ) -> Result<Option<(TokenUsageInfo, Vec<ContextUsageBreakdownItem>)>, AgentError> {
+        let Some(path) = find_session_path(&self.sessions_dir, session_id.as_str())
+            .map_err(|error| AgentError::Transcript(error.to_string()))?
+        else {
+            return Ok(None);
+        };
+        Ok(jasmine_rollout::token_usage(&path))
     }
 
     /// How many messages the conversation's context holds.
@@ -253,6 +355,7 @@ impl AgentChatService {
             cancellation,
             turn_id,
             interrupted,
+            ..
         } = attached;
         let instruction = instruction_option(instruction);
         let registry = self.runtime.registry();
@@ -291,6 +394,7 @@ impl AgentChatService {
             history.push(interrupted_turn_marker());
         }
         record_turn(rollout, history, recorded)?;
+        record_usage(rollout, thread)?;
         finish_turn(
             rollout,
             &mut emit,
@@ -319,6 +423,7 @@ impl AgentChatService {
             cancellation,
             turn_id,
             interrupted,
+            ..
         } = attached;
         let instruction = instruction_option(instruction);
         let registry = self.runtime.registry();
@@ -357,6 +462,7 @@ impl AgentChatService {
             history.push(interrupted_turn_marker());
         }
         record_turn(rollout, history, recorded)?;
+        record_usage(rollout, thread)?;
         finish_turn(
             rollout,
             &mut emit,
@@ -401,6 +507,7 @@ impl AgentChatService {
             cancellation,
             turn_id,
             interrupted,
+            ..
         } = attached;
         let instruction = instruction_option(instruction);
         let registry = self.runtime.registry();
@@ -440,6 +547,7 @@ impl AgentChatService {
             history.push(interrupted_turn_marker());
         }
         record_turn(rollout, history, recorded)?;
+        record_usage(rollout, thread)?;
         finish_turn(
             rollout,
             &mut emit,
@@ -637,7 +745,12 @@ impl AgentChatService {
                     tool_detail: None,
                     tool_result: None,
                 }),
-                RolloutItem::SessionMeta(_) | RolloutItem::TurnComplete { .. } => {}
+                // The window and the usage are properties of the conversation, not lines of the
+                // transcript.
+                RolloutItem::SessionMeta(_)
+                | RolloutItem::TurnComplete { .. }
+                | RolloutItem::ContextWindow { .. }
+                | RolloutItem::TokenUsageRecord { .. } => {}
             }
         }
         // A call that never got a result — a batch the platform stopped — still shows its card.
@@ -766,6 +879,44 @@ fn instruction_option(instruction: &str) -> Option<String> {
     (!trimmed.is_empty()).then(|| trimmed.to_string())
 }
 
+/// The model's context window, as the platform configured it. Zero means it never was.
+fn model_context_window(model: &ModelConfig) -> Option<u64> {
+    (model.context_length > 0).then(|| u64::from(model.context_length))
+}
+
+/// The most the model may write in one response, as the platform configured it. Zero means it
+/// never was — every request then leaves the cap to the provider, which is the default.
+fn output_token_cap(model: &ModelConfig) -> Option<u32> {
+    (model.max_output_length > 0).then_some(model.max_output_length)
+}
+
+/// How much context a conversation runs against when neither it nor its model says.
+///
+/// A conversation with no window at all would have no denominator to show, so one is assumed; the
+/// platform can pick another per conversation.
+const DEFAULT_CONTEXT_WINDOW: u64 = 200_000;
+
+/// The window a conversation starts with: the model's own setting, or the default.
+fn starting_context_window(model: &ModelConfig) -> u64 {
+    model_context_window(model).unwrap_or(DEFAULT_CONTEXT_WINDOW)
+}
+
+/// A window the thread can carry: token counts stay well inside `i64`.
+fn to_tokens(context_window: u64) -> i64 {
+    i64::try_from(context_window).unwrap_or(i64::MAX)
+}
+
+/// Writes down what the turn cost, so a conversation reopened later still has something to show.
+///
+/// A turn that reported nothing leaves the file as it was: the previous figure is still the last
+/// thing that was known.
+fn record_usage(rollout: &mut RolloutRecorder, thread: &ChatThread) -> Result<(), AgentError> {
+    let Some((info, breakdown)) = thread.usage_record() else {
+        return Ok(());
+    };
+    record_boundary(rollout, RolloutItem::TokenUsageRecord { info, breakdown })
+}
+
 /// The marker the core leaves in the conversation when a turn is interrupted on purpose.
 ///
 /// It is the shape upstream records on its interrupt path (`reason == Interrupted`): a developer
@@ -801,7 +952,7 @@ fn record_boundary(rollout: &mut RolloutRecorder, item: RolloutItem) -> Result<(
 fn finish_turn(
     rollout: &mut RolloutRecorder,
     emit: &mut dyn FnMut(ChatEvent),
-    turn_id: &mut String,
+    turn_id: &str,
     interrupted: &mut bool,
     duration_ms: u64,
     outcome: Result<(), SessionError>,
@@ -810,7 +961,7 @@ fn finish_turn(
         Ok(()) => record_boundary(
             rollout,
             RolloutItem::TurnComplete {
-                turn_id: turn_id.clone(),
+                turn_id: turn_id.to_string(),
             },
         ),
         Err(SessionError::TurnAborted) => {
@@ -818,7 +969,7 @@ fn finish_turn(
             record_boundary(
                 rollout,
                 RolloutItem::TurnAborted {
-                    turn_id: turn_id.clone(),
+                    turn_id: turn_id.to_string(),
                     reason: jasmine_rollout::TurnAbortReason::Interrupted,
                     duration_ms,
                 },

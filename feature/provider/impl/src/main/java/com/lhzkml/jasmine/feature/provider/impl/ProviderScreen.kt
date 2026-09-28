@@ -837,7 +837,8 @@ private fun ModelEditorSheet(
                 onValueChange = { onAction(ProviderAction.ModelMaxOutputChanged(it)) },
                 currentTheme = currentTheme,
                 keyboardType = KeyboardType.Number,
-                testTag = "provider_model_field_output"
+                testTag = "provider_model_field_output",
+                hint = stringResource(R.string.provider_max_output_hint)
             )
             Spacer(modifier = Modifier.height(18.dp))
             Row(
@@ -910,6 +911,8 @@ private fun ProviderField(
     keyboardType: KeyboardType,
     testTag: String,
     obscure: Boolean = false,
+    /** 字段底下的一句说明；不传就没有。 */
+    hint: String? = null,
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
@@ -945,6 +948,14 @@ private fun ProviderField(
                     vertical = ProviderFieldPaddingVertical
                 )
         )
+        if (hint != null) {
+            Spacer(modifier = Modifier.height(ProviderFieldLabelSpacing))
+            Text(
+                text = hint,
+                fontSize = ProviderRowBaseUrlFontSize,
+                color = currentTheme.mutedForeground
+            )
+        }
     }
 }
 

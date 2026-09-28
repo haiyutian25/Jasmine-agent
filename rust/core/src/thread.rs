@@ -2,7 +2,8 @@ use crate::event_mapping::PendingPrompt;
 use crate::event_mapping::map_response_event;
 use jasmine_api::ResponseEvent;
 use jasmine_protocol::ChatEvent;
-use jasmine_protocol::protocol::TokenUsage;
+use jasmine_protocol::protocol::ContextUsageBreakdownItem;
+use jasmine_protocol::protocol::TokenUsageInfo;
 use std::collections::VecDeque;
 
 /// Live state of one conversation: the session it runs on, the turn in flight, and the
@@ -30,11 +31,20 @@ pub struct ChatThread {
     /// rejects an assistant message whose tool calls are not all answered.
     paused_for_prompt: bool,
 
-    /// What the most recent response reported it cost, when it reported that.
+    /// What the conversation has cost so far: the running total, the last response's own count,
+    /// and the window both have to fit in.
     ///
     /// A response's usage is metadata about that response — the caller reads it after the
     /// turn, it is not a step in the reply.
-    last_token_usage: Option<TokenUsage>,
+    token_usage_info: Option<TokenUsageInfo>,
+
+    /// The context window the conversation runs against, in tokens, set when it was attached (or
+    /// when the platform changed it). Zero means nothing has been attached yet.
+    context_window: i64,
+
+    /// Which part of the request the last round sent, counted by the turn. Kept so the platform
+    /// can be given the same picture again when only the window changes.
+    request_breakdown: Vec<ContextUsageBreakdownItem>,
 }
 
 impl ChatThread {
@@ -58,9 +68,88 @@ impl ChatThread {
         self.paused_for_prompt
     }
 
-    /// What the most recent response cost.
-    pub fn last_token_usage(&self) -> Option<&TokenUsage> {
-        self.last_token_usage.as_ref()
+    /// What the conversation has cost so far.
+    pub fn token_usage_info(&self) -> Option<&TokenUsageInfo> {
+        self.token_usage_info.as_ref()
+    }
+
+    /// The window this conversation runs against, in tokens.
+    pub fn context_window(&self) -> i64 {
+        self.context_window
+    }
+
+    /// Records the window the conversation was resolved to.
+    pub fn note_context_window(&mut self, context_window: i64) {
+        self.context_window = context_window;
+    }
+
+    /// Remembers what the round now starting is about to send, by part.
+    pub fn note_request_breakdown(&mut self, breakdown: Vec<ContextUsageBreakdownItem>) {
+        self.request_breakdown = breakdown;
+    }
+
+    /// The usage event as it stands: what the conversation cost, the window it fits in, and the
+    /// makeup of the last request. `None` before any response has reported a cost.
+    pub fn usage_event(&self) -> Option<ChatEvent> {
+        self.usage_record()
+            .map(|(info, breakdown)| ChatEvent::Usage { info, breakdown })
+    }
+
+    /// What goes in the conversation's file: what it has cost, and the makeup of the request that
+    /// produced the last figure. `None` before any response has reported a cost.
+    pub fn usage_record(&self) -> Option<(TokenUsageInfo, Vec<ContextUsageBreakdownItem>)> {
+        let info = self.token_usage_info.clone()?;
+        let breakdown = self.scaled_request_breakdown(info.last_token_usage.input_tokens);
+        Some((info, breakdown))
+    }
+
+    /// Puts back what the conversation's file says it had cost.
+    ///
+    /// The stored makeup is already scaled to that total, so keeping it as the current one makes a
+    /// later report (a window change, say) come out identical instead of being scaled twice — the
+    /// factor is the reported input over the stored total, which is one.
+    pub fn note_usage_record(
+        &mut self,
+        info: TokenUsageInfo,
+        breakdown: Vec<ContextUsageBreakdownItem>,
+    ) {
+        self.token_usage_info = Some(info);
+        self.request_breakdown = breakdown;
+    }
+
+    /// The last request's makeup, scaled so it adds up to what the model reported for its input.
+    ///
+    /// The parts are estimated here (the core has no tokenizer), so only their shares are worth
+    /// anything; the size comes from the provider. When it reported nothing — or the request
+    /// counted to nothing — the estimate is left as it is.
+    fn scaled_request_breakdown(
+        &self,
+        reported_input_tokens: i64,
+    ) -> Vec<ContextUsageBreakdownItem> {
+        let estimated_total: i64 = self.request_breakdown.iter().map(|item| item.tokens).sum();
+        if reported_input_tokens <= 0 || estimated_total <= 0 {
+            return self.request_breakdown.clone();
+        }
+
+        let mut scaled: Vec<ContextUsageBreakdownItem> = self
+            .request_breakdown
+            .iter()
+            .map(|item| ContextUsageBreakdownItem {
+                source: item.source,
+                tokens: item.tokens.saturating_mul(reported_input_tokens) / estimated_total,
+            })
+            .collect();
+
+        // Rounding leaves a few tokens over; they go to the biggest part, where they show least.
+        let scaled_total: i64 = scaled.iter().map(|item| item.tokens).sum();
+        if let Some((index, _)) = scaled
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, item)| item.tokens)
+        {
+            scaled[index].tokens += reported_input_tokens - scaled_total;
+        }
+        scaled
     }
 
     /// Attaches the thread to a session. A known session is resumed as-is; the transcript is
@@ -77,7 +166,9 @@ impl ChatThread {
         self.active_invocation_id = None;
         self.paused_for_prompt = false;
         self.pending_prompts.clear();
-        self.last_token_usage = None;
+        self.token_usage_info = None;
+        self.context_window = 0;
+        self.request_breakdown = Vec::new();
     }
 
     /// Starts a turn: the pause flag belongs to the turn, not to the session.
@@ -108,7 +199,11 @@ impl ChatThread {
             self.paused_for_prompt = true;
         }
         if let Some(usage) = mapped.token_usage {
-            self.last_token_usage = Some(usage);
+            self.token_usage_info = TokenUsageInfo::new_or_append(
+                self.token_usage_info.as_ref(),
+                Some(&usage),
+                Some(self.context_window),
+            );
         }
         mapped.events
     }
@@ -130,6 +225,9 @@ impl ChatThread {
 mod tests {
     use super::ChatThread;
     use jasmine_api::ResponseEvent;
+    use jasmine_protocol::ChatEvent;
+    use jasmine_protocol::protocol::ContextUsageBreakdownItem;
+    use jasmine_protocol::protocol::ContextUsageSource;
     use jasmine_protocol::protocol::TokenUsage;
 
     fn reported_usage() -> TokenUsage {
@@ -143,21 +241,110 @@ mod tests {
         }
     }
 
+    fn completed(usage: TokenUsage) -> ResponseEvent {
+        ResponseEvent::Completed {
+            response_id: "resp-1".to_string(),
+            token_usage: Some(usage),
+            usage_metadata: None,
+            end_turn: Some(true),
+        }
+    }
+
     #[test]
     fn keeps_the_usage_a_completed_response_reported() {
         let mut thread = ChatThread::new();
-        thread.on_response_event(ResponseEvent::Completed {
-            response_id: "resp-1".to_string(),
-            token_usage: Some(reported_usage()),
-            usage_metadata: None,
-            end_turn: Some(true),
-        });
-        assert_eq!(thread.last_token_usage(), Some(&reported_usage()));
+        thread.note_context_window(200_000);
+        thread.on_response_event(completed(reported_usage()));
+        let info = thread.token_usage_info().expect("usage");
+        assert_eq!(info.last_token_usage, reported_usage());
+        assert_eq!(info.total_token_usage, reported_usage());
+        assert_eq!(info.model_context_window, Some(200_000));
+    }
+
+    #[test]
+    fn adds_each_response_to_the_running_total() {
+        let mut thread = ChatThread::new();
+        thread.on_response_event(completed(reported_usage()));
+        thread.on_response_event(completed(reported_usage()));
+        let info = thread.token_usage_info().expect("usage");
+        assert_eq!(info.last_token_usage.total_tokens, 12);
+        assert_eq!(info.total_token_usage.total_tokens, 24);
+    }
+
+    #[test]
+    fn scales_the_request_makeup_to_what_the_model_reported() {
+        let mut thread = ChatThread::new();
+        thread.note_context_window(200_000);
+        thread.note_request_breakdown(vec![
+            ContextUsageBreakdownItem {
+                source: ContextUsageSource::SystemPrompt,
+                tokens: 20,
+            },
+            ContextUsageBreakdownItem {
+                source: ContextUsageSource::SystemToolSchemas,
+                tokens: 135,
+            },
+            ContextUsageBreakdownItem {
+                source: ContextUsageSource::Messages,
+                tokens: 22,
+            },
+        ]);
+        thread.on_response_event(completed(TokenUsage {
+            input_tokens: 354,
+            total_tokens: 354,
+            ..TokenUsage::default()
+        }));
+
+        let breakdown = match thread.usage_event().expect("usage") {
+            ChatEvent::Usage { breakdown, .. } => breakdown,
+            other => panic!("expected a usage event, got {other:?}"),
+        };
+        // 354 is exactly twice 177, so the shares survive the scaling untouched.
+        assert_eq!(
+            breakdown.iter().map(|item| item.tokens).collect::<Vec<_>>(),
+            vec![40, 270, 44]
+        );
+    }
+
+    #[test]
+    fn rounding_leaves_the_total_at_what_the_model_reported() {
+        let mut thread = ChatThread::new();
+        thread.note_context_window(200_000);
+        thread.note_request_breakdown(vec![
+            ContextUsageBreakdownItem {
+                source: ContextUsageSource::SystemPrompt,
+                tokens: 20,
+            },
+            ContextUsageBreakdownItem {
+                source: ContextUsageSource::SystemToolSchemas,
+                tokens: 135,
+            },
+            ContextUsageBreakdownItem {
+                source: ContextUsageSource::Messages,
+                tokens: 22,
+            },
+        ]);
+        thread.on_response_event(completed(TokenUsage {
+            input_tokens: 100,
+            total_tokens: 100,
+            ..TokenUsage::default()
+        }));
+
+        let breakdown = match thread.usage_event().expect("usage") {
+            ChatEvent::Usage { breakdown, .. } => breakdown,
+            other => panic!("expected a usage event, got {other:?}"),
+        };
+        // 11 + 76 + 12 is one short of 100; the leftover goes to the biggest part.
+        assert_eq!(
+            breakdown.iter().map(|item| item.tokens).collect::<Vec<_>>(),
+            vec![11, 77, 12]
+        );
+        assert_eq!(breakdown.iter().map(|item| item.tokens).sum::<i64>(), 100);
     }
 
     #[test]
     fn has_no_usage_before_any_response_reports_one() {
         let thread = ChatThread::new();
-        assert_eq!(thread.last_token_usage(), None);
+        assert!(thread.token_usage_info().is_none());
     }
 }

@@ -1,3 +1,6 @@
+use crate::protocol::ContextUsageBreakdownItem;
+use crate::protocol::TokenUsageInfo;
+
 /// How much of a tool's arguments/result is worth putting on screen.
 const TOOL_DETAIL_MAX_LENGTH: usize = 200;
 
@@ -23,6 +26,18 @@ pub enum ChatEvent {
     /// The turn stopped because the platform asked it to; whatever it had produced so far is
     /// already in the transcript.
     Aborted { duration_ms: u64 },
+    /// What the conversation's context window looks like after one request: what it cost, how
+    /// big the window is, and which part of the request the tokens went to.
+    ///
+    /// Metadata about the request rather than a step of the reply, but it arrives like one: the
+    /// number only exists once the model has answered.
+    ///
+    /// The breakdown's shares come from the core's own byte-based estimate, while its total is what
+    /// the model reported for its input — a tokenizer only exists on the provider's side.
+    Usage {
+        info: TokenUsageInfo,
+        breakdown: Vec<ContextUsageBreakdownItem>,
+    },
 }
 
 impl ChatEvent {

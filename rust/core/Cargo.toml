@@ -13,6 +13,7 @@ jasmine-model-provider = { workspace = true }
 jasmine-model-provider-info = { workspace = true }
 jasmine-rollout = { workspace = true }
 jasmine-tools = { workspace = true }
+jasmine-utils-string = { workspace = true }
 chrono = { workspace = true }
 futures = { workspace = true }
 serde_json = { workspace = true }

@@ -49,6 +49,12 @@ sealed interface ChatEvent {
      * in the transcript. [durationMs] is how long that turn had been running.
      */
     data class Aborted(val durationMs: Long) : ChatEvent
+
+    /**
+     * One request's context window: what it cost, how big the window is, and where the tokens
+     * went. 它是请求的元信息而不是回复的一步，但和回复一样，要等模型答完才到。
+     */
+    data class Usage(val usage: ContextUsage) : ChatEvent
 }
 
 /**
@@ -124,6 +130,41 @@ interface AgentChat {
      * [ChatEvent.Aborted].
      */
     suspend fun interrupt()
+
+    /**
+     * The window the attached conversation runs against, in tokens.
+     *
+     * `null` when no conversation is attached: nothing has been resolved yet, and the caller's own
+     * default stands in.
+     */
+    suspend fun contextWindow(): Long?
+
+    /**
+     * The window one conversation recorded, in tokens, read straight from its file.
+     *
+     * Needs no attachment: it is what the window picker shows for a conversation that was just
+     * opened, before anything is sent into it. `null` means the conversation never got one — the
+     * caller's own default stands in until it is first attached.
+     */
+    suspend fun conversationContextWindow(sessionId: String): Long?
+
+    /**
+     * What one conversation last reported costing, read straight from its file.
+     *
+     * Needs no attachment: it is what the caller shows for a conversation that was just opened —
+     * and after a restart it is the only source, since a live figure does not survive the process.
+     * `null` means the conversation never reported a cost.
+     */
+    suspend fun conversationUsage(sessionId: String): ContextUsage?
+
+    /**
+     * Sets the window the conversation runs against, in tokens.
+     *
+     * The core records it in the conversation's own file, so the conversation is resumed with it.
+     * The flow carries the usage event the core reports straight back — the window changed, so the
+     * figure the platform shows is stale the moment it returns.
+     */
+    fun setContextWindow(tokens: Long): Flow<ChatEvent>
 
     /**
      * Continues the turn that was stopped.
