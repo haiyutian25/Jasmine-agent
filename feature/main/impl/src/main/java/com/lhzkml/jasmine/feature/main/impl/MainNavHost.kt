@@ -41,6 +41,7 @@ import com.lhzkml.jasmine.feature.settings.impl.screens.FontSizeScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.LanguageScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.SettingsMenuScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.SettingsScreen
+import com.lhzkml.jasmine.feature.settings.impl.screens.UsageStatsScreen
 import com.lhzkml.jasmine.feature.provider.impl.R as ProviderR
 
 /**
@@ -124,6 +125,7 @@ fun MainNavHost(
                             onOpenFont = { navigator.navigate(SettingsNavKey.FontSettings) },
                             onOpenLanguage = { navigator.navigate(SettingsNavKey.LanguageSettings) },
                             onOpenProviders = { navigator.navigate(ProviderNavKey.ProviderList) },
+                            onOpenUsageStats = { navigator.navigate(SettingsNavKey.UsageStats) },
                             modifier = contentModifier,
                         )
                     }
@@ -235,6 +237,27 @@ fun MainNavHost(
                             currentTheme = state.theme,
                             fontScale = state.fontScale,
                             onSave = { viewModel.trySendAction(MainAction.FontScaleSaved(it)) },
+                            modifier = contentModifier,
+                        )
+                    }
+                }
+                entry<SettingsNavKey.UsageStats> {
+                    // 条目作用域的 ViewModel：离开用量页就销毁，下次进来重新扫一遍会话文件。
+                    val usageViewModel: UsageStatsViewModel = hiltViewModel()
+                    val usageState by usageViewModel.stateFlow.collectAsStateWithLifecycle()
+
+                    SettingsPage(
+                        currentTheme = state.theme,
+                        title = stringResource(SettingsR.string.usage_stats_title),
+                        onBack = { navigator.goBack() },
+                    ) { contentModifier ->
+                        UsageStatsScreen(
+                            usage = usageState.usage,
+                            isLoading = usageState.isLoading,
+                            onRefresh = {
+                                usageViewModel.trySendAction(UsageStatsAction.RefreshClicked)
+                            },
+                            currentTheme = state.theme,
                             modifier = contentModifier,
                         )
                     }

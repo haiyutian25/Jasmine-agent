@@ -98,6 +98,44 @@ pub struct ContextUsageBreakdownItem {
     pub tokens: i64,
 }
 
+/// How much one model spent, across every conversation.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
+pub struct ModelUsage {
+    pub model_id: String,
+    pub tokens: i64,
+}
+
+/// What one day cost.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
+pub struct UsageDay {
+    /// The local calendar day it happened on, `YYYY-MM-DD`.
+    pub date: String,
+    pub tokens: i64,
+}
+
+/// What the app has spent: the lifetime total, this month's days, how it is going, and which models
+/// spent it.
+///
+/// [total_tokens] counts everything the app ever spent. Everything else covers the **current
+/// month** only — the days that spent something, the streaks inside it, and the models that spent
+/// — because each month turning over deletes the records of the month before.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
+pub struct AppUsageStats {
+    /// Everything ever spent, in tokens.
+    pub total_tokens: i64,
+    /// Days in a row that spent something, counting back from today (or yesterday, when today
+    /// has not spent anything yet).
+    pub current_streak_days: u32,
+    /// The longest such run the app ever had.
+    pub longest_streak_days: u32,
+    pub days: Vec<UsageDay>,
+    /// What each model spent within the requested window, biggest first.
+    pub models: Vec<ModelUsage>,
+}
+
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(tag = "mode", content = "limit", rename_all = "snake_case")]
 pub enum TruncationPolicy {

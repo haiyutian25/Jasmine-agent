@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.util.UUID
 import uniffi.jasmine_ffi.AgentHandle
+import uniffi.jasmine_protocol.AppUsageStats as CoreAppUsageStats
 import uniffi.jasmine_protocol.Role
 
 /**
@@ -82,6 +83,9 @@ class RustConversationStore(
     override suspend fun interruptedTurn(conversationId: String): String? =
         withContext(Dispatchers.IO) { handle.interruptedTurn(conversationId) }
 
+    override suspend fun usageStats(): AppUsage =
+        withContext(Dispatchers.IO) { handle.usageStats().toAppUsage() }
+
     override suspend fun refresh() {
         read()
     }
@@ -103,3 +107,12 @@ class RustConversationStore(
         return listed
     }
 }
+
+/** 核心报的统计，翻译成本模块自己的形状。 */
+private fun CoreAppUsageStats.toAppUsage(): AppUsage = AppUsage(
+    totalTokens = totalTokens,
+    currentStreakDays = currentStreakDays.toInt(),
+    longestStreakDays = longestStreakDays.toInt(),
+    days = days.map { UsageDay(date = it.date, tokens = it.tokens) },
+    models = models.map { ModelUsage(modelId = it.modelId, tokens = it.tokens) },
+)

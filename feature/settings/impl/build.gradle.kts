@@ -23,6 +23,8 @@ dependencies {
   api(project(":feature:settings:api"))
   implementation(project(":core:ui"))
   implementation(project(":core:data"))
+  // 用量页要显示核心读出来的统计（`AppUsage`），页面本身是静态的。
+  implementation(project(":core:agent"))
 
   implementation(platform(libs.androidx.compose.bom))
   implementation(libs.androidx.activity.compose)

@@ -31,4 +31,8 @@ sealed interface SettingsNavKey : NavKey {
     /** Font-size adjustment. */
     @Serializable
     data object FontSizeSettings : SettingsNavKey
+
+    /** Usage statistics: what the app has spent, and on which providers and models. */
+    @Serializable
+    data object UsageStats : SettingsNavKey
 }

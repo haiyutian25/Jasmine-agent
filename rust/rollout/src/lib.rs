@@ -8,6 +8,7 @@ mod list;
 mod model;
 mod recorder;
 mod rollout_file_name;
+mod usage_stats;
 
 pub use list::SessionEntry;
 pub use list::context_window_tokens;
@@ -25,6 +26,7 @@ pub use model::SessionMeta;
 pub use model::TurnAbortReason;
 pub use model::timestamp_now;
 pub use recorder::RolloutRecorder;
+pub use usage_stats::usage_stats;
 
 /// 会话文件所在的子目录，落在平台给的目录下面。
 pub const SESSIONS_SUBDIR: &str = "sessions";

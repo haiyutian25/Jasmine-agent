@@ -28,6 +28,7 @@ use jasmine_protocol::Role;
 use jasmine_protocol::SessionId;
 use jasmine_protocol::models::ContentItem;
 use jasmine_protocol::models::ResponseItem;
+use jasmine_protocol::protocol::AppUsageStats;
 use jasmine_protocol::protocol::ContextUsageBreakdownItem;
 use jasmine_protocol::protocol::TokenUsageInfo;
 use jasmine_rollout::RolloutItem;
@@ -331,6 +332,15 @@ impl AgentChatService {
             return Ok(None);
         };
         Ok(jasmine_rollout::token_usage(&path))
+    }
+
+    /// What the app has spent **this month**, read back out of every conversation's own file.
+    ///
+    /// Only the current month is counted — nothing older than the first of the month reaches the
+    /// figures, so last month's numbers fall away on their own.
+    pub fn usage_stats(&self) -> Result<AppUsageStats, AgentError> {
+        jasmine_rollout::usage_stats(&self.sessions_dir)
+            .map_err(|error| AgentError::Transcript(error.to_string()))
     }
 
     /// How many messages the conversation's context holds.

@@ -1,0 +1,236 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
+use crate::RolloutItem;
+use crate::RolloutLine;
+use crate::SessionMeta;
+use chrono::Datelike;
+use jasmine_protocol::protocol::TokenUsage;
+use jasmine_protocol::protocol::TokenUsageInfo;
+use std::path::Path;
+use std::path::PathBuf;
+
+fn today() -> chrono::NaiveDate {
+    chrono::Local::now().date_naive()
+}
+
+fn first_of_month() -> chrono::NaiveDate {
+    today().with_day(1).unwrap()
+}
+
+/// A stamp on a given day, at a fixed time of it, in the offset the machine would have written.
+fn stamp(date: chrono::NaiveDate) -> String {
+    format!("{}T10:00:00+08:00", date.format("%Y-%m-%d"))
+}
+
+/// What a conversation says about itself.
+fn meta(session_id: &str) -> SessionMeta {
+    SessionMeta {
+        session_id: session_id.to_string(),
+        timestamp: stamp(first_of_month()),
+        title: String::new(),
+        provider_id: "deepseek".to_string(),
+        model_id: "deepseek-flash".to_string(),
+    }
+}
+
+/// A turn opening on one model.
+fn turn(model_id: &str) -> RolloutItem {
+    RolloutItem::TurnStarted {
+        turn_id: format!("turn-{model_id}"),
+        model_id: model_id.to_string(),
+    }
+}
+
+/// A record of what the conversation has cost so far — the running total, not one turn's spend.
+fn spent(running_total: i64) -> RolloutItem {
+    RolloutItem::TokenUsageRecord {
+        info: TokenUsageInfo {
+            total_token_usage: TokenUsage {
+                total_tokens: running_total,
+                ..TokenUsage::default()
+            },
+            last_token_usage: TokenUsage::default(),
+            model_context_window: None,
+        },
+        breakdown: Vec::new(),
+    }
+}
+
+/// A directory to build a sessions tree under, emptied first.
+fn sessions_dir(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("jasmine-usage-{name}"));
+    let _ = std::fs::remove_dir_all(&dir);
+    dir
+}
+
+/// Writes one conversation's file, line by line, exactly as the recorder would have.
+fn write_session(dir: &Path, session_id: &str, lines: Vec<(String, RolloutItem)>) -> PathBuf {
+    let path = dir
+        .join("sessions")
+        .join("2026")
+        .join("09")
+        .join("28")
+        .join(format!("rollout-2026-09-28T10-00-00-{session_id}.jsonl"));
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+
+    let mut text = String::new();
+    for (timestamp, item) in std::iter::once((
+        stamp(first_of_month()),
+        RolloutItem::SessionMeta(meta(session_id)),
+    ))
+    .chain(lines)
+    {
+        let line = RolloutLine { timestamp, item };
+        text.push_str(&serde_json::to_string(&line).unwrap());
+        text.push('\n');
+    }
+    std::fs::write(&path, text).unwrap();
+    path
+}
+
+#[test]
+fn a_turn_is_counted_by_the_step_between_records() {
+    let dir = sessions_dir("step");
+    write_session(
+        &dir,
+        "s1",
+        vec![
+            (stamp(today()), turn("deepseek-flash")),
+            // 100 so far, then 250: the turn spent 150, not 250.
+            (stamp(today()), spent(100)),
+            (stamp(today()), spent(250)),
+        ],
+    );
+
+    let stats = super::usage_stats(&dir).unwrap();
+    assert_eq!(stats.total_tokens, 250);
+    assert_eq!(stats.days.len(), 1);
+    assert_eq!(stats.days[0].tokens, 250);
+}
+
+#[test]
+fn last_months_usage_is_deleted_off_the_disk() {
+    let dir = sessions_dir("month-edge");
+    let path = write_session(
+        &dir,
+        "s1",
+        vec![
+            // The last day of last month: as far outside this month as one day can be.
+            (
+                stamp(first_of_month() - chrono::Duration::days(1)),
+                turn("old-model"),
+            ),
+            (
+                stamp(first_of_month() - chrono::Duration::days(1)),
+                spent(500),
+            ),
+            (
+                stamp(first_of_month() - chrono::Duration::days(1)),
+                spent(900),
+            ),
+            (stamp(today()), turn("deepseek-flash")),
+            (stamp(today()), spent(940)),
+        ],
+    );
+
+    let stats = super::usage_stats(&dir).unwrap();
+    // 总数是**全部时间**的：940（会话自己那条累计），不是本月的 40。
+    assert_eq!(stats.total_tokens, 940);
+    // 本月那几项只算本月：一天、一个模型、40。
+    assert_eq!(stats.days.len(), 1);
+    assert_eq!(stats.models.len(), 1);
+    assert_eq!(stats.models[0].model_id, "deepseek-flash");
+    assert_eq!(stats.models[0].tokens, 40);
+
+    // 磁盘上：两条老记录只留最新那条当基线（`900`），更老的 `500` 删掉，加上本月的记录共两条；
+    // 转写（回合开头那些行）一行没动。
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert_eq!(text.matches("token_usage_record").count(), 2);
+    assert!(!text.contains("\"total_tokens\":500"));
+    assert!(text.contains("\"total_tokens\":900"));
+    assert!(text.contains("turn_started"));
+}
+
+#[test]
+fn two_turns_of_one_model_stay_one_row() {
+    let dir = sessions_dir("one-model");
+    write_session(
+        &dir,
+        "s1",
+        vec![
+            (stamp(today()), turn("deepseek-flash")),
+            (stamp(today()), spent(100)),
+            (stamp(today()), turn("deepseek-flash")),
+            (stamp(today()), spent(150)),
+        ],
+    );
+
+    let stats = super::usage_stats(&dir).unwrap();
+    assert_eq!(stats.models.len(), 1);
+    assert_eq!(stats.models[0].model_id, "deepseek-flash");
+    assert_eq!(stats.models[0].tokens, 150);
+}
+
+#[test]
+fn bigger_spenders_come_first() {
+    let dir = sessions_dir("ordering");
+    write_session(
+        &dir,
+        "s1",
+        vec![
+            (stamp(today()), turn("small")),
+            (stamp(today()), spent(10)),
+            (stamp(today()), turn("big")),
+            (stamp(today()), spent(110)),
+        ],
+    );
+
+    let stats = super::usage_stats(&dir).unwrap();
+    assert_eq!(stats.models.len(), 2);
+    assert_eq!(stats.models[0].model_id, "big");
+    assert_eq!(stats.models[0].tokens, 100);
+    assert_eq!(stats.models[1].model_id, "small");
+    assert_eq!(stats.models[1].tokens, 10);
+}
+
+#[test]
+fn days_in_a_row_become_a_streak() {
+    // Today always counts; yesterday only exists as a second day when the month has reached the 2nd.
+    let yesterday = today() - chrono::Duration::days(1);
+    let has_yesterday = yesterday >= first_of_month();
+
+    let mut lines = vec![
+        (stamp(today()), turn("deepseek-flash")),
+        (stamp(today()), spent(20)),
+        // A gap, so a run cannot span it: last month is outside the figures anyway.
+        (
+            stamp(first_of_month() - chrono::Duration::days(2)),
+            turn("deepseek-flash"),
+        ),
+        (
+            stamp(first_of_month() - chrono::Duration::days(2)),
+            spent(90),
+        ),
+    ];
+    if has_yesterday {
+        lines.insert(0, (stamp(yesterday), turn("deepseek-flash")));
+        lines.insert(1, (stamp(yesterday), spent(10)));
+    }
+    let dir = sessions_dir("streak");
+    write_session(&dir, "s1", lines);
+
+    let stats = super::usage_stats(&dir).unwrap();
+    let expected = if has_yesterday { 2 } else { 1 };
+    assert_eq!(stats.current_streak_days, expected);
+    assert_eq!(stats.longest_streak_days, expected);
+}
+
+#[test]
+fn nothing_recorded_is_no_usage_at_all() {
+    let stats = super::usage_stats(&sessions_dir("empty")).unwrap();
+    assert_eq!(stats.total_tokens, 0);
+    assert_eq!(stats.current_streak_days, 0);
+    assert_eq!(stats.longest_streak_days, 0);
+    assert!(stats.days.is_empty());
+    assert!(stats.models.is_empty());
+}

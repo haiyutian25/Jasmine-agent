@@ -46,6 +46,7 @@ use jasmine_core::session::{AgentChatService, AgentError, ChatSink};
 use jasmine_model_provider::ResolvedProvider;
 use jasmine_model_provider_info::ModelConfig;
 use jasmine_model_provider_info::{ModelProviderInfo, WireApi};
+use jasmine_protocol::protocol::AppUsageStats;
 use jasmine_protocol::{ChatEvent, SessionId};
 
 /// 平台侧要显示的会话摘要。
@@ -325,6 +326,19 @@ impl AgentHandle {
         self.inner
             .conversation_usage(&SessionId::new(session_id))
             .map(|usage| usage.map(|(info, breakdown)| ContextUsageSnapshot { info, breakdown }))
+            .map_err(|error| AgentFailure::Failed {
+                detail: error.detail(),
+            })
+    }
+
+    /// 整个 App **本月**的用量：累计 token、当前/最长连续天数、逐日用量、按模型的花销。
+    ///
+    /// 不需要先附着 —— 它把每个会话文件里的逐轮用量差出来加总，与界面当前打开哪条会话无关。
+    /// **只算本月**：比本月 1 号早的记录不进统计，所以上个月的数字会自己消失（旧记录仍留在会话
+    /// 文件里，那本来就是转写）。
+    pub fn usage_stats(&self) -> Result<AppUsageStats, AgentFailure> {
+        self.inner
+            .usage_stats()
             .map_err(|error| AgentFailure::Failed {
                 detail: error.detail(),
             })

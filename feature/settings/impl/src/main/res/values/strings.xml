@@ -40,4 +40,22 @@
     <string name="language_follow_system">Follow system</string>
     <string name="language_english" translatable="false">English</string>
     <string name="language_chinese" translatable="false">中文</string>
+
+    <!-- Usage statistics -->
+    <string name="usage_stats_title">Usage</string>
+    <string name="usage_stats_total">Total tokens</string>
+    <string name="usage_stats_streak_current">Current streak</string>
+    <string name="usage_stats_streak_longest">Longest streak</string>
+    <string name="usage_stats_days">%1$d days</string>
+    <string name="usage_stats_heatmap_title">Token activity</string>
+    <string name="usage_stats_heatmap_caption">This month · %1$s – %2$s</string>
+    <string name="usage_stats_heatmap_less">Less</string>
+    <string name="usage_stats_heatmap_more">More</string>
+    <string name="usage_stats_models_title">Model usage</string>
+    <string name="usage_stats_models_column_model">Model</string>
+    <string name="usage_stats_models_column_tokens">Tokens</string>
+    <string name="usage_stats_models_column_share">Share</string>
+    <string name="usage_stats_refresh">Refresh</string>
+    <string name="usage_stats_loading">Counting…</string>
+    <string name="usage_stats_empty">Nothing to show yet: chat a little and this fills in.</string>
 </resources>

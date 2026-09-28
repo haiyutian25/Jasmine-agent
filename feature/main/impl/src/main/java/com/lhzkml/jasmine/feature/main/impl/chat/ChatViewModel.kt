@@ -883,7 +883,8 @@ class ChatViewModel @Inject constructor(
         val created = runCatching {
             conversationStore.createConversation(
                 providerId = provider.id,
-                modelId = model.id,
+                // 写进会话文件的是**线上模型名**（与 attach 时传给核心的一致），不是模型条目的 id。
+                modelId = model.modelId,
                 title = title.take(TITLE_MAX_LENGTH),
             )
         }.getOrNull() ?: return null

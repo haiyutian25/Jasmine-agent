@@ -42,6 +42,15 @@ interface ConversationStore {
      */
     suspend fun interruptedTurn(conversationId: String): String?
 
+    /**
+     * What the app has spent, read back out of every stored conversation.
+     *
+     * The lifetime total covers everything ever spent; the day list, the models and the streaks
+     * cover the current month only, because each month turning over deletes the records of the
+     * month before.
+     */
+    suspend fun usageStats(): AppUsage
+
     /** Re-reads the conversation list from the store. */
     suspend fun refresh()
 }

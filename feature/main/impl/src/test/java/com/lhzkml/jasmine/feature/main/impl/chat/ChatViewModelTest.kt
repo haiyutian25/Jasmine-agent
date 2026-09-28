@@ -1,6 +1,7 @@
 package com.lhzkml.jasmine.feature.main.impl.chat
 
 import com.lhzkml.jasmine.core.agent.AgentChat
+import com.lhzkml.jasmine.core.agent.AppUsage
 import com.lhzkml.jasmine.core.agent.ChatEvent
 import com.lhzkml.jasmine.core.agent.ContextUsage
 import com.lhzkml.jasmine.core.data.model.ChatRole
@@ -699,6 +700,9 @@ private class FakeConversationStore : ConversationStore {
     var hasUnfinishedTurn: String? = null
 
     override suspend fun interruptedTurn(conversationId: String): String? = hasUnfinishedTurn
+
+    /** 用量统计跟这条会话无关，用例里一律报"什么都没有"。 */
+    override suspend fun usageStats(): AppUsage = AppUsage.Empty
 
     override suspend fun refresh() = Unit
 

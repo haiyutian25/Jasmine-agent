@@ -18,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.FormatSize
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Palette
@@ -68,6 +69,7 @@ fun SettingsMenuScreen(
     onOpenFont: () -> Unit,
     onOpenLanguage: () -> Unit,
     onOpenProviders: () -> Unit,
+    onOpenUsageStats: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -116,6 +118,19 @@ fun SettingsMenuScreen(
                 onClick = onOpenProviders,
                 currentTheme = currentTheme,
                 testTag = "settings_menu_provider_entry"
+            )
+        }
+
+        // 用量统计也是自己一组：它读的是核心那些会话文件，跟外观、语言没关系。
+        Spacer(modifier = Modifier.height(MenuGroupSpacing))
+
+        SettingsGroupCard(currentTheme = currentTheme, modifier = Modifier.fillMaxWidth()) {
+            SettingsMenuRow(
+                icon = Icons.Outlined.BarChart,
+                title = stringResource(R.string.usage_stats_title),
+                onClick = onOpenUsageStats,
+                currentTheme = currentTheme,
+                testTag = "settings_menu_usage_entry"
             )
         }
     }

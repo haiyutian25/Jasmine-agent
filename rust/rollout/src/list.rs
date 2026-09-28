@@ -176,7 +176,8 @@ fn read_lines(path: &Path) -> std::io::Result<Vec<RolloutLine>> {
 #[path = "list_tests.rs"]
 mod tests;
 
-fn collect_rollouts(dir: &Path, paths: &mut Vec<PathBuf>) -> std::io::Result<()> {
+/// Every rollout file under the sessions tree, in whatever order the filesystem hands them over.
+pub(crate) fn collect_rollouts(dir: &Path, paths: &mut Vec<PathBuf>) -> std::io::Result<()> {
     let entries = match fs::read_dir(dir) {
         Ok(entries) => entries,
         // No sessions yet is not an error: the first conversation creates the tree.

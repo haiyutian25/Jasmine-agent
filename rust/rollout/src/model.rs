@@ -28,11 +28,11 @@ pub enum RolloutItem {
     ResponseItem(ResponseItem),
     /// A turn's sampling began. The file carries the id, so a turn that never finishes can be
     /// resumed under it, and the model the turn ran on, so a conversation that switched models
-    /// still shows each answer's own.
+    /// still shows each answer's own — and so the usage of that turn can be placed under the model
+    /// that spent it.
     TurnStarted {
         turn_id: String,
-        /// The model this turn ran on, so a conversation that switched models keeps each answer's
-        /// own.
+        /// The model this turn ran on.
         model_id: String,
     },
     /// The turn finished.
