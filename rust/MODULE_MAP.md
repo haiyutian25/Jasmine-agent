@@ -51,7 +51,7 @@
 - 生成物依赖 **JNA**：Android 模块需要加 `net.java.dev.jna:jna:5.17.0@aar`（或更新版本）。
 - **Gradle 接线（已做，实测通过）**：`core/agent/build.gradle.kts` 里三个任务 —— `buildRustCore`（cargo-ndk 出 4 个 ABI 的 `.so`）、`buildRustHostLib`（本机 cdylib）、`generateRustBindings`（UniFFI 生成 Kotlin）；产物落 `core/agent/build/rust/{jniLibs,kotlin}`，经 `androidComponents.onVariants { variant.sources.jniLibs/kotlin.addStaticSourceDirectory(...) }` 挂进变体源集，`preBuild` 依赖它们。JNA 走版本目录（`jna = "5.19.1"`，Android 用 `@aar` 变体）。
   - 坑一：AGP 9 的 library 模块不能用旧式 `android.sourceSets`（访问即 `DefaultAndroidLibrarySourceSet_Decorated cannot be cast to AndroidLibrarySourceSet`），必须走变体源集 API。
-  - 坑二：Gradle 用户级代理（`D:\AndroidDev\gradle\gradle.properties` 里的 `127.0.0.1:10808`）不通时，用 `-Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=6480 -Dhttps...` 覆盖即可。
+  - 坑二：Gradle 用户级代理（`D:\AndroidDev\gradle\gradle.properties` 里的 `127.0.0.1:7897`）不通时，用 `-Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=7897 -Dhttps...` 覆盖即可。
   - 反例：reqwest 的默认特性会带 native-tls → OpenSSL，交叉编译不到 Android，所以工作区里 `reqwest` 改为 `default-features = false` + rustls。
 - **Kotlin 侧适配（已做）**：`RustAgentChat`（用 Rust 实现现有 `AgentChat` 接口：阻塞调用落 `Dispatchers.IO`，核心的回调转 `Flow<ChatEvent>`，失败走 `ChatEvent.Failed`）、`ConversationStoreHost`（`ConversationStore` → 核心要的会话数据；转写里的工具活动没有 call id，按作者文本跨界）与 `DeviceClock`（时间由平台格式化）。
 - **引擎已切换**：Hilt 装配（`core/agent/.../di/AgentModule.kt`）里 `AgentChat` → `RustAgentChat(conversationStore)`、`ProviderProbe` → `RustProviderProbe`（用核心的 `probe`）。旧引擎 的实现与它的 provider 仍留在模块里（自己的测试也还在），**换回去是这一行的事**。会话存储改为核心侧的 rollout（每会话一个只追加 JSONL，见 §2.6），旧引擎的 Room 会话库随之下线。
