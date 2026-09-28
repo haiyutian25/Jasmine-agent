@@ -64,6 +64,7 @@
     <string name="chat_pick_model_empty">尚未配置任何模型，请先在「模型提供商」中添加。</string>
     <string name="chat_tool_call">调用 %1$s</string>
     <string name="chat_tool_result">%1$s 返回</string>
+    <string name="chat_tool_expand_cd">展开工具调用详情</string>
     <string name="chat_prompt_title">智能体正在等待你的回答</string>
     <string name="chat_prompt_hint">输入回答…</string>
 </resources>

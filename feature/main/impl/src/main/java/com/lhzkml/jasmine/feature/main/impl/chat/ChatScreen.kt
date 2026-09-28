@@ -25,12 +25,15 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.Build
@@ -78,6 +81,8 @@ private val ChatDividerHeight = 1.dp
 
 private val ChatContentPaddingHorizontal = 16.dp
 private val ChatMessageSpacing = 20.dp
+/** 一轮之内的条目（正文 ↔ 工具调用）之间的间距：比气泡间距小，免得把一轮拆散。 */
+private val ChatIntraTurnSpacing = 2.dp
 private val ChatBubblePaddingHorizontal = 12.dp
 private val ChatBubblePaddingVertical = 10.dp
 
@@ -123,10 +128,13 @@ private val ChatComposerToolRowGap = 8.dp
  */
 private val ChatSendButtonSize = 26.dp
 private val ChatToolIconSize = 14.dp
-private val ChatToolRowPaddingVertical = 8.dp
-
-/** Tool arguments/results are a status note, not the point — keep them to two lines. */
-private const val ChatToolDetailMaxLines = 2
+private val ChatToolRowPaddingVertical = 4.dp
+/** 工具名与它后面那个"可展开"尖角之间的距离。 */
+private val ChatToolChevronGap = 4.dp
+/** 工具行右侧那个"可以展开"的尖角。 */
+private val ChatToolChevronSize = 16.dp
+/** 展开出来的参数/结果相对工具行的左边距（与工具名对齐）。 */
+private val ChatToolExpandedIndent = 22.dp
 /** 跟着 [ChatSendButtonSize] 等比缩小（18dp/44dp → 14dp/26dp），图标与圆的占比和 ima 一致。 */
 private val ChatSendIconSize = 14.dp
 
@@ -294,18 +302,34 @@ private fun MessageList(
             horizontal = ChatContentPaddingHorizontal,
             vertical = 14.dp
         ),
-        verticalArrangement = Arrangement.spacedBy(ChatMessageSpacing)
     ) {
         itemsIndexed(state.messages, key = { _, message -> message.id }) { index, message ->
             val tool = message.tool
             val stoppedAfterMs = message.stoppedAfterMs
+            // 间距按位置算，不再全列表统一：
+            // - 轮与轮之间（用户那条、以及它下面的第一段回复）用 [ChatMessageSpacing]；
+            // - 「上一回合被停止」那行两侧也用 [ChatMessageSpacing]（这条是按你的要求定下的）；
+            // - 其余（同一轮里的正文 ↔ 工具调用）用更小的 [ChatIntraTurnSpacing]。
+            val previous = if (index > 0) state.messages[index - 1] else null
+            val gap = when {
+                previous == null -> 0.dp
+                previous.role == ChatRole.USER -> ChatMessageSpacing
+                message.role == ChatRole.USER -> ChatMessageSpacing
+                previous.stoppedAfterMs != null -> ChatMessageSpacing
+                stoppedAfterMs != null -> ChatMessageSpacing
+                else -> ChatIntraTurnSpacing
+            }
             // 用户那条的「时间」也等这一轮回复画完才出现：发送那刻回复还只是占位的流式气泡。
             val turnSettled = index < state.messages.lastIndex &&
                 state.messages.subList(index + 1, state.messages.size).none { it.isStreaming }
             // 一轮的末尾：后面没有消息了，或者下一条是用户的新消息。
             val turnEnd = index == state.messages.lastIndex ||
                 state.messages[index + 1].role == ChatRole.USER
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = gap)
+            ) {
                 when {
                     stoppedAfterMs != null -> TurnStoppedRow(
                         stoppedAfterMs = stoppedAfterMs,
@@ -540,65 +564,68 @@ private fun MessageMetaChip(text: String, currentTheme: CssVariables) {
 // ── Tool activity ──────────────────────────────────────────────────────
 
 /**
- * One tool call or its result, shown inline in the transcript.
+ * One tool call, as a single line: a wrench, what was called, and a caret saying the call can be
+ * opened. Opening it prints the arguments and the result as plain text.
  *
- * Deliberately understated — a full-width note rather than a bubble — because this
- * is execution trace, not something the model said. It exists so the agent's work
- * stays visible: while a tool runs the model is silent, and without it the screen
- * would look frozen.
+ * No card: this is execution trace, not something the model said, so it stays one line until the
+ * reader asks for the detail.
  */
 @Composable
 private fun ToolActivityRow(activity: ChatToolActivity, currentTheme: CssVariables) {
-    val shape = RoundedCornerShape(currentTheme.radiusSm)
     val resultOnly = activity.isResultOnly
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(currentTheme.subtleSurface)
-            .border(ChatDividerHeight, currentTheme.border, shape)
-            .padding(
-                horizontal = ChatBubblePaddingHorizontal,
-                vertical = ChatToolRowPaddingVertical
-            ),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = if (resultOnly) Icons.Outlined.Check else Icons.Outlined.Build,
-            contentDescription = null,
-            tint = currentTheme.mutedForeground,
-            modifier = Modifier.size(ChatToolIconSize)
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Column(modifier = Modifier.weight(1f)) {
+    var expanded by remember(activity) { mutableStateOf(false) }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(currentTheme.radiusSm))
+                .clickable { expanded = !expanded }
+                .padding(vertical = ChatToolRowPaddingVertical),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (resultOnly) Icons.Outlined.Check else Icons.Outlined.Build,
+                contentDescription = null,
+                tint = currentTheme.mutedForeground,
+                modifier = Modifier.size(ChatToolIconSize)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = stringResource(
                     if (resultOnly) R.string.chat_tool_result else R.string.chat_tool_call,
                     activity.name
                 ),
                 fontSize = ChatMetaFontSize,
-                fontWeight = FontWeight.Medium,
-                color = currentTheme.foreground
+                color = currentTheme.mutedForeground
             )
-            if (activity.detail.isNotEmpty()) {
-                Text(
-                    text = activity.detail,
-                    fontSize = ChatMetaFontSize,
-                    color = currentTheme.mutedForeground,
-                    maxLines = ChatToolDetailMaxLines,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            // 返回和调用参数同属这张卡片：文本自带 `result=` 前缀，与调用那边的 `message=`
-            // 用同一个 `key=value` 规则，一眼能区分开。
-            activity.result?.let { result ->
-                Text(
-                    text = result,
-                    fontSize = ChatMetaFontSize,
-                    color = currentTheme.mutedForeground,
-                    maxLines = ChatToolDetailMaxLines,
-                    overflow = TextOverflow.Ellipsis
-                )
+            Spacer(modifier = Modifier.width(ChatToolChevronGap))
+            Icon(
+                imageVector = if (expanded) {
+                    Icons.Filled.KeyboardArrowUp
+                } else {
+                    Icons.Filled.KeyboardArrowDown
+                },
+                contentDescription = stringResource(R.string.chat_tool_expand_cd),
+                tint = currentTheme.mutedForeground,
+                modifier = Modifier.size(ChatToolChevronSize)
+            )
+        }
+        if (expanded) {
+            Column(modifier = Modifier.padding(start = ChatToolExpandedIndent)) {
+                if (activity.detail.isNotEmpty()) {
+                    Text(
+                        text = activity.detail,
+                        fontSize = ChatMetaFontSize,
+                        color = currentTheme.mutedForeground
+                    )
+                }
+                activity.result?.let { result ->
+                    Text(
+                        text = result,
+                        fontSize = ChatMetaFontSize,
+                        color = currentTheme.mutedForeground
+                    )
+                }
             }
         }
     }

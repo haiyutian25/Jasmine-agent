@@ -63,6 +63,7 @@
     <string name="chat_pick_model_empty">No models configured yet. Add one under Model Providers.</string>
     <string name="chat_tool_call">Called %1$s</string>
     <string name="chat_tool_result">%1$s returned</string>
+    <string name="chat_tool_expand_cd">Show tool call details</string>
     <string name="chat_prompt_title">The agent is waiting for you</string>
     <string name="chat_prompt_hint">Your answer…</string>
 </resources>
