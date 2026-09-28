@@ -11,9 +11,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lhzkml.jasmine.core.ui.components.ProductionTopNavBar
@@ -58,6 +61,16 @@ fun MainScreen(
     // navigation is the NavDisplay back stack's job.
     BackHandler(enabled = state.isSidebarOpen) {
         onAction(MainAction.SidebarClosed)
+    }
+
+    // 抽屉是覆盖式的：开着键盘打开它，键盘会压在上面、下面那个输入框还继续吃焦点。
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    LaunchedEffect(state.isSidebarOpen) {
+        if (state.isSidebarOpen) {
+            keyboardController?.hide()
+            focusManager.clearFocus()
+        }
     }
 
     // 侧边栏要展示「新建对话 + 历史对话」，这两份数据都在 ChatViewModel 里。
