@@ -40,4 +40,23 @@
     <string name="language_follow_system">跟随系统</string>
     <string name="language_english">English</string>
     <string name="language_chinese">中文</string>
+
+    <!-- 使用统计 -->
+    <string name="usage_stats_title">使用统计</string>
+    <string name="usage_stats_total">累计 Token 数</string>
+    <string name="usage_stats_streak_current">当前连续天数</string>
+    <string name="usage_stats_streak_longest">最长连续天数</string>
+    <string name="usage_stats_days">%1$d 天</string>
+    <string name="usage_stats_heatmap_title">Token 活动</string>
+    <string name="usage_stats_heatmap_caption">近一年 · %1$s 至 %2$s</string>
+    <string name="usage_stats_heatmap_less">少</string>
+    <string name="usage_stats_heatmap_more">多</string>
+    <string name="usage_stats_models_title">模型用量</string>
+    <string name="usage_stats_range_title">时间范围</string>
+    <string name="usage_stats_range_7d">近 7 日</string>
+    <string name="usage_stats_range_30d">近 30 日</string>
+    <string name="usage_stats_range_all">全部</string>
+    <string name="usage_stats_refresh">刷新</string>
+    <string name="usage_stats_loading">正在统计中…</string>
+    <string name="usage_stats_empty">还没有可显示的用量：随便聊几句，这里就会有数。</string>
 </resources>
