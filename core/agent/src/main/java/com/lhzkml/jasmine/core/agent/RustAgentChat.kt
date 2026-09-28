@@ -18,7 +18,7 @@ import uniffi.jasmine_protocol.ChatEvent as CoreChatEvent
 /**
  * [AgentChat] backed by the Rust core.
  *
- * Same contract as `AdkAgentChat`, different engine: the turn loop, both wire protocols and the
+ * The engine is the Rust core: the turn loop, both wire protocols and the
  * built-in tools run in Rust. What stays on this side is the translation the boundary needs —
  * the core's calls are synchronous, so they run on [Dispatchers.IO], and the core reports events
  * through a callback, which becomes the [Flow] the interface promises.

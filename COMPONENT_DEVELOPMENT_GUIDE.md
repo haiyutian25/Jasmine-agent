@@ -1,4 +1,4 @@
-﻿# Jasmine 多模块架构与核心功能开发完全指南
+# Jasmine 多模块架构与核心功能开发完全指南
 
 > 本文档详细剖析项目的多模块工程结构、MVVM 状态管理、Navigation 3 导航、Hilt 依赖注入，以及所有 UI 组件、多主题切换、推拽式侧边栏、打字机启动页的开发原理、核心实现与调参指南。
 >
@@ -28,9 +28,7 @@
 
 本应用基于 **Jetpack Compose**（无任何 XML 布局），采用 **多模块 + MVVM + UDF（单向数据流）** 架构。
 
-构建基线：AGP 9.4.1、Kotlin 2.4.20、Compose BOM 2026.09.00（Compose 1.12.1 / Material 3 1.4.0）、Navigation 3 1.1.7、Hilt 2.60.1、Lifecycle 2.11.0、Room 2.7.0、Google ADK for Kotlin 1.1.0、compileSdk 37、minSdk 26 / targetSdk 37、JDK 21。
 
-> `minSdk 26` 由 ADK 强制：`com.google.adk:google-adk-kotlin-core` 在 Android 上经 Gradle Module Metadata 解析为 `google-adk-kotlin-core-android`，其 AAR 声明 `minSdkVersion=26`、`minCompileSdk=37`。只要 ADK 在依赖里，API 24–25 就不可达。
 
 ### 1.1 模块结构与职责
 
@@ -40,17 +38,10 @@ jasmine/
 │   ├── JasmineApplication   # @HiltAndroidApp 入口
 │   └── MainActivity              # @AndroidEntryPoint：hiltViewModel() + JasmineTheme + MainNavHost
 ├── core/
-│   ├── agent/                    # Google ADK 接入层（Hilt 提供 ProviderProbe / AgentChat 两个门面）
-│   │   ├── OpenAiWire                        # 两种 OpenAI 协议共用：JSON 配置 / SSE 传输 / 角色映射 / Schema 展平
-│   │   ├── OpenAiChatWire                    # Chat Completions 线上格式（请求 / 响应 / 增量分片）
-│   │   ├── OpenAiResponsesWire               # Responses API 线上格式（请求 / 响应 / 事件流）
-│   │   ├── OpenAiChatCompletionsModel        # CHAT_COMPLETIONS 的 ADK Model 实现
-│   │   ├── OpenAiResponsesModel              # RESPONSES 的 ADK Model 实现
-│   │   ├── OpenAiModelFactory                # 按 apiType 选择 Model（唯一构造点）
-│   │   ├── AdkProviderProbe                  # ProviderProbe 实现（连通性探测，非流式）
-│   │   ├── AgentChat                         # 对话门面（LlmAgent + InMemoryRunner + InMemorySessionService + 历史重放）
-│   │   ├── AdkAgentChat                      # AgentChat 实现（模型由工厂注入，便于测试）
-│   │   └── di/AgentModule                    # @Provides 装配（模型工厂的组合根）
+│   ├── agent/                    # Rust 核心的 UniFFI 门面（Hilt 提供 ProviderProbe / ConversationStore / AgentChat）
+│   │   ├── AgentChat / ProviderProbe / ConversationStore   # 三个不泄漏核心类型的门面接口
+│   │   ├── RustAgentChat / RustProviderProbe / RustConversationStore / RustHosts  # 核心绑定实现
+│   │   └── di/AgentModule        # @Provides 装配
 │   ├── data/                     # 数据层：仓库接口/实现 + Hilt 装配
 │   │   ├── model/UserPreferences             # 领域模型（themeId / typographyChoice / colorMode / fontScale / activeCustomFontId / activeProviderId / activeModelId）
 │   │   ├── datastore/UserPreferencesDataStore  # Preferences DataStore 读写（偏好唯一存储）
@@ -103,7 +94,6 @@ jasmine/
 app ──► feature:main:impl ──► feature:main:api
  │              │  │  │                    │
  │              │  │  ├► core:navigation ──┴► Navigation3 runtime/ui
- │              │  │  ├► core:agent ──► core:data / Google ADK（adk-kotlin-core）
  │              │  │  ├► core:data ──► core:database ──► Room（对话记录 conversations / messages）
  │              │  │  │            └─► core:network ──► Retrofit/OkHttp
  │              │  │  ├► core:ui
@@ -172,7 +162,6 @@ onTabSelected = { viewModel.trySendAction(MainAction.TabSelected(it)) }
 - **Action**：`ChatAction`（`InputChanged` / `SendClicked` / `NewConversationClicked` / `ModelPickerOpened` / `ModelPickerDismissed` / `ModelSelected`）+ `Internal.*`（供应商与偏好的回灌、流式分片、失败、回合结束）。
 - **Event**：无。失败直接渲染进消息气泡（比一闪而过的 toast 更可读、可回溯），因此 `BaseViewModel` 的事件类型参数取 `Nothing`。
 
-依赖 `ProviderRepository`（模型目录）、`UserPreferencesRepository`（当前选择）、`ChatHistoryRepository`（对话记录）与 `AgentChat`（实时会话）。当前选择经 `updateActiveModel` 持久化，所以重启后仍指向同一个模型；transcript 由 Room 持久化，恢复时连同上文一起重放进 ADK 会话（见 §10.3）。
 
 ---
 
@@ -397,22 +386,15 @@ val panelOffset = -SidebarWidth * (1f - p)
 
 ### 10.2 会话与流式
 
-- 会话由 `core:agent` 的 `AgentChat` 承载（ADK `LlmAgent` + `InMemoryRunner` + `InMemorySessionService`）；**ADK 类型不外泄**，UI 只消费 `ChatEvent`（`Text` / `Failed` / `Completed`）。
 - 每个分片经 `ChatAction.Internal.ReplyChunk` 回灌 action 管道，**状态变更仍全部同步发生在 `handleAction` 内**（与字体下载进度同一模式）。
 - 流式追加只更新"当前正在流式的那条助手消息"（按 id 定位），因此 `LazyColumn` 的 key 唯一、历史消息不重组。
-- **切换模型 / 切换历史会话 / 新对话都会重建 ADK 会话**（一个 ADK session 绑定一个模型）；前两者保留 transcript 并重放，新对话清空界面（旧记录仍在 Room 里，可从历史面板取回）。
-- `runTurn` 在流结束后**额外补发一次 `TurnCompleted`**：ADK 不保证把最后一个事件标记为 `turnComplete`（`AdkAgentChatTest` 里已确认），不补发就会把输入框永久卡在"发送中"。
-- ADK 会话是**内存态**（`InMemorySessionService`），离开 `Main` 目的地即随 `ChatViewModel` 销毁；durable 记录在 Room 中，由 §10.3 描述。
 - `ChatViewModel` 由 `Main` 条目作用域持有（`rememberViewModelStoreNavEntryDecorator()`），且**在 `MainScreen` 的内容区收集状态**——流式分片只重组对话界面，不触发 NavHost 全树重组。
 
 ### 10.3 持久化与历史对话
 
-**两份存储，各司其职**：Room 是持久记录（`conversations` + `messages`），ADK 的 `InMemorySessionService` 只是模型的**工作上下文**。
 
 - **写入时机**：用户消息在发送时落库；助手回复**在回合结束时落库一次**，不是每个分片一次——内存里的消息是实时视图，数据库行是持久记录。会话行在**首次发送**时创建（因此不会留下空会话），`title` 取首条用户消息（截断 60 字符）。
 - **恢复**：启动时读取最近更新的会话，把 transcript 填回界面。**模型选择不由会话决定**——它属于偏好（`activeProviderId` / `activeModelId`），是"我现在用哪个模型"的唯一来源；会话只记录"它由哪个模型产生"（在历史列表里显示），这样也避免了两份真源互相覆盖的竞态。
-- **上下文连贯（关键）**：恢复后若直接发消息，模型会以为对话是全新的——所以 `AgentChat.startConversation(..., history)` 把 transcript **重放进新会话**（ADK `SessionService.appendEvent`）：runner 的请求内容是从会话事件构建的，不重放就没有历史。重放**排除失败回复**（错误文本不是模型输出），并**排除本轮新消息**（它以 `newMessage` 进入，一并重放会重复）。
-- **会话重建时机**：切换模型、切换历史会话、新建对话都会重建 ADK 会话（键为 `会话id|供应商|模型`），并把当前 transcript 重放进去。
 - **历史面板**：头部时钟图标打开 `BottomSheet`，按 `updatedAt` 倒序列出会话（标题 + 产生它的模型），可切换或删除；删除走外键级联，消息一并消失。
 - **持久化是 best-effort**：写库失败会被 `runCatching` 吞掉而不中断对话。本地 SQLite 加 schema 编译期校验，实际近乎不可能触发；代价是这种情况下历史静默丢失。
 
@@ -470,8 +452,6 @@ Main → SettingsMenu（设置菜单列表）→ AppearanceSettings（外观设�
 | `ExampleUnitTest` | 2+2 | 模板级 |
 | `ExampleRobolectricTest` | 读取 `app_name` 资源 | Robolectric |
 | `MainScreenshotTest` | Roborazzi 渲染首页 | 验证首页 UI 可组合渲染 |
-| `OpenAiWireTest`（`core:agent`） | 断言两种 OpenAI 协议发出的 JSON 与解析回的 ADK 类型 | 纯 JVM 单测，无需网络与 API Key |
-| `AdkAgentChatTest`（`core:agent`） | 用录制型 `Model` 驱动**真实 ADK runner**，验证历史重放确实进入模型请求、流式文本与错误映射、未开会话即发送会被拒 | 无需网络与 API Key |
 | `MigrationDdlTest`（`core:database`） | 把 v5 建表语句钉在 Room 导出的 schema 上（双向比对，忽略空白） | 纯 JVM 单测，比对 SQL 文本 |
 | `ChatViewModelTest`（`feature:main:impl`） | 对话状态机：发送 / 流式追加 / 失败 / 回合结束 / 首条消息建会话并落库 / 恢复并重放 / 切换与删除会话 / 失败回复不重放 | 用假仓库与假 `AgentChat` 替换，不触网 |
 
@@ -484,7 +464,6 @@ Main → SettingsMenu（设置菜单列表）→ AppearanceSettings（外观设�
 gradle :app:compileDebugKotlin                # 全模块编译 + KSP（Room/Hilt）
 gradle :app:assembleDebug                     # 完整打包（需根目录 debug.keystore）
 gradle :app:testDebugUnitTest                 # app 单元测试 + 截图测试
-gradle :core:agent:testDebugUnitTest          # OpenAI 协议线上格式 + ADK 会话/重放
 gradle :core:database:testDebugUnitTest       # 迁移 DDL 与 Room 导出 schema 的一致性
 gradle :feature:main:impl:testDebugUnitTest   # 对话状态机
 ```
@@ -517,23 +496,14 @@ gradle :feature:main:impl:testDebugUnitTest   # 对话状态机
 
 ## 14. 已知局限与工程问题
 
-1. **网络层分工**：`core:network` 的 Retrofit 栈仍只服务字体下载（`FontDownloadApi` 指向 GitHub Releases 绝对 URL，baseUrl 仍是 `https://api.example.com/` 占位）；ADK 适配层**不走 Retrofit**——供应商 baseUrl 是运行期动态的，因此复用共享 `OkHttpClient` 直接发请求（与 `ProviderModelDataSource` 同一策略）。
-2. **ADK 依赖的是一个框架内部 API**：流式聚合用的是 `StreamingResponseAggregator`，它带 `@FrameworkInternalApi`（全库仅 5 个类引用该注解）。因此 `core:agent` 需要 `@OptIn`，且 **ADK 小版本升级可能破坏流式路径**；`Model` 接口本身是公开稳定契约，非流式路径不受影响。
-3. **Responses API 的两点取舍**：① 工具调用参数**不做逐字流式**——Responses 只给原始 JSON 片段，而 ADK 的 `PartialArg` 机制需要 `jsonPath`，从片段反推路径不可靠，故在 `response.output_item.done` 拿到完整 `arguments` 后一次性喂入聚合器；② 该协议**没有 `stop` 参数**，ADK 的 `stopSequences` 在此协议下被主动丢弃（有单测断言）。
 4. **`tools[].type` 的坑（已修，有回归测试）**：`openAiJson` 关闭了 `encodeDefaults`，因此**带默认值的必填字段不会被序列化**。原先 `ChatTool.type` 的默认值恰是 `"function"`，导致带工具的请求会漏掉 `type` 而被供应商拒绝；现改为必填无默认值（Responses 的 `parameters` / `strict` 同理）。
-5. **APK 打包：ADK 带来两个连带阻断（已修，但要记住原因）**：① `google-auth-library-*` 与 `api-common` 三个 jar 各自携带同名 `META-INF` 元数据（`INDEX.LIST` / `DEPENDENCIES` / `LICENSE` / `NOTICE`），重复条目让 `mergeReleaseJavaResource` 直接失败 → 在 `app` 的 `packaging { resources { excludes += ... } }` 中排除；② kxml2 自带一份 `org.xmlpull.v1`，与 Android 平台类冲突，R8 报 `Library class android.content.res.XmlResourceParser implements program class org.xmlpull.v1.XmlPullParser` → 在 ADK 依赖上 `exclude(group = "net.sf.kxml", module = "kxml2")`。
-    **kxml2 的取舍**：ADK 只有一个类真的用它——`FunctionToolExtensionsKt` 在把 OpenAPI 规范转成工具时直接 `new` 了 `org.kxml2.io.KXmlSerializer`，而本项目不使用 OpenAPI 规范式工具，该路径不可达。将来若要支持它，需要改用能剥离 `org.xmlpull.v1` 包的 artifact transform，而不是排除整个模块。
-    **教训**：只跑 `compileDebugKotlin` / `testDebugUnitTest` 既不会合并 APK 资源、也不做 R8，所以这两个问题在 ADK 接入后长期存在而未被发现——**"能编译"不等于"能打包"**。
-6. **ADK 在 R8 下的风险评估**：ADK 的 `classes.jar` 里 `Class.forName` 与 `ServiceLoader` 均为 **0 处**（无基于类名的发现机制），且**不携带 consumer proguard 规则**；项目已有的 `-keep @kotlinx.serialization.Serializable class * { *; }` 覆盖了 ADK 的 `@Serializable` 类型。因此 release 构建的主要风险不在类加载，而在**运行时行为**（首次真实调用 agent 的流式路径）。
 7. **API Key 存在设备上**：`ProviderConfig.apiKey` 存于 Preferences DataStore 并由设备直连供应商。官方 Android 指南明确不建议在客户端内嵌密钥（建议自建后端或 Firebase AI Logic）。当前定位是"用户自备密钥的个人工具"，若要上架发布需改为代理方案。
 8. **Room 已投入使用，但迁移从未被真正执行过**：v5 引入 `conversations` / `messages`，并删掉了无任何读者的 legacy `user_preferences` 表（其 `UserPreferencesEntity` 一并移除）。`core:data` 对 `core:database` 的依赖也从 `api` 收紧为 `implementation`——Room 实体与 DAO 不再外泄（`core:data` 因此需要直接依赖 `room-runtime`）。**缺口**：迁移 DDL 只被 `MigrationDdlTest` 在文本层面钉在 Room 导出 schema 上，尚未接入 Room 官方的 `MigrationTestHelper`（需 Robolectric + `room-testing`），所以"迁移跑在真实 SQLite 上并让 Room 校验通过"这一步没有自动化覆盖。schema 已导出到 `core/database/schemas/`，具备接入条件。
 9. **家族文案为可选本地化**：设置页族名经 `SettingsScreen.paletteNameRes` 按家族 key 查本地化资源；未配置的新家族自动回退到该家族自身的 `displayName`（英文），不会错标为其它家族；需要本地化时补一条字符串资源即可。（描述副标题已整体移除，`CssVariables` 不再携带 `description` 字段。）
 10. **截图基准默认不校验**：`app/src/test/screenshots/chat.png` 已提交（渲染的是带样例对话的对话界面，而非空表面）。默认 `testDebugUnitTest` 下 Roborazzi 未激活任何模式（record/verify/compare 均未开），`captureRoboImage` 空转通过、不做校验——CI 绿灯对 UI 回归没有保护。重新生成基准用 `gradle :app:testDebugUnitTest -Proborazzi.test.record=true`（**PowerShell 下 `-P` 参数会被吞掉，需加引号：`'-Proborazzi.test.record=true'`**），CI 校验用 `-Proborazzi.test.verify=true`。真正有断言价值的是 `core:agent` / `core:database` / `feature:main:impl` 的纯逻辑单测。
-11. **工具调用不在 UI 呈现**：`core:agent` 会把模型的工具请求搬进 `Part.functionCall` 交给 ADK 执行，但对话界面目前**只渲染文本**——工具调用与结果对用户不可见（ADK 侧执行正常）。多模态输入（图片/音频）尚未支持，`input` 只发文本消息。
-12. **长对话不做压缩**：恢复或重建会话时会把整份 transcript 重放进 ADK 会话，**没有做历史压缩/摘要**（ADK 提供了 compaction 能力，尚未接入），超长会话最终会撞上模型的上下文上限。历史面板也只支持切换与删除，没有搜索或导出。
 13. **签名与打包环境**：release 的密钥库解析顺序为 `KEYSTORE_PATH`（环境变量，CI / 显式覆盖优先）→ `${rootDir}/my-upload-key.jks`；别名固定为 `upload`，密码来自 `STORE_PASSWORD` / `KEY_PASSWORD`。工作区已放置一枚**测试用**密钥库 `my-upload-key.jks`（`CN=Jasmine Test Release`，git-ignored），可用于安装测试但**不能用于发布**（Play 拒绝 debug 级/测试身份，且换密钥必须先卸载）。
     **排查要点**：构建**不会回显**实际使用的密钥库，签名对不对只能用 `apksigner verify --print-certs` 验证。本机就曾因为持久化的 `KEYSTORE_PATH` 指向另一目录的 debug 密钥库，导致 release 包被签成 `CN=Android Debug` —— 而 `assembleDebug` 固定读 `${rootDir}/debug.keystore`（与 release 的解析链不同），所以"release 能签、debug 反而不能"完全可能。
 
 ---
 
-> 本文档已按当前源码逐项核验（核验日期：2026-09-23），覆盖多模块化重构后的全部演进：偏好存储 Room→DataStore 迁移、序列化 Moshi→kotlinx.serialization、自定义字体系统、设置流程从 ViewModel 状态机迁移至 Navigation 3 回退栈、主题家族目录单源化（`ThemeResolver.families`）、侧栏/底栏手势体系、设置流独立为 `feature:settings:{api,impl}` 模块（共用组件 `Button` / `Slider` 下沉到 `core:ui`），以及**接入 Google ADK for Kotlin：`core:agent` 以 `Model` 适配器同时支持 Chat Completions 与 Responses 两种 OpenAI 协议，并通过 `ProviderProbe` / `AgentChat` 两个不泄漏 ADK 类型的门面对外**。后续修改组件参数时，请同步更新第 13 节速查表。
+> 本文档已按当前源码逐项核验（核验日期：2026-09-23），覆盖多模块化重构后的全部演进：偏好存储 Room→DataStore 迁移、序列化 Moshi→kotlinx.serialization、自定义字体系统、设置流程从 ViewModel 状态机迁移至 Navigation 3 回退栈、主题家族目录单源化（`ThemeResolver.families`）、侧栏/底栏手势体系、设置流独立为 `feature:settings:{api,impl}` 模块（共用组件 `Button` / `Slider` 下沉到 `core:ui`），以及**`core:agent` 改为 Rust 核心的 UniFFI 门面（会话、模型调用、工具都在核心侧）**。后续修改组件参数时，请同步更新第 13 节速查表。

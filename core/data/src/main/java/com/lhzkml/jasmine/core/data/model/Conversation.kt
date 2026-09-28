@@ -54,8 +54,7 @@ data class TranscriptMessage(
  * 存进转写的一条工具活动 —— 界面上就是一张卡片。
  *
  * 一次调用的「问了什么」和「回了什么」放在同一条里：[detail] 是调用参数，[result] 是返回。
- * 返回可能是工具自己的输出，也可能是用户对提问的回答（ADK 把那种返回记成 author=user 的
- * functionResponse，见 `AdkConversationStore.toTranscriptMessage`）。
+ * 返回可能是工具自己的输出，也可能是用户对提问的回答。
  */
 data class TranscriptToolActivity(
     val name: String,

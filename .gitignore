@@ -26,8 +26,6 @@ my-upload-key.jks
 .tmp_frp/
 
 
-# Local clone of Google ADK for Kotlin (reference only, not part of this project)
-/adk-kotlin/
 /.codebuddy/
 /.trae/
 

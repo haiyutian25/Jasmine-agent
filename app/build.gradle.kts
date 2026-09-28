@@ -56,11 +56,9 @@ android {
     buildConfig = true
   }
   /**
-   * Google ADK pulls in the google-auth stack (`google-auth-library-*`,
-   * `api-common`), whose jars each ship the same `META-INF` metadata files. They
-   * are JAR-index/licence boilerplate that means nothing inside an APK, but
-   * duplicate entries fail resource merging — so they must be excluded or the
-   * app cannot be packaged at all.
+   * Some third-party jars ship the same `META-INF` metadata files (JAR-index/licence
+   * boilerplate that means nothing inside an APK); duplicate entries fail resource
+   * merging, so they are excluded.
    */
   packaging {
     resources {

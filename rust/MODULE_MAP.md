@@ -32,8 +32,8 @@
 | `jasmine-model-provider` | `model-provider/` | 凭据注入、模型列表端点 | `ProviderConfig.apiKey` + `ProviderModelDataSource.kt` | ✅ 已实现 |
 | `jasmine-api` | `api/` | 两套协议报文 + SSE 解析 | `OpenAi*Model/Wire.kt`（1,123 行） | ⚠️ SSE 已实现，端点待接 |
 | `jasmine-tools` | `tools/` | 工具契约（`Tool`/`ToolError`/`ToolFuture`）+ 工具词汇表（声明、json schema、结果）+ jasmine 自带工具 | `JasmineTools.kt` 的声明部分 | ✅ 已实现 |
-| `jasmine-rollout` | `rollout/` | 会话落盘：每会话一个只追加 JSONL（首行是会话元信息），另附读取与发现 | `ConversationStore.kt` + ADK 的 `RoomSessionService` | ✅ 已实现并接线（见 §2.6；ADK 那套不再参与） |
-| `jasmine-core` | `core/` | 会话门面（`AgentChatService`）、轮次主循环、模型客户端、上下文、工具注册表、宿主边界、探测 | `AgentChat.kt` / `AdkAgentChat.kt` / `ProviderProbe.kt` | ✅ 已实现（绑定待接） |
+| `jasmine-rollout` | `rollout/` | 会话落盘：每会话一个只追加 JSONL（首行是会话元信息），另附读取与发现 | `ConversationStore.kt` + 旧引擎的 `RoomSessionService` | ✅ 已实现并接线（见 §2.6；旧引擎 那套不再参与） |
+| `jasmine-core` | `core/` | 会话门面（`AgentChatService`）、轮次主循环、模型客户端、上下文、工具注册表、宿主边界、探测 | `AgentChat.kt` / `旧 Kotlin 引擎（已删）` / `ProviderProbe.kt` | ✅ 已实现（绑定待接） |
 | `jasmine-ffi` | `ffi/` | 跨语言边界（Android 无对应，必须新增）：`AgentHandle`（附着 / 发送 / 回答提问 / 结束 + `create_conversation` / `delete_conversation` / `conversations` / `transcript`）/ `EventListener` / `HostClock`（`now` + `format`）+ 适配器 + `probe` | `AgentChat.kt` / `ProviderProbe.kt` 的实现位 | ✅ 已接 UniFFI 0.32.2（注解 + 生成 Kotlin，见 §1.1）；Android 侧构建接线与 Kotlin 适配已完成 |
 
 ### 1.1 跨语言绑定（UniFFI）
@@ -54,7 +54,7 @@
   - 坑二：Gradle 用户级代理（`D:\AndroidDev\gradle\gradle.properties` 里的 `127.0.0.1:10808`）不通时，用 `-Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=6480 -Dhttps...` 覆盖即可。
   - 反例：reqwest 的默认特性会带 native-tls → OpenSSL，交叉编译不到 Android，所以工作区里 `reqwest` 改为 `default-features = false` + rustls。
 - **Kotlin 侧适配（已做）**：`RustAgentChat`（用 Rust 实现现有 `AgentChat` 接口：阻塞调用落 `Dispatchers.IO`，核心的回调转 `Flow<ChatEvent>`，失败走 `ChatEvent.Failed`）、`ConversationStoreHost`（`ConversationStore` → 核心要的会话数据；转写里的工具活动没有 call id，按作者文本跨界）与 `DeviceClock`（时间由平台格式化）。
-- **引擎已切换**：Hilt 装配（`core/agent/.../di/AgentModule.kt`）里 `AgentChat` → `RustAgentChat(conversationStore)`、`ProviderProbe` → `RustProviderProbe`（用核心的 `probe`）。ADK 的实现与它的 provider 仍留在模块里（自己的测试也还在），**换回去是这一行的事**。会话存储改为核心侧的 rollout（每会话一个只追加 JSONL，见 §2.6），ADK 的 Room 会话库随之下线。
+- **引擎已切换**：Hilt 装配（`core/agent/.../di/AgentModule.kt`）里 `AgentChat` → `RustAgentChat(conversationStore)`、`ProviderProbe` → `RustProviderProbe`（用核心的 `probe`）。旧引擎 的实现与它的 provider 仍留在模块里（自己的测试也还在），**换回去是这一行的事**。会话存储改为核心侧的 rollout（每会话一个只追加 JSONL，见 §2.6），旧引擎的 Room 会话库随之下线。
   - 实测：`:core:agent:compileDebugKotlin`、`:app:compileDebugKotlin`（Hilt 整图校验）、`:app:assembleDebug` 均 BUILD SUCCESSFUL；APK 里 `lib/{arm64-v8a,armeabi-v7a,x86,x86_64}/libjasmine_ffi.so` 与 JNA 的 `libjnidispatch.so` 都在。
 - 尚未做：**设备上实测一轮**（发消息 → 回复 / 工具调用）；**停止/中断一轮尚未实现**（Rust 侧是阻塞调用，取消 Flow 不会中断核心的轮次）。
 
@@ -69,19 +69,19 @@
 | 能力 | Android 位置 | 参照实现的位置 | 骨架状态 |
 |---|---|---|---|
 | 会话门面契约（5 个方法 + 6 个事件） | `AgentChat.kt`（117 行） | `protocol` 的 `ChatEvent`/`SessionId`/`Role` + `core/src/session/service.rs` 的 `AgentChatService` | ✅ 已实现 |
-| 会话附着 / 释放 | `AdkAgentChat.kt`（383 行） | `AgentChatService::start_conversation` / `end_conversation`（附着时从会话文件装载已有上下文） | ✅ 已实现 |
-| 轮次主循环 | ADK 内部（自研无代码） | `core/src/session/turn.rs`（`run_turn`） | ✅ 已实现 |
-| 轮内循环（工具调用 → 回填 → 再采样） | ADK 内部 | 同上（串行，见 §3.2） | ✅ 已实现（串行） |
+| 会话附着 / 释放 | `旧 Kotlin 引擎（已删）`（383 行） | `AgentChatService::start_conversation` / `end_conversation`（附着时从会话文件装载已有上下文） | ✅ 已实现 |
+| 轮次主循环 | 旧引擎内部（自研无代码） | `core/src/session/turn.rs`（`run_turn`） | ✅ 已实现 |
+| 轮内循环（工具调用 → 回填 → 再采样） | 旧引擎内部 | 同上（串行，见 §3.2） | ✅ 已实现（串行） |
 | 停止回复 | `ChatAction.StopClicked` + `handleStopClicked` | `Op::SuspendTurnAndShutdown` | ⚠️ 待接 |
 | 恢复被中断的轮次 | `AgentChat.persistInterruptedReply` | `AgentChatService::persist_interrupted_reply`（把半段回复放回模型上下文；持久化归平台） | ✅ 已实现 |
-| 任务抽象（一次任务怎么跑） | ADK Runner | `core/src/tasks/`（`regular.rs` 等） | 未建（主循环落地时一并） |
+| 任务抽象（一次任务怎么跑） | 旧引擎 Runner | `core/src/tasks/`（`regular.rs` 等） | 未建（主循环落地时一并） |
 
 ### 2.2 模型与 provider
 
 | 能力 | Android 位置 | 参照实现的位置 | 骨架状态 |
 |---|---|---|---|
 | 两套 wire 协议选择 | `OpenAiModelFactory.kt`（35 行） | `model-provider-info` 的 `WireApi` | ✅ |
-| Chat Completions 报文 | `OpenAiChatCompletionsModel.kt`(312) + `OpenAiChatWire.kt`(149) | `codex-api` 的 `endpoint/` + `sse/` | ⚠️ 待接 |
+| Chat Completions 报文 | `旧 Kotlin 模型适配（已删）`(312) + `OpenAiChatWire.kt`(149) | `codex-api` 的 `endpoint/` + `sse/` | ⚠️ 待接 |
 | Responses 报文 | `OpenAiResponsesModel.kt`(223) + `OpenAiResponsesWire.kt`(221) | 同上 | ⚠️ 待接 |
 | SSE 流式解析 | 三个 `*Wire.kt` 的流式部分 | `codex-api/src/sse/` | ✅ 已实现 |
 | 请求重试与节流 | `OpenAiWire.kt` 的重试部分 | `http-client/src/retry_after.rs` | ✅ 已实现 |
@@ -90,7 +90,7 @@
 | 模型列表拉取（"获取模型"按钮） | `ProviderModelDataSource.kt`（~70 行） | `model-provider/src/models_endpoint.rs` | ✅ 已实现（`fetch_model_ids`，兼容 OpenAI `{data:[{id}]}` 与 DeepSeek `{models:[{id\|model_name}]}`；base_url 已以 `/v1` 结尾时不重叠加） |
 | 模型输入模态（文本/图片/音频） | 无（当前只走文字） | `protocol` 的 `InputModality` + `core/src/context_manager/normalize.rs` 的两个剥离 pass | ✅ 已实现（能力落在 `ModelConfig.input_modalities`，默认文本+图片） |
 | **token 用量解析** | `OpenAiChatWire.kt:95` / `OpenAiResponsesWire.kt:130` → `UsageMetadata` | 两套 wire 的 `sse/*.rs` → `ResponseEvent::Completed.token_usage` → `ChatThread::last_token_usage()` | ✅ 已实现（见 §3.1；不新增界面事件） |
-| 连通性探测 | `ProviderProbe.kt` + `AdkProviderProbe.kt`（107 行） | **参照无对应** | ✅ 自主实现（已登记，见 §4） |
+| 连通性探测 | `ProviderProbe.kt` + `旧 Kotlin 探测（已删）`（107 行） | **参照无对应** | ✅ 自主实现（已登记，见 §4） |
 | 模型选择与当前模型 | `ChatAction.ModelSelected` + `UserPreferences` | `models-manager` + `config` | 留平台（选择与持久化在 UI 侧） |
 
 ### 2.3 工具
@@ -98,10 +98,10 @@
 | 能力 | Android 位置 | 参照实现的位置 | 骨架状态 |
 |---|---|---|---|
 | 工具声明（名称/描述/参数 schema） | `JasmineTools.kt` 的 `@Tool` 注解 | `tools/src/tool_spec.rs`、`tool_definition.rs`、`json_schema.rs` | ✅ 已实现 |
-| 工具注册与按名分发 | ADK 的注解处理器生成 | `core/src/tools/registry.rs` + `spec_plan.rs` | ✅ 已实现 |
+| 工具注册与按名分发 | 旧引擎 的注解处理器生成 | `core/src/tools/registry.rs` + `spec_plan.rs` | ✅ 已实现 |
 | 内置工具实现 | `JasmineTools.currentTime` / `listPastConversations` | 参照在 `core/src/tools/handlers/`；这里落在 `tools/src/current_time.rs`、`tools/src/list_past_conversations.rs` | ✅ 已实现（有意挪到 tools 侧：契约也在那里，依赖保持单向 `core → tools`） |
 | 工具结果长度收口 | 展示层截断 | `utils/output-truncation/src/lib.rs` | ✅ 已实现 |
-| **并行工具调用** | `OpenAiChatCompletionsModel.kt:160` → `parallelToolCalls = false`（**明确关掉**） | `parallel_tool_calls: true` + `core/src/tools/parallel.rs` | ❌ **缺**（见 §3.2） |
+| **并行工具调用** | `旧 Kotlin 模型适配（已删）:160` → `parallelToolCalls = false`（**明确关掉**） | `parallel_tool_calls: true` + `core/src/tools/parallel.rs` | ❌ **缺**（见 §3.2） |
 | 工具执行编排（审批 → 沙箱 → 升级重试） | 无（工具是纯函数） | `core/src/tools/orchestrator.rs` + `sandboxing/` | 不迁（见 §4） |
 | 动态工具（宿主注入） | 无 | `tools/src/dynamic_tool.rs` | 未建 |
 
@@ -109,17 +109,17 @@
 
 | 能力 | Android 位置 | 参照实现的位置 | 骨架状态 |
 |---|---|---|---|
-| 模型上下文持有与组装 | ADK 会话服务 | `core/src/context_manager/history.rs` | ✅ 已实现 |
+| 模型上下文持有与组装 | 旧引擎的会话服务 | `core/src/context_manager/history.rs` | ✅ 已实现 |
 | 残缺记录归一化（有调用无结果等） | 靠流程约束（`respondToPrompts` 的注释） | `core/src/context_manager/normalize.rs` | ✅ 已实现（含模型读不了的模态替换为占位文本的两个 pass） |
-| 上下文片段注入（world state / 记忆等） | ADK 内部 | `core/src/context/` | 未建（用到再建） |
-| 上下文压缩 | **未启用**（`AdkAgentChat.kt:158` 保持默认值） | `core/src/compact.rs` + `compact_remote_v2.rs` | 不做（见 §5） |
+| 上下文片段注入（world state / 记忆等） | 旧引擎内部 | `core/src/context/` | 未建（用到再建） |
+| 上下文压缩 | **未启用**（`旧 Kotlin 引擎（已删）:158` 保持默认值） | `core/src/compact.rs` + `compact_remote_v2.rs` | 不做（见 §5） |
 | 上下文预算（`contextLength`/`maxOutputLength`） | `ModelConfig`（UI 可配） | token budget（`session/token_budget.rs`） | ❌ 缺落脚点（见 §3.3） |
 
 ### 2.5 交互
 
 | 能力 | Android 位置 | 参照实现的位置 | 骨架状态 |
 |---|---|---|---|
-| 交互提问（工具提问/给选项） | ADK 的 `get_user_choice` / `adk_request_input` | `tools/handlers/request_user_input.rs` + `elicitation.rs` | ⚠️ 数据模型已就位（`PendingPrompts` + 调用 id 配对），恢复待接 |
+| 交互提问（工具提问/给选项） | 旧引擎的 `get_user_choice` / `旧引擎_request_input` | `tools/handlers/request_user_input.rs` + `elicitation.rs` | ⚠️ 数据模型已就位（`PendingPrompts` + 调用 id 配对），恢复待接 |
 | 答案按序收齐一次提交 | `AgentChat.respondToPrompts` 注释里的血泪教训 | 同上 | ✅ 已实现（含"少交一个"拦截） |
 | 中途引导（回复进行中追加输入） | 无 | `codex_thread.rs` 的 `steer_turn` | 参照有、Android 无（见 §5） |
 
@@ -130,8 +130,8 @@
 | 会话列表读取 | `ConversationStore.conversationsStateFlow` / `latestConversation` | `rollout/src/list.rs`（读各文件自己的 meta，最新在前）+ `AgentChatService::conversations` | ✅ 核心侧供给（平台来问；时间戳给毫秒，界面按设备时区显示） |
 | 会话建 / 删 | `createConversation` / `deleteConversation` | `rollout/src/recorder.rs`（创建即写首行元信息）/ `rollout/src/list.rs` 的 `delete_session` | ✅ 核心侧（`create_conversation` / `delete_conversation`） |
 | 读某会话的转写 | `messagesOf(conversationId)` | `rollout/src/list.rs` 的 `read_response_items` + `AgentChatService::transcript` | ✅ 核心侧 |
-| 已有上下文装载 | ADK 会话服务 | `rollout/src/list.rs` 的 `read_response_items` + `AgentChatService::start_conversation` | ✅ 从会话文件装载（不再由平台传） |
-| 回合落盘 | ADK 的 `SessionStore` 写 `StorageEvent` | `rollout/src/recorder.rs`（一行一条追加；`send` / `respond_to_prompts` / `persist_interrupted_reply` 三处） | ✅ 已实现 |
+| 已有上下文装载 | 旧引擎的会话服务 | `rollout/src/list.rs` 的 `read_response_items` + `AgentChatService::start_conversation` | ✅ 从会话文件装载（不再由平台传） |
+| 回合落盘 | 旧引擎的 `SessionStore` 写 `StorageEvent` | `rollout/src/recorder.rs`（一行一条追加；`send` / `respond_to_prompts` / `persist_interrupted_reply` 三处） | ✅ 已实现 |
 | 会话重命名 / 归档 / 搜索 | **无** | `append_thread_name`、`ARCHIVED_SESSIONS_SUBDIR` | 参照有、Android 无（见 §5） |
 
 ### 2.7 界面与平台专有（不迁）
@@ -154,7 +154,7 @@
 ### 3.1 token 用量解析与传递
 
 - **Android 确实在做**：`OpenAiChatWire.kt:95`、`OpenAiResponsesWire.kt:130` 都解析 `usage`，
-  并通过 `toAdkUsage()` 转成 ADK 的 `UsageMetadata`（`OpenAiChatCompletionsModel.kt:257`、
+  并通过 `to旧引擎Usage()` 转成 旧引擎的 `UsageMetadata`（`旧 Kotlin 模型适配（已删）:257`、
   `OpenAiResponsesWire.kt:216`）。测试里也有 `{"input_tokens":10,"output_tokens":4,"total_tokens":14}` 的样例。
 - **参照实现的对应位置**：`protocol/src/response_usage.rs`（`ResponseUsage` 类型），
   消费方是 token budget 与用量统计。
@@ -164,13 +164,13 @@
     `cache_write_tokens` + `output_tokens_details.reasoning_tokens`），都挂在 `ResponseEvent::Completed.token_usage` 上；
     结构与参照实现逐字一致（只去掉参照专有的 `codex_rollout_budget_units`）。
   - 核心侧不再丢：`core/src/event_mapping.rs` 把用量带出 → `ChatThread::last_token_usage()`（会话状态里最近一次响应的用量）。
-  - **不新增界面事件**：Android 的 `ChatEvent` 只有 6 个事件、没有用量，用量在 ADK 里是挂在**响应**上的（`LlmResponse.usageMetadata`），
+  - **不新增界面事件**：Android 的 `ChatEvent` 只有 6 个事件、没有用量，用量在 旧引擎 里是挂在**响应**上的（`LlmResponse.usageMetadata`），
     界面上不展示。所以 Rust 侧同样把它当"响应元数据"留在会话状态，宿主/FFI 需要时读 `last_token_usage()`。
   - 单测：api 4 个（两套映射 + 缺字段按 0）、core 4 个（用量被记下 / 未报告时为空）。
 
 ### 3.2 并行工具调用
 
-- **Android 明确关掉了**：`OpenAiChatCompletionsModel.kt:160` → `parallelToolCalls = if (tools.isNullOrEmpty()) null else false`。
+- **Android 明确关掉了**：`旧 Kotlin 模型适配（已删）:160` → `parallelToolCalls = if (tools.isNullOrEmpty()) null else false`。
 - **参照实现是开的**：`parallel_tool_calls: true`，并有 `core/src/tools/parallel.rs` 做并行分发
   （可并行判定 → `tokio::spawn`）。
 - **请求侧**：与 Android 一致，`parallel_tool_calls: false`（`core/src/client.rs` 两套 wire 都写死）。
@@ -192,8 +192,8 @@
 
 | 能力 | Android 位置 | 为什么参照没有 | 处理 |
 |---|---|---|---|
-| 连通性探测 | `ProviderProbe.kt` + `AdkProviderProbe.kt` | 参照不提供"这条配置能不能用"的功能 | 自主实现（`core/src/probe.rs`），已登记 |
-| 会话持久化 | `ConversationStore.kt`、`core:data` | 参照的持久化在 `rollout`/`thread-store`；jasmine 照参照做 `rust/rollout`（每会话一个只追加 JSONL，首行是会话元信息与标题/provider/model），列表与转写由核心给出 | ✅ 已改核心侧（ADK 的 Room 会话库不再参与） |
+| 连通性探测 | `ProviderProbe.kt` + `旧 Kotlin 探测（已删）` | 参照不提供"这条配置能不能用"的功能 | 自主实现（`core/src/probe.rs`），已登记 |
+| 会话持久化 | `ConversationStore.kt`、`core:data` | 参照的持久化在 `rollout`/`thread-store`；jasmine 照参照做 `rust/rollout`（每会话一个只追加 JSONL，首行是会话元信息与标题/provider/model），列表与转写由核心给出 | ✅ 已改核心侧（旧引擎的 Room 会话库不再参与） |
 | Provider 配置持久化与界面 | `ProviderDataStore` + `feature:provider:impl` | 参照是配置文件驱动 | 留平台 |
 | Markdown/Mermaid 渲染与图片保存 | `core:markdown`、`MarkdownBlockList.kt` | 参照是终端渲染 | 留平台 |
 | 主题/字体/导航/界面 | `core:ui`、`core:navigation`、`feature:*` | 同上 | 留平台 |
@@ -207,7 +207,7 @@
 | 能力 | 参照实现的位置 | 现状 |
 |---|---|---|
 | 多智能体（模型驱动的子 agent：spawn/send/interrupt/list） | `core/src/agent/` + `tools/handlers/multi_agents_v2/` | Android 未用 |
-| 确定性编排（顺序/并发/循环跑子 agent） | **参照无对应**（它是模型驱动；"循环跑 agent"只作为局部函数出现在 `memories/write`） | Android 也未用（ADK 有 `LoopAgent` 等，未引用） |
+| 确定性编排（顺序/并发/循环跑子 agent） | **参照无对应**（它是模型驱动；"循环跑 agent"只作为局部函数出现在 `memories/write`） | Android 也未用（旧引擎 有 `LoopAgent` 等，未引用） |
 | 运行期 hooks（9 类事件） | `core/src/hook_runtime.rs` | Android 未用 |
 | 插件 / 技能 | `plugin/`、`core-plugins/`、`skills` | Android 未用 |
 | MCP | `codex-mcp` + `core/src/mcp*` | Android 未用（0 处引用） |

@@ -1,10 +1,6 @@
 package com.lhzkml.jasmine.core.agent.di
 
 import android.content.Context
-import com.google.adk.kt.memory.MemoryService
-import com.google.adk.kt.memory.appsearch.AppSearchMemoryService
-import com.google.adk.kt.sessions.SessionService
-import com.google.adk.kt.sessions.room.RoomSessionService
 import com.lhzkml.jasmine.core.agent.AgentChat
 import com.lhzkml.jasmine.core.agent.ConversationStore
 import com.lhzkml.jasmine.core.agent.ProviderProbe
@@ -37,21 +33,6 @@ object AgentModule {
     fun provideProviderProbe(): ProviderProbe = RustProviderProbe
 
     /**
-     * ADK's own Room-backed session store (it ships in ADK core's Android
-     * variant). This is what makes a conversation survive process death: the
-     * session the runner reads its context from is no longer thrown away with
-     * the process, so a resumed conversation does not have to replay its whole
-     * transcript into a fresh in-memory session.
-     *
-     * Singleton because it owns one SQLite database; `fromContext` applies the
-     * application context internally, so holding it cannot leak an Activity.
-     */
-    @Provides
-    @Singleton
-    fun provideSessionService(@ApplicationContext context: Context): SessionService =
-        RoomSessionService.fromContext(context)
-
-    /**
      * The conversation history the UI reads, backed by the core's own session files — so a
      * conversation exists once, not once per layer.
      *
@@ -62,20 +43,6 @@ object AgentModule {
     @Singleton
     fun provideConversationStore(@ApplicationContext context: Context): ConversationStore =
         RustConversationStore(sessionsDir(context))
-
-    /**
-     * ADK's AppSearch-backed long-term memory (it ships in ADK core's Android
-     * variant, along with the `appsearch-local-storage` backend it needs).
-     *
-     * Persistent, unlike the `InMemoryMemoryService` ADK would otherwise default to
-     * — which matters because memory exists to outlive the process. Singleton: it
-     * owns one AppSearch database, and `fromContext` applies the application context
-     * internally.
-     */
-    @Provides
-    @Singleton
-    fun provideMemoryService(@ApplicationContext context: Context): MemoryService =
-        AppSearchMemoryService.fromContext(context)
 
     /**
      * Deliberately **not** `@Singleton`: an [AgentChat] owns a live conversation, so each

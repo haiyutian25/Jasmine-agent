@@ -156,9 +156,8 @@ class ChatViewModelTest {
     fun `a turn that opens with a tool call leaves no empty bubble`() = runTest(testDispatcher) {
         val viewModel = createViewModel()
         advanceUntilIdle()
-        // 参数是 `—` 而不是空串：`AgentChat` 对无参调用渲染的就是 `—`
-        // （`Map.abbreviated()` 的 `ifEmpty`），而界面把**空** detail 定义为
-        // 「只有返回、没有配对调用」，喂空串会让调用卡被当成返回卡、合并不上。
+        // 参数是 `—` 而不是空串：核心对无参调用渲染的就是 `—`，而界面把**空** detail
+        // 定义为「只有返回、没有配对调用」，喂空串会让调用卡被当成返回卡、合并不上。
         agentChat.nextEvents = listOf(
             ChatEvent.ToolCall("current_time", "—"),
             ChatEvent.ToolResult("current_time", "09:00"),
