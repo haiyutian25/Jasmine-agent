@@ -7,4 +7,5 @@
     <string name="sidebar_new_conversation">新对话</string>
     <string name="sidebar_history_empty">暂无历史对话。</string>
     <string name="sidebar_cd_delete_conversation">删除对话</string>
+    <string name="bottom_sheet_cd_close">关闭</string>
 </resources>

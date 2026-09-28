@@ -33,10 +33,14 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -109,6 +113,22 @@ fun ProviderScreen(
     // 编辑态下按系统返回键/手势：先关闭表单回到列表，而不是退出页面丢失草稿。
     BackHandler(enabled = state.editor != null) {
         onAction(ProviderAction.CancelClicked)
+    }
+
+    // 这四层（提供商列表 / 提供商表单 / 模型列表 / 模型表单）是叠着渲染的。开着键盘进入下一层，
+    // 键盘会压在它上面；退出时下面那层里被点过的输入框还握着焦点，于是再进来键盘就自己弹回原来那个
+    // 框 —— 所以每换一层都把键盘和焦点一起收掉（与侧边栏同一套做法）。
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val overlay = when {
+        state.editor?.modelEditor != null -> "model-editor"
+        state.editor?.modelSheet != null -> "model-list"
+        state.editor != null -> "provider-editor"
+        else -> "provider-list"
+    }
+    LaunchedEffect(overlay) {
+        keyboardController?.hide()
+        focusManager.clearFocus()
     }
 
     Column(
@@ -799,12 +819,20 @@ private fun ModelEditorSheet(
     currentTheme: CssVariables,
     onAction: (ProviderAction) -> Unit,
 ) {
+    // sheet 是独立窗口，页面那层的键盘控制器收不到它里面的输入框：关掉它之前先在自己这层把键盘
+    // 收下来、焦点清干净。不然键盘会留在屏幕上，下次进来还会弹回原来那个框。
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    DisposableEffect(Unit) {
+        onDispose {
+            keyboardController?.hide()
+            focusManager.clearFocus()
+        }
+    }
+
     BottomSheet(
         onDismiss = { onAction(ProviderAction.ModelCancelClicked) },
         currentTheme = currentTheme,
-        // 表单 sheet：整面可拖拽会让切换输入框时的微小滑动把 sheet 拖下去、
-        // 丢焦点弹键盘，故禁用拖拽关闭（点遮罩/返回键仍可关）。
-        allowDismissByDrag = false,
         modifier = Modifier.testTag("provider_model_editor_sheet")
     ) {
         Column(

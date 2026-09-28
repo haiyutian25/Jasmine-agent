@@ -7,4 +7,5 @@
     <string name="sidebar_new_conversation">New chat</string>
     <string name="sidebar_history_empty">No conversations yet.</string>
     <string name="sidebar_cd_delete_conversation">Delete conversation</string>
+    <string name="bottom_sheet_cd_close">Close</string>
 </resources>
