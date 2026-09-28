@@ -44,6 +44,14 @@ class RustConversationStore(
                     stoppedAfterMs = entry.stoppedAfterMs?.toLong(),
                     timestamp = entry.recordedAt,
                     modelLabel = entry.modelLabel,
+                    // 核心把「调用 + 结果」合成一行，这里还原成工具卡（与实时那一轮的形状一致）。
+                    tool = entry.toolName?.let { name ->
+                        com.lhzkml.jasmine.core.data.model.TranscriptToolActivity(
+                            name = name,
+                            detail = entry.toolDetail.orEmpty(),
+                            result = entry.toolResult,
+                        )
+                    },
                 )
             }
         }

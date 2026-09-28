@@ -109,6 +109,11 @@ pub struct HistoryEntry {
     pub recorded_at: i64,
     /// The model the turn this line belongs to ran on — the model the user's message went to.
     pub model_label: Option<String>,
+    /// Set when the line stands for a tool call: the call and its result are one line, so the card
+    /// the platform draws carries both.
+    pub tool_name: Option<String>,
+    pub tool_detail: Option<String>,
+    pub tool_result: Option<String>,
 }
 
 /// Everything one attached conversation owns.
@@ -559,35 +564,93 @@ impl AgentChatService {
         // A turn's model is written at its start, so every line it produced can say which model
         // the user's message went to — a conversation that switched models keeps them apart.
         let mut model_label: Option<String> = None;
-        items
-            .iter()
-            .filter_map(|(timestamp, item)| {
-                let at = millis(timestamp);
-                let entry = match item {
-                    RolloutItem::TurnStarted { model_id, .. } => {
-                        model_label = Some(model_id.clone());
-                        None
+        // The file keeps a call and its result on separate lines; the platform shows one card, so
+        // they are paired here by the id the call was given (call id, name, arguments, when).
+        let mut pending: Vec<(String, String, String, i64)> = Vec::new();
+        let mut lines: Vec<HistoryEntry> = Vec::new();
+        for (timestamp, item) in items.iter() {
+            let at = millis(timestamp);
+            match item {
+                RolloutItem::TurnStarted { model_id, .. } => model_label = Some(model_id.clone()),
+                RolloutItem::ResponseItem(ResponseItem::FunctionCall {
+                    name,
+                    arguments,
+                    call_id,
+                    ..
+                }) => pending.push((call_id.clone(), name.clone(), arguments.clone(), at)),
+                RolloutItem::ResponseItem(ResponseItem::FunctionCallOutput {
+                    call_id,
+                    output,
+                    ..
+                }) => {
+                    let answered = call_id.as_deref();
+                    match pending
+                        .iter()
+                        .position(|(id, ..)| Some(id.as_str()) == answered)
+                    {
+                        Some(index) => {
+                            let (_, name, arguments, called_at) = pending.remove(index);
+                            lines.push(tool_line(
+                                name,
+                                arguments,
+                                Some(output.text_content().unwrap_or_default().to_string()),
+                                called_at,
+                                model_label.clone(),
+                            ));
+                        }
+                        // A result whose call is gone still says something happened.
+                        None => {
+                            let text = output.text_content().unwrap_or_default().to_string();
+                            if !text.is_empty() {
+                                lines.push(HistoryEntry {
+                                    role: Role::Model,
+                                    text,
+                                    tool_call_id: call_id.clone(),
+                                    stopped_after_ms: None,
+                                    recorded_at: at,
+                                    model_label: model_label.clone(),
+                                    tool_name: None,
+                                    tool_detail: None,
+                                    tool_result: None,
+                                });
+                            }
+                        }
                     }
-                    RolloutItem::ResponseItem(recorded) => transcript_entry(recorded),
-                    // A turn that stopped is a line of its own on the platform, between the two
-                    // messages it sits between.
-                    RolloutItem::TurnAborted { duration_ms, .. } => Some(HistoryEntry {
-                        role: Role::Model,
-                        text: String::new(),
-                        tool_call_id: None,
-                        stopped_after_ms: Some(*duration_ms),
-                        recorded_at: at,
-                        model_label: None,
-                    }),
-                    RolloutItem::SessionMeta(_) | RolloutItem::TurnComplete { .. } => None,
-                };
-                entry.map(|mut entry| {
-                    entry.recorded_at = at;
-                    entry.model_label = model_label.clone();
-                    entry
-                })
-            })
-            .collect()
+                }
+                RolloutItem::ResponseItem(recorded) => {
+                    if let Some(mut entry) = transcript_entry(recorded) {
+                        entry.recorded_at = at;
+                        entry.model_label = model_label.clone();
+                        lines.push(entry);
+                    }
+                }
+                // A turn that stopped is a line of its own on the platform, between the two
+                // messages it sits between.
+                RolloutItem::TurnAborted { duration_ms, .. } => lines.push(HistoryEntry {
+                    role: Role::Model,
+                    text: String::new(),
+                    tool_call_id: None,
+                    stopped_after_ms: Some(*duration_ms),
+                    recorded_at: at,
+                    model_label: None,
+                    tool_name: None,
+                    tool_detail: None,
+                    tool_result: None,
+                }),
+                RolloutItem::SessionMeta(_) | RolloutItem::TurnComplete { .. } => {}
+            }
+        }
+        // A call that never got a result — a batch the platform stopped — still shows its card.
+        for (_, name, arguments, called_at) in pending {
+            lines.push(tool_line(
+                name,
+                arguments,
+                None,
+                called_at,
+                model_label.clone(),
+            ));
+        }
+        lines
     }
 
     /// Releases the conversation. Its stored history is left untouched.
@@ -614,6 +677,30 @@ fn millis(timestamp: &str) -> i64 {
     chrono::DateTime::parse_from_rfc3339(timestamp)
         .map(|moment| moment.timestamp_millis())
         .unwrap_or(0)
+}
+
+/// One tool call as the platform shows it: the call and its result on a single line.
+///
+/// The detail and the result are abbreviated the same way the live turn abbreviates them, so a
+/// reloaded conversation reads exactly like the one that was just streamed.
+fn tool_line(
+    name: String,
+    arguments: String,
+    result: Option<String>,
+    recorded_at: i64,
+    model_label: Option<String>,
+) -> HistoryEntry {
+    HistoryEntry {
+        role: Role::Model,
+        text: String::new(),
+        tool_call_id: None,
+        stopped_after_ms: None,
+        recorded_at,
+        model_label,
+        tool_name: Some(name),
+        tool_detail: Some(jasmine_protocol::chat_event::abbreviate(&arguments)),
+        tool_result: result.map(|result| jasmine_protocol::chat_event::abbreviate(&result)),
+    }
 }
 
 /// What the platform's transcript shows for one recorded item.
@@ -646,6 +733,9 @@ fn transcript_entry(item: &ResponseItem) -> Option<HistoryEntry> {
                 stopped_after_ms: None,
                 recorded_at: 0,
                 model_label: None,
+                tool_name: None,
+                tool_detail: None,
+                tool_result: None,
             })
         }
         ResponseItem::FunctionCallOutput {
@@ -660,6 +750,9 @@ fn transcript_entry(item: &ResponseItem) -> Option<HistoryEntry> {
             stopped_after_ms: None,
             recorded_at: 0,
             model_label: None,
+            tool_name: None,
+            tool_detail: None,
+            tool_result: None,
         }),
         ResponseItem::Reasoning { .. }
         | ResponseItem::FunctionCall { .. }

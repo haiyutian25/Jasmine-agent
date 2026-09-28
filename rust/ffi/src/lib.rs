@@ -74,6 +74,10 @@ pub struct HistoryEntry {
     pub recorded_at: i64,
     /// 这条属于的那个回合用的模型名 —— 也就是用户那条消息发给的模型。
     pub model_label: Option<String>,
+    /// 这一行代表一次工具调用时给出它的名字 / 参数 / 结果（调用与结果合成一行）。
+    pub tool_name: Option<String>,
+    pub tool_detail: Option<String>,
+    pub tool_result: Option<String>,
 }
 
 /// 平台侧实现的时钟。
@@ -271,6 +275,9 @@ impl AgentHandle {
                 stopped_after_ms: entry.stopped_after_ms,
                 recorded_at: entry.recorded_at,
                 model_label: entry.model_label,
+                tool_name: entry.tool_name,
+                tool_detail: entry.tool_detail,
+                tool_result: entry.tool_result,
             })
             .collect()
     }
