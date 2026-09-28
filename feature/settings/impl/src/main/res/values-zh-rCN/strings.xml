@@ -48,7 +48,9 @@
     <string name="usage_stats_streak_longest">最长连续天数</string>
     <string name="usage_stats_days">%1$d 天</string>
     <string name="usage_stats_heatmap_title">Token 活动</string>
-    <string name="usage_stats_heatmap_caption">本月 · %1$s 至 %2$s</string>
+    <string name="usage_stats_heatmap_month">%1$d 年 %2$d 月</string>
+    <string name="usage_stats_heatmap_before_start">这个月之前没有记录</string>
+    <string name="usage_stats_heatmap_earliest">本机最早的数据：%1$s</string>
     <string name="usage_stats_heatmap_less">少</string>
     <string name="usage_stats_heatmap_more">多</string>
     <string name="usage_stats_models_title">模型用量</string>

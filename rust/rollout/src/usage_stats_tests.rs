@@ -109,13 +109,13 @@ fn a_turn_is_counted_by_the_step_between_records() {
 }
 
 #[test]
-fn last_months_usage_is_deleted_off_the_disk() {
+fn last_months_usage_is_counted_too() {
     let dir = sessions_dir("month-edge");
     let path = write_session(
         &dir,
         "s1",
         vec![
-            // The last day of last month: as far outside this month as one day can be.
+            // The last day of last month: one day before this month began.
             (
                 stamp(first_of_month() - chrono::Duration::days(1)),
                 turn("old-model"),
@@ -134,19 +134,21 @@ fn last_months_usage_is_deleted_off_the_disk() {
     );
 
     let stats = super::usage_stats(&dir).unwrap();
-    // 总数是**全部时间**的：940（会话自己那条累计），不是本月的 40。
+    // 两个月的都算：上月那天 900（500 + 400 两步），今天 40。
     assert_eq!(stats.total_tokens, 940);
-    // 本月那几项只算本月：一天、一个模型、40。
-    assert_eq!(stats.days.len(), 1);
-    assert_eq!(stats.models.len(), 1);
-    assert_eq!(stats.models[0].model_id, "deepseek-flash");
-    assert_eq!(stats.models[0].tokens, 40);
+    assert_eq!(stats.days.len(), 2);
+    assert_eq!(stats.days[0].tokens, 900);
+    assert_eq!(stats.days[1].tokens, 40);
+    assert_eq!(stats.models.len(), 2);
+    assert_eq!(stats.models[0].model_id, "old-model");
+    assert_eq!(stats.models[0].tokens, 900);
+    assert_eq!(stats.models[1].model_id, "deepseek-flash");
+    assert_eq!(stats.models[1].tokens, 40);
 
-    // 磁盘上：两条老记录只留最新那条当基线（`900`），更老的 `500` 删掉，加上本月的记录共两条；
-    // 转写（回合开头那些行）一行没动。
+    // 磁盘上一行都不动：三条记录原样都在（统计不再删任何东西）。
     let text = std::fs::read_to_string(&path).unwrap();
-    assert_eq!(text.matches("token_usage_record").count(), 2);
-    assert!(!text.contains("\"total_tokens\":500"));
+    assert_eq!(text.matches("token_usage_record").count(), 3);
+    assert!(text.contains("\"total_tokens\":500"));
     assert!(text.contains("\"total_tokens\":900"));
     assert!(text.contains("turn_started"));
 }
@@ -195,34 +197,28 @@ fn bigger_spenders_come_first() {
 
 #[test]
 fn days_in_a_row_become_a_streak() {
-    // Today always counts; yesterday only exists as a second day when the month has reached the 2nd.
-    let yesterday = today() - chrono::Duration::days(1);
-    let has_yesterday = yesterday >= first_of_month();
-
-    let mut lines = vec![
-        (stamp(today()), turn("deepseek-flash")),
-        (stamp(today()), spent(20)),
-        // A gap, so a run cannot span it: last month is outside the figures anyway.
-        (
-            stamp(first_of_month() - chrono::Duration::days(2)),
-            turn("deepseek-flash"),
-        ),
-        (
-            stamp(first_of_month() - chrono::Duration::days(2)),
-            spent(90),
-        ),
-    ];
-    if has_yesterday {
-        lines.insert(0, (stamp(yesterday), turn("deepseek-flash")));
-        lines.insert(1, (stamp(yesterday), spent(10)));
-    }
     let dir = sessions_dir("streak");
-    write_session(&dir, "s1", lines);
+    // 今天和昨天连着、再往前空一天（前天没花），所以连续停在昨天。昨天落在上个月也一样算 ——
+    // 月份边界不再是断点。
+    let yesterday = today() - chrono::Duration::days(1);
+    let before_the_gap = today() - chrono::Duration::days(3);
+    write_session(
+        &dir,
+        "s1",
+        vec![
+            (stamp(before_the_gap), turn("deepseek-flash")),
+            (stamp(before_the_gap), spent(70)),
+            (stamp(yesterday), turn("deepseek-flash")),
+            (stamp(yesterday), spent(80)),
+            (stamp(today()), turn("deepseek-flash")),
+            (stamp(today()), spent(100)),
+        ],
+    );
 
     let stats = super::usage_stats(&dir).unwrap();
-    let expected = if has_yesterday { 2 } else { 1 };
-    assert_eq!(stats.current_streak_days, expected);
-    assert_eq!(stats.longest_streak_days, expected);
+    assert_eq!(stats.days.len(), 3);
+    assert_eq!(stats.current_streak_days, 2);
+    assert_eq!(stats.longest_streak_days, 2);
 }
 
 #[test]

@@ -48,7 +48,9 @@
     <string name="usage_stats_streak_longest">Longest streak</string>
     <string name="usage_stats_days">%1$d days</string>
     <string name="usage_stats_heatmap_title">Token activity</string>
-    <string name="usage_stats_heatmap_caption">This month · %1$s – %2$s</string>
+    <string name="usage_stats_heatmap_month">%2$d/%1$d</string>
+    <string name="usage_stats_heatmap_before_start">No records before this month</string>
+    <string name="usage_stats_heatmap_earliest">Earliest data on this device: %1$s</string>
     <string name="usage_stats_heatmap_less">Less</string>
     <string name="usage_stats_heatmap_more">More</string>
     <string name="usage_stats_models_title">Model usage</string>
