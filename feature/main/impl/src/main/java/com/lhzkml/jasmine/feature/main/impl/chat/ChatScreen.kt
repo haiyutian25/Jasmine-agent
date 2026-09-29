@@ -62,6 +62,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -524,6 +525,8 @@ private fun MessageBubble(
             if (message.thinking.isNotEmpty()) {
                 ReasoningRow(
                     thinking = message.thinking,
+                    // 「思考进行中」= 这一轮还在流式、且**正文和工具都还没出来**（模型正只在想）。它同时
+                    // 管三件事：文案带扫光、内容自动展开、想完自动收起。正文一开始写它就成了完成态。
                     isThinking = message.isStreaming &&
                         message.blocks.isEmpty() &&
                         message.text.isEmpty(),
@@ -662,9 +665,12 @@ private fun MessageMetaChip(text: String, currentTheme: CssVariables) {
 // ── 扫光文字 ───────────────────────────────────────────────────────────
 
 /**
- * 「正在…」用的扫光文字：一条亮带在文字上循环流过（ZCode 的 `animated-gradient-text`，4 秒一轮）。
+ * 「正在…」用的扫光文字：底色"淡"、一条**窄**实体亮带从文字左边扫到右边（ZCode 的
+ * `animated-gradient-text` + `shimmer.tsx`；周期见 [ChatReasoningSweepPeriodMs]）。
  *
- * 思考行的「正在思考」与工具行的「调用工具」共用它 —— 这样"进行中"在全app里是同一套视觉语言。
+ * 思考行的「正在思考」与工具行的「调用工具」共用它 —— 这样"进行中"在全 app 里是同一套视觉语言。
+ * 亮带半宽 = 字数 × [ChatReasoningSweepHalfWidthPerChar]（ZCode 的 `spread = 2`），行程按文字实测
+ * 宽度算：**窄带**才有"扫过去"的观感，拿固定几百 px 的宽渐变铺在短标签上等于没有。
  */
 @Composable
 private fun SweepText(text: String, currentTheme: CssVariables) {
@@ -678,22 +684,26 @@ private fun SweepText(text: String, currentTheme: CssVariables) {
         ),
         label = "sweep-shift"
     )
-    val span = ChatReasoningSweepSpanPx
+    val halfBand = with(LocalDensity.current) {
+        ChatReasoningSweepHalfWidthPerChar.toPx() * text.length
+    }
+    var textWidth by remember { mutableStateOf(0f) }
+    val soft = currentTheme.foreground.copy(alpha = ChatReasoningSweepSoftAlpha)
+    // 亮带从左侧外面走到右侧外面：行程 = 文字宽 + 两个半宽。
+    val travel = textWidth + 2f * halfBand
+    val center = -halfBand + travel * shift
     Text(
         text = text,
         style = TextStyle(
             brush = androidx.compose.ui.graphics.Brush.linearGradient(
-                colors = listOf(
-                    currentTheme.mutedForeground,
-                    currentTheme.foreground,
-                    currentTheme.mutedForeground
-                ),
-                start = Offset(-span + 2f * span * shift, 0f),
-                end = Offset(2f * span * shift, 0f)
+                colors = listOf(soft, currentTheme.foreground, soft),
+                start = Offset(center - halfBand, 0f),
+                end = Offset(center + halfBand, 0f)
             ),
             fontSize = ChatMetaFontSize,
             fontWeight = FontWeight.Medium
-        )
+        ),
+        onTextLayout = { textWidth = it.size.width.toFloat() }
     )
 }
 
@@ -764,16 +774,32 @@ private val ChatReasoningRuleGap = 10.dp
 private val ChatReasoningRuleWidth = 1.dp
 private val ChatReasoningMaxHeight = 240.dp
 
-/** 扫光文字：一轮 4 秒（ZCode 的 `gradient-flow` 就是 4s），亮带按像素跨度给。 */
-private const val ChatReasoningSweepPeriodMs = 4000
-private const val ChatReasoningSweepSpanPx = 220f
+/**
+ * 扫光文字一轮多久（ZCode 那边是 4s，这里按真机观感调快 —— 4 秒一轮显得太慢）。
+ */
+private const val ChatReasoningSweepPeriodMs = 1000
 
 /**
- * 「深度思考」：模型答之前想过什么。收起时只占一行 —— 脑图标 + 文案 + 折线箭头，点这一行展开/收起。
+ * 扫光**亮带**的半宽：每个字 2dp。
  *
- * 交互与样式照 ZCode 的思考块：**默认收起**、整行可点、箭头收起时朝右、展开后转 90° 朝下（它用的是
- * 折线箭头，不是实心三角）；展开的内容加一条左导线、限高滚动、纯文本按原样换行。思考还在进行时文案
- * 换成「正在深度思考」。
+ * 照 ZCode 的 `shimmer.tsx`（`spread = 2`，即每个字 2px）+ `animated-gradient-text`：亮带很窄，
+ * 底色是"淡"（`--animated-gradient-text-soft: rgba(10,10,10,0.22)`），亮带是实体色。
+ * 之前用固定 220px 跨度铺在几十像素的短标签上，对比被摊平，看起来就是没扫光。
+ */
+private val ChatReasoningSweepHalfWidthPerChar = 2.dp
+
+/** 亮带之外的文字底色（ZCode 的 `--animated-gradient-text-soft` = 实体色 22%）。 */
+private const val ChatReasoningSweepSoftAlpha = 0.22f
+
+/**
+ * 「深度思考」：模型答之前想过什么。一行是脑图标 + 文案 + 折线箭头，点这一行手动展开/收起。
+ *
+ * 开合时机：**思考中自动展开**（内容跟着流式增长，一眼就能看见）、**思考结束自动收起**；用户手动
+ * 开合过之后就交给他，不再自动动。
+ *
+ * 交互与样式照 ZCode 的思考块：整行可点、箭头收起时朝右、展开后转 90° 朝下（它用的是折线箭头，不是
+ * 实心三角）；展开的内容加一条左导线、限高滚动、吸底跟随最新思考、纯文本按原样换行。思考期间文案是
+ * 带扫光的「正在深度思考」，结束后换成「思考 · 持续 N 秒」。
  */
 @Composable
 private fun ReasoningRow(
@@ -787,9 +813,11 @@ private fun ReasoningRow(
     // 用户手动开过之后就尊重他的选择；没动过的话，思考结束自动收起
     // （ZCode 的 `autoCollapseKey = streaming ? null : state`）。
     var touched by remember { mutableStateOf(false) }
+    // 思考中自动展开（内容跟着流式增长，直接看得见），思考结束自动收起 —— 用户手动开合过之后就
+    // 尊重他的选择（ZCode 的 `autoCollapseKey = streaming ? null : state` 也是这个意思）。
     LaunchedEffect(isThinking) {
-        if (!isThinking && !touched) {
-            expanded = false
+        if (!touched) {
+            expanded = isThinking
         }
     }
     // 展开着看的时候内容吸底跟随最新思考（ZCode 的 autoFollowBottom）。
@@ -823,34 +851,9 @@ private fun ReasoningRow(
             )
             Spacer(modifier = Modifier.width(6.dp))
             if (isThinking) {
-                // 扫光文字（ZCode 的 animated-gradient-text）：一条亮带在标签上循环流过，4 秒一轮。
-                val sweep = rememberInfiniteTransition(label = "reasoning-sweep")
-                val shift by sweep.animateFloat(
-                    initialValue = 0f,
-                    targetValue = 1f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(ChatReasoningSweepPeriodMs, easing = LinearEasing),
-                        repeatMode = RepeatMode.Restart
-                    ),
-                    label = "reasoning-sweep-shift"
-                )
-                val span = ChatReasoningSweepSpanPx
-                Text(
-                    text = stringResource(R.string.chat_reasoning_thinking),
-                    style = TextStyle(
-                        brush = androidx.compose.ui.graphics.Brush.linearGradient(
-                            colors = listOf(
-                                currentTheme.mutedForeground,
-                                currentTheme.foreground,
-                                currentTheme.mutedForeground
-                            ),
-                            start = Offset(-span + 2f * span * shift, 0f),
-                            end = Offset(2f * span * shift, 0f)
-                        ),
-                        fontSize = ChatMetaFontSize,
-                        fontWeight = FontWeight.Medium
-                    )
-                )
+                // 思考期间一直扫。条件里**不能**再带 `!expanded` —— 思考中现在会自动展开，带上的话就
+                // 永远扫不到（ZCode 那个 `!isOpen` 是针对"手动展开"的，我们这里展开是自动的）。
+                SweepText(stringResource(R.string.chat_reasoning_thinking), currentTheme)
             } else {
                 // 完成态照 ZCode：「思考 · 持续了 N 秒」（一秒都不到时用「持续了几秒」）。
                 Text(
@@ -868,7 +871,8 @@ private fun ReasoningRow(
                     color = currentTheme.mutedForeground
                 )
             }
-            if (summary.isNotEmpty()) {
+            // 展开时下面就是思考正文，这一行摘要就不重复了。
+            if (summary.isNotEmpty() && !expanded) {
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "·",
