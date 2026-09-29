@@ -1,6 +1,7 @@
 package com.lhzkml.jasmine.core.data.di
 
-import com.lhzkml.jasmine.core.data.datasource.ProviderModelDataSource
+import com.lhzkml.jasmine.core.data.model.BuiltInProviders
+import com.lhzkml.jasmine.core.data.model.ModelCatalog
 import com.lhzkml.jasmine.core.data.datastore.ProviderDataStore
 import com.lhzkml.jasmine.core.data.datastore.UserPreferencesDataStore
 import com.lhzkml.jasmine.core.data.manager.dispatcher.DispatcherManager
@@ -37,11 +38,13 @@ object DataModule {
     @Singleton
     fun provideProviderRepository(
         providerDataStore: ProviderDataStore,
-        providerModelDataSource: ProviderModelDataSource,
+        modelCatalog: ModelCatalog,
+        builtInProviders: BuiltInProviders,
         dispatcherManager: DispatcherManager,
     ): ProviderRepository = ProviderRepositoryImpl(
         providerDataStore = providerDataStore,
-        providerModelDataSource = providerModelDataSource,
+        modelCatalog = modelCatalog,
+        builtInProviders = builtInProviders,
         dispatcherManager = dispatcherManager,
     )
 }

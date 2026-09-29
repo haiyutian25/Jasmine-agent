@@ -169,7 +169,8 @@ data class ChatState(
     val isSending: Boolean = false,
     /** 上一回合被中断了，输入区的按钮因此是「继续」形态；见 [handleContinueClicked]。 */
     val canContinue: Boolean = false,
-    val providers: List<ProviderConfig> = ProviderConfig.DEFAULTS,
+    /** 首帧先空着：内置种子由核心给出，仓库那条流立刻会送上第一份。 */
+    val providers: List<ProviderConfig> = emptyList(),
     val conversations: List<Conversation> = emptyList(),
     val activeProviderId: String = "",
     val activeModelId: String = "",

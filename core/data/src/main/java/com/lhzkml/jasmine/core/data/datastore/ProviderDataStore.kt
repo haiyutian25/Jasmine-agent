@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.lhzkml.jasmine.core.data.model.BuiltInProviders
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -24,11 +25,12 @@ private val Context.providerStore: DataStore<Preferences> by preferencesDataStor
  * The whole list is stored as one JSON string under a single key: provider
  * configs are a small, always-read/written-as-a-whole collection, so a JSON
  * blob keeps reads atomic and avoids a Room table for trivial structured data.
- * Corrupt or missing JSON falls back to the factory seed ([ProviderConfig.DEFAULTS]).
+ * Corrupt or missing JSON falls back to the built-in seed ([BuiltInProviders]).
  */
 @Singleton
 class ProviderDataStore @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val builtInProviders: BuiltInProviders,
 ) {
     private val store: DataStore<Preferences> = context.providerStore
 
@@ -38,10 +40,10 @@ class ProviderDataStore @Inject constructor(
     val providers: Flow<List<ProviderConfig>> = store.data.map { prefs ->
         val raw = prefs[KEY_PROVIDERS]
         if (raw.isNullOrBlank()) {
-            ProviderConfig.DEFAULTS
+            builtInProviders.list()
         } else {
             runCatching { json.decodeFromString<List<ProviderConfig>>(raw) }
-                .getOrDefault(ProviderConfig.DEFAULTS)
+                .getOrDefault(builtInProviders.list())
         }
     }
 
@@ -53,7 +55,7 @@ class ProviderDataStore @Inject constructor(
                 ?.let { raw ->
                     runCatching { json.decodeFromString<List<ProviderConfig>>(raw) }.getOrNull()
                 }
-                ?: ProviderConfig.DEFAULTS
+                ?: builtInProviders.list()
             prefs[KEY_PROVIDERS] = json.encodeToString(transform(current))
         }
     }

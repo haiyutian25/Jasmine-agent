@@ -56,6 +56,20 @@ fn provider_input() -> ProviderInput {
 }
 
 #[test]
+fn built_in_providers_come_from_the_factory_presets() {
+    let providers = crate::built_in_providers();
+    let deepseek = providers
+        .iter()
+        .find(|provider| provider.id == "deepseek")
+        .expect("DeepSeek preset");
+    assert_eq!(deepseek.name, "DeepSeek");
+    assert_eq!(deepseek.base_url, "https://api.deepseek.com");
+    assert_eq!(deepseek.wire_api, WireApi::Chat);
+    assert!(deepseek.api_key.is_empty());
+    assert!(deepseek.models.is_empty());
+}
+
+#[test]
 fn provider_input_carries_model_token_budgets() {
     let resolved = provider_input().into_resolved();
     let models = &resolved.info().models;

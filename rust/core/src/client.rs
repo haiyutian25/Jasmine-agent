@@ -241,9 +241,10 @@ fn chat_request(
     }
     // The items of one answer are translated in the order they were written, folding back the two
     // things this protocol wants together and the Responses protocol keeps apart: every call of an
-    // answer rides on **one** assistant message, with that answer's thinking on it. Left split — one
-    // message per call, thinking dropped — the provider refuses the request ("an assistant message
-    // with 'tool_calls' must be followed by tool messages responding to each 'tool_call_id'").
+    // answer rides on **one** assistant message, with that answer's thinking on it. That is the
+    // shape of this wire rather than a rule one endpoint added — an endpoint that answers at all
+    // refuses it split (one message per call, the thinking dropped) with "an assistant message with
+    // 'tool_calls' must be followed by tool messages responding to each 'tool_call_id'".
     let mut reasoning: Option<String> = None;
     for item in &request.input {
         match item {
@@ -296,15 +297,18 @@ fn chat_request(
 /// more; chat completions wants the calls gathered onto **one** assistant message, with the thinking
 /// of that answer on it. Only a call message that directly follows another call message is folded —
 /// the text the model wrote before calling, or a new turn, starts a message of its own.
+///
+/// Both rules are this wire's own, not a concession to one endpoint: they hold for any
+/// chat-completions endpoint that thinks, which is why nothing here names a provider.
 fn push_chat_message(
     messages: &mut Vec<ChatMessage>,
     mut message: ChatMessage,
     reasoning: &mut Option<String>,
 ) {
     // The thinking of an answer rides back on the **first** assistant message that follows it —
-    // whether that is the text it wrote or the calls it made. Every assistant turn of a thinking
-    // model has to carry its own reasoning back: leaving one without it is refused with "the
-    // `reasoning_content` in the thinking mode must be passed back to the API".
+    // whether that is the text it wrote or the calls it made. On this wire every assistant turn of a
+    // thinking model carries its own reasoning back: an endpoint that thinks refuses a request which
+    // drops one, with "the `reasoning_content` in the thinking mode must be passed back to the API".
     if message.role == "assistant" {
         message.reasoning_content = reasoning.take();
     }
@@ -469,11 +473,11 @@ mod tests {
 
     /// The shape a thinking model's turn has to take on this wire.
     ///
-    /// Every failure this guards against was measured against the provider: one assistant message
-    /// per call is refused with "an assistant message with 'tool_calls' must be followed by tool
-    /// messages responding to each 'tool_call_id'", and a turn whose thinking is missing is refused
-    /// with "the `reasoning_content` in the thinking mode must be passed back to the API" — the
-    /// latter bites the **plain** answers too, not only the turn that called tools.
+    /// Every refusal this guards against is this wire's own, whatever the endpoint is: one assistant
+    /// message per call is answered with "an assistant message with 'tool_calls' must be followed by
+    /// tool messages responding to each 'tool_call_id'", and a turn whose thinking is missing with
+    /// "the `reasoning_content` in the thinking mode must be passed back to the API" — the latter
+    /// bites the **plain** answers too, not only the turn that called tools.
     #[test]
     fn every_assistant_turn_carries_its_own_thinking() {
         let request = request(vec![

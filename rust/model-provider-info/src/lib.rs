@@ -4,6 +4,8 @@
 #[cfg(feature = "uniffi")]
 uniffi::setup_scaffolding!("jasmine_model_provider_info");
 
+pub mod presets;
+
 use http::HeaderMap;
 use jasmine_client::Provider;
 use jasmine_client::RetryConfig;
@@ -13,11 +15,6 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::fmt;
 use std::time::Duration;
-
-/// Factory preset: DeepSeek (OpenAI-compatible Chat Completions).
-pub const DEEPSEEK_PROVIDER_ID: &str = "deepseek";
-
-pub const DEEPSEEK_BASE_URL: &str = "https://api.deepseek.com";
 
 const DEFAULT_REQUEST_MAX_RETRIES: u64 = 4;
 const DEFAULT_STREAM_IDLE_TIMEOUT_MS: u64 = 300_000;
@@ -116,24 +113,6 @@ pub struct ModelProviderInfo {
 }
 
 impl ModelProviderInfo {
-    pub fn deepseek() -> Self {
-        Self {
-            id: DEEPSEEK_PROVIDER_ID.to_string(),
-            name: "DeepSeek".to_string(),
-            base_url: DEEPSEEK_BASE_URL.to_string(),
-            wire_api: WireApi::Chat,
-            is_built_in: true,
-            models: Vec::new(),
-            request_max_retries: None,
-            stream_idle_timeout_ms: None,
-        }
-    }
-
-    /// Seed list stored on first launch.
-    pub fn defaults() -> Vec<Self> {
-        vec![Self::deepseek()]
-    }
-
     /// Effective maximum number of request retries for this provider.
     pub fn request_max_retries(&self) -> u64 {
         self.request_max_retries

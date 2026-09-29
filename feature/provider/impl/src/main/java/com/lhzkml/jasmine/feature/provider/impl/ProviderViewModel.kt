@@ -78,7 +78,8 @@ data class ProviderEditorState(
  * add/edit form (with optional model sheet / model editor on top).
  */
 data class ProviderState(
-    val providers: List<ProviderConfig> = ProviderConfig.DEFAULTS,
+    /** 首帧先空着：内置种子由核心给出，仓库那条流立刻会送上第一份。 */
+    val providers: List<ProviderConfig> = emptyList(),
     val editor: ProviderEditorState? = null,
 )
 

@@ -1,11 +1,10 @@
 //! Fetches the model catalog of an OpenAI-protocol provider.
 //!
 //! Providers carry their own base URL, so this rides a plain HTTP client call rather than the
-//! streaming API client. `GET {base_url}/v1/models` with a Bearer key; the response is parsed
-//! tolerantly, because both shapes are in the wild:
-//!
-//! - OpenAI: `{ "data": [ { "id": ... } ] }`
-//! - DeepSeek: `{ "models": [ { "id" | "model_name": ... } ] }`
+//! streaming API client. `GET {base_url}/v1/models` with a Bearer key; the body is read through the
+//! shape table, because more than one shape is in the wild and each provider declares its own:
+//! `presets::model_list_shapes` — the generic OpenAI one, then one per preset. Nothing here names a
+//! provider.
 //!
 //! A base URL already ending in `/v1` is not doubled.
 
@@ -58,9 +57,11 @@ fn models_url(base_url: &str) -> String {
 
 fn parse_model_ids(body: &str) -> Result<Vec<String>, ModelListError> {
     let root: Value = serde_json::from_str(body).map_err(|_| ModelListError::Malformed)?;
-    let entries = root
-        .get("data")
-        .or_else(|| root.get("models"))
+    let shapes = jasmine_model_provider_info::presets::model_list_shapes();
+    let entries = shapes
+        .iter()
+        .flat_map(|shape| shape.list_keys.iter())
+        .find_map(|key| root.get(*key))
         .and_then(Value::as_array)
         .ok_or(ModelListError::Malformed)?;
 
@@ -69,9 +70,10 @@ fn parse_model_ids(body: &str) -> Result<Vec<String>, ModelListError> {
         let Some(object) = entry.as_object() else {
             continue;
         };
-        let id = object
-            .get("id")
-            .or_else(|| object.get("model_name"))
+        let id = shapes
+            .iter()
+            .flat_map(|shape| shape.id_keys.iter())
+            .find_map(|key| object.get(*key))
             .and_then(Value::as_str)
             .filter(|id| !id.trim().is_empty());
         if let Some(id) = id
@@ -82,3 +84,7 @@ fn parse_model_ids(body: &str) -> Result<Vec<String>, ModelListError> {
     }
     Ok(ids)
 }
+
+#[cfg(test)]
+#[path = "models_endpoint_tests.rs"]
+mod tests;

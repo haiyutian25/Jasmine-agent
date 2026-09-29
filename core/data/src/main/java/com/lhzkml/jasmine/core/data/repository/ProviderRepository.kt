@@ -1,8 +1,9 @@
 package com.lhzkml.jasmine.core.data.repository
 
-import com.lhzkml.jasmine.core.data.datasource.ProviderModelDataSource
 import com.lhzkml.jasmine.core.data.datastore.ProviderDataStore
 import com.lhzkml.jasmine.core.data.manager.dispatcher.DispatcherManager
+import com.lhzkml.jasmine.core.data.model.BuiltInProviders
+import com.lhzkml.jasmine.core.data.model.ModelCatalog
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -11,8 +12,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 
 /**
- * Data-layer entry point for the model-provider list (DeepSeek preset +
- * user-added OpenAI-protocol providers).
+ * Data-layer entry point for the model-provider list (the core's built-in
+ * presets + user-added OpenAI-protocol providers).
  */
 interface ProviderRepository {
     /** Hot stream of the persisted providers, started eagerly at injection time. */
@@ -38,7 +39,8 @@ interface ProviderRepository {
  */
 class ProviderRepositoryImpl(
     private val providerDataStore: ProviderDataStore,
-    private val providerModelDataSource: ProviderModelDataSource,
+    private val modelCatalog: ModelCatalog,
+    private val builtInProviders: BuiltInProviders,
     dispatcherManager: DispatcherManager,
 ) : ProviderRepository {
 
@@ -52,7 +54,7 @@ class ProviderRepositoryImpl(
             .stateIn(
                 scope = repositoryScope,
                 started = SharingStarted.Eagerly,
-                initialValue = ProviderConfig.DEFAULTS,
+                initialValue = builtInProviders.list(),
             )
 
     override suspend fun upsertProvider(provider: ProviderConfig) =
@@ -68,5 +70,5 @@ class ProviderRepositoryImpl(
         }
 
     override suspend fun fetchModels(provider: ProviderConfig): List<String> =
-        providerModelDataSource.fetchModelIds(provider)
+        modelCatalog.list(provider)
 }

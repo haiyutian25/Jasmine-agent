@@ -508,6 +508,43 @@ pub fn probe(provider: ProviderInput, model_id: String) -> jasmine_protocol::Pro
     jasmine_core::probe::probe(&provider.into_resolved(), &model_id)
 }
 
+/// 列出这家端点提供的模型（`GET {base_url}/v1/models`）。界面那边的"拉取模型"走这里 ——
+/// 各家响应形状的适配在核心（见 `model-provider-info` 的 `presets`）。
+#[uniffi::export]
+pub fn list_models(provider: ProviderInput) -> Result<Vec<String>, AgentFailure> {
+    jasmine_core::models::list_models(&provider.into_resolved())
+        .map_err(|detail| AgentFailure::Failed { detail })
+}
+
+/// 出厂内置的供应商（现在只有 DeepSeek）：界面首次启动拿它当种子。
+///
+/// 清单的真源是 `model-provider-info` 的 `presets`，界面不再各自写死一份；这里出去的每条按定义都是
+/// 内置的，所以不带 `is_built_in`，也没有密钥。
+#[uniffi::export]
+pub fn built_in_providers() -> Vec<ProviderInput> {
+    jasmine_model_provider_info::presets::built_in()
+        .into_iter()
+        .map(|provider| ProviderInput {
+            id: provider.id,
+            name: provider.name,
+            base_url: provider.base_url,
+            wire_api: provider.wire_api,
+            api_key: String::new(),
+            models: provider
+                .models
+                .into_iter()
+                .map(|model| ModelInput {
+                    id: model.id,
+                    model_id: model.model_id,
+                    context_length: model.context_length,
+                    max_output_length: model.max_output_length,
+                    reasoning_effort: model.reasoning_effort,
+                })
+                .collect(),
+        })
+        .collect()
+}
+
 /// [`AgentError`] 在边界上的呈现方式：只给一句原因，不带类型。
 ///
 /// 跨语言传递错误类型需要两边同步维护一套枚举，而界面真正需要的只是一句能显示的话；

@@ -58,19 +58,4 @@ data class ProviderConfig(
     val apiType: ProviderApiType,
     val isBuiltIn: Boolean = false,
     val models: List<ModelConfig> = emptyList(),
-) {
-    companion object {
-        /** Factory preset: DeepSeek (OpenAI-compatible Chat Completions). */
-        val DEEPSEEK = ProviderConfig(
-            id = "deepseek",
-            name = "DeepSeek",
-            baseUrl = "https://api.deepseek.com",
-            apiKey = "",
-            apiType = ProviderApiType.CHAT_COMPLETIONS,
-            isBuiltIn = true,
-        )
-
-        /** Seed list persisted on first launch. */
-        val DEFAULTS: List<ProviderConfig> = listOf(DEEPSEEK)
-    }
-}
+)

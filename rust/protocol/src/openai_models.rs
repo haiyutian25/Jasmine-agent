@@ -37,8 +37,9 @@ pub enum ReasoningEffort {
     /// 显式关掉思考，线上取值 `none`（codex 的 `ReasoningEffort::None` 就是这个）。
     ///
     /// 与「未设置」不是一回事：那是**不干预**，端点默认就思考的话照样思考；这个是明确要求不思考。
-    /// 实测 DeepSeek 的 chat/completions 端点接受 `"none"`，而且返回里就没有 `reasoning_content` 了；
-    /// 比另发一个 `thinking: {type: "disabled"}` 更省事（那个字段别的兼容端点未必认）。
+    /// 取值走的是 chat/completions 那一套通用写法（实测我们内置那家供应商的端点接受它，返回里就
+    /// 没有 `reasoning_content` 了）；另有一个写法 `thinking: {type: "disabled"}` 是某些兼容端点
+    /// 自己的方言、未必通用，所以不采用。
     None,
     Minimal,
     Low,
