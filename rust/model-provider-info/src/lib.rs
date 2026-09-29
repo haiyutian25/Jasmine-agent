@@ -64,7 +64,8 @@ pub struct ModelConfig {
     /// before the request is sent, because a model that cannot read it rejects the whole request.
     #[serde(default = "default_input_modalities")]
     pub input_modalities: Vec<InputModality>,
-    /// 这个模型该用多强的推理，按 OpenAI 那套取值写：`minimal` / `low` / `medium` / `high`。
+    /// 这个模型该用多强的推理，按 OpenAI 那套取值写：`minimal` / `low` / `medium` / `high` /
+    /// `xhigh` / `max`。
     ///
     /// 空串表示"没设置" —— 请求里一个推理字段都不发（供应商的默认行为）。它属于模型而不是会话，
     /// 会话中途换模型就跟着换。

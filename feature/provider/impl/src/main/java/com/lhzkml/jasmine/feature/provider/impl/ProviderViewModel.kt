@@ -29,8 +29,13 @@ data class ModelEditorState(
     val modelId: String,
     val contextLength: String,
     val maxOutputLength: String,
-    /** 推理强度：空串 = 未设置；否则取 `minimal` / `low` / `medium` / `high`。 */
+    /**
+     * 默认档（新建会话时抄进会话的那一档）：空串 = 未设置（不发任何推理字段），`none` = 关闭
+     * （要求不思考），其余取 `minimal` / `low` / `medium` / `high` / `xhigh` / `max`。
+     */
     val reasoningEffort: String,
+    /** 这个模型支持哪些档；空 = 不限制（会话里的档位面板会列出全部）。 */
+    val reasoningEfforts: List<String>,
 )
 
 /** Content of the model-picker bottom sheet. */
@@ -121,8 +126,10 @@ sealed interface ProviderAction {
     data class ModelIdChanged(val value: String) : ProviderAction
     data class ModelContextLengthChanged(val value: String) : ProviderAction
     data class ModelMaxOutputChanged(val value: String) : ProviderAction
-    /** 选了推理强度；空串代表「未设置」（请求里不发任何推理参数）。 */
+    /** 选了默认档；空串代表「未设置」（请求里不发任何推理参数）。 */
     data class ModelReasoningEffortSelected(val value: String) : ProviderAction
+    /** 改了这个模型支持的档位；空列表代表「不限制」。 */
+    data class ModelReasoningEffortsChanged(val values: List<String>) : ProviderAction
     data object ModelSaveClicked : ProviderAction
     data object ModelCancelClicked : ProviderAction
 
@@ -203,6 +210,7 @@ class ProviderViewModel @Inject constructor(
                         contextLength = "",
                         maxOutputLength = "",
                         reasoningEffort = "",
+                        reasoningEfforts = emptyList(),
                     ),
                 )
             }
@@ -216,6 +224,7 @@ class ProviderViewModel @Inject constructor(
                         contextLength = "",
                         maxOutputLength = "",
                         reasoningEffort = "",
+                        reasoningEfforts = emptyList(),
                     ),
                 )
             }
@@ -229,6 +238,8 @@ class ProviderViewModel @Inject constructor(
                 updateModelEditor { copy(maxOutputLength = action.value.filter(Char::isDigit)) }
             is ProviderAction.ModelReasoningEffortSelected ->
                 updateModelEditor { copy(reasoningEffort = action.value) }
+            is ProviderAction.ModelReasoningEffortsChanged ->
+                updateModelEditor { copy(reasoningEfforts = action.values) }
             ProviderAction.ModelSaveClicked -> handleModelSaveClicked()
             ProviderAction.ModelCancelClicked -> updateEditor { copy(modelEditor = null) }
 
@@ -400,6 +411,7 @@ class ProviderViewModel @Inject constructor(
                     contextLength = model.contextLength.takeIf { it > 0 }?.toString() ?: "",
                     maxOutputLength = model.maxOutputLength.takeIf { it > 0 }?.toString() ?: "",
                     reasoningEffort = model.reasoningEffort,
+                    reasoningEfforts = model.reasoningEfforts,
                 ),
             )
         }
@@ -423,6 +435,7 @@ class ProviderViewModel @Inject constructor(
             contextLength = modelEditor.contextLength.toIntOrNull() ?: 0,
             maxOutputLength = modelEditor.maxOutputLength.toIntOrNull() ?: 0,
             reasoningEffort = modelEditor.reasoningEffort,
+            reasoningEfforts = modelEditor.reasoningEfforts,
         )
         updateEditor {
             val index = models.indexOfFirst { it.id == model.id }

@@ -26,12 +26,19 @@ data class ModelConfig(
     val contextLength: Int = 0,
     val maxOutputLength: Int = 0,
     /**
-     * 这个模型该用多强的推理：`minimal` / `low` / `medium` / `high`（与 codex 的 `ReasoningEffort`
-     * 同一个取值表）。
-     *
-     * 空串表示"没设置" —— 请求里一个推理字段都不发。
+     * 这个模型该用多强的推理 —— 新建会话时的**默认档**：空串 = 未设置（请求里一个推理字段都不发）、
+     * `none` = 关闭、其余取 `minimal` / `low` / `medium` / `high` / `xhigh` / `max`（与 codex 的
+     * `ReasoningEffort` 同一个取值表）。
      */
     val reasoningEffort: String = "",
+    /**
+     * 这个模型**支持哪些档**（对应 codex 的 `ModelInfo.supported_reasoning_levels`）：会话里那张档位
+     * 面板只列这些。
+     *
+     * 空 = **不限制**（所有档都可用），也是没配过的模型的默认。它只管"可选项"，不碰请求 —— 请求里发的
+     * 是**会话**当前那一档（见 `ModelConfig.reasoningEffort` 与 core 的首次附着拷贝）。
+     */
+    val reasoningEfforts: List<String> = emptyList(),
 )
 
 /**

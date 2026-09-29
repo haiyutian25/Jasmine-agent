@@ -26,9 +26,19 @@ pub fn default_input_modalities() -> Vec<InputModality> {
     vec![InputModality::Text, InputModality::Image]
 }
 
-/// See https://platform.openai.com/docs/guides/reasoning?api-mode=responses#get-started-with-reasoning
+/// 这个 app 提供的推理档位。见
+/// https://platform.openai.com/docs/guides/reasoning?api-mode=responses#get-started-with-reasoning
+///
+/// 七个档与两个界面（聊天输入行的选择面板、供应商页的模型编辑）里那张列表**一一对应**；
+/// 「未设置」不在枚举里 —— 它是"一个推理字段都不发"，由 `Option<ReasoningEffort>` 的 `None` 表达。
+/// 加档位要三处一起改。
 #[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub enum ReasoningEffort {
+    /// 显式关掉思考，线上取值 `none`（codex 的 `ReasoningEffort::None` 就是这个）。
+    ///
+    /// 与「未设置」不是一回事：那是**不干预**，端点默认就思考的话照样思考；这个是明确要求不思考。
+    /// 实测 DeepSeek 的 chat/completions 端点接受 `"none"`，而且返回里就没有 `reasoning_content` 了；
+    /// 比另发一个 `thinking: {type: "disabled"}` 更省事（那个字段别的兼容端点未必认）。
     None,
     Minimal,
     Low,
@@ -37,10 +47,6 @@ pub enum ReasoningEffort {
     High,
     XHigh,
     Max,
-    Ultra,
-    Persistent,
-    /// A model-defined effort value that this client does not know yet.
-    Custom(String),
 }
 
 impl ReasoningEffort {
@@ -54,9 +60,6 @@ impl ReasoningEffort {
             Self::High => "high",
             Self::XHigh => "xhigh",
             Self::Max => "max",
-            Self::Ultra => "ultra",
-            Self::Persistent => "persistent",
-            Self::Custom(effort) => effort,
         }
     }
 }
@@ -98,10 +101,9 @@ impl FromStr for ReasoningEffort {
             "high" => Ok(Self::High),
             "xhigh" => Ok(Self::XHigh),
             "max" => Ok(Self::Max),
-            "ultra" => Ok(Self::Ultra),
-            "persistent" => Ok(Self::Persistent),
             "" => Err("reasoning_effort must not be empty".to_string()),
-            effort => Ok(Self::Custom(effort.to_string())),
+            // 认不出的取值不当成"未知档位"发出去：调用方按"未设置"处理（一个字段都不发）。
+            other => Err(format!("unknown reasoning_effort: {other}")),
         }
     }
 }

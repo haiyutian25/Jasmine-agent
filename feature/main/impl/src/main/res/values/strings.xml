@@ -59,10 +59,13 @@
     <!-- 输入框里的「推理强度」控件；档位名与供应商页那五个一致（都取 codex 的 ReasoningEffort 表）。 -->
     <string name="chat_reasoning_effort">Reasoning effort</string>
     <string name="chat_reasoning_effort_unset">Not set</string>
+    <string name="chat_reasoning_effort_none">Off</string>
     <string name="chat_reasoning_effort_minimal">Minimal</string>
     <string name="chat_reasoning_effort_low">Low</string>
     <string name="chat_reasoning_effort_medium">Medium</string>
     <string name="chat_reasoning_effort_high">High</string>
+    <string name="chat_reasoning_effort_xhigh">Extra high</string>
+    <string name="chat_reasoning_effort_max">Max</string>
     <string name="chat_stop_cd">Stop</string>
     <string name="chat_continue_cd">Continue</string>
     <string name="chat_turn_stopped">You stopped after %1$ds</string>

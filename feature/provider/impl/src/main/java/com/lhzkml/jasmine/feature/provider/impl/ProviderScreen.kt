@@ -48,6 +48,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lhzkml.jasmine.core.data.model.ModelConfig
@@ -868,10 +869,17 @@ private fun ModelEditorSheet(
                 hint = stringResource(R.string.provider_max_output_hint)
             )
 
-            // 推理强度：照 ZCode 那样做成一个下拉，取值只有 codex 那四个固定档 + 「未设置」。
+            // 默认档：照 ZCode 那样做成一个下拉，取值是七个档 + 「未设置」。
             ProviderReasoningEffortField(
                 value = editor.reasoningEffort,
                 onValueChange = { onAction(ProviderAction.ModelReasoningEffortSelected(it)) },
+                currentTheme = currentTheme
+            )
+            Spacer(modifier = Modifier.height(18.dp))
+            // 支持档位：会话里那张档位面板只列这些；都不勾 = 不限制。
+            ProviderReasoningEffortsField(
+                values = editor.reasoningEfforts,
+                onValuesChange = { onAction(ProviderAction.ModelReasoningEffortsChanged(it)) },
                 currentTheme = currentTheme
             )
             Spacer(modifier = Modifier.height(18.dp))
@@ -939,16 +947,24 @@ private fun ProviderSectionLabel(text: String, currentTheme: CssVariables) {
 // ── 推理强度下拉 ───────────────────────────────────────────────────────
 
 /**
- * 五个取值：空串是「未设置」（请求里一个推理字段都不发），其余四个与 codex 的 `ReasoningEffort` 同名，
- * 也是两种协议上线时用的字面量。
+ * 八个取值：空串是「未设置」（请求里一个推理字段都不发），`"none"` 是「关闭」（显式要求不思考），
+ * 其余六个与 Rust 的 `ReasoningEffort` 同名，也是两种协议上线时用的字面量。与聊天输入行那张表
+ * **完全一致**，加档位时三处要一起改。
  */
 private val ProviderReasoningEffortOptions = listOf(
     "" to R.string.provider_reasoning_effort_unset,
+    "none" to R.string.provider_reasoning_effort_none,
     "minimal" to R.string.provider_reasoning_effort_minimal,
     "low" to R.string.provider_reasoning_effort_low,
     "medium" to R.string.provider_reasoning_effort_medium,
     "high" to R.string.provider_reasoning_effort_high,
+    "xhigh" to R.string.provider_reasoning_effort_xhigh,
+    "max" to R.string.provider_reasoning_effort_max,
 )
+
+/** 可勾选的档位（不含「未设置」—— 它不是档位，是"一个字段都不发"）。 */
+private val ProviderReasoningEffortLevels =
+    ProviderReasoningEffortOptions.filter { it.first.isNotEmpty() }
 
 private val ProviderReasoningChevronSize = 14.dp
 private val ProviderReasoningPaddingVertical = 6.dp
@@ -1061,6 +1077,138 @@ private fun ProviderReasoningEffortField(
     Spacer(modifier = Modifier.height(ProviderFieldLabelSpacing))
     Text(
         text = stringResource(R.string.provider_reasoning_effort_hint),
+        fontSize = ProviderRowBaseUrlFontSize,
+        color = currentTheme.mutedForeground
+    )
+}
+
+/**
+ * 支持档位：一行「标签 + 摘要（全部 / 低・高 / …）」，点开是个**多选**面板（勾一个不关面板）。
+ *
+ * 一个都不勾 = **不限制**，会话里就列出全部档 —— 这也是没配过的模型的默认，所以摘要处显示「全部」。
+ * 对应 codex 的 `ModelInfo.supported_reasoning_levels`：它只管"会话里能选哪些"，不碰请求。
+ */
+@Composable
+private fun ProviderReasoningEffortsField(
+    values: List<String>,
+    onValuesChange: (List<String>) -> Unit,
+    currentTheme: CssVariables,
+) {
+    var open by remember { mutableStateOf(false) }
+    val summary = if (values.isEmpty()) {
+        stringResource(R.string.provider_reasoning_efforts_all)
+    } else {
+        // 按档位表的顺序拼，免得勾选顺序不同显示成两种样子。
+        // （`map` 是 inline 的，`stringResource` 才能在里面调；`joinToString` 不是。）
+        ProviderReasoningEffortLevels
+            .filter { it.first in values }
+            .map { stringResource(it.second) }
+            .joinToString("・")
+    }
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = stringResource(R.string.provider_reasoning_efforts),
+            fontSize = ProviderRowBaseUrlFontSize,
+            color = currentTheme.mutedForeground
+        )
+        Spacer(modifier = Modifier.width(ProviderFieldLabelSpacing))
+        Box {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(currentTheme.radiusSm))
+                    .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusSm))
+                    .clickable { open = true }
+                    .padding(
+                        horizontal = ProviderFieldPaddingHorizontal,
+                        vertical = ProviderReasoningPaddingVertical
+                    ),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = summary,
+                    fontSize = ProviderRowBaseUrlFontSize,
+                    color = currentTheme.foreground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Icon(
+                    imageVector = LucideIcons.ChevronDown,
+                    contentDescription = null,
+                    tint = currentTheme.mutedForeground,
+                    modifier = Modifier.size(ProviderReasoningChevronSize)
+                )
+            }
+            if (open) {
+                BottomSheet(
+                    onDismiss = { open = false },
+                    currentTheme = currentTheme,
+                    modifier = Modifier.testTag("provider_reasoning_efforts_sheet")
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = ProviderFieldPaddingHorizontal)
+                            .padding(bottom = 16.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.provider_reasoning_efforts),
+                            fontSize = ModelSheetTitleFontSize,
+                            fontWeight = FontWeight.SemiBold,
+                            color = currentTheme.foreground
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        ProviderReasoningEffortLevels.forEach { option ->
+                            val checked = option.first in values
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(currentTheme.radiusSm))
+                                    .clickable {
+                                        val next = if (checked) {
+                                            values - option.first
+                                        } else {
+                                            values + option.first
+                                        }
+                                        // 存成档位表的顺序（勾选先后不影响存下来的样子）。
+                                        onValuesChange(
+                                            ProviderReasoningEffortLevels
+                                                .map { it.first }
+                                                .filter { it in next }
+                                        )
+                                    }
+                                    .padding(vertical = ProviderReasoningPaddingVertical),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = stringResource(option.second),
+                                    fontSize = ProviderRowBaseUrlFontSize,
+                                    color = if (checked) {
+                                        currentTheme.primary
+                                    } else {
+                                        currentTheme.foreground
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                if (checked) {
+                                    Icon(
+                                        imageVector = LucideIcons.Check,
+                                        contentDescription = null,
+                                        tint = currentTheme.primary,
+                                        modifier = Modifier.size(ProviderReasoningChevronSize)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Spacer(modifier = Modifier.height(ProviderFieldLabelSpacing))
+    Text(
+        text = stringResource(R.string.provider_reasoning_efforts_hint),
         fontSize = ProviderRowBaseUrlFontSize,
         color = currentTheme.mutedForeground
     )
