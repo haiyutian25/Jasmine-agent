@@ -33,8 +33,8 @@ data class ModelConfig(
      * 只有**核心目录里没有的模型**才需要它 —— 目录里有这个 id 时，起点档由目录说了算（核心附着会话时
      * 直接问目录），供应商页也就不显示这一栏。
      */
-    val reasoningEffort: String = "",
-)
+    val reasoningEffort: String,
+    )
 
 /**
  * A persisted model-provider entry (OpenAI-protocol compatible).

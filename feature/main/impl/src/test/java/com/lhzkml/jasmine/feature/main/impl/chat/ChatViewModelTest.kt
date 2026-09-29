@@ -142,7 +142,9 @@ class ChatViewModelTest {
         // 聚合网关的 id 带 `厂商/` 前缀、免费档还带 `:free` 后缀 —— 归一化之后照样认得目录里那条
         // （付费档没有后缀，走的是同一个前缀规则）。
         val gatewayProvider = PROVIDER.copy(
-            models = listOf(ModelConfig(id = MODEL_ID, modelId = "deepseek/deepseek-chat:free")),
+            models = listOf(
+                ModelConfig(id = MODEL_ID, modelId = "deepseek/deepseek-chat:free", reasoningEffort = ""),
+            ),
         )
         providerRepository = FakeProviderRepository(
             initial = listOf(gatewayProvider),
@@ -677,8 +679,8 @@ class ChatViewModelTest {
             apiKey = "sk-test",
             apiType = ProviderApiType.CHAT_COMPLETIONS,
             models = listOf(
-                ModelConfig(id = MODEL_ID, modelId = "deepseek-chat"),
-                ModelConfig(id = "model-2", modelId = "deepseek-reasoner"),
+                ModelConfig(id = MODEL_ID, modelId = "deepseek-chat", reasoningEffort = ""),
+                ModelConfig(id = "model-2", modelId = "deepseek-reasoner", reasoningEffort = ""),
             ),
         )
     }

@@ -68,7 +68,6 @@ pub struct ModelConfig {
     ///
     /// 只对"核心目录里没有的模型"有意义：目录里有这个 id 时，会话的起点档由目录的起点档说了算
     /// （见 [`crate::presets::default_level`]），配置里这份不参与 —— 界面也不给目录模型显示这一栏。
-    #[serde(default)]
     pub reasoning_effort: String,
 }
 

@@ -70,7 +70,7 @@ class MainScreenshotTest {
       baseUrl = "https://api.deepseek.com",
       apiKey = "sk-test",
       apiType = ProviderApiType.CHAT_COMPLETIONS,
-      models = listOf(ModelConfig(id = MODEL_ID, modelId = "deepseek-chat")),
+      models = listOf(ModelConfig(id = MODEL_ID, modelId = "deepseek-chat", reasoningEffort = "")),
     )
   }
 }
