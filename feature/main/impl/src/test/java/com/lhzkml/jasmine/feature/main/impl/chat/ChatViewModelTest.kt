@@ -129,6 +129,30 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun `a gateway id still finds its catalog entry`() = runTest(testDispatcher) {
+        // 聚合网关的 id 带 `厂商/` 前缀、免费档还带 `:free` 后缀 —— 归一化之后照样认得目录里那条
+        // （付费档没有后缀，走的是同一个前缀规则）。
+        val gatewayProvider = PROVIDER.copy(
+            models = listOf(ModelConfig(id = MODEL_ID, modelId = "deepseek/deepseek-chat:free")),
+        )
+        providerRepository = FakeProviderRepository(
+            initial = listOf(gatewayProvider),
+            catalogModels = listOf(
+                CatalogModel(
+                    modelId = "deepseek-chat",
+                    name = "DeepSeek-Chat",
+                    contextLength = 1_000_000,
+                    levels = listOf("low", "high"),
+                ),
+            ),
+        )
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals(listOf("low", "high"), viewModel.stateFlow.value.allowedEfforts)
+    }
+
+    @Test
     fun `sending assembles the transcript and appends streamed chunks`() =
         runTest(testDispatcher) {
             val viewModel = createViewModel()

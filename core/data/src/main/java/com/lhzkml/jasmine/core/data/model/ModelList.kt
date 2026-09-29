@@ -18,6 +18,25 @@ data class CatalogModel(
 )
 
 /**
+ * 目录里用的键：线上 id 去掉 `厂商/` 前缀与 `:变体` 后缀。
+ *
+ * 聚合网关（OpenRouter 那样）的 id 是 `厂商/模型`，免费档还带 `:free` 这样一截（**付费档通常没有**），
+ * 而我们目录里的键是裸 id —— 归一化之后才比得上。
+ *
+ * **规则与核心同一条**（`rust/model-provider-info/src/presets/mod.rs` 的 `catalog_key`）：核心那边管
+ * 起点档/矫正/档位表，这边管界面上的填空与判定，两边要改一起改。
+ */
+fun catalogKey(modelId: String): String {
+    val withoutPrefix = modelId.substringAfterLast('/')
+    val bare = withoutPrefix.substringBefore(':')
+    return bare.ifEmpty { modelId }
+}
+
+/** 目录里认得 [modelId] 吗（先按原样，再按 [catalogKey] 归一化后的键找一遍）。 */
+fun List<CatalogModel>.findInCatalog(modelId: String): CatalogModel? =
+    firstOrNull { it.modelId == modelId } ?: firstOrNull { it.modelId == catalogKey(modelId) }
+
+/**
  * 这一层只说两件与"模型"有关的事：
  *
  * - [fetch]：端点自己报出来的模型（`GET {base_url}/v1/models`）；

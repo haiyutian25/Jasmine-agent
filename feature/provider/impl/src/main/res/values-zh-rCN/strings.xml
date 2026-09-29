@@ -26,6 +26,8 @@
     <string name="provider_fetch_empty">未返回任何模型</string>
     <string name="provider_retry">重试</string>
     <string name="provider_model_id">模型 ID</string>
+    <string name="provider_model_search">搜索模型</string>
+    <string name="provider_model_search_empty">没有匹配的模型</string>
     <string name="provider_model_id_locked_hint">这个 ID 是你刚在列表里选的那个，不在这里改；要自己写 ID 就用「自定义模型 ID」。</string>
     <string name="provider_model_id_required_toast">请填写模型 ID</string>
     <string name="provider_context_length">上下文长度（tokens）</string>

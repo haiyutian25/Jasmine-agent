@@ -11,6 +11,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /**
  * Data-layer entry point for the model-provider list (the core's built-in
@@ -54,6 +55,18 @@ class ProviderRepositoryImpl(
     // Long-lived repository scope on a deterministic dispatcher. A SupervisorJob
     // keeps a failed collection from killing the scope (and the StateFlow with it).
     private val repositoryScope = CoroutineScope(SupervisorJob() + dispatcherManager.default)
+
+    init {
+        // 出厂清单是会变的（这次就多了一家 OpenRouter），而存下来的那份是一次快照 —— 缺哪家就补哪家。
+        // 已经存在的那几家按用户改过的原样留着：这里不覆盖，也不动它们的模型。
+        repositoryScope.launch {
+            providerDataStore.update { current -> current + missingBuiltIns(current) }
+        }
+    }
+
+    /** [BuiltInProviders] 里、存的那份还没有的那些（按出厂顺序追加在列表后面）。 */
+    private fun missingBuiltIns(stored: List<ProviderConfig>): List<ProviderConfig> =
+        builtInProviders.list().filter { seed -> stored.none { it.id == seed.id } }
 
     override val providersStateFlow: StateFlow<List<ProviderConfig>> =
         providerDataStore

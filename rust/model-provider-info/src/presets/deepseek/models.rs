@@ -53,14 +53,4 @@ pub fn preset_models() -> Vec<ModelConfig> {
     CATALOG.iter().map(preset_model).collect()
 }
 
-/// 目录里的这一条；没有就是 `None`。
-pub fn entry(model_id: &str) -> Option<&'static ModelCatalogEntry> {
-    CATALOG.iter().find(|entry| entry.model_id == model_id)
-}
 
-/// 这个模型支持哪些档（线上取值）；目录里没有它就是空的。
-pub fn reasoning_levels(model_id: &str) -> Vec<&'static str> {
-    entry(model_id)
-        .map(|entry| entry.levels.iter().map(ReasoningEffort::as_str).collect())
-        .unwrap_or_default()
-}

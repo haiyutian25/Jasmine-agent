@@ -532,13 +532,16 @@ pub struct ProviderCatalogModel {
     pub levels: Vec<String>,
 }
 
-/// 这个供应商的模型目录（核心认得的模型）。
+/// 这家供应商要用的**目录知识**（核心认得的模型）。
 ///
 /// 界面拿它干三件事：填表单（名字、上下文容量）、判"这个 id 是不是目录里的模型"（是的话档位就不在
 /// 配置页填），以及把**档位表**交给聊天页那张档位面板 —— 目录只在核心，这里出去的是**值**。
+///
+/// 这家**自己没目录**时（OpenRouter 那种聚合网关、用户自己加的端点）给的是现有那几家的并集：按模型
+/// id 认，所以聚合网关上的 `deepseek-v4-pro`、`gpt-5.5` 也照样认得。
 #[uniffi::export]
 pub fn provider_catalog(provider_id: String) -> Vec<ProviderCatalogModel> {
-    jasmine_model_provider_info::presets::catalog(&provider_id)
+    jasmine_model_provider_info::presets::catalog_for(&provider_id)
         .into_iter()
         .map(|entry| ProviderCatalogModel {
             model_id: entry.model_id.to_string(),

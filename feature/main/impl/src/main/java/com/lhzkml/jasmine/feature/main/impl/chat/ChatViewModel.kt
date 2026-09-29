@@ -11,6 +11,7 @@ import com.lhzkml.jasmine.core.data.model.Conversation
 import com.lhzkml.jasmine.core.data.model.ModelConfig
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import com.lhzkml.jasmine.core.data.model.TranscriptMessage
+import com.lhzkml.jasmine.core.data.model.findInCatalog
 import com.lhzkml.jasmine.core.data.repository.ProviderRepository
 import com.lhzkml.jasmine.core.data.repository.UserPreferencesRepository
 import com.lhzkml.jasmine.core.markdown.IncrementalMarkdownDocument
@@ -698,9 +699,10 @@ class ChatViewModel @Inject constructor(
     private suspend fun refreshAllowedEfforts() {
         val provider = state.activeProvider ?: return
         val modelId = state.activeModel?.modelId ?: return
+        // 网关上的 id 带 `厂商/` 前缀与 `:变体` 后缀，按归一化后的键也能认出来（与核心同一条规则）。
         val levels = runCatching { providerRepository.catalog(provider.id) }
             .getOrDefault(emptyList())
-            .firstOrNull { it.modelId == modelId }
+            .findInCatalog(modelId)
             ?.levels
             .orEmpty()
         updateState { copy(allowedEfforts = levels) }

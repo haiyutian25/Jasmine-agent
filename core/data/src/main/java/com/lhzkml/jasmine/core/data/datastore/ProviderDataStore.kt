@@ -56,7 +56,9 @@ class ProviderDataStore @Inject constructor(
                     runCatching { json.decodeFromString<List<ProviderConfig>>(raw) }.getOrNull()
                 }
                 ?: builtInProviders.list()
-            prefs[KEY_PROVIDERS] = json.encodeToString(transform(current))
+            // 没变就不写：省一次落盘，也不会因为这个动作把界面那条流再推一遍。
+            val next = json.encodeToString(transform(current))
+            if (next != prefs[KEY_PROVIDERS]) prefs[KEY_PROVIDERS] = next
         }
     }
 

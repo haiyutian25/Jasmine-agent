@@ -728,6 +728,25 @@ private fun ModelPickerSheet(
                 }
 
                 is ModelSheetState.ModelList -> {
+                    // 搜索：聚合网关那种动辄几百个模型的端点，先过滤再列。按 id 或目录名字匹配。
+                    var query by remember { mutableStateOf("") }
+                    val keyword = query.trim()
+                    val matches = sheet.items.filter { item ->
+                        keyword.isEmpty() ||
+                            item.modelId.contains(keyword, ignoreCase = true) ||
+                            item.name?.contains(keyword, ignoreCase = true) == true
+                    }
+
+                    ProviderField(
+                        label = stringResource(R.string.provider_model_search),
+                        value = query,
+                        onValueChange = { query = it },
+                        currentTheme = currentTheme,
+                        keyboardType = KeyboardType.Text,
+                        testTag = "provider_model_search_field"
+                    )
+                    Spacer(modifier = Modifier.height(ProviderFieldLabelSpacing))
+
                     // Always-available custom entry on top of the catalog.
                     Button(
                         onClick = { onAction(ProviderAction.CustomModelClicked) },
@@ -764,6 +783,14 @@ private fun ModelPickerSheet(
                             color = currentTheme.mutedForeground,
                             modifier = Modifier.padding(vertical = 20.dp)
                         )
+                    } else if (matches.isEmpty()) {
+                        // 有模型，但都被搜索词滤掉了。
+                        Text(
+                            text = stringResource(R.string.provider_model_search_empty),
+                            fontSize = ProviderRowNameFontSize,
+                            color = currentTheme.mutedForeground,
+                            modifier = Modifier.padding(vertical = 20.dp)
+                        )
                     } else {
                         Column(
                             modifier = Modifier
@@ -771,7 +798,7 @@ private fun ModelPickerSheet(
                                 .heightIn(max = ModelSheetListMaxHeight)
                                 .verticalScroll(rememberScrollState())
                         ) {
-                            sheet.items.forEach { item ->
+                            matches.forEach { item ->
                                 Button(
                                     onClick = { onAction(ProviderAction.ModelSelected(item.modelId)) },
                                     modifier = Modifier.fillMaxWidth(),

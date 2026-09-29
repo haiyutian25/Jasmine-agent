@@ -82,8 +82,21 @@ fn the_provider_catalog_carries_the_names_and_windows() {
         .expect("gpt-5.5");
     assert_eq!(legacy.levels, ["low", "medium", "high", "xhigh"]);
 
-    // 不认识的供应商：空目录。
-    assert!(crate::provider_catalog("nope".to_string()).is_empty());
+    // 自己没目录的那几家（聚合网关、用户自己加的端点）：给的是现有那几家的并集 —— 按模型 id 认，
+    // 所以 `deepseek-v4-pro`、`gpt-5.5` 在这里也认得。
+    let openrouter = crate::provider_catalog("openrouter".to_string());
+    assert!(
+        openrouter
+            .iter()
+            .any(|entry| entry.model_id == "deepseek-v4-pro")
+    );
+    assert!(openrouter.iter().any(|entry| entry.model_id == "gpt-5.5"));
+    assert!(openrouter.iter().any(|entry| entry.model_id == "gpt-6-astra"));
+    // 认不出的供应商拿到的是同一份并集。
+    assert_eq!(
+        crate::provider_catalog("nope".to_string()).len(),
+        openrouter.len()
+    );
 }
 
 #[test]
@@ -116,6 +129,16 @@ fn built_in_providers_come_from_the_factory_presets() {
         .expect("OpenAI preset");
     assert_eq!(openai.wire_api, WireApi::Responses);
     assert!(openai.models.iter().any(|model| model.model_id == "gpt-5.5"));
+
+    // 第三家是 OpenRouter：聚合网关，**没有目录**，所以模型列表空着（用户拉/自己填）。
+    let openrouter = providers
+        .iter()
+        .find(|provider| provider.id == "openrouter")
+        .expect("OpenRouter preset");
+    assert_eq!(openrouter.name, "OpenRouter");
+    assert_eq!(openrouter.base_url, "https://openrouter.ai/api/v1");
+    assert_eq!(openrouter.wire_api, WireApi::Chat);
+    assert!(openrouter.models.is_empty());
 }
 
 #[test]

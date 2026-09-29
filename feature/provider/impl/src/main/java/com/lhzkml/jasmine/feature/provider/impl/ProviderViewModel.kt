@@ -8,6 +8,7 @@ import com.lhzkml.jasmine.core.data.model.CatalogModel
 import com.lhzkml.jasmine.core.data.model.ModelConfig
 import com.lhzkml.jasmine.core.data.model.ProviderApiType
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
+import com.lhzkml.jasmine.core.data.model.catalogKey
 import com.lhzkml.jasmine.core.data.repository.ProviderRepository
 import com.lhzkml.jasmine.core.ui.base.BaseViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -233,15 +234,16 @@ class ProviderViewModel @Inject constructor(
             }
             ProviderAction.ModelSheetDismissed -> updateEditor { copy(modelSheet = null) }
             is ProviderAction.ModelSelected -> updateEditor {
+                val known = knownModel(action.modelId)
                 copy(
                     modelSheet = null,
                     modelEditor = ModelEditorState(
                         id = null,
                         modelId = action.modelId,
                         // 目录认得这个模型就顺手把上下文容量填上；不认得就空着 —— 不猜。
-                        contextLength = catalog[action.modelId].catalogContextLength(),
+                        contextLength = known.catalogContextLength(),
                         maxOutputLength = "",
-                        isCatalogModel = catalog.containsKey(action.modelId),
+                        isCatalogModel = known != null,
                         // 这个 id 是端点报的、用户刚点的那个：锁住不给改。
                         modelIdLocked = true,
                     ),
@@ -252,13 +254,14 @@ class ProviderViewModel @Inject constructor(
             is ProviderAction.ModelDeleteClicked -> handleModelDeleteClicked(action)
             is ProviderAction.ModelIdChanged -> updateModelEditor {
                 // 手打/粘贴自定义 id 走的是同一条规矩：目录认得就填；用户自己动过那一栏就不再覆盖。
-                val isCatalog = catalog.containsKey(action.value.trim())
+                val known = knownModel(action.value.trim())
+                val isCatalog = known != null
                 copy(
                     modelId = action.value,
                     contextLength = if (contextLengthTouched) {
                         contextLength
                     } else {
-                        catalog[action.value.trim()].catalogContextLength()
+                        known.catalogContextLength()
                     },
                     // 一旦变成目录里的模型，档位就交给目录：配置里那份默认档清掉，免得留个不再生效的值。
                     reasoningEffort = if (isCatalog) "" else reasoningEffort,
@@ -452,6 +455,13 @@ class ProviderViewModel @Inject constructor(
      */
     private var catalog: Map<String, CatalogModel> = emptyMap()
 
+    /**
+     * 目录里认得这个 id 吗：先按原样找，再按 [catalogKey] 归一化后的键找一遍 —— 网关的 id 带
+     * `厂商/` 前缀与 `:变体` 后缀（免费档才有那截后缀），目录里的键是裸 id，归一化后才对得上。
+     */
+    private fun knownModel(modelId: String): CatalogModel? =
+        catalog[modelId] ?: catalog[catalogKey(modelId)]
+
     private suspend fun loadCatalog(providerId: String?): Map<String, CatalogModel> =
         runCatching { providerRepository.catalog(providerId.orEmpty()) }
             .getOrDefault(emptyList())
@@ -467,7 +477,7 @@ class ProviderViewModel @Inject constructor(
                     contextLength = model.contextLength.takeIf { it > 0 }?.toString() ?: "",
                     maxOutputLength = model.maxOutputLength.takeIf { it > 0 }?.toString() ?: "",
                     reasoningEffort = model.reasoningEffort,
-                    isCatalogModel = catalog.containsKey(model.modelId.trim()),
+                    isCatalogModel = knownModel(model.modelId.trim()) != null,
                 ),
             )
         }
