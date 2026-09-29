@@ -64,13 +64,13 @@ const val SidebarDrawerAnimMillis = 320
 val SidebarDrawerEasing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
 
 /**
- * Left-edge zone (in dp) where a rightward swipe can open the closed drawer.
+ * Closed-state opener zone: a rightward swipe only opens the drawer if it starts inside the left
+ * this fraction of the surface width.
  *
- * Exposed so other gesture owners can exclude it. (The bottom bar's swipe-to-
- * switch used to reserve it; that bar is gone, so the drawer is currently the
- * only consumer.)
+ * 用比例而不是 dp，是为了**自适应屏幕宽度**；取 2/3 —— 屏幕左边大部分区域都能拉出侧栏。方向判定
+ * 仍然照旧：纵向意图让内容的滚动赢，所以这并不妨碍列表纵向滚动。
  */
-val SidebarEdgeZone = 32.dp
+private const val SidebarEdgeZoneFraction = 2f / 3f
 
 /** Horizontal fling velocity (px/s) that forces the drawer open/closed. */
 private const val SidebarFlingVelocityThreshold = 300f
@@ -185,7 +185,7 @@ fun SidebarDrawer(
             .fillMaxSize()
             .background(currentTheme.card)
             .pointerInput(Unit) {
-                val edgeZonePx = SidebarEdgeZone.toPx()
+                val edgeZonePx = size.width * SidebarEdgeZoneFraction
                 val widthPx = SidebarWidth.toPx()
                 val touchSlop = viewConfiguration.touchSlop
 

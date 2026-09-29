@@ -188,6 +188,14 @@ data class ChatState(
      * 附着时就定下了，会话中途换模型不会变。
      */
     val contextWindow: Long = DEFAULT_CONTEXT_WINDOW_TOKENS,
+
+    /**
+     * 当前会话的推理档位（codex 那套值；空串 = 未设置）。
+     *
+     * 它是**这次对话**的值：会话第一次附着时核心从模型配置里抄一次，之后在输入框那边改就是改它；
+     * 打开旧会话时用它自己的记录填回来。模型配置里那个档位只作为"新建对话时的起点"。
+     */
+    val reasoningEffort: String = "",
     /** Set while the agent is blocked on a question; see [ChatUserPrompt]. */
     val pendingPrompt: ChatUserPrompt? = null,
 ) {
@@ -225,6 +233,12 @@ sealed interface ChatAction {
 
     /** 模型面板里改了当前会话的上下文窗口（token 数）。 */
     data class ContextWindowSelected(val tokens: Long) : ChatAction
+
+    /**
+     * 输入框里的「推理强度」切了一档：改的是**当前模型**的配置（codex 的 `ReasoningEffort` 那四档，
+     * 空串 = 未设置 = 请求里不发推理字段），见 [handleThoughtLevelSelected]。
+     */
+    data class ThoughtLevelSelected(val value: String) : ChatAction
     data class ConversationSelected(val id: String) : ChatAction
     data class ConversationDeleted(val id: String) : ChatAction
 
@@ -286,6 +300,13 @@ class ChatViewModel @Inject constructor(
      * 会话自己的文件（核心负责落盘与回报）。
      */
     private var pendingContextWindow: Long? = null
+
+    /**
+     * 新会话的第一条消息发出去之前还没有会话文件，档位写不进去，所以先记在这里；附着时再交给核心
+     * （核心负责把它追加进那条会话自己的文件）。与 [pendingContextWindow] 同一个道理 —— 所以**新建
+     * 对话之后、还没发第一条消息时也能切档位**。
+     */
+    private var pendingReasoningEffort: String? = null
 
     /** Id of the assistant message currently being streamed, for chunk appends. */
     private var streamingMessageId: String? = null
@@ -395,6 +416,7 @@ class ChatViewModel @Inject constructor(
             ChatAction.ContextPanelDismissed -> updateState { copy(isContextPanelOpen = false) }
             is ChatAction.ModelSelected -> handleModelSelected(action)
             is ChatAction.ContextWindowSelected -> handleContextWindowSelected(action.tokens)
+            is ChatAction.ThoughtLevelSelected -> handleThoughtLevelSelected(action)
             is ChatAction.ConversationSelected -> handleConversationSelected(action)
             is ChatAction.ConversationDeleted -> handleConversationDeleted(action)
             is ChatAction.PromptAnswered -> handlePromptAnswered(action)
@@ -409,7 +431,13 @@ class ChatViewModel @Inject constructor(
                 }
                 // 当前模型要等偏好读回来才知道，所以新会话的窗口在这里再对一次。
                 if (state.activeConversationId == null) {
-                    updateState { copy(contextWindow = newConversationContextWindow()) }
+                    updateState {
+                        copy(
+                            contextWindow = newConversationContextWindow(),
+                            // 还没有会话：先照模型配置显示 —— 第一次附着时核心会把它抄成会话自己的第一条。
+                            reasoningEffort = state.activeModel?.reasoningEffort.orEmpty(),
+                        )
+                    }
                 }
             }
             is ChatAction.Internal.TranscriptRestored -> {
@@ -630,6 +658,24 @@ class ChatViewModel @Inject constructor(
      * 核心报的才是权威 —— 会话自己的选择优先，其次是模型配的，再次是默认值。但界面在新会话里
      * 可能已经先选过了：那就以它为准写进这条会话的文件，并把核心随即回的那条用量收进来。
      */
+    /**
+     * 附着会话之后，把核心那边的推理档位读回界面。
+     *
+     * 新建会话时核心已经按模型配置写下了第一条记录，所以这里读到的是那条 —— 界面显示的就是会话
+     * 真正在用的值。
+     */
+    private suspend fun syncReasoningEffortAfterAttach() {
+        // 新对话还没附着时选的那个档位，在这里补交（核心会把它追加进会话文件）。
+        val pending = pendingReasoningEffort
+        if (pending != null) {
+            pendingReasoningEffort = null
+            runCatching { agentChat.setReasoningEffort(pending) }
+        }
+        agentChat.reasoningEffort()?.let { attached ->
+            updateState { copy(reasoningEffort = attached) }
+        }
+    }
+
     private suspend fun syncContextWindowAfterAttach() {
         val pending = pendingContextWindow
         if (pending != null) {
@@ -678,6 +724,7 @@ class ChatViewModel @Inject constructor(
                 )
                 sessionKey = key
                 syncContextWindowAfterAttach()
+                syncReasoningEffortAfterAttach()
             }
 
             collectEvents(agentChat.continueTurn())
@@ -696,7 +743,34 @@ class ChatViewModel @Inject constructor(
             copy(messages = emptyList(), isSending = false, activeConversationId = null)
         }
         // 新会话的窗口按当前模型预设定；它第一次附着时核心会把这个值写进这条会话的文件。
-        updateState { copy(contextWindow = newConversationContextWindow()) }
+        // 档位同理：先照模型配置显示，附着时被抄成会话自己的第一条记录。
+        updateState {
+            copy(
+                contextWindow = newConversationContextWindow(),
+                reasoningEffort = state.activeModel?.reasoningEffort.orEmpty(),
+            )
+        }
+    }
+
+    /**
+     * 推理档位改的是**当前会话**：交给核心追加一条记录（会话文件里因此留下完整的变化史），请求从这
+     * 一刻起用新值。供应商页那个模型级的档位不动 —— 它只作为"新建对话时抄一次"的起点。
+     */
+    private fun handleThoughtLevelSelected(action: ChatAction.ThoughtLevelSelected) {
+        // 选了就是选了：界面立刻跟上。
+        updateState { copy(reasoningEffort = action.value) }
+        // 还没附着（新对话、第一条消息还没发出去）：核心那边没有会话文件可写，先记下来，
+        // 附着那一刻再交给它 —— 与窗口那条 pending 同一个做法。
+        if (sessionKey == null) {
+            pendingReasoningEffort = action.value
+            return
+        }
+        viewModelScope.launch {
+            runCatching { agentChat.setReasoningEffort(action.value) }
+            // 以核心的值读回来：写失败时界面不会显示一个没落地的值。
+            val current = runCatching { agentChat.reasoningEffort() }.getOrNull()
+            if (current != null) updateState { copy(reasoningEffort = current) }
+        }
     }
 
     private fun handleModelSelected(action: ChatAction.ModelSelected) {
@@ -770,11 +844,16 @@ class ChatViewModel @Inject constructor(
             agentChat.conversationContextWindow(conversationId)
         }.getOrNull()
         val storedUsage = runCatching { agentChat.conversationUsage(conversationId) }.getOrNull()
+        // 这条会话自己记的推理档位（最后一条为准）；没记过就是未设置，照实显示，不替它编一个。
+        val storedEffort = runCatching {
+            agentChat.conversationReasoningEffort(conversationId)
+        }.getOrNull()
         if (state.activeConversationId != conversationId) return
         updateState {
             copy(
                 contextWindow = storedWindow ?: newConversationContextWindow(),
                 contextUsage = storedUsage,
+                reasoningEffort = storedEffort.orEmpty(),
             )
         }
     }
@@ -824,6 +903,7 @@ class ChatViewModel @Inject constructor(
                 )
                 sessionKey = key
                 syncContextWindowAfterAttach()
+                syncReasoningEffortAfterAttach()
             }
 
             collectEvents(agentChat.send(text))
@@ -1364,6 +1444,7 @@ class ChatViewModel @Inject constructor(
         // 用量是那条会话的东西，换了会话就没有了。窗口不在这里复位：会话里的窗口不随模型变，
         // 换会话 / 新建会话的调用点各自负责把它设成对的值。
         pendingContextWindow = null
+        pendingReasoningEffort = null
         updateState {
             copy(pendingPrompt = null, contextUsage = null, isContextPanelOpen = false)
         }

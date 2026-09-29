@@ -8,6 +8,7 @@ mod list;
 mod model;
 mod recorder;
 mod rollout_file_name;
+mod usage_archive;
 mod usage_stats;
 
 pub use list::SessionEntry;
@@ -19,6 +20,7 @@ pub use list::list_sessions;
 pub use list::read_response_items;
 pub use list::read_session;
 pub use list::read_timed_items;
+pub use list::reasoning_effort_value;
 pub use list::token_usage;
 pub use model::RolloutItem;
 pub use model::RolloutLine;

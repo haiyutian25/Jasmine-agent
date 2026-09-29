@@ -38,6 +38,7 @@ fn turn(model_id: &str) -> RolloutItem {
     RolloutItem::TurnStarted {
         turn_id: format!("turn-{model_id}"),
         model_id: model_id.to_string(),
+        reasoning_effort: "medium".to_string(),
     }
 }
 
@@ -219,6 +220,58 @@ fn days_in_a_row_become_a_streak() {
     assert_eq!(stats.days.len(), 3);
     assert_eq!(stats.current_streak_days, 2);
     assert_eq!(stats.longest_streak_days, 2);
+}
+
+/// 用户删掉一条对话之后，使用统计里的数据要**留下来** —— 统计读的是自己那份存档，不是会话文件本身。
+#[test]
+fn deleting_a_conversation_keeps_its_usage_in_the_stats() {
+    let dir = sessions_dir("delete-keeps-usage");
+    let path = write_session(
+        &dir,
+        "s1",
+        vec![
+            (stamp(today()), turn("deepseek-flash")),
+            (stamp(today()), spent(900)),
+        ],
+    );
+
+    // 第一次刷新：把这份数据算出来并存档。
+    let before = super::usage_stats(&dir).unwrap();
+    assert_eq!(before.total_tokens, 900);
+    assert_eq!(before.days.iter().map(|day| day.tokens).sum::<i64>(), 900);
+
+    // 删掉这个会话（就是"用户点了删除"）。
+    std::fs::remove_file(&path).expect("delete");
+
+    // 再刷新：数字一个都没少。
+    let after = super::usage_stats(&dir).unwrap();
+    assert_eq!(after.total_tokens, before.total_tokens);
+    assert_eq!(
+        after
+            .days
+            .iter()
+            .map(|day| (day.date.clone(), day.tokens))
+            .collect::<Vec<_>>(),
+        before
+            .days
+            .iter()
+            .map(|day| (day.date.clone(), day.tokens))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        after
+            .models
+            .iter()
+            .map(|model| (model.model_id.clone(), model.tokens))
+            .collect::<Vec<_>>(),
+        before
+            .models
+            .iter()
+            .map(|model| (model.model_id.clone(), model.tokens))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(after.current_streak_days, before.current_streak_days);
+    assert_eq!(after.longest_streak_days, before.longest_streak_days);
 }
 
 #[test]

@@ -32,16 +32,20 @@ import com.lhzkml.jasmine.core.ui.theme.CssVariables
 // ── BottomSheet dimensions ─────────────────────────────────────────────
 
 /**
- * 右上角那个 X 的触摸区：按 Android 无障碍指南取 48dp，图形本身小得多，多出来的部分
+ * 右上角那个 X 的触摸区：Android 无障碍指南的下限是 48dp，这里再放大到 56dp —— 它是关掉 sheet 的
+ * 唯一按钮（拖拽与遮罩手势都禁了，只剩 X 与返回键），大一点更好按；图形本身仍然小得多，多出来的部分
  * 是透明的。
  */
-private val BottomSheetCloseTouchTarget = 48.dp
+private val BottomSheetCloseTouchTarget = 56.dp
 
-/** X 图形本身的大小。 */
-private val BottomSheetCloseIconSize = 20.dp
+/** X 图形本身的大小（跟着触摸区一起放大）。 */
+private val BottomSheetCloseIconSize = 26.dp
 
-/** X 触摸区与 sheet 右上角之间的内缩（触摸区自带留白，这里只补一点）。 */
-private val BottomSheetCloseEndInset = 4.dp
+/**
+ * X 触摸区与 sheet 右上角之间的内缩。触摸区自带留白（(56 − 26) / 2 = 15dp），所以 X 离右边界的
+ * **视觉**距离是「这个值 + 15dp」—— 取 12dp 时约 27dp，不再像贴死在边上。
+ */
+private val BottomSheetCloseEndInset = 12.dp
 private val BottomSheetCloseTopInset = 4.dp
 
 /**
@@ -54,7 +58,7 @@ private val BottomSheetCloseTopInset = 4.dp
  * surface used to be draggable as a whole, so a finger slip while switching
  * text fields or scrolling could pull the sheet down. The way out is the X at
  * the top right, plus the scrim and the system back gesture, all through
- * [onDismiss]. The X is a bare icon with a 48dp touch target: no button chrome,
+ * [onDismiss]. The X is a bare icon with a 56dp touch target: no button chrome,
  * and deliberately not the feature's own `Button` — a component does not reach
  * into the business components.
  *
@@ -119,7 +123,7 @@ fun BottomSheet(
     }
 }
 
-/** 右上角的关闭入口：一个朴素的 X，加一个 48dp 的触摸区。 */
+/** 右上角的关闭入口：一个朴素的 X，加一个 56dp 的触摸区（见上面几个尺寸常量的说明）。 */
 @Composable
 private fun BottomSheetCloseButton(currentTheme: CssVariables, onDismiss: () -> Unit) {
     Box(

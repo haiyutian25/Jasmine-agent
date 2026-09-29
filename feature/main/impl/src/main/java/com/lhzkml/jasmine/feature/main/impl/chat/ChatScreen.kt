@@ -152,6 +152,32 @@ private val ChatSendButtonSize = 26.dp
  */
 private val ChatSendButtonCorner = 8.dp
 
+/** 「推理强度」控件的尺寸：脑图标、竖条（宽/高/圆角）、与前后元素的间隔。 */
+private val ChatEffortIconSize = 14.dp
+private val ChatEffortBarWidth = 3.dp
+private val ChatEffortBarHeight = 15.dp
+private val ChatEffortBarCorner = 2.dp
+private val ChatEffortGap = 3.dp
+
+/** 竖条轨道的透明度：ZCode 是 `bg-current/10`，底太淡看不出轨道，这里略深一点。 */
+private const val ChatEffortTrackAlpha = 0.15f
+
+/**
+ * 「推理强度」的可选档位，顺序就是点击循环的顺序：空串（未设置 → 请求里不发任何推理字段）→
+ * `minimal` → `low` → `medium` → `high`。取值与供应商页那五个**完全一致**（都取 codex 的
+ * `ReasoningEffort` 表），加档位时两处要一起改。
+ */
+private val ChatReasoningEfforts = listOf("", "minimal", "low", "medium", "high")
+
+/** 与 [ChatReasoningEfforts] 一一对应的文案。 */
+private val ChatReasoningEffortLabels = listOf(
+    R.string.chat_reasoning_effort_unset,
+    R.string.chat_reasoning_effort_minimal,
+    R.string.chat_reasoning_effort_low,
+    R.string.chat_reasoning_effort_medium,
+    R.string.chat_reasoning_effort_high,
+)
+
 /**
  * 发不出去时（输入为空 / 没有可续的回合）整只按钮的不透明度：ZCode 的 Button 基类就是
  * `disabled:opacity-50` —— 底色不换，只是整体变淡，所以按钮的"存在感"始终在。
@@ -1052,6 +1078,8 @@ private fun Composer(
     val canSend = state.input.isNotBlank() && !state.isSending
     // 暂停之后：输入框空着才是「继续」；一敲进内容它就变回「发送」——那条内容就是新的一轮。
     val resume = state.canContinue && !canSend
+    // 「推理强度」选择面板（复用我们的 BottomSheet）的开合。
+    var isEffortSheetOpen by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(currentTheme.radiusMd)
 
     // One card holds both the text field and a tool row underneath it: model picker
@@ -1149,6 +1177,31 @@ private fun Composer(
                     color = currentTheme.mutedForeground,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            // 推理强度：有激活模型才显示（没有模型就无从谈起档位）。点一下循环到下一档，落库走
+            // ChatAction.ThoughtLevelSelected —— 改的是当前模型的配置，供应商页那张表也跟着变。
+            // 档位是**会话**的值（新建会话时核心按模型配置抄了一条），所以只要在聊天里就显示。
+            state.activeModel?.let {
+                Spacer(modifier = Modifier.width(ChatComposerToolRowGap))
+                ChatReasoningEffortControl(
+                    effort = state.reasoningEffort,
+                    currentTheme = currentTheme,
+                    onClick = { isEffortSheetOpen = true }
+                )
+            }
+
+            // 选择面板：与供应商页那处同一个做法（都复用我们的 BottomSheet），选中的档打勾 + 品牌色。
+            if (isEffortSheetOpen) {
+                ChatReasoningEffortSheet(
+                    current = state.reasoningEffort,
+                    currentTheme = currentTheme,
+                    onDismiss = { isEffortSheetOpen = false },
+                    onSelect = { value ->
+                        isEffortSheetOpen = false
+                        onAction(ChatAction.ThoughtLevelSelected(value))
+                    }
                 )
             }
 
@@ -1704,6 +1757,134 @@ private fun contextTone(index: Int, currentTheme: CssVariables): Color {
  * 环身画「最近一次请求放进窗口的 token / 平台配的窗口」，与 ZCode 那个入口同一个意思；没配窗口
  * 或还没有用量时就只有一条淡轨道。点它打开 [ContextUsageSheet]。
  */
+/** 选择面板的标题与行距、以及选中行那个对勾的大小。 */
+private val ChatEffortSheetTitleGap = 10.dp
+private val ChatEffortSheetRowPaddingVertical = 12.dp
+private val ChatEffortSheetCheckSize = 16.dp
+
+/**
+ * 「推理强度」的选择面板：五个档位各一行，当前档用品牌色 + 一个对勾。
+ *
+ * 复用我们自己的 [BottomSheet]（与同页的模型面板、上下文面板同一个做法）—— 供应商页那个原本是
+ * M3 的 `DropdownMenu`，这次也一起换成了它。
+ */
+@Composable
+private fun ChatReasoningEffortSheet(
+    current: String,
+    currentTheme: CssVariables,
+    onDismiss: () -> Unit,
+    onSelect: (String) -> Unit,
+) {
+    BottomSheet(
+        onDismiss = onDismiss,
+        currentTheme = currentTheme,
+        modifier = Modifier.testTag("chat_reasoning_effort_sheet")
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 16.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.chat_reasoning_effort),
+                fontSize = ChatBodyFontSize,
+                fontWeight = FontWeight.SemiBold,
+                color = currentTheme.foreground
+            )
+            Spacer(modifier = Modifier.height(ChatEffortSheetTitleGap))
+            ChatReasoningEfforts.forEachIndexed { index, value ->
+                val selected = value == current
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(currentTheme.radiusSm))
+                        .clickable { onSelect(value) }
+                        .padding(vertical = ChatEffortSheetRowPaddingVertical),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(ChatReasoningEffortLabels[index]),
+                        fontSize = ChatBodyFontSize,
+                        color = if (selected) currentTheme.primary else currentTheme.foreground,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (selected) {
+                        Icon(
+                            imageVector = LucideIcons.Check,
+                            contentDescription = null,
+                            tint = currentTheme.primary,
+                            modifier = Modifier.size(ChatEffortSheetCheckSize)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 「推理强度」控件，照 ZCode 的 `ThoughtLevelCycleControl` 的样子：**脑图标 + 一条竖进度条 + 当前
+ * 档位名**。点一下打开选择面板（[ChatReasoningEffortSheet]，复用我们自己的 `BottomSheet`）——
+ * 手机上没有悬停，做成下拉面板比"点一下切一档"更好挑。
+ *
+ * 进度条的比例用它的算法（点亮数 = 当前档在可选列表里的位置 + 1，分母 = 档位总数）：空串（未设置）
+ * 是空轨道，`minimal` 起依次 1/4、2/4、3/4、4/4。
+ */
+@Composable
+private fun ChatReasoningEffortControl(
+    effort: String,
+    currentTheme: CssVariables,
+    onClick: () -> Unit,
+) {
+    val index = ChatReasoningEfforts.indexOf(effort).coerceAtLeast(0)
+    val label = stringResource(ChatReasoningEffortLabels[index])
+    val progress = if (index == 0) 0f else index.toFloat() / (ChatReasoningEfforts.size - 1)
+
+    Button(
+        onClick = onClick,
+        rippleEnabled = false,
+        testTag = "chat_reasoning_effort_btn",
+        modifier = Modifier.height(ChatSendButtonSize)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = LucideIcons.Brain,
+                contentDescription = stringResource(R.string.chat_reasoning_effort) + " " + label,
+                tint = currentTheme.mutedForeground,
+                modifier = Modifier.size(ChatEffortIconSize)
+            )
+            Spacer(modifier = Modifier.width(ChatEffortGap))
+            // 竖条：一条淡轨道，填充从底部往上长（ZCode 就是居底 + 百分比高度）。
+            Box(
+                modifier = Modifier
+                    .width(ChatEffortBarWidth)
+                    .height(ChatEffortBarHeight)
+                    .clip(RoundedCornerShape(ChatEffortBarCorner))
+                    .background(currentTheme.mutedForeground.copy(alpha = ChatEffortTrackAlpha)),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                if (progress > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight(progress)
+                            .clip(RoundedCornerShape(ChatEffortBarCorner))
+                            .background(currentTheme.primary)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(ChatEffortGap))
+            Text(
+                text = label,
+                fontSize = ChatMetaFontSize,
+                color = currentTheme.mutedForeground,
+                maxLines = 1
+            )
+        }
+    }
+}
+
 @Composable
 private fun ContextUsageRing(
     usage: ContextUsage?,

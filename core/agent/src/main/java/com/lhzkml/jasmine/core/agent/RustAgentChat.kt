@@ -75,6 +75,16 @@ class RustAgentChat(
             }
         }
 
+    override suspend fun reasoningEffort(): String? =
+        withContext(Dispatchers.IO) { handle.reasoningEffort() }
+
+    override suspend fun conversationReasoningEffort(sessionId: String): String? =
+        withContext(Dispatchers.IO) { handle.conversationReasoningEffort(sessionId) }
+
+    override suspend fun setReasoningEffort(value: String) {
+        withContext(Dispatchers.IO) { handle.setReasoningEffort(value) }
+    }
+
     override fun setContextWindow(tokens: Long): Flow<ChatEvent> =
         once { listener -> handle.setContextWindow(tokens.toULong(), listener) }
 

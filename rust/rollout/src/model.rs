@@ -34,6 +34,11 @@ pub enum RolloutItem {
         turn_id: String,
         /// The model this turn ran on.
         model_id: String,
+        /// 这一轮实际用的推理档位（codex 那套值：`minimal` / `low` / `medium` / `high`，或 provider 自
+        /// 己的词；空串表示没设置 —— 请求里一个推理字段都不发）。
+        ///
+        /// 逐轮记下来，往回翻历史时就能看到"这一轮用的什么档位"，而不是只有一个会话级的当前值。
+        reasoning_effort: String,
     },
     /// The turn finished.
     TurnComplete {
@@ -46,6 +51,14 @@ pub enum RolloutItem {
     /// one that counts.
     ContextWindow {
         tokens: u64,
+    },
+    /// 这个会话当前的推理档位（codex 那套值；空串 = 未设置，请求里不发任何推理字段）。
+    ///
+    /// **每次改动都追加一条，最后一条生效** —— 新建会话时写的第一条来自模型配置里的档位（"新建对话时
+    /// 读一次模型级设置"），之后用户在对话里每改一次就再多一条，所以历史里能看到「未设置 → 高」这样的
+    /// 完整变化，而这些记录一条都不删。
+    ReasoningEffort {
+        value: String,
     },
     /// What a finished turn cost, and the makeup of the request that produced it.
     ///

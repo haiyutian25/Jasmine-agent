@@ -69,6 +69,14 @@
     <string name="chat_tool_status_stopped">已停止</string>
     <string name="chat_tool_status_pending">等待中</string>
     <string name="chat_send_cd">发送消息</string>
+
+    <!-- 输入框里的「推理强度」控件；档位名与供应商页那五个一致（都取 codex 的 ReasoningEffort 表）。 -->
+    <string name="chat_reasoning_effort">推理强度</string>
+    <string name="chat_reasoning_effort_unset">未设置</string>
+    <string name="chat_reasoning_effort_minimal">极低</string>
+    <string name="chat_reasoning_effort_low">低</string>
+    <string name="chat_reasoning_effort_medium">中</string>
+    <string name="chat_reasoning_effort_high">高</string>
     <string name="chat_stop_cd">停止</string>
     <string name="chat_continue_cd">继续</string>
     <string name="chat_turn_stopped">你在 %1$d秒 后停止了</string>

@@ -745,6 +745,17 @@ private class FakeAgentChat : AgentChat {
     var conversationsStarted = 0
     var conversationsEnded = 0
 
+    /** 这个假核心的会话档位：测试直接给值。 */
+    var sessionEffort: String? = null
+
+    override suspend fun reasoningEffort(): String? = sessionEffort
+
+    override suspend fun conversationReasoningEffort(sessionId: String): String? = sessionEffort
+
+    override suspend fun setReasoningEffort(value: String) {
+        sessionEffort = value
+    }
+
     /** 发完 [nextEvents] 后挂住，不发 Completed —— 模拟「回复还在进行中」。 */
     var hangAfterEvents = false
 

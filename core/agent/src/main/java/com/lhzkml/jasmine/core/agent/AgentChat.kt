@@ -170,6 +170,24 @@ interface AgentChat {
      * The flow carries the usage event the core reports straight back — the window changed, so the
      * figure the platform shows is stale the moment it returns.
      */
+    /**
+     * 当前会话的推理档位（空串 = 未设置）；还没附着会话时为 null。
+     *
+     * 会话第一次附着时核心会从模型配置里抄一次，之后以会话自己的值为准 —— 所以这里读到的是"这次
+     * 对话"的档位，而不是模型的默认。
+     */
+    suspend fun reasoningEffort(): String?
+
+    /**
+     * 某条会话自己记录的推理档位，直接从它的文件里读；没记录过为 null。
+     *
+     * 界面刚打开一条会话、还没发消息时，用它把输入框那边的档位显示成这条会话自己的值。
+     */
+    suspend fun conversationReasoningEffort(sessionId: String): String?
+
+    /** 改当前会话的推理档位：核心会**追加**一条记录进会话文件，并让请求立刻用新值。 */
+    suspend fun setReasoningEffort(value: String)
+
     fun setContextWindow(tokens: Long): Flow<ChatEvent>
 
     /**

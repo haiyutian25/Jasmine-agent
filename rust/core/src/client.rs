@@ -96,6 +96,11 @@ impl<T: HttpTransport> ModelClient<T> {
         self
     }
 
+    /// 换掉这个 client 用的推理档位 —— 会话里改了档位时用（对话自己的值，不再看模型配置）。
+    pub fn set_reasoning_effort(&mut self, reasoning_effort: Option<ReasoningEffort>) {
+        self.reasoning_effort = reasoning_effort;
+    }
+
     pub fn model_id(&self) -> &str {
         &self.model_id
     }

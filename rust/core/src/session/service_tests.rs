@@ -195,6 +195,115 @@ fn an_interrupted_reply_joins_the_context_and_the_file() {
     assert_eq!(read_response_items(&path).expect("read").len(), 1);
 }
 
+/// 新建会话时，会话自己的档位从**模型配置**里抄一次；此后只认会话自己的记录。
+#[test]
+fn a_new_conversation_starts_from_the_models_effort() {
+    let dir = sessions_dir("effort-seed");
+    let service = service(&dir);
+    service
+        .create_conversation(&SessionId::new("s1"), "deepseek", "deepseek-flash", "chat")
+        .expect("create");
+    let model = ModelConfig {
+        reasoning_effort: "high".to_string(),
+        ..model()
+    };
+    service
+        .start_conversation(&SessionId::new("s1"), provider(), &model, "")
+        .expect("attach");
+
+    assert_eq!(service.reasoning_effort().as_deref(), Some("high"));
+
+    let path = find_session_path(&dir, "s1").expect("find").expect("path");
+    let text = std::fs::read_to_string(&path).expect("read");
+    let recorded = text
+        .lines()
+        .filter(|line| line.contains("\"type\":\"reasoning_effort\""))
+        .collect::<Vec<_>>();
+    assert_eq!(recorded.len(), 1);
+    assert!(recorded[0].contains("\"value\":\"high\""));
+}
+
+/// 在对话里改档位：每改一次**追加**一条，历史一条不删，最后一条生效。
+///
+/// 第 1 条是新建时就有的（模型没设 = 空 = 未设置），第 2、3 条是后来改的 —— 三条都在文件里。
+#[test]
+fn changing_the_effort_appends_a_record_and_takes_effect() {
+    let dir = sessions_dir("effort-changes");
+    let service = service(&dir);
+    attach(&service, "s1", "chat");
+    assert_eq!(service.reasoning_effort().as_deref(), Some(""));
+
+    service.set_reasoning_effort("low").expect("set low");
+    service.set_reasoning_effort("high").expect("set high");
+
+    assert_eq!(service.reasoning_effort().as_deref(), Some("high"));
+
+    let path = find_session_path(&dir, "s1").expect("find").expect("path");
+    let text = std::fs::read_to_string(&path).expect("read");
+    let values = text
+        .lines()
+        .filter(|line| line.contains("\"type\":\"reasoning_effort\""))
+        .filter_map(|line| {
+            let marker = "\"value\":\"";
+            let start = line.find(marker)? + marker.len();
+            Some(
+                line[start..]
+                    .chars()
+                    .take_while(|c| *c != '"')
+                    .collect::<String>(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(values, vec!["", "low", "high"]);
+
+    // 改完之后再跑一轮：这一轮记的档位跟的是**会话**的值，不是模型配置里的（模型这里是空串）。
+    let mut sink = Collector { events: Vec::new() };
+    let _ = service.send("hello", &mut sink);
+    let text = std::fs::read_to_string(&path).expect("read");
+    let turn_line = text
+        .lines()
+        .find(|line| line.contains("\"turn_started\""))
+        .expect("a turn_started line");
+    assert!(
+        turn_line.contains("\"reasoning_effort\":\"high\""),
+        "the turn did not record the session's effort: {turn_line}"
+    );
+}
+
+/// 每一轮开始时，把这一轮用的推理档位写进会话文件 —— 往回翻历史时就能看到"这一轮用的什么档位"。
+///
+/// 请求本身在这个用例里会失败（测试用的 Host 不发真请求），但 `TurnStarted` 是在发请求**之前**写的，
+/// 所以不影响这条断言。
+#[test]
+fn each_turn_records_the_reasoning_effort() {
+    let dir = sessions_dir("turn-effort");
+    let service = service(&dir);
+    service
+        .create_conversation(&SessionId::new("s1"), "deepseek", "deepseek-flash", "chat")
+        .expect("create");
+    let model = ModelConfig {
+        reasoning_effort: "high".to_string(),
+        ..model()
+    };
+    service
+        .start_conversation(&SessionId::new("s1"), provider(), &model, "")
+        .expect("attach");
+
+    let mut sink = Collector { events: Vec::new() };
+    let _ = service.send("hello", &mut sink);
+
+    let path = find_session_path(&dir, "s1").expect("find").expect("path");
+    let text = std::fs::read_to_string(&path).expect("read");
+    let line = text
+        .lines()
+        .find(|line| line.contains("\"turn_started\""))
+        .expect("a turn_started line");
+    assert!(
+        line.contains("\"reasoning_effort\":\"high\""),
+        "the turn did not record its effort: {line}"
+    );
+}
+
 #[test]
 fn the_tool_list_reads_the_conversations_own_files() {
     let dir = sessions_dir("tool-list");

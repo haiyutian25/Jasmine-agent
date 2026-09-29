@@ -25,8 +25,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import com.lhzkml.jasmine.core.ui.icons.LucideIcons
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -1001,21 +999,61 @@ private fun ProviderReasoningEffortField(
                     modifier = Modifier.size(ProviderReasoningChevronSize)
                 )
             }
-            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                ProviderReasoningEffortOptions.forEach { option ->
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = stringResource(option.second),
-                                fontSize = ProviderRowBaseUrlFontSize,
-                                color = currentTheme.foreground
-                            )
-                        },
-                        onClick = {
-                            onValueChange(option.first)
-                            open = false
+            if (open) {
+                // 用我们自己的 BottomSheet（与同页的模型列表、供应商表单同一个做法），不再用 M3 的
+                // DropdownMenu —— 全仓最后一处 Material 菜单也在这次换掉了。
+                BottomSheet(
+                    onDismiss = { open = false },
+                    currentTheme = currentTheme,
+                    modifier = Modifier.testTag("provider_reasoning_effort_sheet")
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = ProviderFieldPaddingHorizontal)
+                            .padding(bottom = 16.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.provider_reasoning_effort),
+                            fontSize = ModelSheetTitleFontSize,
+                            fontWeight = FontWeight.SemiBold,
+                            color = currentTheme.foreground
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        ProviderReasoningEffortOptions.forEach { option ->
+                            val selected = option.first == value
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(currentTheme.radiusSm))
+                                    .clickable {
+                                        onValueChange(option.first)
+                                        open = false
+                                    }
+                                    .padding(vertical = ProviderReasoningPaddingVertical),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = stringResource(option.second),
+                                    fontSize = ProviderRowBaseUrlFontSize,
+                                    color = if (selected) {
+                                        currentTheme.primary
+                                    } else {
+                                        currentTheme.foreground
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                if (selected) {
+                                    Icon(
+                                        imageVector = LucideIcons.Check,
+                                        contentDescription = null,
+                                        tint = currentTheme.primary,
+                                        modifier = Modifier.size(ProviderReasoningChevronSize)
+                                    )
+                                }
+                            }
                         }
-                    )
+                    }
                 }
             }
         }

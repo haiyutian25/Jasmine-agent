@@ -117,6 +117,21 @@ pub fn context_window_tokens(path: &Path) -> Option<u64> {
         .next_back()
 }
 
+/// 这个会话当前的推理档位：最后一条记录为准（空串 = 未设置）。
+///
+/// 记录是追加式的，所以一条都没有时返回 `None` —— 那是"这个会话还没记过档位"，由调用方决定要不要写它
+/// 的第一条（新建会话时写模型配置里那个）。这里不做任何回退。
+pub fn reasoning_effort_value(path: &Path) -> Option<String> {
+    read_lines(path)
+        .ok()?
+        .iter()
+        .filter_map(|line| match &line.item {
+            RolloutItem::ReasoningEffort { value } => Some(value.clone()),
+            _ => None,
+        })
+        .next_back()
+}
+
 /// What the conversation last reported costing, if it ever did.
 ///
 /// A record is written per finished turn, so the last one in the file is the current picture — the
@@ -150,6 +165,7 @@ pub fn interrupted_turn(path: &Path) -> Option<String> {
             RolloutItem::SessionMeta(_)
             | RolloutItem::ResponseItem(_)
             | RolloutItem::ContextWindow { .. }
+            | RolloutItem::ReasoningEffort { .. }
             | RolloutItem::TokenUsageRecord { .. } => {}
         }
     }

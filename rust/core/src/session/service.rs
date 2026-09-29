@@ -145,6 +145,8 @@ struct Attached {
     /// The window this conversation runs against, in tokens. Always set: it is decided when the
     /// conversation is first attached, and a model switch inside the conversation does not move it.
     context_window_tokens: u64,
+    /// 这个会话当前的推理档位（空串 = 未设置）。第一次附着时从模型配置抄一次，之后会话自己说了算。
+    reasoning_effort: String,
 }
 
 /// One conversation, as the platform drives it.
@@ -203,11 +205,9 @@ impl AgentChatService {
         }
         // How much this model may write per response. It belongs to the model rather than to the
         // conversation, so a model switch inside a conversation does move it, unlike the window.
-        .with_max_output_tokens(output_token_cap(model))
-        // 推理强度也是模型级：会话中途换模型就跟着换。
-        .with_reasoning_effort(reasoning_effort(model));
+        .with_max_output_tokens(output_token_cap(model));
 
-        let (mut rollout, history, unfinished, stored_context_window, stored_usage) =
+        let (mut rollout, history, unfinished, stored_context_window, stored_usage, stored_effort) =
             match find_session_path(&self.sessions_dir, session_id.as_str())
                 .map_err(|error| AgentError::Transcript(error.to_string()))?
             {
@@ -221,9 +221,11 @@ impl AgentChatService {
                     let window = jasmine_rollout::context_window_tokens(&path);
                     // What it last reported costing — the platform shows this after a restart.
                     let usage = jasmine_rollout::token_usage(&path);
+                    // 这个会话当前的推理档位（最后一次改动的值）；一条都没有 = 还没记过。
+                    let effort = jasmine_rollout::reasoning_effort_value(&path);
                     let rollout = RolloutRecorder::open(path)
                         .map_err(|error| AgentError::Transcript(error.to_string()))?;
-                    (rollout, history, unfinished, window, usage)
+                    (rollout, history, unfinished, window, usage, effort)
                 }
                 None => {
                     let meta = SessionMeta {
@@ -235,7 +237,7 @@ impl AgentChatService {
                     };
                     let rollout = RolloutRecorder::create(&self.sessions_dir, &meta)
                         .map_err(|error| AgentError::Transcript(error.to_string()))?;
-                    (rollout, Vec::new(), None, None, None)
+                    (rollout, Vec::new(), None, None, None, None)
                 }
             };
 
@@ -250,6 +252,24 @@ impl AgentChatService {
                 tokens
             }
         };
+
+        // 这个会话的推理档位：第一次附着时把**模型配置里的档位**抄进来（"新建对话时读一次模型级设置"），
+        // 之后只认会话自己的记录。这里没有"没记到就用模型默认"的回退 —— 没有记录就是"未设置"。
+        let reasoning_effort = match stored_effort {
+            Some(value) => value,
+            None => {
+                let value = model.reasoning_effort.clone();
+                record_boundary(
+                    &mut rollout,
+                    RolloutItem::ReasoningEffort {
+                        value: value.clone(),
+                    },
+                )?;
+                value
+            }
+        };
+        // 请求侧从此用会话自己的档位。
+        let client = client.with_reasoning_effort(parse_reasoning_effort(&reasoning_effort));
 
         let mut thread = ChatThread::new();
         thread.start_session(session_id.as_str());
@@ -271,6 +291,7 @@ impl AgentChatService {
             turn_id: unfinished.clone().unwrap_or_default(),
             interrupted: unfinished.is_some(),
             context_window_tokens,
+            reasoning_effort,
         });
         Ok(())
     }
@@ -313,6 +334,39 @@ impl AgentChatService {
         Ok(())
     }
 
+    /// 这个会话当前的推理档位；没有附着会话时 `None`。
+    pub fn reasoning_effort(&self) -> Option<String> {
+        self.lock().ok().and_then(|attached| {
+            attached
+                .as_ref()
+                .map(|attached| attached.reasoning_effort.clone())
+        })
+    }
+
+    /// 改这个会话的推理档位，并把这次改动**追加**进它的文件。
+    ///
+    /// 追加而不是覆盖：每改一次多一条，所以「未设置 → 高 → 低」这样的历史完整留在文件里，一条都不删。
+    /// 改完立刻生效 —— 请求侧从这一刻起用会话自己的值（不再看模型配置）。
+    pub fn set_reasoning_effort(&self, value: &str) -> Result<(), AgentError> {
+        let mut guard = self.lock()?;
+        let attached = guard.as_mut().ok_or(AgentError::NoSession)?;
+        let Attached {
+            client,
+            rollout,
+            reasoning_effort,
+            ..
+        } = attached;
+        record_boundary(
+            rollout,
+            RolloutItem::ReasoningEffort {
+                value: value.to_string(),
+            },
+        )?;
+        *reasoning_effort = value.to_string();
+        client.set_reasoning_effort(parse_reasoning_effort(value));
+        Ok(())
+    }
+
     /// The window one conversation recorded, read straight from its file.
     ///
     /// The platform needs this before attaching — it is what the window picker shows for a
@@ -328,6 +382,22 @@ impl AgentChatService {
             return Ok(None);
         };
         Ok(jasmine_rollout::context_window_tokens(&path))
+    }
+
+    /// 某条会话自己记录的推理档位，直接从它的文件里读（最后一条为准）；没记录过就是 `None`。
+    ///
+    /// 平台打开一条会话、还没发消息时用它把输入框那边的档位显示成这条会话自己的值（不是界面默认，
+    /// 也不是模型的默认）。
+    pub fn conversation_reasoning_effort(
+        &self,
+        session_id: &SessionId,
+    ) -> Result<Option<String>, AgentError> {
+        let Some(path) = find_session_path(&self.sessions_dir, session_id.as_str())
+            .map_err(|error| AgentError::Transcript(error.to_string()))?
+        else {
+            return Ok(None);
+        };
+        Ok(jasmine_rollout::reasoning_effort_value(&path))
     }
 
     /// What one conversation last reported costing, read straight from its file.
@@ -377,6 +447,7 @@ impl AgentChatService {
             cancellation,
             turn_id,
             interrupted,
+            reasoning_effort,
             ..
         } = attached;
         let instruction = instruction_option(instruction);
@@ -393,6 +464,9 @@ impl AgentChatService {
             RolloutItem::TurnStarted {
                 turn_id: turn_id.clone(),
                 model_id: model.model_id.clone(),
+                // 记的是**这个会话当前**的档位（模型级只是新建会话时抄一次的起点），所以往回翻看到的
+                // 就是"这一轮实际用的档位"。
+                reasoning_effort: reasoning_effort.clone(),
             },
         )?;
 
@@ -445,6 +519,7 @@ impl AgentChatService {
             cancellation,
             turn_id,
             interrupted,
+            reasoning_effort,
             ..
         } = attached;
         let instruction = instruction_option(instruction);
@@ -461,6 +536,9 @@ impl AgentChatService {
             RolloutItem::TurnStarted {
                 turn_id: turn_id.clone(),
                 model_id: model.model_id.clone(),
+                // 记的是**这个会话当前**的档位（模型级只是新建会话时抄一次的起点），所以往回翻看到的
+                // 就是"这一轮实际用的档位"。
+                reasoning_effort: reasoning_effort.clone(),
             },
         )?;
 
@@ -529,6 +607,7 @@ impl AgentChatService {
             cancellation,
             turn_id,
             interrupted,
+            reasoning_effort,
             ..
         } = attached;
         let instruction = instruction_option(instruction);
@@ -547,6 +626,9 @@ impl AgentChatService {
             RolloutItem::TurnStarted {
                 turn_id: turn_id.clone(),
                 model_id: model.model_id.clone(),
+                // 记的是**这个会话当前**的档位（模型级只是新建会话时抄一次的起点），所以往回翻看到的
+                // 就是"这一轮实际用的档位"。
+                reasoning_effort: reasoning_effort.clone(),
             },
         )?;
 
@@ -838,11 +920,12 @@ impl AgentChatService {
                         tool_status: String::new(),
                     });
                 }
-                // The window and the usage are properties of the conversation, not lines of the
-                // transcript.
+                // The window, the usage and the reasoning effort are properties of the conversation,
+                // not lines of the transcript.
                 RolloutItem::SessionMeta(_)
                 | RolloutItem::TurnComplete { .. }
                 | RolloutItem::ContextWindow { .. }
+                | RolloutItem::ReasoningEffort { .. }
                 | RolloutItem::TokenUsageRecord { .. } => {}
             }
         }
@@ -991,12 +1074,10 @@ fn output_token_cap(model: &ModelConfig) -> Option<u32> {
     (model.max_output_length > 0).then_some(model.max_output_length)
 }
 
-/// How hard the model should think, as the platform configured it. An empty value — or one this
-/// client does not know — means it never was: no reasoning field goes out at all.
-fn reasoning_effort(
-    model: &ModelConfig,
-) -> Option<jasmine_protocol::openai_models::ReasoningEffort> {
-    model.reasoning_effort.parse().ok()
+/// 把这个会话的推理档位解析成请求要的形状。空串 —— 或者这个 client 不认识的词 —— 就是"没设置"：
+/// 请求里一个推理字段都不发。
+fn parse_reasoning_effort(value: &str) -> Option<jasmine_protocol::openai_models::ReasoningEffort> {
+    value.parse().ok()
 }
 
 /// How much context a conversation runs against when neither it nor its model says.

@@ -369,6 +369,35 @@ impl AgentHandle {
             })
     }
 
+    /// 当前会话的推理档位（空串 = 未设置）；没附着会话时为 `None`。
+    pub fn reasoning_effort(&self) -> Option<String> {
+        self.inner.reasoning_effort()
+    }
+
+    /// 某条会话自己记录的推理档位；没记录过就为 `None`。
+    ///
+    /// 不需要先附着 —— 界面刚打开一条会话、还没发消息时，用它把输入框那边的档位显示成这条会话自己的
+    /// 值，而不是界面或模型的默认值。
+    pub fn conversation_reasoning_effort(
+        &self,
+        session_id: String,
+    ) -> Result<Option<String>, AgentFailure> {
+        self.inner
+            .conversation_reasoning_effort(&SessionId::new(session_id))
+            .map_err(|error| AgentFailure::Failed {
+                detail: error.detail(),
+            })
+    }
+
+    /// 改这个会话的推理档位，并把这次改动**追加**进它的文件（历史一条不删）。
+    pub fn set_reasoning_effort(&self, value: String) -> Result<(), AgentFailure> {
+        self.inner
+            .set_reasoning_effort(&value)
+            .map_err(|error| AgentFailure::Failed {
+                detail: error.detail(),
+            })
+    }
+
     /// 平台侧栏要的会话列表（最新的在前）。
     pub fn conversations(&self) -> Vec<ConversationSummary> {
         self.inner
