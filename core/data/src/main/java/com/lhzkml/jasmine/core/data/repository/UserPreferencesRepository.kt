@@ -23,6 +23,9 @@ interface UserPreferencesRepository {
 
     /** Points the chat at [providerId] / [modelId] (both empty clears the selection). */
     suspend fun updateActiveModel(providerId: String, modelId: String)
+
+    /** 模型回复语言（见 [com.lhzkml.jasmine.core.data.model.AgentOutputLanguage]）；全局一个值。 */
+    suspend fun updateAgentOutputLanguage(value: String)
 }
 
 /**
@@ -66,4 +69,7 @@ class UserPreferencesRepositoryImpl(
         userPreferencesDataStore.update {
             it.copy(activeProviderId = providerId, activeModelId = modelId)
         }
+
+    override suspend fun updateAgentOutputLanguage(value: String) =
+        userPreferencesDataStore.update { it.copy(agentOutputLanguage = value) }
 }

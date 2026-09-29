@@ -1,4 +1,5 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
+pub mod agent_settings;
 pub mod client;
 pub mod context_manager;
 pub mod event_mapping;

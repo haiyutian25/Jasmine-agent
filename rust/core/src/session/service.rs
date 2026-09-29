@@ -8,6 +8,7 @@
 //! operation on a runtime of its own. The service is stateful and holds the conversation while a
 //! call runs: one instance per conversation owner, one call at a time.
 
+use crate::agent_settings::AgentSettings;
 use crate::client::ModelClient;
 use crate::host::Clock;
 use crate::session::SessionError;
@@ -193,6 +194,7 @@ impl AgentChatService {
         provider: ResolvedProvider,
         model: &ModelConfig,
         instruction: &str,
+        settings: &AgentSettings,
     ) -> Result<(), AgentError> {
         let http = HttpClientBuilder::new()
             .build()
@@ -304,7 +306,8 @@ impl AgentChatService {
         *self.lock()? = Some(Attached {
             client,
             model: model.clone(),
-            instruction: instruction.to_string(),
+            // 语言那部分由核心拼（界面只传值）：系统指令 = 平台给的人格 + 核心的输出语言规则。
+            instruction: settings.system_instruction(instruction),
             history,
             thread,
             rollout,

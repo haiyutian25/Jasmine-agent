@@ -6,11 +6,13 @@ import com.lhzkml.jasmine.core.agent.ChatEvent
 import com.lhzkml.jasmine.core.agent.ContextUsage
 import com.lhzkml.jasmine.core.data.model.ChatRole
 import com.lhzkml.jasmine.core.data.model.Conversation
+import com.lhzkml.jasmine.core.data.model.AgentOutputLanguage
 import com.lhzkml.jasmine.core.data.model.CatalogModel
 import com.lhzkml.jasmine.core.data.model.ModelConfig
 import com.lhzkml.jasmine.core.data.model.ProviderApiType
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import com.lhzkml.jasmine.core.data.model.TranscriptMessage
+import com.lhzkml.jasmine.core.data.model.AgentSettings
 import com.lhzkml.jasmine.core.data.model.UserPreferences
 import com.lhzkml.jasmine.core.agent.ConversationStore
 import com.lhzkml.jasmine.core.data.repository.ProviderRepository
@@ -32,11 +34,13 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -74,13 +78,18 @@ class ChatViewModelTest {
         agentChat = FakeAgentChat()
     }
 
-    // 刻意**不**在 @After 里 `Dispatchers.resetMain()`：流式解析的 worker 会
-    // `withContext(Dispatchers.Default)`，那一步可能在本用例结束后才回到 Main，
-    // 而回来需要 Main 仍在位 —— 拆掉它，这批被泄漏的续体会在**下一个**用例开头
-    // 抛 "Dispatchers.Main was accessed ..."（实测 5 例）。
-    //
-    // 这是「ChatViewModel 自己持有后台跳转」的副作用（`DispatcherManager` 的文档
-    // 写的是线程归属数据层、ViewModel 不该拿调度器）。等那层理顺后再恢复 resetMain。
+    /**
+     * 每个用例跑完把 Main 还原 —— 现在可以这么做了。
+     *
+     * 以前不行：流式解析的 worker 是随 ViewModel 起的长命协程，`withContext(Dispatchers.Default)`
+     * 那一步可能在本用例结束后才回到 Main，于是这批续体在**下一个**用例的 `setUp` 上撞车
+     * （`Dispatchers.Main is used concurrently with setting it`）。现在 worker 属于**这一轮**
+     * （见 `ChatViewModel.startTurn`：回合结束关通道、排空、join），不会有一条续体活过这一轮。
+     */
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
 
     // ── Selection & basic flow ─────────────────────────────────────────
 
@@ -150,6 +159,34 @@ class ChatViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf("low", "high"), viewModel.stateFlow.value.allowedEfforts)
+    }
+
+    // ── 模型回复语言（Agent 设置）：界面只传值，规则在核心 ─────────────────
+
+    @Test
+    fun `the reply language reaches the core as a value`() = runTest(testDispatcher) {
+        preferencesRepository = FakeUserPreferencesRepository(
+            UserPreferences.DEFAULT.copy(
+                activeProviderId = PROVIDER.id,
+                activeModelId = MODEL_ID,
+                agentOutputLanguage = AgentOutputLanguage.TRADITIONAL_CHINESE,
+            )
+        )
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        agentChat.nextEvents = listOf(ChatEvent.Text("ok"), ChatEvent.Completed)
+
+        viewModel.trySendAction(ChatAction.InputChanged("hi"))
+        viewModel.trySendAction(ChatAction.SendClicked)
+        advanceUntilIdle()
+
+        // 界面上只把**值**交出去：语言那条规则由核心按这个值拼（见 Rust 的 agent_settings）。
+        val settings = agentChat.settings
+        assertTrue(settings != null)
+        assertEquals(AgentOutputLanguage.TRADITIONAL_CHINESE, settings?.outputLanguage)
+        assertTrue(settings?.appLanguage?.isNotEmpty() == true)
+        // 给核心的仍然只有人格，没有语言规则。
+        assertFalse(agentChat.instruction.orEmpty().contains("Output language preference"))
     }
 
     @Test
@@ -726,6 +763,8 @@ private class FakeUserPreferencesRepository(initial: UserPreferences) : UserPref
     override suspend fun updateActiveModel(providerId: String, modelId: String) {
         activeModelUpdates += providerId to modelId
     }
+
+    override suspend fun updateAgentOutputLanguage(value: String) = Unit
 }
 
 private class FakeConversationStore : ConversationStore {
@@ -809,6 +848,12 @@ private class FakeAgentChat : AgentChat {
     var conversationsStarted = 0
     var conversationsEnded = 0
 
+    /** 附着时收到的人格（系统指令的语言那部分由核心拼，不在这里）。 */
+    var instruction: String? = null
+
+    /** 附着时收到的 Agent 行为设置（回复语言那类值）。 */
+    var settings: AgentSettings? = null
+
     /** 这个假核心的会话档位：测试直接给值。 */
     var sessionEffort: String? = null
 
@@ -828,9 +873,12 @@ private class FakeAgentChat : AgentChat {
         provider: ProviderConfig,
         modelId: String,
         instruction: String,
+        settings: AgentSettings,
     ) {
         conversationsStarted++
         startedWithSessionId = sessionId
+        this.instruction = instruction
+        this.settings = settings
     }
 
     override fun send(text: String): Flow<ChatEvent> {

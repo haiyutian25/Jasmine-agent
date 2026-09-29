@@ -124,6 +124,17 @@ pub struct ProviderInput {
     pub models: Vec<ModelInput>,
 }
 
+/// Agent 行为设置：界面只给**值**，规则在核心（见 `jasmine_core::agent_settings`）。
+///
+/// 眼下只有回复语言；往后别的 Agent 控制项也往这里加 —— 界面那边只是选择器 + 一个值。
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct AgentSettings {
+    /// 模型回复语言：`auto`（跟随输入）/ `app`（跟随应用语言）/ `en` / `zh-Hans` / `zh-Hant`。
+    pub output_language: String,
+    /// 界面当前的语言（BCP-47，如 `zh-CN` / `zh-TW`）；"跟随应用语言"时用它定语言。
+    pub app_language: String,
+}
+
 /// 平台侧配置进来的一个模型。
 ///
 /// 只带核心用得上的数：名字（出厂目录给的，空 = 显示 model_id）、界面上那两栏 token 预算（0 表示
@@ -235,12 +246,16 @@ impl AgentHandle {
     }
 
     /// 附着会话。失败原因是给界面看的字符串（跨边界不做错误类型学）。
+    ///
+    /// [instruction] 是平台给的**人格**；[settings] 是 Agent 行为设置（回复语言那类）——
+    /// 系统指令由**核心**拼（人格 + 语言规则），界面只传值。
     pub fn start_conversation(
         &self,
         session_id: String,
         provider: ProviderInput,
         model_id: String,
         instruction: String,
+        settings: AgentSettings,
     ) -> Result<(), AgentFailure> {
         // 界面配的模型参数在这里落到核心：按 id 找到那个模型，带上它的 token 预算
         // （上下文窗口等）；没配过就退回默认值（0 = 未设置）。
@@ -268,6 +283,10 @@ impl AgentHandle {
                 provider.into_resolved(),
                 &model,
                 &instruction,
+                &jasmine_core::agent_settings::AgentSettings {
+                    output_language: settings.output_language,
+                    app_language: settings.app_language,
+                },
             )
             .map_err(|error| AgentFailure::Failed {
                 detail: error.detail(),

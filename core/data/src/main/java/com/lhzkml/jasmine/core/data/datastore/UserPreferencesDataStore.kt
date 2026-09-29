@@ -45,6 +45,7 @@ class UserPreferencesDataStore @Inject constructor(
             prefs[KEY_ACTIVE_FONT] = updated.activeCustomFontId
             prefs[KEY_ACTIVE_PROVIDER] = updated.activeProviderId
             prefs[KEY_ACTIVE_MODEL] = updated.activeModelId
+            prefs[KEY_AGENT_OUTPUT_LANGUAGE] = updated.agentOutputLanguage
         }
     }
 
@@ -56,6 +57,8 @@ class UserPreferencesDataStore @Inject constructor(
         activeCustomFontId = this[KEY_ACTIVE_FONT] ?: UserPreferences.DEFAULT.activeCustomFontId,
         activeProviderId = this[KEY_ACTIVE_PROVIDER] ?: UserPreferences.DEFAULT.activeProviderId,
         activeModelId = this[KEY_ACTIVE_MODEL] ?: UserPreferences.DEFAULT.activeModelId,
+        agentOutputLanguage = this[KEY_AGENT_OUTPUT_LANGUAGE]
+            ?: UserPreferences.DEFAULT.agentOutputLanguage,
     )
 
     private companion object {
@@ -66,6 +69,7 @@ class UserPreferencesDataStore @Inject constructor(
         val KEY_ACTIVE_FONT = stringPreferencesKey("activeCustomFontId")
         val KEY_ACTIVE_PROVIDER = stringPreferencesKey("activeProviderId")
         val KEY_ACTIVE_MODEL = stringPreferencesKey("activeModelId")
+        val KEY_AGENT_OUTPUT_LANGUAGE = stringPreferencesKey("agentOutputLanguage")
     }
 }
 

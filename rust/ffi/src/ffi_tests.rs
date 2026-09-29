@@ -174,6 +174,10 @@ fn attach(handle: &AgentHandle, session_id: &str, title: &str) {
             provider_input(),
             "deepseek-flash".to_string(),
             String::new(),
+            crate::AgentSettings {
+                output_language: String::new(),
+                app_language: String::new(),
+            },
         )
         .expect("附着会话应成功");
 }

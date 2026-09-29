@@ -60,4 +60,14 @@
     <string name="usage_stats_refresh">刷新</string>
     <string name="usage_stats_loading">正在统计中…</string>
     <string name="usage_stats_empty">还没有可显示的用量：随便聊几句，这里就会有数。</string>
+
+    <!-- 模型侧的行为控制：回复语言、工具权限、审核…（眼下只有回复语言） -->
+    <string name="settings_menu_agent_title">行为与权限</string>
+    <string name="agent_language_section">模型回复语言</string>
+    <string name="agent_language_follow_input">跟随输入</string>
+    <string name="agent_language_follow_app">跟随应用语言</string>
+    <string name="agent_language_english">English</string>
+    <string name="agent_language_simplified_chinese">简体中文</string>
+    <string name="agent_language_traditional_chinese">繁體中文</string>
+    <string name="agent_language_hint">改完在下一次发送消息时生效（当前会话会重新附着，历史不丢）。</string>
 </resources>

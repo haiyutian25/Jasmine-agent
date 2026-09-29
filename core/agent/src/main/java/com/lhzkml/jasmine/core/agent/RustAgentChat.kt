@@ -1,5 +1,6 @@
 package com.lhzkml.jasmine.core.agent
 
+import com.lhzkml.jasmine.core.data.model.AgentSettings
 import com.lhzkml.jasmine.core.data.model.ProviderApiType
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import kotlinx.coroutines.Dispatchers
@@ -10,6 +11,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import uniffi.jasmine_ffi.AgentFailure
 import uniffi.jasmine_ffi.AgentHandle
+import uniffi.jasmine_ffi.AgentSettings as CoreAgentSettings
 import uniffi.jasmine_ffi.EventListener
 import uniffi.jasmine_ffi.ModelInput
 import uniffi.jasmine_ffi.ProviderInput
@@ -44,9 +46,19 @@ class RustAgentChat(
         provider: ProviderConfig,
         modelId: String,
         instruction: String,
+        settings: AgentSettings,
     ) {
         withContext(Dispatchers.IO) {
-            handle.startConversation(sessionId, provider.toProviderInput(), modelId, instruction)
+            handle.startConversation(
+                sessionId,
+                provider.toProviderInput(),
+                modelId,
+                instruction,
+                CoreAgentSettings(
+                    outputLanguage = settings.outputLanguage,
+                    appLanguage = settings.appLanguage,
+                ),
+            )
         }
     }
 

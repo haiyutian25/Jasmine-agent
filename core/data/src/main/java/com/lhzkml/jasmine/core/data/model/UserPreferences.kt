@@ -19,6 +19,13 @@ data class UserPreferences(
     val activeCustomFontId: String,
     val activeProviderId: String,
     val activeModelId: String,
+    /**
+     * 模型回复语言（见 [AgentOutputLanguage]）；**全局**一个值，不做会话级。默认跟随输入。
+     *
+     * 它只是一个**值**：核心按它拼那条输出语言规则（`rust/core/src/agent_settings.rs`），
+     * 所以在下一次附着会话时生效。
+     */
+    val agentOutputLanguage: String = AgentOutputLanguage.FOLLOW_INPUT,
 ) {
     companion object {
         val DEFAULT = UserPreferences(
@@ -29,6 +36,7 @@ data class UserPreferences(
             activeCustomFontId = "",
             activeProviderId = "",
             activeModelId = "",
+            agentOutputLanguage = AgentOutputLanguage.FOLLOW_INPUT,
         )
     }
 }

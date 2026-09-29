@@ -60,4 +60,14 @@
     <string name="usage_stats_refresh">Refresh</string>
     <string name="usage_stats_loading">Counting…</string>
     <string name="usage_stats_empty">Nothing to show yet: chat a little and this fills in.</string>
+
+    <!-- Model-side behaviour controls: reply language, tool permissions, approvals… -->
+    <string name="settings_menu_agent_title">Behaviour &amp; permissions</string>
+    <string name="agent_language_section">Model reply language</string>
+    <string name="agent_language_follow_input">Follow the input</string>
+    <string name="agent_language_follow_app">Follow the app language</string>
+    <string name="agent_language_english">English</string>
+    <string name="agent_language_simplified_chinese">简体中文</string>
+    <string name="agent_language_traditional_chinese">繁體中文</string>
+    <string name="agent_language_hint">Takes effect on your next message: the session re-attaches and keeps its history.</string>
 </resources>

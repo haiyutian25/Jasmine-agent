@@ -1,5 +1,6 @@
 package com.lhzkml.jasmine.core.agent
 
+import com.lhzkml.jasmine.core.data.model.AgentSettings
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import kotlinx.coroutines.flow.Flow
 
@@ -86,12 +87,17 @@ interface AgentChat {
      * The conversation's context is whatever the session store already holds for
      * that id; there is no replay path. A conversation whose session is gone
      * starts from an empty context.
+     *
+     * [instruction] is the platform's persona; [settings] carries the agent behaviour **values**
+     * (reply language). The **system instruction** is composed by the core — the platform never
+     * writes the language rules itself.
      */
     suspend fun startConversation(
         sessionId: String,
         provider: ProviderConfig,
         modelId: String,
         instruction: String,
+        settings: AgentSettings,
     )
 
     /**

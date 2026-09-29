@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.lhzkml.jasmine.core.data.model.ColorMode
 import com.lhzkml.jasmine.core.data.model.InstalledFont
 import com.lhzkml.jasmine.core.data.model.PresetFont
+import com.lhzkml.jasmine.core.data.model.AgentOutputLanguage
 import com.lhzkml.jasmine.core.data.model.UserPreferences
 import com.lhzkml.jasmine.core.data.repository.CustomFontRepository
 import com.lhzkml.jasmine.core.data.repository.UserPreferencesRepository
@@ -52,6 +53,9 @@ data class MainState(
     val activeCustomFontId: String,
     val installedFonts: List<InstalledFont>,
     val downloadProgress: Map<String, Float>,
+    // Agent（模型侧行为控制）
+    /** 模型回复语言的设置值；见 [AgentOutputLanguage]。 */
+    val agentOutputLanguage: String = AgentOutputLanguage.FOLLOW_INPUT,
 )
 
 /**
@@ -81,6 +85,9 @@ sealed interface MainAction {
     data class FontDeleteClicked(val fontId: String) : MainAction
     data class FontImportRequested(val uri: Uri, val fallbackName: String) : MainAction
     data class FontScaleSaved(val scale: Float) : MainAction
+
+    /** Agent 设置页里选了模型回复语言（[AgentOutputLanguage] 那五个取值之一）。 */
+    data class AgentOutputLanguageSelected(val value: String) : MainAction
 
     /**
      * Internal actions: results of asynchronous work posted back onto the action
@@ -145,6 +152,7 @@ class MainViewModel @Inject constructor(
             typographyChoice = AppTypographyChoice.EDITORIAL,
             fontScale = UserPreferences.DEFAULT.fontScale,
             activeCustomFontId = UserPreferences.DEFAULT.activeCustomFontId,
+            agentOutputLanguage = UserPreferences.DEFAULT.agentOutputLanguage,
             installedFonts = emptyList(),
             downloadProgress = emptyMap(),
         )
@@ -201,6 +209,9 @@ class MainViewModel @Inject constructor(
             }
             is MainAction.Internal.FontDownloadCompleted -> handleFontDownloadCompleted(action)
             is MainAction.Internal.FontImportCompleted -> handleFontImportCompleted(action)
+
+            is MainAction.AgentOutputLanguageSelected ->
+                handleAgentOutputLanguageSelected(action)
         }
     }
 
@@ -260,6 +271,15 @@ class MainViewModel @Inject constructor(
         sendEvent(MainEvent.ShowToast(R.string.font_size_saved_toast))
     }
 
+    /**
+     * 模型回复语言：界面立刻跟上，落盘走仓库。它进的是**系统指令**，所以聊天那边在下一次附着会话时
+     * 才会用上新的那句（聊天页自己会重挂会话，见 ChatViewModel）。
+     */
+    private fun handleAgentOutputLanguageSelected(action: MainAction.AgentOutputLanguageSelected) {
+        updateState { copy(agentOutputLanguage = action.value) }
+        viewModelScope.launch { userPreferencesRepository.updateAgentOutputLanguage(action.value) }
+    }
+
     // endregion
 
     // region Internal action handlers
@@ -275,6 +295,7 @@ class MainViewModel @Inject constructor(
                     ?: AppTypographyChoice.EDITORIAL,
                 fontScale = prefs.fontScale,
                 activeCustomFontId = prefs.activeCustomFontId,
+                agentOutputLanguage = prefs.agentOutputLanguage,
                 // Sidebar-open state is intentionally NOT restored here — it is
                 // session-transient and always starts closed after process death.
             )

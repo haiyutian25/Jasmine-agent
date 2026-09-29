@@ -10,7 +10,10 @@ import com.lhzkml.jasmine.core.data.model.ChatRole
 import com.lhzkml.jasmine.core.data.model.Conversation
 import com.lhzkml.jasmine.core.data.model.ModelConfig
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
+import com.lhzkml.jasmine.core.data.model.AgentOutputLanguage
+import com.lhzkml.jasmine.core.data.model.AgentSettings
 import com.lhzkml.jasmine.core.data.model.TranscriptMessage
+import com.lhzkml.jasmine.core.data.model.UserPreferences
 import com.lhzkml.jasmine.core.data.model.findInCatalog
 import com.lhzkml.jasmine.core.data.repository.ProviderRepository
 import com.lhzkml.jasmine.core.data.repository.UserPreferencesRepository
@@ -25,6 +28,7 @@ import com.lhzkml.jasmine.core.markdown.model.MarkdownInlineType
 import com.lhzkml.jasmine.core.markdown.model.MarkdownUpdate
 import com.lhzkml.jasmine.core.ui.base.BaseViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -263,6 +267,9 @@ sealed interface ChatAction {
         data class ProvidersReceived(val providers: List<ProviderConfig>) : Internal
         data class ConversationsReceived(val conversations: List<Conversation>) : Internal
         data class ActiveModelReceived(val providerId: String, val modelId: String) : Internal
+
+        /** 偏好里的"模型回复语言"（[com.lhzkml.jasmine.core.data.model.AgentOutputLanguage]）。 */
+        data class LanguagePreferenceReceived(val value: String) : Internal
         data class TranscriptRestored(
             val conversationId: String,
             val messages: List<TranscriptMessage>,
@@ -318,20 +325,37 @@ class ChatViewModel @Inject constructor(
      */
     private var pendingReasoningEffort: String? = null
 
+    /**
+     * 模型回复语言的**取值**（见 [AgentOutputLanguage]）。
+     *
+     * 规则不在这里：那条输出语言规则由**核心**拼（`rust/core/src/agent_settings.rs`），这里只把这个值
+     * 连同界面语言一起传过去 —— 界面只给值，规则在核心。
+     */
+    private var languagePreference: String = UserPreferences.DEFAULT.agentOutputLanguage
+
+    /** 偏好里的语言设置**第一次读回来**不算"改了"，不用重挂会话。 */
+    private var languagePreferenceSeen = false
+
     /** Id of the assistant message currently being streamed, for chunk appends. */
     private var streamingMessageId: String? = null
 
     /**
-     * 流式解析的待办命令。
+     * **这一轮**的流式解析命令通道。
      *
      * 解析**不在** `handleAction` 里做了：那里跑在 `viewModelScope`（Main）上，而 FULL 模式
      * 每来一个分片都要重解析整篇回复（O(n)）。长回复时主线程会被持续打满 —— 真机实测
      * 主线程 100% CPU 持续 15 秒、`Skipped 438 frames!  Davey! duration=7738ms`。
      *
-     * 现在改成投递给一个后台工作协程（[startStreamParseWorker]）：解析在 Default 上做，
-     * 主线程只负责把结果贴进状态。
+     * 现在改成投递给这条通道，由**这一轮的**后台工作协程处理（见 [startTurn]）：解析在 Default 上做，
+     * 主线程只负责把结果贴进状态；回合结束（或这一轮被取消）通道就关掉，**不留"忘了收的解析"**。
+     * 这一轮已经收尾之后再到的命令直接丢弃 —— 那时没有落点了。
      */
-    private val streamCommands = Channel<StreamCommand>(Channel.UNLIMITED)
+    private var turnCommands: Channel<StreamCommand>? = null
+
+    /** 给这一轮的解析 worker 投一条命令；这一轮已经收尾了就丢弃。 */
+    private fun sendStreamCommand(command: StreamCommand) {
+        turnCommands?.trySend(command)
+    }
 
     /**
      * 待解析的最新文本。
@@ -396,8 +420,17 @@ class ChatViewModel @Inject constructor(
 
         userPreferencesRepository
             .preferencesStateFlow
-            .map { ChatAction.Internal.ActiveModelReceived(it.activeProviderId, it.activeModelId) }
-            .onEach(::sendAction)
+            .onEach { preferences ->
+                sendAction(
+                    ChatAction.Internal.ActiveModelReceived(
+                        preferences.activeProviderId,
+                        preferences.activeModelId,
+                    )
+                )
+                sendAction(
+                    ChatAction.Internal.LanguagePreferenceReceived(preferences.agentOutputLanguage)
+                )
+            }
             .launchIn(viewModelScope)
 
         conversationStore
@@ -409,8 +442,7 @@ class ChatViewModel @Inject constructor(
         // The session store is not observable, so the list has to be read once here.
         viewModelScope.launch { runCatching { conversationStore.refresh() } }
         viewModelScope.launch { restoreLatestConversation() }
-        // 流式解析的后台工作者：槽点见 startStreamParseWorker。
-        startStreamParseWorker()
+        // 流式解析的 worker 不在这里起：它属于**每一轮**，见 startTurn。
     }
 
     override fun handleAction(action: ChatAction) {
@@ -453,6 +485,8 @@ class ChatViewModel @Inject constructor(
                 }
                 viewModelScope.launch { refreshAllowedEfforts() }
             }
+            is ChatAction.Internal.LanguagePreferenceReceived ->
+                handleLanguagePreference(action.value)
             is ChatAction.Internal.TranscriptRestored -> {
                 handleTranscriptRestored(action)
                 // 这条会话是不是有一个还没写完的回合，决定发送键要不要是「继续」。
@@ -584,7 +618,7 @@ class ChatViewModel @Inject constructor(
             )
         }
 
-        turnJob = viewModelScope.launch { runTurn(provider, model, text) }
+        startTurn { runTurn(provider, model, text) }
     }
 
     /**
@@ -640,7 +674,7 @@ class ChatViewModel @Inject constructor(
             )
         }
 
-        turnJob = viewModelScope.launch { runContinuedTurn(provider, model) }
+        startTurn { runContinuedTurn(provider, model) }
     }
 
     /**
@@ -752,7 +786,8 @@ class ChatViewModel @Inject constructor(
                     sessionId = id,
                     provider = provider,
                     modelId = model.modelId,
-                    instruction = CHAT_INSTRUCTION,
+                    instruction = CHAT_PERSONA,
+                    settings = agentSettings(),
                 )
                 sessionKey = key
                 syncContextWindowAfterAttach()
@@ -943,7 +978,8 @@ class ChatViewModel @Inject constructor(
                     sessionId = id,
                     provider = provider,
                     modelId = model.modelId,
-                    instruction = CHAT_INSTRUCTION,
+                    instruction = CHAT_PERSONA,
+                    settings = agentSettings(),
                 )
                 sessionKey = key
                 syncContextWindowAfterAttach()
@@ -1029,7 +1065,7 @@ class ChatViewModel @Inject constructor(
         val answers = promptAnswers.toList()
         promptAnswers.clear()
         updateState { copy(pendingPrompt = null, isSending = true) }
-        turnJob = viewModelScope.launch { resumeTurn(answers) }
+        startTurn { resumeTurn(answers) }
     }
 
     private suspend fun resumeTurn(answers: List<String>) {
@@ -1110,7 +1146,35 @@ class ChatViewModel @Inject constructor(
         // 最新文本，期间到达的分片自然合并掉。
         pendingStreamParse.set(StreamParseRequest(targetId, fullText))
         if (streamParseQueued.compareAndSet(false, true)) {
-            streamCommands.trySend(StreamCommand.Parse)
+            sendStreamCommand(StreamCommand.Parse)
+        }
+    }
+
+    /**
+     * 起一轮：解析 worker 是**这一轮的子协程**，不再"发射即忘"。
+     *
+     * 回合正常结束时：先把通道关掉 → worker 把还排着的命令（包括那条收尾）跑完 → `join` 等它收干净，
+     * 这一轮才算结束 —— 所以一轮之后**不会有一份忘了收的解析**再去碰主线程（以前那版是随 ViewModel
+     * 起的长命 worker，轮到下一轮甚至下一个测试都可能被它回来撞一下：`Dispatchers.Main is used
+     * concurrently with setting it`）。这一轮被取消时（换会话 / 停止 / ViewModel 销毁）worker 跟着
+     * 一起取消。
+     */
+    private fun startTurn(block: suspend () -> Unit) {
+        val commands = Channel<StreamCommand>(Channel.UNLIMITED)
+        turnCommands = commands
+        // 上一轮可能留下这些跨轮的状态（比如被取消时没走到清理那一步），新的一轮从干净的开始。
+        streamParseQueued.set(false)
+        pendingStreamParse.set(null)
+        streamParsedLength = 0
+        turnJob = viewModelScope.launch {
+            val worker = launch { streamParseLoop(commands) }
+            try {
+                block()
+            } finally {
+                if (turnCommands === commands) turnCommands = null
+                commands.close()
+                worker.join()
+            }
         }
     }
 
@@ -1120,62 +1184,67 @@ class ChatViewModel @Inject constructor(
      * 一个协程顺序处理所有命令，所以句柄永远不会被两个线程同时使用（native 侧不是线程安全的）；
      * 命令按入队顺序处理，`Parse` 又会在自己内部把待办文本排空，因此「先解析完、再收尾」的顺序
      * 天然成立，不需要额外加锁。
+     *
+     * 它活多久由 [startTurn] 决定：通道一关，它把还排着的命令跑完、释放句柄，然后自己结束。
      */
-    private fun startStreamParseWorker() {
-        viewModelScope.launch {
-            var parser: MarkdownParser? = null
-            for (command in streamCommands) {
-                when (command) {
-                    StreamCommand.Parse -> {
-                        while (true) {
-                            val request = pendingStreamParse.getAndSet(null) ?: break
-                            val startedAt = System.currentTimeMillis()
-                            // FULL: re-parse from scratch rather than appending the delta.
-                            val update = withContext(Dispatchers.Default) {
-                                val active = parser ?: markdownParserFactory.create().also { parser = it }
-                                active.reset()
-                                active.append(request.text)
-                            }
-                            val parsedAt = System.currentTimeMillis()
-                            applyStreamBlocks(request.targetId, update)
-                            Log.d(
-                                CHAT_PARSE_TAG,
-                                "解析 ${request.text.length} 字 耗时 ${parsedAt - startedAt}ms，" +
-                                    "贴块 ${System.currentTimeMillis() - parsedAt}ms"
-                            )
-                            // 节流：贴块 + 重组才是主线程上的成本，控制它的频率。
-                            delay(STREAM_PARSE_MIN_INTERVAL_MS)
-                        }
-                        streamParseQueued.set(false)
-                        // 收尾竞态：清标志之后、工作协程再次挂起之前又来了新文本，就补排一次。
-                        if (pendingStreamParse.get() != null && streamParseQueued.compareAndSet(false, true)) {
-                            streamCommands.trySend(StreamCommand.Parse)
-                        }
-                    }
-
-                    is StreamCommand.Finalize -> {
-                        // 排在前面的 Parse 已经把文本排空了，这里直接收尾。
-                        val targetId = command.targetId
+    private suspend fun streamParseLoop(commands: Channel<StreamCommand>) {
+        var parser: MarkdownParser? = null
+        for (command in commands) {
+            when (command) {
+                StreamCommand.Parse -> {
+                    while (true) {
+                        val request = pendingStreamParse.getAndSet(null) ?: break
+                        val startedAt = System.currentTimeMillis()
+                        // FULL: re-parse from scratch rather than appending the delta.
                         val update = withContext(Dispatchers.Default) {
-                            if (targetId == null) null else parser?.finalizeStream()
+                            val active = parser ?: markdownParserFactory.create().also { parser = it }
+                            active.reset()
+                            active.append(request.text)
                         }
-                        if (targetId != null && update != null) applyStreamBlocks(targetId, update)
-                        // 收尾之后再追加尾块（失败原因），否则会被上面的截断吃掉。
-                        if (targetId != null && command.trailingBlock != null) {
-                            appendBlock(targetId, command.trailingBlock)
-                        }
-                        withContext(Dispatchers.Default) {
-                            parser?.close()
-                            parser = null
-                        }
+                        val parsedAt = System.currentTimeMillis()
+                        applyStreamBlocks(request.targetId, update)
+                        Log.d(
+                            CHAT_PARSE_TAG,
+                            "解析 ${request.text.length} 字 耗时 ${parsedAt - startedAt}ms，" +
+                                "贴块 ${System.currentTimeMillis() - parsedAt}ms"
+                        )
+                        // 节流：贴块 + 重组才是主线程上的成本，控制它的频率。
+                        delay(STREAM_PARSE_MIN_INTERVAL_MS)
                     }
+                    streamParseQueued.set(false)
+                    // 收尾竞态：清标志之后、工作协程再次挂起之前又来了新文本，就补排一次。
+                    if (pendingStreamParse.get() != null && streamParseQueued.compareAndSet(false, true)) {
+                        commands.trySend(StreamCommand.Parse)
+                    }
+                }
 
-                    StreamCommand.Close -> withContext(Dispatchers.Default) {
+                is StreamCommand.Finalize -> {
+                    // 排在前面的 Parse 已经把文本排空了，这里直接收尾。
+                    val targetId = command.targetId
+                    val update = withContext(Dispatchers.Default) {
+                        if (targetId == null) null else parser?.finalizeStream()
+                    }
+                    if (targetId != null && update != null) applyStreamBlocks(targetId, update)
+                    // 收尾之后再追加尾块（失败原因），否则会被上面的截断吃掉。
+                    if (targetId != null && command.trailingBlock != null) {
+                        appendBlock(targetId, command.trailingBlock)
+                    }
+                    withContext(Dispatchers.Default) {
                         parser?.close()
                         parser = null
                     }
                 }
+
+                StreamCommand.Close -> withContext(Dispatchers.Default) {
+                    parser?.close()
+                    parser = null
+                }
             }
+        }
+        // 通道关了（这一轮收尾）：把句柄放掉再结束。句柄只归这个协程，所以在它里面放。
+        withContext(Dispatchers.Default) {
+            parser?.close()
+            parser = null
         }
     }
 
@@ -1264,14 +1333,14 @@ class ChatViewModel @Inject constructor(
      * the same way a chunk update is merged.
      */
     private fun finalizeStreamInto(targetId: String?, trailingBlock: MarkdownBlock? = null) {
-        // 交给工作协程：它排在前面那些 Parse 之后，顺序天然正确（见 startStreamParseWorker）。
-        streamCommands.trySend(StreamCommand.Finalize(targetId, trailingBlock))
+        // 交给这一轮的工作协程：它排在前面那些 Parse 之后，顺序天然正确（见 [startTurn]）。
+        sendStreamCommand(StreamCommand.Finalize(targetId, trailingBlock))
     }
 
     private fun closeStreamParser() {
         // Length tracking belongs to the parser instance, so it goes with it.
         streamParsedLength = 0
-        streamCommands.trySend(StreamCommand.Close)
+        sendStreamCommand(StreamCommand.Close)
     }
 
     /**
@@ -1470,6 +1539,28 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
+     * 模型回复语言变了：把当前会话**重挂**一次 —— 系统指令只在附着时交给核心，所以下一次发送就用上
+     * 新的那句（历史在会话文件里，重挂会读回来）。重挂不掐正在跑的那一轮，见 [resetSession]。
+     */
+    private fun handleLanguagePreference(value: String) {
+        val isFirstRead = !languagePreferenceSeen
+        languagePreferenceSeen = true
+        if (value == languagePreference) return
+        languagePreference = value
+        if (!isFirstRead && state.activeConversationId != null) resetSession()
+    }
+
+    /**
+     * 交给核心的 Agent 设置：回复语言的**值** + 界面当前语言（"跟随应用语言"那档要用）。
+     *
+     * 界面语言**每次附着时现取**，所以改了界面语言也会跟着走。
+     */
+    private fun agentSettings(): AgentSettings = AgentSettings(
+        outputLanguage = languagePreference,
+        appLanguage = Locale.getDefault().toLanguageTag(),
+    )
+
+    /**
      * Drops the ADK session so the next send re-attaches (the transcript stays).
      *
      * **刻意不取消进行中的回合**：回复途中切模型 / 切对话不该把那条回复掐掉，它会继续
@@ -1502,8 +1593,12 @@ class ChatViewModel @Inject constructor(
     }
 
     private companion object {
-        const val CHAT_INSTRUCTION =
-            "You are Jasmine, a concise and helpful assistant. Answer in the user's language."
+        /**
+         * 人格那一句。**输出语言规则不在这里** —— 值随 [AgentSettings] 交给核心，由核心按 qwen-code
+         * 那套结构拼在后面（`rust/core/src/agent_settings.rs`：Rule / Exception / 不改技术产物 /
+         * 工具输出）。
+         */
+        const val CHAT_PERSONA = "You are Jasmine, a concise and helpful assistant."
 
         /** Conversation titles are the first user message, clipped for the list. */
         const val TITLE_MAX_LENGTH = 60

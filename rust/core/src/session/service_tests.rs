@@ -2,6 +2,7 @@
 
 use super::AgentChatService;
 use super::AgentError;
+use crate::agent_settings::AgentSettings;
 use super::ChatSink;
 use super::ConversationsBridge;
 use crate::host::Clock;
@@ -104,7 +105,13 @@ fn attach(service: &AgentChatService, session_id: &str, title: &str) {
         )
         .expect("create");
     service
-        .start_conversation(&SessionId::new(session_id), provider(), &model(), "")
+        .start_conversation(
+            &SessionId::new(session_id),
+            provider(),
+            &model(),
+            "",
+            &AgentSettings::default(),
+        )
         .expect("attach");
 }
 
@@ -222,7 +229,13 @@ fn a_new_conversation_starts_from_the_catalogs_default_level() {
         .expect("create");
     // 目录给 `deepseek-flash` 的起点档是 `high`（见 `presets/deepseek`）。
     service
-        .start_conversation(&SessionId::new("s1"), provider(), &model(), "")
+        .start_conversation(
+            &SessionId::new("s1"),
+            provider(),
+            &model(),
+            "",
+            &AgentSettings::default(),
+        )
         .expect("attach");
 
     assert_eq!(service.reasoning_effort().as_deref(), Some("high"));
@@ -258,7 +271,13 @@ fn a_model_outside_the_catalog_starts_from_its_configured_default() {
         )
         .expect("create");
     service
-        .start_conversation(&SessionId::new("s1"), provider(), &model, "")
+        .start_conversation(
+            &SessionId::new("s1"),
+            provider(),
+            &model,
+            "",
+            &AgentSettings::default(),
+        )
         .expect("attach");
 
     assert_eq!(service.reasoning_effort().as_deref(), Some("low"));
@@ -283,7 +302,13 @@ fn a_stored_level_the_new_model_does_not_support_is_corrected() {
         ..ModelConfig::default()
     };
     service
-        .start_conversation(&SessionId::new("s1"), openai_provider(), &model, "")
+        .start_conversation(
+            &SessionId::new("s1"),
+            openai_provider(),
+            &model,
+            "",
+            &AgentSettings::default(),
+        )
         .expect("attach");
 
     assert_eq!(service.reasoning_effort().as_deref(), Some("medium"));
@@ -363,7 +388,13 @@ fn each_turn_records_the_reasoning_effort() {
         .create_conversation(&SessionId::new("s1"), "deepseek", "deepseek-flash", "chat")
         .expect("create");
     service
-        .start_conversation(&SessionId::new("s1"), provider(), &model(), "")
+        .start_conversation(
+            &SessionId::new("s1"),
+            provider(),
+            &model(),
+            "",
+            &AgentSettings::default(),
+        )
         .expect("attach");
 
     let mut sink = Collector { events: Vec::new() };
