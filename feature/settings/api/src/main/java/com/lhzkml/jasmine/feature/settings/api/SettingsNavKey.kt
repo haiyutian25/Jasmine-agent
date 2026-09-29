@@ -40,5 +40,5 @@ sealed interface SettingsNavKey : NavKey {
      * **行为与权限** 设置页：模型侧的行为控制（眼下是"模型回复语言"，往后放工具权限、审核这些）。
      */
     @Serializable
-    data object AgentSettings : SettingsNavKey
+    data object BehaviourAndPermissions : SettingsNavKey
 }

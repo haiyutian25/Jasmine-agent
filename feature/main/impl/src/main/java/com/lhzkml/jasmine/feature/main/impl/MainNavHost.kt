@@ -36,7 +36,7 @@ import com.lhzkml.jasmine.feature.provider.impl.ProviderScreen
 import com.lhzkml.jasmine.feature.provider.impl.ProviderViewModel
 import com.lhzkml.jasmine.feature.settings.api.SettingsNavKey
 import com.lhzkml.jasmine.feature.settings.impl.R as SettingsR
-import com.lhzkml.jasmine.feature.settings.impl.screens.AgentScreen
+import com.lhzkml.jasmine.feature.settings.impl.screens.BehaviourAndPermissionsScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.FontScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.FontSizeScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.LanguageScreen
@@ -125,20 +125,22 @@ fun MainNavHost(
                             onOpenAppearance = { navigator.navigate(SettingsNavKey.AppearanceSettings) },
                             onOpenFont = { navigator.navigate(SettingsNavKey.FontSettings) },
                             onOpenLanguage = { navigator.navigate(SettingsNavKey.LanguageSettings) },
-                            onOpenAgent = { navigator.navigate(SettingsNavKey.AgentSettings) },
+                            onOpenBehaviourAndPermissions = {
+                                navigator.navigate(SettingsNavKey.BehaviourAndPermissions)
+                            },
                             onOpenProviders = { navigator.navigate(ProviderNavKey.ProviderList) },
                             onOpenUsageStats = { navigator.navigate(SettingsNavKey.UsageStats) },
                             modifier = contentModifier,
                         )
                     }
                 }
-                entry<SettingsNavKey.AgentSettings> {
+                entry<SettingsNavKey.BehaviourAndPermissions> {
                     SettingsPage(
                         currentTheme = state.theme,
                         title = stringResource(SettingsR.string.settings_menu_agent_title),
                         onBack = { navigator.goBack() },
                     ) { contentModifier ->
-                        AgentScreen(
+                        BehaviourAndPermissionsScreen(
                             currentTheme = state.theme,
                             selected = state.agentOutputLanguage,
                             onSelect = {

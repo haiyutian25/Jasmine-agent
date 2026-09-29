@@ -36,14 +36,14 @@ import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.feature.settings.impl.R
 
 /**
- * **行为与权限** 设置页：模型侧的行为控制。眼下只有一项「模型回复语言」，后面会往这里加工具权限、
- * 审核这些（菜单入口与这一页同名，见 `settings_menu_agent_title`）。
+ * **行为与权限**（菜单标题见 `settings_menu_agent_title`）设置页：模型侧的行为控制。眼下只有一项
+ * 「模型回复语言」，后面会往这里加工具权限、审核这些。
  *
  * 语言是**全局**一个值（不做会话级），三态：跟随输入 / 跟随应用语言 / 固定某种语言 —— 见
  * [AgentOutputLanguage]。它最终进的是**系统指令**，所以改完从**下一次附着会话**起生效（底下写了这句）。
  */
 @Composable
-fun AgentScreen(
+fun BehaviourAndPermissionsScreen(
     currentTheme: CssVariables,
     selected: String,
     onSelect: (String) -> Unit,
@@ -80,12 +80,12 @@ fun AgentScreen(
                 .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusLg))
         ) {
             AgentOutputLanguage.CHOICES.forEachIndexed { index, value ->
-                if (index > 0) AgentDivider(currentTheme)
-                AgentLanguageRow(
-                    label = stringResource(agentLanguageLabel(value)),
+                if (index > 0) OptionDivider(currentTheme)
+                LanguageOptionRow(
+                    label = stringResource(languageLabel(value)),
                     isSelected = value == selected,
                     currentTheme = currentTheme,
-                    testTag = "agent_language_option_$value",
+                    testTag = "behaviour_language_option_$value",
                     onClick = { onSelect(value) }
                 )
             }
@@ -108,7 +108,7 @@ fun AgentScreen(
 
 /** 每个取值对应的文案；认不出的按"跟随输入"显示。 */
 @StringRes
-private fun agentLanguageLabel(value: String): Int = when (value) {
+private fun languageLabel(value: String): Int = when (value) {
     AgentOutputLanguage.FOLLOW_APP -> R.string.agent_language_follow_app
     AgentOutputLanguage.ENGLISH -> R.string.agent_language_english
     AgentOutputLanguage.SIMPLIFIED_CHINESE -> R.string.agent_language_simplified_chinese
@@ -118,7 +118,7 @@ private fun agentLanguageLabel(value: String): Int = when (value) {
 
 /** One selectable row: label left, leading-brand checkmark right when selected. */
 @Composable
-private fun AgentLanguageRow(
+private fun LanguageOptionRow(
     label: String,
     isSelected: Boolean,
     currentTheme: CssVariables,
@@ -165,7 +165,7 @@ private fun AgentLanguageRow(
 }
 
 @Composable
-private fun AgentDivider(currentTheme: CssVariables) {
+private fun OptionDivider(currentTheme: CssVariables) {
     Box(
         modifier = Modifier
             .fillMaxWidth()

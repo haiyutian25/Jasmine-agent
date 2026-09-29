@@ -65,7 +65,7 @@ fun SettingsMenuScreen(
     onOpenAppearance: () -> Unit,
     onOpenFont: () -> Unit,
     onOpenLanguage: () -> Unit,
-    onOpenAgent: () -> Unit,
+    onOpenBehaviourAndPermissions: () -> Unit,
     onOpenProviders: () -> Unit,
     onOpenUsageStats: () -> Unit,
     modifier: Modifier = Modifier
@@ -106,16 +106,16 @@ fun SettingsMenuScreen(
             )
         }
 
-        // Agent：模型侧的行为控制（眼下是回复语言，后面还会往里加），所以单独一组。
+        // 行为与权限：模型侧的行为控制（眼下是回复语言，后面还会往里加），所以单独一组。
         Spacer(modifier = Modifier.height(MenuGroupSpacing))
 
         SettingsGroupCard(currentTheme = currentTheme, modifier = Modifier.fillMaxWidth()) {
             SettingsMenuRow(
                 icon = LucideIcons.Sparkles,
                 title = stringResource(R.string.settings_menu_agent_title),
-                onClick = onOpenAgent,
+                onClick = onOpenBehaviourAndPermissions,
                 currentTheme = currentTheme,
-                testTag = "settings_menu_agent_entry"
+                testTag = "settings_menu_behaviour_entry"
             )
         }
 
