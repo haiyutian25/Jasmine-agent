@@ -17,6 +17,12 @@ sealed interface ChatEvent {
     data class Text(val text: String) : ChatEvent
 
     /**
+     * More of the model's **thinking** arrived. It is not part of the reply: the chat keeps it in a
+     * collapsible block above the answer, and it streams ahead of it.
+     */
+    data class Reasoning(val text: String) : ChatEvent
+
+    /**
      * The model asked to call a tool. [arguments] is the raw argument map rendered
      * for display; the tool itself is executed by ADK, not by the caller.
      */

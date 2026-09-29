@@ -9,9 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.Menu
+import com.lhzkml.jasmine.core.ui.icons.LucideIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -79,7 +77,7 @@ fun ProductionTopNavBar(
                     testTag = "top_nav_back_btn"
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        imageVector = LucideIcons.ArrowLeft,
                         contentDescription = stringResource(R.string.top_nav_cd_back),
                         tint = currentTheme.foreground,
                         modifier = Modifier.size(TopNavActionIconSize)
@@ -110,7 +108,7 @@ fun ProductionTopNavBar(
                     testTag = "top_nav_sidebar_btn"
                 ) {
                     Icon(
-                        imageVector = Icons.Outlined.Menu,
+                        imageVector = LucideIcons.Menu,
                         contentDescription = stringResource(R.string.top_nav_cd_open_sidebar),
                         tint = currentTheme.foreground,
                         modifier = Modifier.size(TopNavActionIconSize)

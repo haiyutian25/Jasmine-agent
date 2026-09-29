@@ -27,10 +27,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Settings
+import com.lhzkml.jasmine.core.ui.icons.LucideIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -362,7 +359,7 @@ fun AppSidebarContent(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = Icons.Filled.Add,
+                    imageVector = LucideIcons.Plus,
                     contentDescription = null,
                     tint = currentTheme.foreground,
                     modifier = Modifier.size(SidebarNewConversationIconSize)
@@ -425,7 +422,7 @@ fun AppSidebarContent(
                 testTag = "sidebar_settings_btn"
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.Settings,
+                    imageVector = LucideIcons.Settings,
                     contentDescription = stringResource(R.string.sidebar_cd_settings),
                     tint = currentTheme.foreground,
                     modifier = Modifier.size(SidebarSettingsIconSize)
@@ -481,7 +478,7 @@ private fun SidebarConversationRow(
                 testTag = "sidebar_conversation_delete_${conversation.id}"
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.Delete,
+                    imageVector = LucideIcons.Trash,
                     contentDescription = stringResource(R.string.sidebar_cd_delete_conversation),
                     tint = currentTheme.mutedForeground,
                     modifier = Modifier

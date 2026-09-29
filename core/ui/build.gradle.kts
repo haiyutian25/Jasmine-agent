@@ -26,8 +26,6 @@ dependencies {
   implementation(libs.androidx.compose.ui.graphics)
   implementation(libs.androidx.compose.material3)
   // 组件库用到的图标（BottomNavBar 的 Code/FormatSize 等在 extended 集）
-  implementation(libs.androidx.compose.material.icons.core)
-  implementation(libs.androidx.compose.material.icons.extended)
   // UDF base: BaseViewModel (stateFlow/eventFlow/actionChannel) + EventsEffect
   implementation(libs.androidx.lifecycle.viewmodel.ktx)
   implementation(libs.androidx.lifecycle.runtime.compose)

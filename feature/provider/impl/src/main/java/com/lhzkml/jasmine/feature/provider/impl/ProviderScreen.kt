@@ -3,6 +3,7 @@ package com.lhzkml.jasmine.feature.provider.impl
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,19 +23,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Cloud
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Edit
+import com.lhzkml.jasmine.core.ui.icons.LucideIcons
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -224,7 +225,7 @@ private fun ProviderListContent(
             horizontalArrangement = Arrangement.spacedBy(ProviderRowIconTextSpacing)
         ) {
             Icon(
-                imageVector = Icons.Outlined.Add,
+                imageVector = LucideIcons.Plus,
                 contentDescription = null,
                 tint = currentTheme.foreground,
                 modifier = Modifier.size(ProviderAddIconSize)
@@ -237,7 +238,7 @@ private fun ProviderListContent(
                 modifier = Modifier.weight(1f)
             )
             Icon(
-                imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                imageVector = LucideIcons.ChevronRight,
                 contentDescription = null,
                 tint = currentTheme.mutedForeground,
                 modifier = Modifier.size(16.dp)
@@ -265,7 +266,7 @@ private fun ProviderRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = Icons.Outlined.Cloud,
+            imageVector = LucideIcons.Cloud,
             contentDescription = null,
             tint = currentTheme.foreground,
             modifier = Modifier.size(ProviderRowIconSize)
@@ -293,7 +294,7 @@ private fun ProviderRow(
             testTag = "provider_edit_${provider.id}"
         ) {
             Icon(
-                imageVector = Icons.Outlined.Edit,
+                imageVector = LucideIcons.Pencil,
                 contentDescription = stringResource(R.string.provider_edit_cd),
                 tint = currentTheme.mutedForeground,
                 modifier = Modifier
@@ -309,7 +310,7 @@ private fun ProviderRow(
                 testTag = "provider_delete_${provider.id}"
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.Delete,
+                    imageVector = LucideIcons.Trash,
                     contentDescription = stringResource(R.string.provider_delete_cd),
                     tint = currentTheme.mutedForeground,
                     modifier = Modifier
@@ -402,7 +403,7 @@ private fun ProviderEditorContent(
                     )
                     if (isSelected) {
                         Icon(
-                            imageVector = Icons.Default.Check,
+                            imageVector = LucideIcons.Check,
                             contentDescription = null,
                             tint = currentTheme.primary,
                             modifier = Modifier.size(ProviderApiTypeCheckSize)
@@ -604,7 +605,7 @@ private fun ModelRow(
             testTag = "provider_model_edit_${model.id}"
         ) {
             Icon(
-                imageVector = Icons.Outlined.Edit,
+                imageVector = LucideIcons.Pencil,
                 contentDescription = stringResource(R.string.provider_model_edit_cd),
                 tint = currentTheme.mutedForeground,
                 modifier = Modifier
@@ -618,7 +619,7 @@ private fun ModelRow(
             testTag = "provider_model_delete_${model.id}"
         ) {
             Icon(
-                imageVector = Icons.Outlined.Delete,
+                imageVector = LucideIcons.Trash,
                 contentDescription = stringResource(R.string.provider_model_delete_cd),
                 tint = currentTheme.mutedForeground,
                 modifier = Modifier
@@ -741,7 +742,7 @@ private fun ModelPickerSheet(
                             horizontalArrangement = Arrangement.spacedBy(ProviderRowIconTextSpacing)
                         ) {
                             Icon(
-                                imageVector = Icons.Outlined.Edit,
+                                imageVector = LucideIcons.Pencil,
                                 contentDescription = null,
                                 tint = currentTheme.primary,
                                 modifier = Modifier.size(ProviderRowIconSize)
@@ -789,7 +790,7 @@ private fun ModelPickerSheet(
                                             modifier = Modifier.weight(1f)
                                         )
                                         Icon(
-                                            imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                                            imageVector = LucideIcons.ChevronRight,
                                             contentDescription = null,
                                             tint = currentTheme.mutedForeground,
                                             modifier = Modifier.size(16.dp)
@@ -868,6 +869,13 @@ private fun ModelEditorSheet(
                 testTag = "provider_model_field_output",
                 hint = stringResource(R.string.provider_max_output_hint)
             )
+
+            // 推理强度：照 ZCode 那样做成一个下拉，取值只有 codex 那四个固定档 + 「未设置」。
+            ProviderReasoningEffortField(
+                value = editor.reasoningEffort,
+                onValueChange = { onAction(ProviderAction.ModelReasoningEffortSelected(it)) },
+                currentTheme = currentTheme
+            )
             Spacer(modifier = Modifier.height(18.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -930,6 +938,96 @@ private fun ProviderSectionLabel(text: String, currentTheme: CssVariables) {
  * Themed single-line text field: label above a `subtleSurface` input box with
  * a hairline border (same chrome language as the rest of the settings flow).
  */
+// ── 推理强度下拉 ───────────────────────────────────────────────────────
+
+/**
+ * 五个取值：空串是「未设置」（请求里一个推理字段都不发），其余四个与 codex 的 `ReasoningEffort` 同名，
+ * 也是两种协议上线时用的字面量。
+ */
+private val ProviderReasoningEffortOptions = listOf(
+    "" to R.string.provider_reasoning_effort_unset,
+    "minimal" to R.string.provider_reasoning_effort_minimal,
+    "low" to R.string.provider_reasoning_effort_low,
+    "medium" to R.string.provider_reasoning_effort_medium,
+    "high" to R.string.provider_reasoning_effort_high,
+)
+
+private val ProviderReasoningChevronSize = 14.dp
+private val ProviderReasoningPaddingVertical = 6.dp
+
+/**
+ * 推理强度：一行「标签 + 当前档位」，点开是个下拉。
+ *
+ * 说明写在选项里（见 strings 的 hint），所以这里不再重复一行小字。
+ */
+@Composable
+private fun ProviderReasoningEffortField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    currentTheme: CssVariables,
+) {
+    var open by remember { mutableStateOf(false) }
+    val current = ProviderReasoningEffortOptions.firstOrNull { it.first == value }
+        ?: ProviderReasoningEffortOptions.first()
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = stringResource(R.string.provider_reasoning_effort),
+            fontSize = ProviderRowBaseUrlFontSize,
+            color = currentTheme.mutedForeground
+        )
+        Spacer(modifier = Modifier.width(ProviderFieldLabelSpacing))
+        Box {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(currentTheme.radiusSm))
+                    .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusSm))
+                    .clickable { open = true }
+                    .padding(
+                        horizontal = ProviderFieldPaddingHorizontal,
+                        vertical = ProviderReasoningPaddingVertical
+                    ),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(current.second),
+                    fontSize = ProviderRowBaseUrlFontSize,
+                    color = currentTheme.foreground
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Icon(
+                    imageVector = LucideIcons.ChevronDown,
+                    contentDescription = null,
+                    tint = currentTheme.mutedForeground,
+                    modifier = Modifier.size(ProviderReasoningChevronSize)
+                )
+            }
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                ProviderReasoningEffortOptions.forEach { option ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = stringResource(option.second),
+                                fontSize = ProviderRowBaseUrlFontSize,
+                                color = currentTheme.foreground
+                            )
+                        },
+                        onClick = {
+                            onValueChange(option.first)
+                            open = false
+                        }
+                    )
+                }
+            }
+        }
+    }
+    Spacer(modifier = Modifier.height(ProviderFieldLabelSpacing))
+    Text(
+        text = stringResource(R.string.provider_reasoning_effort_hint),
+        fontSize = ProviderRowBaseUrlFontSize,
+        color = currentTheme.mutedForeground
+    )
+}
+
 @Composable
 private fun ProviderField(
     label: String,

@@ -33,9 +33,7 @@ import androidx.compose.foundation.text.InlineTextContent
 // ⚠️ Compose 1.12 起 appendInlineContent 从 androidx.compose.ui.text 移到了 foundation.text
 //    （定义在 InlineTextContentKt 里）。用旧包名会报 Unresolved reference。
 import androidx.compose.foundation.text.appendInlineContent
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Download
+import com.lhzkml.jasmine.core.ui.icons.LucideIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
@@ -468,7 +466,7 @@ private fun CodeBlock(block: MarkdownBlock, currentTheme: CssVariables, bodyFont
                 color = currentTheme.mutedForeground,
             )
             Spacer(Modifier.weight(1f))
-            ToolbarIconButton(Icons.Default.ContentCopy, "复制", currentTheme) {
+            ToolbarIconButton(LucideIcons.Copy, "复制", currentTheme) {
                 copyToClipboard(context, block.literal)
                 toast(context, "已复制")
             }
@@ -544,7 +542,7 @@ private fun MermaidOrCodeBlock(
             MermaidTab("图片", showImage, currentTheme, bodyFontSize) { showImage = true }
             Spacer(Modifier.weight(1f))
             if (showImage) {
-                ToolbarIconButton(Icons.Default.Download, "保存图片", currentTheme) {
+                ToolbarIconButton(LucideIcons.Download, "保存图片", currentTheme) {
                     if (needsStoragePermission(context)) {
                         permission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                     } else {
@@ -552,7 +550,7 @@ private fun MermaidOrCodeBlock(
                     }
                 }
             } else {
-                ToolbarIconButton(Icons.Default.ContentCopy, "复制", currentTheme) {
+                ToolbarIconButton(LucideIcons.Copy, "复制", currentTheme) {
                     copyToClipboard(context, block.literal)
                     toast(context, "已复制")
                 }

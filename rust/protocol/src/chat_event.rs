@@ -10,6 +10,12 @@ const TOOL_DETAIL_MAX_LENGTH: usize = 200;
 pub enum ChatEvent {
     /// A chunk of assistant text, emitted as it streams.
     Text(String),
+    /// A chunk of the model's **thinking**, emitted as it streams.
+    ///
+    /// It is not part of the answer: the platform shows it in its own collapsible block beside the
+    /// reply, and the transcript keeps it as a reasoning item of its own so the provider can be
+    /// shown the thinking again.
+    Reasoning(String),
     /// A tool the model asked for, with its arguments abbreviated for a status line.
     ToolCall { name: String, arguments: String },
     /// A tool's result, abbreviated the same way.

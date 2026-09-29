@@ -1,4 +1,4 @@
-﻿package com.lhzkml.jasmine.feature.main.impl.screens
+package com.lhzkml.jasmine.feature.main.impl.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -30,11 +30,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.Terminal
+import com.lhzkml.jasmine.core.ui.icons.LucideIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -197,7 +193,7 @@ fun SplashScreen(
                     color = currentTheme.mutedForeground
                 )
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    imageVector = LucideIcons.ArrowRight,
                     contentDescription = stringResource(R.string.splash_cd_skip),
                     tint = currentTheme.mutedForeground,
                     modifier = Modifier.size(12.dp)
@@ -272,7 +268,7 @@ fun SplashScreen(
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.Terminal,
+                    imageVector = LucideIcons.Terminal,
                     contentDescription = null,
                     tint = currentTheme.primary,
                     modifier = Modifier.size(13.dp)
@@ -419,7 +415,7 @@ fun SplashScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Check,
+                        imageVector = LucideIcons.Check,
                         contentDescription = null,
                         tint = currentTheme.primaryForeground,
                         modifier = Modifier.size(16.dp)

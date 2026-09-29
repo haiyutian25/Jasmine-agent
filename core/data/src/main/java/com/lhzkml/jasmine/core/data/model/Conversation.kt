@@ -25,6 +25,18 @@ data class TranscriptMessage(
     val text: String,
     val isError: Boolean = false,
     /**
+     * 这一轮回答之前模型「想过」的内容（深度思考）。空串表示没有。
+     *
+     * 核心把思考从会话文件里捞出来挂在同一轮的回复上，所以重新加载出来的对话和现场看到的一样，
+     * 思考块排在正文上方。
+     */
+    val thinking: String = "",
+    /**
+     * 这条工具行走到哪一步了，核心直接给（与 ZCode 的 `chat.toolCall.status.*` 一一对应）：
+     * `pending` / `running` / `completed` / `failed` / `denied` / `stopped`；非工具行为空串。
+     */
+    val toolStatus: String = "",
+    /**
      * 执行痕迹（工具调用 / 工具返回）。非 null 时 [text] 为空，界面按工具条目渲染而不是气泡 ——
      * 这样「重新加载出来的转写」和「实时那一轮」是同一个形状。
      */

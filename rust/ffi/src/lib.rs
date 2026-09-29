@@ -86,6 +86,11 @@ pub struct HistoryEntry {
     pub tool_name: Option<String>,
     pub tool_detail: Option<String>,
     pub tool_result: Option<String>,
+    /// 这次工具调用走到哪一步了（与 ZCode 的 `chat.toolCall.status.*` 一一对应）：
+    /// `pending` / `running` / `completed` / `failed` / `denied` / `stopped`；非工具行为空串。
+    pub tool_status: String,
+    /// 这一轮回答之前模型「想过」的内容（深度思考）；空串表示没有。
+    pub thinking: String,
 }
 
 /// 平台侧实现的时钟。
@@ -121,13 +126,14 @@ pub struct ProviderInput {
 
 /// 平台侧配置进来的一个模型。
 ///
-/// 只带核心用得上的数：界面上那两栏 token 预算，0 表示"没设置"。
+/// 只带核心用得上的数：界面上那两栏 token 预算（0 表示"没设置"），以及推理强度（空串表示"没设置"）。
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct ModelInput {
     pub id: String,
     pub model_id: String,
     pub context_length: u32,
     pub max_output_length: u32,
+    pub reasoning_effort: String,
 }
 
 impl ProviderInput {
@@ -146,6 +152,7 @@ impl ProviderInput {
                     model_id: model.model_id,
                     context_length: model.context_length,
                     max_output_length: model.max_output_length,
+                    reasoning_effort: model.reasoning_effort,
                     ..Default::default()
                 })
                 .collect(),
@@ -241,6 +248,7 @@ impl AgentHandle {
                 model_id: candidate.model_id.clone(),
                 context_length: candidate.context_length,
                 max_output_length: candidate.max_output_length,
+                reasoning_effort: candidate.reasoning_effort.clone(),
                 ..ModelConfig::default()
             })
             .unwrap_or_else(|| ModelConfig {
@@ -391,6 +399,8 @@ impl AgentHandle {
                 tool_name: entry.tool_name,
                 tool_detail: entry.tool_detail,
                 tool_result: entry.tool_result,
+                tool_status: entry.tool_status,
+                thinking: entry.thinking,
             })
             .collect()
     }

@@ -20,13 +20,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.outlined.Contrast
-import androidx.compose.material.icons.outlined.Palette
+import com.lhzkml.jasmine.core.ui.icons.LucideIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -104,7 +98,7 @@ fun SettingsScreen(
             // ==========================================
             SettingsSectionHeader(
                 title = stringResource(R.string.settings_section_color_mode),
-                icon = Icons.Outlined.Contrast,
+                icon = LucideIcons.Contrast,
                 currentTheme = currentTheme
             )
 
@@ -116,7 +110,7 @@ fun SettingsScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 ColorModeCard(
-                    icon = Icons.Default.AutoAwesome,
+                    icon = LucideIcons.Sparkles,
                     title = stringResource(R.string.settings_mode_system_title),
                     isSelected = colorMode == ColorMode.SYSTEM,
                     currentTheme = currentTheme,
@@ -125,7 +119,7 @@ fun SettingsScreen(
                     onClick = { onColorModeChange(ColorMode.SYSTEM) }
                 )
                 ColorModeCard(
-                    icon = Icons.Default.LightMode,
+                    icon = LucideIcons.Sun,
                     title = stringResource(R.string.settings_mode_light_short),
                     isSelected = colorMode == ColorMode.LIGHT,
                     currentTheme = currentTheme,
@@ -134,7 +128,7 @@ fun SettingsScreen(
                     onClick = { onColorModeChange(ColorMode.LIGHT) }
                 )
                 ColorModeCard(
-                    icon = Icons.Default.DarkMode,
+                    icon = LucideIcons.Moon,
                     title = stringResource(R.string.settings_mode_dark_short),
                     isSelected = colorMode == ColorMode.DARK,
                     currentTheme = currentTheme,
@@ -151,7 +145,7 @@ fun SettingsScreen(
             // ==========================================
             SettingsSectionHeader(
                 title = stringResource(R.string.settings_section_palettes),
-                icon = Icons.Outlined.Palette,
+                icon = LucideIcons.Palette,
                 currentTheme = currentTheme
             )
 
@@ -227,7 +221,7 @@ fun SettingsScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Check,
+                                    imageVector = LucideIcons.Check,
                                     contentDescription = null,
                                     tint = currentTheme.background,
                                     modifier = Modifier.size(12.dp)

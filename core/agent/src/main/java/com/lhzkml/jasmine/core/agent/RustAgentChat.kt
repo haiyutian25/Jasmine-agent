@@ -152,14 +152,15 @@ internal fun ProviderConfig.toProviderInput(): ProviderInput = ProviderInput(
         ProviderApiType.RESPONSES -> WireApi.RESPONSES
     },
     apiKey = apiKey,
-    // 界面给每个模型配的 token 预算（上下文长度 / 最大输出）随 provider 一起进核心；
-    // 0 表示没设置，核心自己决定默认。
+    // 界面给每个模型配的 token 预算（上下文长度 / 最大输出）与推理强度随 provider 一起进核心；
+    // 0 / 空串表示没设置，核心自己决定默认。
     models = models.map { model ->
         ModelInput(
             id = model.id,
             modelId = model.modelId,
             contextLength = model.contextLength.toUInt(),
             maxOutputLength = model.maxOutputLength.toUInt(),
+            reasoningEffort = model.reasoningEffort,
         )
     },
 )
@@ -167,6 +168,7 @@ internal fun ProviderConfig.toProviderInput(): ProviderInput = ProviderInput(
 /** One core event, as this module's consumers see it. */
 private fun CoreChatEvent.toChatEvent(): ChatEvent = when (this) {
     is CoreChatEvent.Text -> ChatEvent.Text(v1)
+    is CoreChatEvent.Reasoning -> ChatEvent.Reasoning(v1)
     is CoreChatEvent.ToolCall -> ChatEvent.ToolCall(name, arguments)
     is CoreChatEvent.ToolResult -> ChatEvent.ToolResult(name, result)
     is CoreChatEvent.UserPromptRequested -> ChatEvent.UserPromptRequested(prompt, options)
@@ -208,7 +210,11 @@ private fun ChatEvent.endsTurn(): Boolean = when (this) {
     is ChatEvent.Failed,
     is ChatEvent.UserPromptRequested,
     -> true
-    is ChatEvent.Text, is ChatEvent.ToolCall, is ChatEvent.ToolResult -> false
+    is ChatEvent.Text,
+    is ChatEvent.Reasoning,
+    is ChatEvent.ToolCall,
+    is ChatEvent.ToolResult,
+    -> false
     // 用量随每个采样轮一起到，不是回合的结束。
     is ChatEvent.Usage -> false
 }

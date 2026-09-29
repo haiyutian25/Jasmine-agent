@@ -65,7 +65,6 @@ dependencies {
   implementation(libs.androidx.compose.ui.graphics)
   implementation(libs.androidx.compose.material3)
   // 图表块 tab 栏右侧的「复制 / 保存图片」图标（core:ui 用的是 implementation，不传递）。
-  implementation(libs.androidx.compose.material.icons.extended)
   // 保存图片在 API 28 及以下要运行时申请 WRITE_EXTERNAL_STORAGE。
   implementation(libs.androidx.activity.compose)
   // markdown 里的图片（![alt](url)）由它加载。

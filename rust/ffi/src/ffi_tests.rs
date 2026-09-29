@@ -50,6 +50,7 @@ fn provider_input() -> ProviderInput {
             model_id: "deepseek-flash".to_string(),
             context_length: 128_000,
             max_output_length: 0,
+            reasoning_effort: "high".to_string(),
         }],
     }
 }

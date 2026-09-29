@@ -42,6 +42,8 @@ class RustConversationStore(
                 TranscriptMessage(
                     role = if (entry.role == Role.USER) ChatRole.USER else ChatRole.ASSISTANT,
                     text = entry.text,
+                    thinking = entry.thinking,
+                    toolStatus = entry.toolStatus,
                     stoppedAfterMs = entry.stoppedAfterMs?.toLong(),
                     timestamp = entry.recordedAt,
                     modelLabel = entry.modelLabel,

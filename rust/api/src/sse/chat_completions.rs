@@ -227,7 +227,19 @@ async fn process_sse(
             .and_then(|delta| delta.reasoning_content.clone())
             && !text.is_empty()
         {
+            // 边想边发给界面（与正文一样是增量），同时攒着：回合结束时整块作为一条推理条目落进转写，
+            // 那才是要回传给供应商的形状。
             reasoning.push_str(&text);
+            if tx_event
+                .send(Ok(ResponseEvent::ReasoningContentDelta {
+                    delta: text,
+                    content_index: 0,
+                }))
+                .await
+                .is_err()
+            {
+                return;
+            }
         }
 
         if let Some(text) = choice

@@ -10,15 +10,18 @@ use jasmine_api::ChatTool;
 use jasmine_api::ChatToolCallFunction;
 use jasmine_api::ChatToolCallRequest;
 use jasmine_api::ChatToolFunction;
+use jasmine_api::Reasoning;
 use jasmine_api::ResponseStream;
 use jasmine_api::ResponsesApiRequest;
 use jasmine_api::ResponsesApiTools;
 use jasmine_api::ResponsesClient;
 use jasmine_api::ResponsesOptions;
 use jasmine_client::HttpTransport;
+use jasmine_protocol::config_types::ReasoningSummary;
 use jasmine_protocol::models::ContentItem;
 use jasmine_protocol::models::ReasoningItemContent;
 use jasmine_protocol::models::ResponseItem;
+use jasmine_protocol::openai_models::ReasoningEffort;
 use jasmine_tools::ResponsesApiTool;
 use serde_json::Value;
 use serde_json::value::RawValue;
@@ -47,6 +50,10 @@ pub struct ModelClient<T: HttpTransport> {
     /// The most the model may write in one response, as the platform configured it. `None` leaves
     /// the provider's own default in place, which is what a platform that never set a length sends.
     max_output_tokens: Option<u32>,
+    /// How hard the model should think before it answers, as the platform configured it. `None`
+    /// sends no reasoning field at all — the provider's own default, and what a model the platform
+    /// never gave an effort to gets.
+    reasoning_effort: Option<ReasoningEffort>,
     backend: Backend<T>,
 }
 
@@ -60,6 +67,7 @@ impl<T: HttpTransport> ModelClient<T> {
         Self {
             model_id: model_id.into(),
             max_output_tokens: None,
+            reasoning_effort: None,
             backend: Backend::Responses(client),
         }
     }
@@ -68,6 +76,7 @@ impl<T: HttpTransport> ModelClient<T> {
         Self {
             model_id: model_id.into(),
             max_output_tokens: None,
+            reasoning_effort: None,
             backend: Backend::ChatCompletions(client),
         }
     }
@@ -75,6 +84,15 @@ impl<T: HttpTransport> ModelClient<T> {
     /// Caps how much the model may write per response, as the platform configured it.
     pub fn with_max_output_tokens(mut self, max_output_tokens: Option<u32>) -> Self {
         self.max_output_tokens = max_output_tokens;
+        self
+    }
+
+    /// Sets how hard the model should think before answering, as the platform configured it.
+    ///
+    /// It rides on both wires under each protocol's own name, and on the Responses wire it also asks
+    /// for a summary of that thinking: without one the provider hands back nothing readable.
+    pub fn with_reasoning_effort(mut self, reasoning_effort: Option<ReasoningEffort>) -> Self {
+        self.reasoning_effort = reasoning_effort;
         self
     }
 
@@ -94,7 +112,12 @@ impl<T: HttpTransport> ModelClient<T> {
             Backend::Responses(client) => {
                 client
                     .stream_request(
-                        responses_request(&self.model_id, &request, self.max_output_tokens)?,
+                        responses_request(
+                            &self.model_id,
+                            &request,
+                            self.max_output_tokens,
+                            self.reasoning_effort.clone(),
+                        )?,
                         ResponsesOptions::default(),
                     )
                     .await
@@ -102,7 +125,12 @@ impl<T: HttpTransport> ModelClient<T> {
             Backend::ChatCompletions(client) => {
                 client
                     .stream_request(
-                        chat_request(&self.model_id, &request, self.max_output_tokens)?,
+                        chat_request(
+                            &self.model_id,
+                            &request,
+                            self.max_output_tokens,
+                            self.reasoning_effort.clone(),
+                        )?,
                         ChatCompletionsOptions::default(),
                     )
                     .await
@@ -114,10 +142,14 @@ impl<T: HttpTransport> ModelClient<T> {
 /// The Responses API takes the item list as-is; function tools are flattened alongside it.
 ///
 /// The output cap goes on the wire as `max_output_tokens` — the name that protocol uses.
+///
+/// The reasoning effort goes on the wire inside the protocol's own `reasoning` object, and it asks
+/// for a summary of the thinking alongside it: that protocol hands back nothing readable otherwise.
 fn responses_request(
     model_id: &str,
     request: &SamplingRequest,
     max_output_tokens: Option<u32>,
+    reasoning_effort: Option<ReasoningEffort>,
 ) -> Result<ResponsesApiRequest, ApiError> {
     let tools = if request.tools.is_empty() {
         None
@@ -136,7 +168,11 @@ fn responses_request(
         tools,
         tool_choice: "auto".to_string(),
         parallel_tool_calls: false,
-        reasoning: None,
+        reasoning: reasoning_effort.map(|effort| Reasoning {
+            effort: Some(effort),
+            summary: Some(ReasoningSummary::Auto),
+            context: None,
+        }),
         store: false,
         stream: request.stream,
         stream_options: None,
@@ -180,6 +216,7 @@ fn chat_request(
     model_id: &str,
     request: &SamplingRequest,
     max_output_tokens: Option<u32>,
+    reasoning_effort: Option<ReasoningEffort>,
 ) -> Result<ChatRequest, ApiError> {
     let mut messages = Vec::new();
     let instruction = request
@@ -241,6 +278,8 @@ fn chat_request(
         parallel_tool_calls,
         top_p: None,
         max_tokens: max_output_tokens,
+        // OpenAI-compatible endpoints spell the effort just like this.
+        reasoning_effort: reasoning_effort.map(|effort| effort.as_str().to_string()),
         stop: None,
         stream: request.stream,
     })
@@ -446,7 +485,7 @@ mod tests {
             output("call-2", "no earlier conversations"),
         ]);
 
-        let chat = chat_request("m", &request, None).expect("a chat request");
+        let chat = chat_request("m", &request, None, None).expect("a chat request");
         let roles: Vec<&str> = chat
             .messages
             .iter()
@@ -494,10 +533,11 @@ mod tests {
     fn the_output_cap_rides_on_the_request() {
         let request = request(vec![message("user", "在吗")]);
 
-        let chat = chat_request("m", &request, Some(4096)).expect("a chat request");
+        let chat = chat_request("m", &request, Some(4096), None).expect("a chat request");
         assert_eq!(chat.max_tokens, Some(4096));
 
-        let responses = responses_request("m", &request, Some(4096)).expect("a responses request");
+        let responses =
+            responses_request("m", &request, Some(4096), None).expect("a responses request");
         assert_eq!(responses.max_output_tokens, Some(4096));
     }
 
@@ -506,10 +546,33 @@ mod tests {
     fn no_output_cap_leaves_the_provider_its_default() {
         let request = request(vec![message("user", "在吗")]);
 
-        let chat = chat_request("m", &request, None).expect("a chat request");
+        let chat = chat_request("m", &request, None, None).expect("a chat request");
         assert_eq!(chat.max_tokens, None);
 
-        let responses = responses_request("m", &request, None).expect("a responses request");
+        let responses = responses_request("m", &request, None, None).expect("a responses request");
         assert_eq!(responses.max_output_tokens, None);
+    }
+
+    /// 平台给模型配的推理强度，按两种协议各自的字段名上线；没配就两边都不带。
+    #[test]
+    fn the_reasoning_effort_rides_on_the_request() {
+        let request = request(vec![message("user", "在吗")]);
+
+        let chat = chat_request("m", &request, None, Some(super::ReasoningEffort::High))
+            .expect("a chat request");
+        assert_eq!(chat.reasoning_effort.as_deref(), Some("high"));
+
+        let responses =
+            responses_request("m", &request, None, Some(super::ReasoningEffort::Minimal))
+                .expect("a responses request");
+        let reasoning = responses.reasoning.expect("the reasoning object");
+        assert_eq!(reasoning.effort, Some(super::ReasoningEffort::Minimal));
+        // 明文思考要先要到摘要，供应商才给。
+        assert_eq!(reasoning.summary, Some(super::ReasoningSummary::Auto));
+
+        let chat = chat_request("m", &request, None, None).expect("a chat request");
+        assert_eq!(chat.reasoning_effort, None);
+        let responses = responses_request("m", &request, None, None).expect("a responses request");
+        assert!(responses.reasoning.is_none());
     }
 }

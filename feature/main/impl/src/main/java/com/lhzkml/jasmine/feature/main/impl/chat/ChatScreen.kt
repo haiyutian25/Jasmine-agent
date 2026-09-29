@@ -1,18 +1,28 @@
 package com.lhzkml.jasmine.feature.main.impl.chat
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,19 +36,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.outlined.Build
-import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.CircularProgressIndicator
+import com.lhzkml.jasmine.core.ui.icons.LucideIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,6 +53,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -57,6 +61,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -140,6 +145,18 @@ private val ChatComposerToolRowGap = 8.dp
  * 传下来的约束会把它夹住，所以实际尺寸就是这个值。）
  */
 private val ChatSendButtonSize = 26.dp
+
+/**
+ * 发送按钮的圆角：ZCode 的发送按钮是 `rounded-lg`（Tailwind 的 0.5rem = 8px），照抄绝对值 8dp ——
+ * 不是正圆（原来用 `CircleShape`）。
+ */
+private val ChatSendButtonCorner = 8.dp
+
+/**
+ * 发不出去时（输入为空 / 没有可续的回合）整只按钮的不透明度：ZCode 的 Button 基类就是
+ * `disabled:opacity-50` —— 底色不换，只是整体变淡，所以按钮的"存在感"始终在。
+ */
+private const val ChatSendDisabledAlpha = 0.5f
 private val ChatToolIconSize = 14.dp
 private val ChatToolRowPaddingVertical = 4.dp
 /** 工具名与它后面那个"可展开"尖角之间的距离。 */
@@ -357,7 +374,11 @@ private fun MessageList(
                         currentTheme = currentTheme,
                         showTime = message.role != ChatRole.USER || turnSettled,
                     )
-                    else -> ToolActivityRow(activity = tool, currentTheme = currentTheme)
+                    else -> ToolActivityRow(
+                            activity = tool,
+                            rowKey = message.id,
+                            currentTheme = currentTheme,
+                        )
                 }
                 // 一轮的「时间 + 模型名」只在**整条回复结束时**出现一次。
                 //
@@ -459,7 +480,13 @@ private fun MessageBubble(
     showTime: Boolean = true,
 ) {
     val isUser = message.role == ChatRole.USER
-    val text = message.text.ifEmpty { if (message.isStreaming) "…" else "" }
+    // 模型还一个字都没回来（既没思考、也没正文）时，位置让给动态等待提示（见 WaitingDots），
+    // 而不再是一个静止的省略号。思考已到、只是正文还没到的情况不算在这里：那时上面那行已经说明在想了。
+    val waitingForModel = message.isStreaming &&
+        message.thinking.isEmpty() &&
+        message.blocks.isEmpty() &&
+        message.text.isEmpty()
+    val text = message.text
     val time = relativeTimeText(message.timestamp)
 
     if (!isUser) {
@@ -467,6 +494,22 @@ private fun MessageBubble(
         // arrive. `text` is still the fallback: a message with no blocks (a plain
         // transcript row that failed to parse, or a tool-only turn) shows as text.
         Column(modifier = Modifier.fillMaxWidth()) {
+            // 深度思考排在正文之前（模型先想、再答）：收起时只留一行。
+            if (message.thinking.isNotEmpty()) {
+                ReasoningRow(
+                    thinking = message.thinking,
+                    isThinking = message.isStreaming &&
+                        message.blocks.isEmpty() &&
+                        message.text.isEmpty(),
+                    thinkingMs = message.thinkingMs,
+                    currentTheme = currentTheme,
+                )
+                // 只在思考下面确实还有正文时才留这点间隙。只有思考的那些消息（工具调用前那一轮）
+                // 不留：否则它和紧跟着的工具行之间会多出一段空白，而工具之间是紧挨着的。
+                if (message.blocks.isNotEmpty() || message.text.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(ChatReasoningBottomGap))
+                }
+            }
             if (message.blocks.isNotEmpty()) {
                 MarkdownBlockList(
                     blocks = message.blocks,
@@ -478,7 +521,10 @@ private fun MessageBubble(
                         currentTheme.cardForeground
                     },
                 )
-            } else {
+            } else if (waitingForModel) {
+                WaitingDots(currentTheme = currentTheme)
+            } else if (text.isNotEmpty()) {
+                // 空字符串不画：一个空的 Text 照样占一整行，只带思考的那条消息下面会因此多出一大块。
                 Text(
                     text = text,
                     fontSize = ChatBodyFontSize,
@@ -587,10 +633,320 @@ private fun MessageMetaChip(text: String, currentTheme: CssVariables) {
  * No card: this is execution trace, not something the model said, so it stays one line until the
  * reader asks for the detail.
  */
+// ── 扫光文字 ───────────────────────────────────────────────────────────
+
+/**
+ * 「正在…」用的扫光文字：一条亮带在文字上循环流过（ZCode 的 `animated-gradient-text`，4 秒一轮）。
+ *
+ * 思考行的「正在思考」与工具行的「调用工具」共用它 —— 这样"进行中"在全app里是同一套视觉语言。
+ */
 @Composable
-private fun ToolActivityRow(activity: ChatToolActivity, currentTheme: CssVariables) {
+private fun SweepText(text: String, currentTheme: CssVariables) {
+    val sweep = rememberInfiniteTransition(label = "sweep")
+    val shift by sweep.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(ChatReasoningSweepPeriodMs, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "sweep-shift"
+    )
+    val span = ChatReasoningSweepSpanPx
+    Text(
+        text = text,
+        style = TextStyle(
+            brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                colors = listOf(
+                    currentTheme.mutedForeground,
+                    currentTheme.foreground,
+                    currentTheme.mutedForeground
+                ),
+                start = Offset(-span + 2f * span * shift, 0f),
+                end = Offset(2f * span * shift, 0f)
+            ),
+            fontSize = ChatMetaFontSize,
+            fontWeight = FontWeight.Medium
+        )
+    )
+}
+
+// ── 等待模型开口 ───────────────────────────────────────────────────────
+
+/** 三个点的大小、间隔、一个循环的时长、各点之间的相位差，以及点最多浮起多少。 */
+private val ChatWaitingDotSize = 6.dp
+private val ChatWaitingDotGap = 4.dp
+private val ChatWaitingDotLift = 4.dp
+private const val ChatWaitingDotCount = 3
+private const val ChatWaitingDotPeriodMs = 900
+private const val ChatWaitingDotStaggerMs = 140
+
+/**
+ * 等待模型开口时的动态提示：三个点依次浮起又落下（透明度与位置一起变），替代原来那个静止的「…」。
+ *
+ * 它是个循环状态机：每点跑同一个无限动画，只差一个起始延迟，所以看上去像一波波流过。整块宽度固定、
+ * 高度取点的大小，所以它在出现和消失时都不会把气泡撑得跳动。
+ */
+@Composable
+private fun WaitingDots(currentTheme: CssVariables) {
+    val transition = rememberInfiniteTransition(label = "waiting-dots")
+    Row(
+        modifier = Modifier.height(ChatWaitingDotSize + ChatWaitingDotLift),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        repeat(ChatWaitingDotCount) { index ->
+            val phase = transition.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(
+                        durationMillis = ChatWaitingDotPeriodMs,
+                        delayMillis = index * ChatWaitingDotStaggerMs,
+                        easing = LinearEasing
+                    ),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "waiting-dot-$index"
+            )
+            // 三角波：0 → 1 → 0，一个循环里浮起再落下。
+            val p = phase.value
+            val wave = if (p < 0.5f) p * 2f else (1f - p) * 2f
+            Box(
+                modifier = Modifier
+                    .padding(end = ChatWaitingDotGap)
+                    .offset(y = ChatWaitingDotLift * -wave)
+                    .size(ChatWaitingDotSize)
+                    .clip(CircleShape)
+                    .background(
+                        currentTheme.mutedForeground.copy(alpha = 0.3f + 0.7f * wave)
+                    )
+            )
+        }
+    }
+}
+
+// ── 深度思考 ───────────────────────────────────────────────────────────
+
+/** 思考块：图标/箭头大小、行内边距，以及展开内容的缩进、左导线与限高。 */
+private val ChatReasoningIconSize = 15.dp
+private val ChatReasoningChevronSize = 15.dp
+private val ChatReasoningRowPaddingVertical = 2.dp
+private val ChatReasoningBottomGap = 6.dp
+private val ChatReasoningContentTopGap = 4.dp
+private val ChatReasoningContentIndent = 6.dp
+private val ChatReasoningRuleGap = 10.dp
+private val ChatReasoningRuleWidth = 1.dp
+private val ChatReasoningMaxHeight = 240.dp
+
+/** 扫光文字：一轮 4 秒（ZCode 的 `gradient-flow` 就是 4s），亮带按像素跨度给。 */
+private const val ChatReasoningSweepPeriodMs = 4000
+private const val ChatReasoningSweepSpanPx = 220f
+
+/**
+ * 「深度思考」：模型答之前想过什么。收起时只占一行 —— 脑图标 + 文案 + 折线箭头，点这一行展开/收起。
+ *
+ * 交互与样式照 ZCode 的思考块：**默认收起**、整行可点、箭头收起时朝右、展开后转 90° 朝下（它用的是
+ * 折线箭头，不是实心三角）；展开的内容加一条左导线、限高滚动、纯文本按原样换行。思考还在进行时文案
+ * 换成「正在深度思考」。
+ */
+@Composable
+private fun ReasoningRow(
+    thinking: String,
+    isThinking: Boolean,
+    /** 这段思考花了多久；null = 还在想，或没记到。 */
+    thinkingMs: Long? = null,
+    currentTheme: CssVariables,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    // 用户手动开过之后就尊重他的选择；没动过的话，思考结束自动收起
+    // （ZCode 的 `autoCollapseKey = streaming ? null : state`）。
+    var touched by remember { mutableStateOf(false) }
+    LaunchedEffect(isThinking) {
+        if (!isThinking && !touched) {
+            expanded = false
+        }
+    }
+    // 展开着看的时候内容吸底跟随最新思考（ZCode 的 autoFollowBottom）。
+    val thinkingScroll = rememberScrollState()
+    LaunchedEffect(thinking, expanded) {
+        if (expanded) {
+            thinkingScroll.scrollTo(thinkingScroll.maxValue)
+        }
+    }
+    // 收起时右侧那一行摘要（ZCode 的流式摘要）：取**最后一个非空行**，随思考增长往前滚。
+    val summary = remember(thinking) {
+        thinking.lineSequence().lastOrNull { it.isNotBlank() }?.trim().orEmpty()
+    }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(currentTheme.radiusSm))
+                .clickable {
+                    touched = true
+                    expanded = !expanded
+                }
+                .padding(vertical = ChatReasoningRowPaddingVertical),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = LucideIcons.Brain,
+                contentDescription = null,
+                tint = currentTheme.mutedForeground,
+                modifier = Modifier.size(ChatReasoningIconSize)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            if (isThinking) {
+                // 扫光文字（ZCode 的 animated-gradient-text）：一条亮带在标签上循环流过，4 秒一轮。
+                val sweep = rememberInfiniteTransition(label = "reasoning-sweep")
+                val shift by sweep.animateFloat(
+                    initialValue = 0f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(ChatReasoningSweepPeriodMs, easing = LinearEasing),
+                        repeatMode = RepeatMode.Restart
+                    ),
+                    label = "reasoning-sweep-shift"
+                )
+                val span = ChatReasoningSweepSpanPx
+                Text(
+                    text = stringResource(R.string.chat_reasoning_thinking),
+                    style = TextStyle(
+                        brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                            colors = listOf(
+                                currentTheme.mutedForeground,
+                                currentTheme.foreground,
+                                currentTheme.mutedForeground
+                            ),
+                            start = Offset(-span + 2f * span * shift, 0f),
+                            end = Offset(2f * span * shift, 0f)
+                        ),
+                        fontSize = ChatMetaFontSize,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+            } else {
+                // 完成态照 ZCode：「思考 · 持续了 N 秒」（一秒都不到时用「持续了几秒」）。
+                Text(
+                    text = when {
+                        thinkingMs == null -> stringResource(R.string.chat_reasoning_title)
+                        thinkingMs < 1_000L ->
+                            stringResource(R.string.chat_reasoning_duration_short)
+                        else -> stringResource(
+                            R.string.chat_reasoning_duration,
+                            (thinkingMs / 1_000L).toInt()
+                        )
+                    },
+                    fontSize = ChatMetaFontSize,
+                    fontWeight = FontWeight.Medium,
+                    color = currentTheme.mutedForeground
+                )
+            }
+            if (summary.isNotEmpty()) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "·",
+                    fontSize = ChatMetaFontSize,
+                    color = currentTheme.mutedForeground
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                // 摘要跟着思考增长往左滚，**始终露出最新那几个字**（ZCode 的流式摘要就是这么做的：
+                // 溢出隐藏 + 内容一变就把滚动推到末尾）。
+                val summaryScroll = rememberScrollState()
+                LaunchedEffect(summary) { summaryScroll.scrollTo(summaryScroll.maxValue) }
+                Box(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = summary,
+                        fontSize = ChatMetaFontSize,
+                        color = currentTheme.mutedForeground,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.horizontalScroll(summaryScroll)
+                    )
+                }
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
+            }
+            Icon(
+                imageVector = LucideIcons.ChevronRight,
+                contentDescription = stringResource(R.string.chat_reasoning_expand_cd),
+                tint = currentTheme.mutedForeground,
+                modifier = Modifier
+                    .size(ChatReasoningChevronSize)
+                    .rotate(if (expanded) 90f else 0f)
+            )
+        }
+        if (expanded) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min)
+                    .padding(start = ChatReasoningContentIndent, top = ChatReasoningContentTopGap)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(ChatReasoningRuleWidth)
+                        .fillMaxHeight()
+                        .background(currentTheme.border)
+                )
+                Spacer(modifier = Modifier.width(ChatReasoningRuleGap))
+                Text(
+                    text = thinking,
+                    fontSize = ChatMetaFontSize,
+                    color = currentTheme.mutedForeground,
+                    modifier = Modifier
+                        .heightIn(max = ChatReasoningMaxHeight)
+                        .verticalScroll(thinkingScroll)
+                )
+            }
+        }
+    }
+}
+
+/** 工具卡的展开态按行 id 记住（ZCode 按工具 id 持久化）：滚出屏幕、列表重组都不丢。 */
+private val openToolRows = androidx.compose.runtime.mutableStateMapOf<String, Boolean>()
+
+/**
+ * 卡头图标按工具类型选 —— ZCode 的每个 renderer 都有自己的图标（edit 是铅笔、todo 是清单、execute
+ * 是终端）。这里取 Material **核心**图标集里含义最接近的那个。
+ */
+private fun toolCallIconOf(name: String, resultOnly: Boolean): ImageVector =
+    when (toolCallKindOf(name)) {
+        ToolCallKind.DIFF -> LucideIcons.Pencil
+        ToolCallKind.TODO -> LucideIcons.ListTodo
+        ToolCallKind.TERMINAL -> LucideIcons.SquareTerminal
+        ToolCallKind.PLAIN -> if (resultOnly) LucideIcons.Check else LucideIcons.Wrench
+    }
+
+@Composable
+private fun ToolActivityRow(
+    activity: ChatToolActivity,
+    rowKey: String,
+    currentTheme: CssVariables,
+) {
     val resultOnly = activity.isResultOnly
-    var expanded by remember(activity) { mutableStateOf(false) }
+    // 状态读数据，不猜（照 ZCode 的六态）。
+    val running = activity.status == ChatToolStatus.RUNNING ||
+        activity.status == ChatToolStatus.PENDING
+    var expanded by remember(rowKey) { mutableStateOf(openToolRows[rowKey] == true) }
+    // 跑着的时候展开看进度、结果一回来就收好（ZCode 的 autoCollapseOnComplete）。
+    var seenRunning by remember(rowKey) { mutableStateOf(running) }
+    // 开始跑时自动展开一次（ZCode 的 autoOpen 是一次性的）：用户随后自己收起，就不再自动开。
+    var autoOpened by remember(rowKey) { mutableStateOf(false) }
+    LaunchedEffect(running) {
+        if (running && !autoOpened && openToolRows[rowKey] == null) {
+            autoOpened = true
+            expanded = true
+            openToolRows[rowKey] = true
+        }
+        if (running) {
+            seenRunning = true
+        } else if (seenRunning) {
+            expanded = false
+            openToolRows[rowKey] = false
+        }
+    }
+    LaunchedEffect(expanded) { openToolRows[rowKey] = expanded }
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -601,48 +957,85 @@ private fun ToolActivityRow(activity: ChatToolActivity, currentTheme: CssVariabl
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = if (resultOnly) Icons.Outlined.Check else Icons.Outlined.Build,
+                imageVector = toolCallIconOf(activity.name, resultOnly),
                 contentDescription = null,
                 tint = currentTheme.mutedForeground,
                 modifier = Modifier.size(ChatToolIconSize)
             )
             Spacer(modifier = Modifier.width(8.dp))
+            // kindLabel：还在跑就扫光，做完了是安静的淡色（ZCode 的 ToolSummaryRow 就是这么分的）。
+            if (running) {
+                SweepText(
+                    text = stringResource(R.string.chat_tool_kind_running),
+                    currentTheme = currentTheme
+                )
+            } else {
+                Text(
+                    text = stringResource(R.string.chat_tool_kind_done),
+                    fontSize = ChatMetaFontSize,
+                    fontWeight = FontWeight.Medium,
+                    color = currentTheme.mutedForeground
+                )
+            }
+            Spacer(modifier = Modifier.width(6.dp))
+            // primaryText：工具名。
+            Text(
+                text = activity.name,
+                fontSize = ChatMetaFontSize,
+                color = currentTheme.foreground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            // 状态词（ZCode 的 chat.toolCall.status.*）：六态各有各的词。
             Text(
                 text = stringResource(
-                    if (resultOnly) R.string.chat_tool_result else R.string.chat_tool_call,
-                    activity.name
+                    when (activity.status) {
+                        ChatToolStatus.PENDING -> R.string.chat_tool_status_pending
+                        ChatToolStatus.RUNNING -> R.string.chat_tool_status_running
+                        ChatToolStatus.COMPLETED -> R.string.chat_tool_status_done
+                        ChatToolStatus.FAILED -> R.string.chat_tool_status_failed
+                        ChatToolStatus.DENIED -> R.string.chat_tool_status_denied
+                        ChatToolStatus.STOPPED -> R.string.chat_tool_status_stopped
+                    }
                 ),
                 fontSize = ChatMetaFontSize,
                 color = currentTheme.mutedForeground
             )
-            Spacer(modifier = Modifier.width(ChatToolChevronGap))
+            Spacer(modifier = Modifier.weight(1f))
             Icon(
-                imageVector = if (expanded) {
-                    Icons.Filled.KeyboardArrowUp
-                } else {
-                    Icons.Filled.KeyboardArrowDown
-                },
+                imageVector = LucideIcons.ChevronRight,
                 contentDescription = stringResource(R.string.chat_tool_expand_cd),
                 tint = currentTheme.mutedForeground,
-                modifier = Modifier.size(ChatToolChevronSize)
+                modifier = Modifier
+                    .size(ChatToolChevronSize)
+                    .rotate(if (expanded) 90f else 0f)
             )
         }
-        if (expanded) {
-            Column(modifier = Modifier.padding(start = ChatToolExpandedIndent)) {
-                if (activity.detail.isNotEmpty()) {
-                    Text(
-                        text = activity.detail,
-                        fontSize = ChatMetaFontSize,
-                        color = currentTheme.mutedForeground
-                    )
-                }
-                activity.result?.let { result ->
-                    Text(
-                        text = result,
-                        fontSize = ChatMetaFontSize,
-                        color = currentTheme.mutedForeground
-                    )
-                }
+        // 展开/收起带高度动画（ZCode 那边折起来有 300ms 的动画）。
+        AnimatedVisibility(visible = expanded) {
+            // 展开区与思考块同一套（左导线 + 缩进）。
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min)
+                    .padding(start = ChatToolExpandedIndent, top = ChatReasoningContentTopGap)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(ChatReasoningRuleWidth)
+                        .fillMaxHeight()
+                        .background(currentTheme.border)
+                )
+                Spacer(modifier = Modifier.width(ChatReasoningRuleGap))
+                // 展开内容按工具类型分流（照 ZCode 的 resolveToolCallRenderer）：改动文件画补丁、
+                // 待办画清单、命令画终端输出，认不出的走兜底纯文本。
+                ToolCallDetail(
+                    name = activity.name,
+                    detail = activity.detail,
+                    result = activity.result,
+                    currentTheme = currentTheme,
+                )
             }
         }
     }
@@ -762,9 +1155,11 @@ private fun Composer(
             Spacer(modifier = Modifier.weight(1f))
 
             // Right: the send button, three faces — stop while a reply is in flight, continue
-            // when the last turn was interrupted, send otherwise. 空输入时以前显示「加号」，
-            // 现在统一显示发送箭头（不可发时置灰），这样按钮的含义始终一致，不需要用户猜
-            // 那个加号是干什么的。
+            // when the last turn was interrupted, send otherwise. 形状与状态处理照 ZCode 的
+            // ConversationComposer（圆角方、发不出去时不换底色只是整体降到 50% 不透明，即它的
+            // Button 基类 `disabled:opacity-50`）；配色不走它的 `variant="secondary"` 灰底 ——
+            // 这里三副面孔统一"品牌色底 + 反色图标"，停止那副把箭头换成 `<SquareIcon fill-current>`
+            // 那样的**实心方块**即可。
             Button(
                 onClick = {
                     when {
@@ -783,38 +1178,44 @@ private fun Composer(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(CircleShape)
+                        // 底色一次画出来（shape 直接交给 background）：不再夹 `clip` + `alpha`
+                        // 两层，"发不出去就变淡"把透明度合进颜色里。
                         .background(
-                            if (canSend || state.isSending || resume) {
+                            // 三副面孔共用品牌色底（这套主题里就是黑）：发送是白箭头、停止是白方块，
+                            // 只有"发不出去"时才整体变淡（ZCode 的 `disabled:opacity-50`：底色不换）。
+                            color = if (canSend || state.isSending || resume) {
                                 currentTheme.primary
                             } else {
-                                currentTheme.subtleSurface
-                            }
+                                currentTheme.primary.copy(alpha = ChatSendDisabledAlpha)
+                            },
+                            shape = RoundedCornerShape(ChatSendButtonCorner)
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     if (state.isSending) {
                         Icon(
-                            imageVector = Icons.Filled.Stop,
+                            imageVector = LucideIcons.SquareFilled,
                             contentDescription = stringResource(R.string.chat_stop_cd),
+                            // 停止：黑底 + **白**方块（与发送那副面孔同一套反色，只是把箭头换成方块）。
                             tint = currentTheme.primaryForeground,
                             modifier = Modifier.size(ChatSendIconSize)
                         )
                     } else if (resume) {
                         Icon(
-                            imageVector = Icons.Filled.PlayArrow,
+                            imageVector = LucideIcons.Play,
                             contentDescription = stringResource(R.string.chat_continue_cd),
                             tint = currentTheme.primaryForeground,
                             modifier = Modifier.size(ChatSendIconSize)
                         )
                     } else {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            imageVector = LucideIcons.ArrowUp,
                             contentDescription = stringResource(R.string.chat_send_cd),
+                            // 箭头跟着一起变淡，和上面那层底色是同一个比例。
                             tint = if (canSend) {
                                 currentTheme.primaryForeground
                             } else {
-                                currentTheme.mutedForeground
+                                currentTheme.primaryForeground.copy(alpha = ChatSendDisabledAlpha)
                             },
                             modifier = Modifier.size(ChatSendIconSize)
                         )
@@ -932,17 +1333,28 @@ private fun FreeTextAnswer(currentTheme: CssVariables, onAnswer: (String) -> Uni
             modifier = Modifier.size(ChatSendButtonSize),
             testTag = "chat_prompt_send_btn"
         ) {
+            // 与主输入行那只是同一套外观：圆角方、品牌色底；发不出去时只是整体变淡。
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(CircleShape)
-                    .background(if (canSend) currentTheme.primary else currentTheme.subtleSurface),
+                    .background(
+                        color = if (canSend) {
+                            currentTheme.primary
+                        } else {
+                            currentTheme.primary.copy(alpha = ChatSendDisabledAlpha)
+                        },
+                        shape = RoundedCornerShape(ChatSendButtonCorner)
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Send,
+                    imageVector = LucideIcons.ArrowUp,
                     contentDescription = stringResource(R.string.chat_send_cd),
-                    tint = if (canSend) currentTheme.primaryForeground else currentTheme.mutedForeground,
+                    tint = if (canSend) {
+                        currentTheme.primaryForeground
+                    } else {
+                        currentTheme.primaryForeground.copy(alpha = ChatSendDisabledAlpha)
+                    },
                     modifier = Modifier.size(ChatSendIconSize)
                 )
             }

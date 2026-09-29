@@ -24,14 +24,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.outlined.CloudDownload
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.FormatSize
-import androidx.compose.material.icons.outlined.TextFields
-import androidx.compose.material.icons.outlined.UploadFile
+import com.lhzkml.jasmine.core.ui.icons.LucideIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
@@ -129,7 +122,7 @@ fun FontScreen(
         // ==========================================
         FontSectionHeader(
             title = stringResource(R.string.settings_section_typography),
-            icon = Icons.Outlined.FormatSize,
+            icon = LucideIcons.FormatSize,
             currentTheme = currentTheme
         )
 
@@ -182,7 +175,7 @@ fun FontScreen(
 
                         if (isSelected) {
                             Icon(
-                                imageVector = Icons.Default.Check,
+                                imageVector = LucideIcons.Check,
                                 contentDescription = null,
                                 tint = currentTheme.primary,
                                 modifier = Modifier.size(16.dp)
@@ -204,7 +197,7 @@ fun FontScreen(
         // ==========================================
         FontSectionHeader(
             title = stringResource(R.string.settings_section_custom_fonts),
-            icon = Icons.Outlined.UploadFile,
+            icon = LucideIcons.Upload,
             currentTheme = currentTheme
         )
 
@@ -226,7 +219,7 @@ fun FontScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.UploadFile,
+                    imageVector = LucideIcons.Upload,
                     contentDescription = null,
                     tint = currentTheme.primary,
                     modifier = Modifier.size(18.dp)
@@ -322,7 +315,7 @@ fun FontScreen(
 
                         if (isActive) {
                             Icon(
-                                imageVector = Icons.Default.Check,
+                                imageVector = LucideIcons.Check,
                                 contentDescription = null,
                                 tint = currentTheme.primary,
                                 modifier = Modifier.size(16.dp)
@@ -337,7 +330,7 @@ fun FontScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Outlined.Delete,
+                                imageVector = LucideIcons.Trash,
                                 contentDescription = stringResource(R.string.settings_font_delete_cd),
                                 tint = currentTheme.mutedForeground,
                                 modifier = Modifier.size(16.dp)
@@ -363,7 +356,7 @@ fun FontScreen(
         if (downloadable.isNotEmpty()) {
             FontSectionHeader(
                 title = stringResource(R.string.settings_section_font_library),
-                icon = Icons.Outlined.CloudDownload,
+                icon = LucideIcons.CloudDownload,
                 currentTheme = currentTheme
             )
 
@@ -450,7 +443,7 @@ fun FontScreen(
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Outlined.CloudDownload,
+                                        imageVector = LucideIcons.CloudDownload,
                                         contentDescription = null,
                                         tint = currentTheme.primary,
                                         modifier = Modifier.size(14.dp)
@@ -480,7 +473,7 @@ fun FontScreen(
         // ==========================================
         FontSectionHeader(
             title = stringResource(R.string.settings_section_font_size),
-            icon = Icons.Outlined.TextFields,
+            icon = LucideIcons.Type,
             currentTheme = currentTheme
         )
 
@@ -526,7 +519,7 @@ fun FontScreen(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    imageVector = LucideIcons.ChevronRight,
                     contentDescription = null,
                     tint = currentTheme.mutedForeground,
                     modifier = Modifier.size(16.dp)

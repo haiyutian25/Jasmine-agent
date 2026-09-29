@@ -25,6 +25,13 @@ data class ModelConfig(
     val modelId: String,
     val contextLength: Int = 0,
     val maxOutputLength: Int = 0,
+    /**
+     * 这个模型该用多强的推理：`minimal` / `low` / `medium` / `high`（与 codex 的 `ReasoningEffort`
+     * 同一个取值表）。
+     *
+     * 空串表示"没设置" —— 请求里一个推理字段都不发。
+     */
+    val reasoningEffort: String = "",
 )
 
 /**

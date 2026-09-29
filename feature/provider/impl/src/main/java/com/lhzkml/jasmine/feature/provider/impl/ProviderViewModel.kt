@@ -29,6 +29,8 @@ data class ModelEditorState(
     val modelId: String,
     val contextLength: String,
     val maxOutputLength: String,
+    /** 推理强度：空串 = 未设置；否则取 `minimal` / `low` / `medium` / `high`。 */
+    val reasoningEffort: String,
 )
 
 /** Content of the model-picker bottom sheet. */
@@ -119,6 +121,8 @@ sealed interface ProviderAction {
     data class ModelIdChanged(val value: String) : ProviderAction
     data class ModelContextLengthChanged(val value: String) : ProviderAction
     data class ModelMaxOutputChanged(val value: String) : ProviderAction
+    /** 选了推理强度；空串代表「未设置」（请求里不发任何推理参数）。 */
+    data class ModelReasoningEffortSelected(val value: String) : ProviderAction
     data object ModelSaveClicked : ProviderAction
     data object ModelCancelClicked : ProviderAction
 
@@ -198,6 +202,7 @@ class ProviderViewModel @Inject constructor(
                         modelId = "",
                         contextLength = "",
                         maxOutputLength = "",
+                        reasoningEffort = "",
                     ),
                 )
             }
@@ -210,6 +215,7 @@ class ProviderViewModel @Inject constructor(
                         modelId = action.modelId,
                         contextLength = "",
                         maxOutputLength = "",
+                        reasoningEffort = "",
                     ),
                 )
             }
@@ -221,6 +227,8 @@ class ProviderViewModel @Inject constructor(
                 updateModelEditor { copy(contextLength = action.value.filter(Char::isDigit)) }
             is ProviderAction.ModelMaxOutputChanged ->
                 updateModelEditor { copy(maxOutputLength = action.value.filter(Char::isDigit)) }
+            is ProviderAction.ModelReasoningEffortSelected ->
+                updateModelEditor { copy(reasoningEffort = action.value) }
             ProviderAction.ModelSaveClicked -> handleModelSaveClicked()
             ProviderAction.ModelCancelClicked -> updateEditor { copy(modelEditor = null) }
 
@@ -391,6 +399,7 @@ class ProviderViewModel @Inject constructor(
                     modelId = model.modelId,
                     contextLength = model.contextLength.takeIf { it > 0 }?.toString() ?: "",
                     maxOutputLength = model.maxOutputLength.takeIf { it > 0 }?.toString() ?: "",
+                    reasoningEffort = model.reasoningEffort,
                 ),
             )
         }
@@ -413,6 +422,7 @@ class ProviderViewModel @Inject constructor(
             modelId = modelId,
             contextLength = modelEditor.contextLength.toIntOrNull() ?: 0,
             maxOutputLength = modelEditor.maxOutputLength.toIntOrNull() ?: 0,
+            reasoningEffort = modelEditor.reasoningEffort,
         )
         updateEditor {
             val index = models.indexOfFirst { it.id == model.id }

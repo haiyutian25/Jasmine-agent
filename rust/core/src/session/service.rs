@@ -117,6 +117,16 @@ pub struct HistoryEntry {
     pub tool_name: Option<String>,
     pub tool_detail: Option<String>,
     pub tool_result: Option<String>,
+    /// 这次工具调用走到哪一步了，取值与 ZCode 的 `chat.toolCall.status.*` 一一对应：
+    /// `pending` / `running` / `completed` / `failed` / `denied` / `stopped`。
+    ///
+    /// 非工具行给空串。**状态是行自己的数据**：界面读它，不从"有没有结果"反推。
+    pub tool_status: String,
+    /// 这一轮回答之前模型「想过」的内容（深度思考），空串表示没有。
+    ///
+    /// 思考在会话文件里是独立条目，不属于任何一条消息；这里把它挂在**同一轮里那条回复**上，重建
+    /// 出来的对话才和现场看到的一样（思考块排在正文上方）。
+    pub thinking: String,
 }
 
 /// Everything one attached conversation owns.
@@ -193,7 +203,9 @@ impl AgentChatService {
         }
         // How much this model may write per response. It belongs to the model rather than to the
         // conversation, so a model switch inside a conversation does move it, unlike the window.
-        .with_max_output_tokens(output_token_cap(model));
+        .with_max_output_tokens(output_token_cap(model))
+        // 推理强度也是模型级：会话中途换模型就跟着换。
+        .with_reasoning_effort(reasoning_effort(model));
 
         let (mut rollout, history, unfinished, stored_context_window, stored_usage) =
             match find_session_path(&self.sessions_dir, session_id.as_str())
@@ -730,13 +742,72 @@ impl AgentChatService {
                                     tool_name: None,
                                     tool_detail: None,
                                     tool_result: None,
+                                    thinking: String::new(),
+                                    tool_status: String::new(),
                                 });
                             }
                         }
                     }
                 }
+                // 一段推理就是转写里的一行：它在会话文件里的位置，就是它在界面上的位置。
+                // 不攒、也不挂到别的行上 —— 那样只对"工具前 / 回复前"这些特定位置成立，段数再多一段、
+                // 或者回合中途就结束，都会漏掉或错位。
+                RolloutItem::ResponseItem(ResponseItem::Reasoning {
+                    content, summary, ..
+                }) => {
+                    let mut parts: Vec<&str> = content
+                        .iter()
+                        .flatten()
+                        .map(|part| match part {
+                            jasmine_protocol::models::ReasoningItemContent::ReasoningText {
+                                text,
+                            }
+                            | jasmine_protocol::models::ReasoningItemContent::Text { text } => {
+                                text.as_str()
+                            }
+                        })
+                        .collect();
+                    parts.extend(summary.iter().map(|part| match part {
+                        jasmine_protocol::models::ReasoningItemReasoningSummary::SummaryText {
+                            text,
+                        } => text.as_str(),
+                    }));
+                    let text = parts.join("\n");
+                    if !text.trim().is_empty() {
+                        lines.push(HistoryEntry {
+                            role: Role::Model,
+                            text: String::new(),
+                            tool_call_id: None,
+                            stopped_after_ms: None,
+                            recorded_at: at,
+                            model_label: model_label.clone(),
+                            tool_name: None,
+                            tool_detail: None,
+                            tool_result: None,
+                            thinking: text.trim().to_string(),
+                            tool_status: String::new(),
+                        });
+                    }
+                }
                 RolloutItem::ResponseItem(recorded) => {
                     if let Some(mut entry) = transcript_entry(recorded) {
+                        // 上一轮里没等到返回的调用，以"没有结果"的模样收口成一行（界面上显示成
+                        // 「已停止」）—— 否则那些卡会凭空消失，重启前后对不上。
+                        if entry.role == Role::User {
+                            for (id, name, arguments, called_at) in pending.drain(..) {
+                                let mut line = tool_line(
+                                    name,
+                                    arguments,
+                                    None,
+                                    called_at,
+                                    model_label.clone(),
+                                );
+                                line.tool_call_id = Some(id);
+                                line.tool_status = "stopped".to_string();
+                                line.tool_status = "stopped".to_string();
+                                lines.push(line);
+                            }
+                        }
                         entry.recorded_at = at;
                         entry.model_label = model_label.clone();
                         lines.push(entry);
@@ -744,17 +815,29 @@ impl AgentChatService {
                 }
                 // A turn that stopped is a line of its own on the platform, between the two
                 // messages it sits between.
-                RolloutItem::TurnAborted { duration_ms, .. } => lines.push(HistoryEntry {
-                    role: Role::Model,
-                    text: String::new(),
-                    tool_call_id: None,
-                    stopped_after_ms: Some(*duration_ms),
-                    recorded_at: at,
-                    model_label: None,
-                    tool_name: None,
-                    tool_detail: None,
-                    tool_result: None,
-                }),
+                RolloutItem::TurnAborted { duration_ms, .. } => {
+                    // 被打断的那一轮里没等到返回的调用，同样收口成一行（「已停止」）。
+                    for (id, name, arguments, called_at) in pending.drain(..) {
+                        let mut line =
+                            tool_line(name, arguments, None, called_at, model_label.clone());
+                        line.tool_call_id = Some(id);
+                        line.tool_status = "stopped".to_string();
+                        lines.push(line);
+                    }
+                    lines.push(HistoryEntry {
+                        role: Role::Model,
+                        text: String::new(),
+                        tool_call_id: None,
+                        stopped_after_ms: Some(*duration_ms),
+                        recorded_at: at,
+                        model_label: None,
+                        tool_name: None,
+                        tool_detail: None,
+                        tool_result: None,
+                        thinking: String::new(),
+                        tool_status: String::new(),
+                    });
+                }
                 // The window and the usage are properties of the conversation, not lines of the
                 // transcript.
                 RolloutItem::SessionMeta(_)
@@ -823,6 +906,9 @@ fn tool_line(
         tool_name: Some(name),
         tool_detail: Some(jasmine_protocol::chat_event::abbreviate(&arguments)),
         tool_result: result.map(|result| jasmine_protocol::chat_event::abbreviate(&result)),
+        thinking: String::new(),
+        // 成对落下的工具行就是"执行完成"。
+        tool_status: "completed".to_string(),
     }
 }
 
@@ -859,6 +945,8 @@ fn transcript_entry(item: &ResponseItem) -> Option<HistoryEntry> {
                 tool_name: None,
                 tool_detail: None,
                 tool_result: None,
+                thinking: String::new(),
+                tool_status: String::new(),
             })
         }
         ResponseItem::FunctionCallOutput {
@@ -876,6 +964,9 @@ fn transcript_entry(item: &ResponseItem) -> Option<HistoryEntry> {
             tool_name: None,
             tool_detail: None,
             tool_result: None,
+            // 有结果的工具行就是"执行完成"。
+            tool_status: "completed".to_string(),
+            thinking: String::new(),
         }),
         ResponseItem::Reasoning { .. }
         | ResponseItem::FunctionCall { .. }
@@ -898,6 +989,14 @@ fn model_context_window(model: &ModelConfig) -> Option<u64> {
 /// never was — every request then leaves the cap to the provider, which is the default.
 fn output_token_cap(model: &ModelConfig) -> Option<u32> {
     (model.max_output_length > 0).then_some(model.max_output_length)
+}
+
+/// How hard the model should think, as the platform configured it. An empty value — or one this
+/// client does not know — means it never was: no reasoning field goes out at all.
+fn reasoning_effort(
+    model: &ModelConfig,
+) -> Option<jasmine_protocol::openai_models::ReasoningEffort> {
+    model.reasoning_effort.parse().ok()
 }
 
 /// How much context a conversation runs against when neither it nor its model says.

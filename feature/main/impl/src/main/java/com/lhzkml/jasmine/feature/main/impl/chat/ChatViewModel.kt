@@ -85,6 +85,20 @@ data class ChatMessage(
      * 的间距相同（见 ChatScreen 的 ChatMessageSpacing）。
      */
     val stoppedAfterMs: Long? = null,
+    /**
+     * 这条回复之前模型「想过」的内容（深度思考），增量攒起来的。
+     *
+     * 它不属于正文：界面在正文上方单独画一个可折叠块（见 ChatScreen 的 ReasoningRow）。为空就不画。
+     * 思考流通常先于正文到达。
+     */
+    val thinking: String = "",
+    /**
+     * 这段思考花了多久（毫秒）；null = 还在想，或者没有记到。
+     *
+     * 段收尾时结算（段创建的时刻 → 收尾的时刻），界面据此显示「思考 · 持续了 N 秒」（照 ZCode 的
+     * `durationMs`：时长是**数据**，不是界面自己算的）。
+     */
+    val thinkingMs: Long? = null,
 )
 
 /**
@@ -103,9 +117,31 @@ data class ChatToolActivity(
     val detail: String,
     /** 工具返回；null 表示还没有返回。 */
     val result: String? = null,
+    /**
+     * 这次调用走到哪一步了 —— 照 ZCode 的 `chat.toolCall.status.*` 六态，状态是**数据**，
+     * 界面读它，不再靠"有没有结果"猜。
+     *
+     * 恢复出来的历史只有"有没有结果"这一种信息，所以那条路径给默认值 [ChatToolStatus.COMPLETED]。
+     */
+    val status: ChatToolStatus = ChatToolStatus.COMPLETED,
 ) {
     /** 没有配对的调用事件，只有返回 —— 标题画成「xxx 返回」。 */
     val isResultOnly: Boolean get() = detail.isEmpty()
+}
+
+/**
+ * 一次工具调用走到哪一步了（照 ZCode 的 `chat.toolCall.status.*` 六态）。
+ *
+ * 我们目前产生得出 [RUNNING]（调用已发出、结果还没回）与 [COMPLETED]（正常返回）；[FAILED] /
+ * [STOPPED] 等失败与中断那两条路径接上后也用它（[PENDING] / [DENIED] 留给还没做的审批流程）。
+ */
+enum class ChatToolStatus {
+    PENDING,
+    RUNNING,
+    COMPLETED,
+    FAILED,
+    DENIED,
+    STOPPED,
 }
 
 /**
@@ -208,6 +244,7 @@ sealed interface ChatAction {
             val messages: List<TranscriptMessage>,
         ) : Internal
         data class ReplyChunk(val text: String) : Internal
+        data class ReasoningChunk(val text: String) : Internal
         data class ToolCalled(val name: String, val arguments: String) : Internal
         data class ToolReturned(val name: String, val result: String) : Internal
         data class PromptRequested(val prompt: String, val options: List<String>) : Internal
@@ -389,12 +426,21 @@ class ChatViewModel @Inject constructor(
                 }
             }
             is ChatAction.Internal.ReplyChunk -> appendReplyChunk(action.text)
+            is ChatAction.Internal.ReasoningChunk -> appendReasoningChunk(action.text)
             is ChatAction.Internal.ToolCalled -> appendToolCall(action)
             is ChatAction.Internal.ToolReturned -> appendToolResult(action)
             is ChatAction.Internal.PromptRequested -> handlePromptRequested(action)
-            is ChatAction.Internal.TurnFailed -> failTurn(action.detail)
+            is ChatAction.Internal.TurnFailed -> {
+                // 这一轮失败时还开着的工具卡标成「执行失败」（照 ZCode 的 failed 态）。
+                markOpenTools(ChatToolStatus.FAILED)
+                failTurn(action.detail)
+            }
             ChatAction.Internal.TurnCompleted -> finishTurn()
-            is ChatAction.Internal.TurnInterrupted -> handleTurnInterrupted(action.durationMs)
+            is ChatAction.Internal.TurnInterrupted -> {
+                // 用户停止时还开着的工具卡标成「已停止」。
+                markOpenTools(ChatToolStatus.STOPPED)
+                handleTurnInterrupted(action.durationMs)
+            }
             // 用量只是这一轮的附带信息：面板开着就刷新，消息不动。
             is ChatAction.Internal.UsageReceived -> updateState {
                 copy(contextUsage = action.usage)
@@ -799,6 +845,7 @@ class ChatViewModel @Inject constructor(
             sendAction(
                 when (event) {
                     is ChatEvent.Text -> ChatAction.Internal.ReplyChunk(event.text)
+        is ChatEvent.Reasoning -> ChatAction.Internal.ReasoningChunk(event.text)
                     is ChatEvent.ToolCall ->
                         ChatAction.Internal.ToolCalled(event.name, event.arguments)
                     is ChatEvent.ToolResult ->
@@ -1008,6 +1055,30 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 思考也是增量，直接往当前那条流式消息上累加。
+     *
+     * 它不走 Markdown 那条路（思考是纯文本），也不会开新段：思考通常先于正文到达，本来就属于同一条
+     * 回复。
+     */
+    private fun appendReasoningChunk(chunk: String) {
+        // 与正文同一条规则：手上没有正在写的段就开一段。工具调用会把上一段收掉，而模型在工具返回
+        // 之后往往还要再想一段 —— 那时 streamingMessageId 已经是空的，直接 return 就会把这一段思考
+        // 整个丢掉（出现了"实时只看到第一段、重启后才看到第二段"）。
+        val targetId = streamingMessageId ?: startAssistantSegment()
+        updateState {
+            copy(
+                messages = messages.map { message ->
+                    if (message.id == targetId) {
+                        message.copy(thinking = message.thinking + chunk)
+                    } else {
+                        message
+                    }
+                }
+            )
+        }
+    }
+
     /** 把一次解析结果贴到 [targetId] 那条消息上（块列表按 id 复用，Compose 只重绘变化的块）。 */
     private fun applyStreamBlocks(targetId: String, update: MarkdownUpdate) {
         updateState {
@@ -1106,7 +1177,12 @@ class ChatViewModel @Inject constructor(
                 copy(
                     messages = messages.map { message ->
                         if (message.id == open.id) {
-                            message.copy(tool = message.tool?.copy(result = action.result))
+                            message.copy(
+                                tool = message.tool?.copy(
+                                    result = action.result,
+                                    status = ChatToolStatus.COMPLETED,
+                                )
+                            )
                         } else {
                             message
                         }
@@ -1118,6 +1194,27 @@ class ChatViewModel @Inject constructor(
         appendToolEntry(name = action.name, detail = "", result = action.result)
     }
 
+    /**
+     * 把"还没有结果"的工具卡一次标成给定状态（失败 / 已停止）。
+     *
+     * 照 ZCode：状态是执行侧推进的，所以回合失败或用户停止时，当时开着的卡要落到 failed / stopped，
+     * 而不是永远停在"执行中"。
+     */
+    private fun markOpenTools(status: ChatToolStatus) {
+        updateState {
+            copy(
+                messages = messages.map { message ->
+                    val tool = message.tool
+                    if (tool != null && tool.result == null && tool.status == ChatToolStatus.RUNNING) {
+                        message.copy(tool = tool.copy(status = status))
+                    } else {
+                        message
+                    }
+                }
+            )
+        }
+    }
+
     private fun appendToolEntry(name: String, detail: String, result: String? = null) {
         updateState {
             copy(
@@ -1125,7 +1222,17 @@ class ChatViewModel @Inject constructor(
                     id = UUID.randomUUID().toString(),
                     role = ChatRole.ASSISTANT,
                     text = "",
-                    tool = ChatToolActivity(name = name, detail = detail, result = result),
+                    tool = ChatToolActivity(
+                            name = name,
+                            detail = detail,
+                            result = result,
+                            // 还没有结果就是在跑；带上结果才算完成（照 ZCode 的状态机）。
+                            status = if (result == null) {
+                                ChatToolStatus.RUNNING
+                            } else {
+                                ChatToolStatus.COMPLETED
+                            },
+                        ),
                     timestamp = System.currentTimeMillis(),
                 )
             )
@@ -1140,7 +1247,11 @@ class ChatViewModel @Inject constructor(
     private fun sealAssistantSegment() {
         val targetId = streamingMessageId ?: return
         streamingMessageId = null
-        val isEmpty = state.messages.firstOrNull { it.id == targetId }?.text.isNullOrEmpty()
+        // 「空」是指没东西可显示：**只想了、还没开口的那一段不算空**。按文本判空会把刚拿到的思考
+        // 连同这一段一起删掉 —— 那正是"思考完、正文一出现就不见了"的原因。
+        val isEmpty = state.messages.firstOrNull { it.id == targetId }
+            ?.let { it.text.isNullOrEmpty() && it.thinking.isEmpty() }
+            ?: true
         // Close the segment's blocks before dropping the parser (no-op when empty).
         if (!isEmpty) finalizeStreamInto(targetId) else closeStreamParser()
         updateState {
@@ -1148,7 +1259,19 @@ class ChatViewModel @Inject constructor(
                 messages = if (isEmpty) {
                     messages.filterNot { it.id == targetId }
                 } else {
-                    messages.map { if (it.id == targetId) it.copy(isStreaming = false) else it }
+                    messages.map {
+                        if (it.id == targetId) {
+                            it.copy(
+                                isStreaming = false,
+                                // 收尾时结算这段思考的时长（照 ZCode：时长随行一起给界面）。
+                                thinkingMs = it.thinking
+                                    .takeIf(String::isNotEmpty)
+                                    ?.let { _ -> System.currentTimeMillis() - it.timestamp },
+                            )
+                        } else {
+                            it
+                        }
+                    }
                 }
             )
         }
@@ -1289,7 +1412,20 @@ private fun TranscriptMessage.toChatMessage(
     isError = isError,
     // 工具条目（调用 / 返回）没有正文，界面上按工具行渲染；正文为空的普通消息也一样。
     tool = tool?.let {
-        ChatToolActivity(name = it.name, detail = it.detail, result = it.result)
+        ChatToolActivity(
+            name = it.name,
+            detail = it.detail,
+            result = it.result,
+            // 状态从行数据里读（核心给的取值与 ZCode 一致），不从"有没有结果"反推。
+            status = when (toolStatus) {
+                "pending" -> ChatToolStatus.PENDING
+                "running" -> ChatToolStatus.RUNNING
+                "failed" -> ChatToolStatus.FAILED
+                "denied" -> ChatToolStatus.DENIED
+                "stopped" -> ChatToolStatus.STOPPED
+                else -> ChatToolStatus.COMPLETED
+            },
+        )
     },
     // Stored rows are plain text; parse them once so restored history renders as
     // Markdown too. Never a live stream, so a single pass is enough.
@@ -1299,6 +1435,8 @@ private fun TranscriptMessage.toChatMessage(
     // 优先用事件自己记的模型名；旧数据没有，才回退到会话记录的模型。
     modelLabel = modelLabel ?: fallbackModelLabel,
     stoppedAfterMs = stoppedAfterMs,
+    // 历史里也带思考（核心把它挂回到这一轮的回复上），所以重开对话照样看得到思考块。
+    thinking = thinking,
 )
 
 /**

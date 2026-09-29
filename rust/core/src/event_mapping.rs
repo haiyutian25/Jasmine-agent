@@ -102,13 +102,25 @@ pub fn map_response_event(event: ResponseEvent) -> MappedEvent {
             prompt: None,
             token_usage,
         },
+        // The thinking streams the way the text does, and the UI keeps it beside the reply. The
+        // settled `Reasoning` item that OutputItemDone carries is the transcript's shape rather
+        // than an event, so it stays unmapped here — its text already went out as deltas.
+        ResponseEvent::ReasoningSummaryDelta { delta, .. }
+        | ResponseEvent::ReasoningContentDelta { delta, .. } => {
+            if delta.is_empty() {
+                return MappedEvent::default();
+            }
+            MappedEvent {
+                events: vec![ChatEvent::Reasoning(delta)],
+                prompt: None,
+                token_usage: None,
+            }
+        }
         ResponseEvent::Created { .. }
         | ResponseEvent::OutputItemAdded(_)
         | ResponseEvent::OutputItemDone(_)
         | ResponseEvent::ServerModel(_)
         | ResponseEvent::ToolCallInputDelta { .. }
-        | ResponseEvent::ReasoningSummaryDelta { .. }
-        | ResponseEvent::ReasoningSummaryDone { .. }
-        | ResponseEvent::ReasoningContentDelta { .. } => MappedEvent::default(),
+        | ResponseEvent::ReasoningSummaryDone { .. } => MappedEvent::default(),
     }
 }

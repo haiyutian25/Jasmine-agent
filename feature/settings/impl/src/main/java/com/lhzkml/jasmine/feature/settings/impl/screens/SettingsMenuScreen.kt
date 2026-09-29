@@ -17,12 +17,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.BarChart
-import androidx.compose.material.icons.outlined.FormatSize
-import androidx.compose.material.icons.outlined.Language
-import androidx.compose.material.icons.outlined.Palette
-import androidx.compose.material.icons.outlined.SmartToy
+import com.lhzkml.jasmine.core.ui.icons.LucideIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -84,7 +79,7 @@ fun SettingsMenuScreen(
     ) {
         SettingsGroupCard(currentTheme = currentTheme, modifier = Modifier.fillMaxWidth()) {
             SettingsMenuRow(
-                icon = Icons.Outlined.Palette,
+                icon = LucideIcons.Palette,
                 title = stringResource(R.string.settings_menu_appearance_title),
                 onClick = onOpenAppearance,
                 currentTheme = currentTheme,
@@ -92,7 +87,7 @@ fun SettingsMenuScreen(
             )
             SettingsRowDivider(currentTheme = currentTheme)
             SettingsMenuRow(
-                icon = Icons.Outlined.FormatSize,
+                icon = LucideIcons.FormatSize,
                 title = stringResource(R.string.settings_menu_font_title),
                 onClick = onOpenFont,
                 currentTheme = currentTheme,
@@ -100,7 +95,7 @@ fun SettingsMenuScreen(
             )
             SettingsRowDivider(currentTheme = currentTheme)
             SettingsMenuRow(
-                icon = Icons.Outlined.Language,
+                icon = LucideIcons.Languages,
                 title = stringResource(R.string.language_title),
                 onClick = onOpenLanguage,
                 currentTheme = currentTheme,
@@ -113,7 +108,7 @@ fun SettingsMenuScreen(
 
         SettingsGroupCard(currentTheme = currentTheme, modifier = Modifier.fillMaxWidth()) {
             SettingsMenuRow(
-                icon = Icons.Outlined.SmartToy,
+                icon = LucideIcons.Bot,
                 title = stringResource(R.string.settings_menu_provider_title),
                 onClick = onOpenProviders,
                 currentTheme = currentTheme,
@@ -126,7 +121,7 @@ fun SettingsMenuScreen(
 
         SettingsGroupCard(currentTheme = currentTheme, modifier = Modifier.fillMaxWidth()) {
             SettingsMenuRow(
-                icon = Icons.Outlined.BarChart,
+                icon = LucideIcons.ChartColumn,
                 title = stringResource(R.string.usage_stats_title),
                 onClick = onOpenUsageStats,
                 currentTheme = currentTheme,

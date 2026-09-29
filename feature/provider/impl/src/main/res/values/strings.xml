@@ -30,6 +30,13 @@
     <string name="provider_context_length">Context Length (tokens)</string>
     <string name="provider_max_output_length">Max Output Length (tokens)</string>
     <string name="provider_max_output_hint">Upper bound on what the model may write in one request; leave it empty or 0 to use the model default.</string>
+    <string name="provider_reasoning_effort">Reasoning effort</string>
+    <string name="provider_reasoning_effort_hint">How hard the model thinks before answering: higher is steadier but slower. Pick Not set to send no reasoning field at all.</string>
+    <string name="provider_reasoning_effort_unset">Not set</string>
+    <string name="provider_reasoning_effort_minimal">Minimal</string>
+    <string name="provider_reasoning_effort_low">Low</string>
+    <string name="provider_reasoning_effort_medium">Medium</string>
+    <string name="provider_reasoning_effort_high">High</string>
     <string name="provider_model_edit_cd">Edit model</string>
     <string name="provider_model_delete_cd">Delete model</string>
     <string name="provider_model_params">Context %1$d · Output %2$d</string>

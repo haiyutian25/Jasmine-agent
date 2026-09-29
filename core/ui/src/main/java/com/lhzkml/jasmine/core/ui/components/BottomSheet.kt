@@ -11,8 +11,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.union
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import com.lhzkml.jasmine.core.ui.icons.LucideIcons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -142,7 +141,7 @@ private fun BottomSheetCloseButton(currentTheme: CssVariables, onDismiss: () -> 
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Filled.Close,
+                imageVector = LucideIcons.Close,
                 contentDescription = stringResource(R.string.bottom_sheet_cd_close),
                 tint = currentTheme.mutedForeground,
                 modifier = Modifier.size(BottomSheetCloseIconSize)
