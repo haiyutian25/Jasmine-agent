@@ -74,12 +74,12 @@
     <string name="chat_reasoning_effort">推理强度</string>
     <string name="chat_reasoning_effort_unset">未设置</string>
     <string name="chat_reasoning_effort_none">关闭</string>
-    <string name="chat_reasoning_effort_minimal">极低</string>
     <string name="chat_reasoning_effort_low">低</string>
     <string name="chat_reasoning_effort_medium">中</string>
     <string name="chat_reasoning_effort_high">高</string>
     <string name="chat_reasoning_effort_xhigh">极高</string>
     <string name="chat_reasoning_effort_max">最高</string>
+    <string name="chat_reasoning_effort_ultra">极致</string>
     <string name="chat_stop_cd">停止</string>
     <string name="chat_continue_cd">继续</string>
     <string name="chat_turn_stopped">你在 %1$d秒 后停止了</string>

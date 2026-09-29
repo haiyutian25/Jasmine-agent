@@ -48,11 +48,42 @@ fn provider_input() -> ProviderInput {
         models: vec![crate::ModelInput {
             id: "deepseek-flash".to_string(),
             model_id: "deepseek-flash".to_string(),
+            name: "DeepSeek-V41-Flash".to_string(),
             context_length: 128_000,
             max_output_length: 0,
-            reasoning_effort: "high".to_string(),
+            reasoning_effort: String::new(),
         }],
     }
+}
+
+#[test]
+fn the_provider_catalog_carries_the_names_and_windows() {
+    let catalog = crate::provider_catalog("deepseek".to_string());
+    let flash = catalog
+        .iter()
+        .find(|entry| entry.model_id == "deepseek-flash")
+        .expect("deepseek-flash");
+    assert_eq!(flash.name, "DeepSeek-V41-Flash");
+    assert_eq!(flash.context_length, 1_000_000);
+    // 档位表随目录一起出去：聊天页那张面板直接列它，界面上不再另填一份。内容照上游 ——
+    // DeepSeek 是它那条路由的四档（`off`/`low`/`high`/`max`），多的（`minimal` 之类）不给。
+    assert_eq!(flash.levels, ["none", "low", "high", "max"]);
+
+    // OpenAI 那边逐模型照抄 `models.json`：这一个声明了界面档 `ultra`，而 `gpt-5.5` 连 `max` 都没有。
+    let openai = crate::provider_catalog("openai".to_string());
+    let astra = openai
+        .iter()
+        .find(|entry| entry.model_id == "gpt-6-astra")
+        .expect("gpt-6-astra");
+    assert!(astra.levels.iter().any(|level| level == "ultra"));
+    let legacy = openai
+        .iter()
+        .find(|entry| entry.model_id == "gpt-5.5")
+        .expect("gpt-5.5");
+    assert_eq!(legacy.levels, ["low", "medium", "high", "xhigh"]);
+
+    // 不认识的供应商：空目录。
+    assert!(crate::provider_catalog("nope".to_string()).is_empty());
 }
 
 #[test]
@@ -66,7 +97,25 @@ fn built_in_providers_come_from_the_factory_presets() {
     assert_eq!(deepseek.base_url, "https://api.deepseek.com");
     assert_eq!(deepseek.wire_api, WireApi::Chat);
     assert!(deepseek.api_key.is_empty());
-    assert!(deepseek.models.is_empty());
+    // 模型来自目录：id、上下文容量、起点档都照 dsh 那份抄。
+    assert_eq!(
+        deepseek
+            .models
+            .iter()
+            .map(|model| model.model_id.as_str())
+            .collect::<Vec<_>>(),
+        ["deepseek-flash", "deepseek-v4-pro"]
+    );
+    assert_eq!(deepseek.models[0].context_length, 1_000_000);
+    assert_eq!(deepseek.models[0].name, "DeepSeek-V41-Flash");
+
+    // 第二家是 codex 那条 OpenAI 预设，模型同样来自目录。
+    let openai = providers
+        .iter()
+        .find(|provider| provider.id == "openai")
+        .expect("OpenAI preset");
+    assert_eq!(openai.wire_api, WireApi::Responses);
+    assert!(openai.models.iter().any(|model| model.model_id == "gpt-5.5"));
 }
 
 #[test]

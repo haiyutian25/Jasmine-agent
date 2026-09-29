@@ -13,7 +13,7 @@ pub const PROVIDER_ID: &str = "deepseek";
 /// 官方端点。
 pub const BASE_URL: &str = "https://api.deepseek.com";
 
-/// 出厂那份配置。模型列表留空 —— 由界面从端点拉取或手工添加。
+/// 出厂那份配置：模型来自目录（见 [`models`]），界面不用再手工录一遍。
 pub fn provider() -> ModelProviderInfo {
     ModelProviderInfo {
         id: PROVIDER_ID.to_string(),
@@ -21,7 +21,7 @@ pub fn provider() -> ModelProviderInfo {
         base_url: BASE_URL.to_string(),
         wire_api: WireApi::Chat,
         is_built_in: true,
-        models: Vec::new(),
+        models: models::preset_models(),
         request_max_retries: None,
         stream_idle_timeout_ms: None,
     }

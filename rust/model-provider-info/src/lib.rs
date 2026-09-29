@@ -53,6 +53,9 @@ impl fmt::Display for WireApi {
 pub struct ModelConfig {
     pub id: String,
     pub model_id: String,
+    /// 选择器里显示的名字（出厂目录给的，例如 `GPT-5.5`）；空 = 就显示 [Self::model_id]。
+    #[serde(default)]
+    pub name: String,
     #[serde(default)]
     pub context_length: u32,
     #[serde(default)]
@@ -61,11 +64,10 @@ pub struct ModelConfig {
     /// before the request is sent, because a model that cannot read it rejects the whole request.
     #[serde(default = "default_input_modalities")]
     pub input_modalities: Vec<InputModality>,
-    /// 这个模型该用多强的推理，按 OpenAI 那套取值写：`minimal` / `low` / `medium` / `high` /
-    /// `xhigh` / `max`。
+    /// 这个模型在**配置里**声明的默认推理档（线上取值）；空 = 未设置。
     ///
-    /// 空串表示"没设置" —— 请求里一个推理字段都不发（供应商的默认行为）。它属于模型而不是会话，
-    /// 会话中途换模型就跟着换。
+    /// 只对"核心目录里没有的模型"有意义：目录里有这个 id 时，会话的起点档由目录的起点档说了算
+    /// （见 [`crate::presets::default_level`]），配置里这份不参与 —— 界面也不给目录模型显示这一栏。
     #[serde(default)]
     pub reasoning_effort: String,
 }
@@ -77,6 +79,7 @@ impl Default for ModelConfig {
         Self {
             id: String::new(),
             model_id: String::new(),
+            name: String::new(),
             context_length: 0,
             max_output_length: 0,
             input_modalities: default_input_modalities(),

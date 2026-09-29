@@ -253,12 +253,31 @@ impl AgentChatService {
             }
         };
 
-        // 这个会话的推理档位：第一次附着时把**模型配置里的档位**抄进来（"新建对话时读一次模型级设置"），
-        // 之后只认会话自己的记录。这里没有"没记到就用模型默认"的回退 —— 没有记录就是"未设置"。
+        let provider_id = provider.info().id.as_str();
+        // 这个会话的推理档位：第一次附着时定一条起点档（新建对话读一次），之后只认会话自己的记录。
+        // 起点档按这个次序找：**目录**（后端给的 —— 目录里有这个模型就听它的）→ 模型配置里那份默认档
+        // （只可能是目录外的模型，界面也只给它们显示那一栏）→ 都没有就是"未设置"（一个字段都不发）。
+        //
+        // 但存过的那一档**新模型不一定支持**（同一会话里换模型之后尤其如此）。codex 换模型时也做同一
+        // 件事（它 `turn_context` 里按 `supported_reasoning_levels` 换档）：不支持就落到这个模型自己的
+        // 起点档，绝不把不支持的值发出去。矫正的结果会**追加**一条记录（历史不删），界面附着后回读到
+        // 的就是真正在用的值。
+        let stored_effort = stored_effort.filter(|value| {
+            jasmine_model_provider_info::presets::supports_level(
+                provider_id,
+                &model.model_id,
+                value,
+            )
+        });
         let reasoning_effort = match stored_effort {
             Some(value) => value,
             None => {
-                let value = model.reasoning_effort.clone();
+                let value = jasmine_model_provider_info::presets::default_level(
+                    provider_id,
+                    &model.model_id,
+                )
+                .map(str::to_string)
+                .unwrap_or_else(|| model.reasoning_effort.clone());
                 record_boundary(
                     &mut rollout,
                     RolloutItem::ReasoningEffort {
@@ -268,8 +287,10 @@ impl AgentChatService {
                 value
             }
         };
-        // 请求侧从此用会话自己的档位。
-        let client = client.with_reasoning_effort(parse_reasoning_effort(&reasoning_effort));
+        // 请求侧发的是**解析后的取值**：`ultra` 这种界面档在这里换成这个模型支持的最强档。
+        let wire_effort =
+            jasmine_model_provider_info::presets::wire_level(provider_id, &model.model_id, &reasoning_effort);
+        let client = client.with_reasoning_effort(parse_reasoning_effort(&wire_effort));
 
         let mut thread = ChatThread::new();
         thread.start_session(session_id.as_str());

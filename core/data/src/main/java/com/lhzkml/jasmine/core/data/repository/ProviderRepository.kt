@@ -3,7 +3,8 @@ package com.lhzkml.jasmine.core.data.repository
 import com.lhzkml.jasmine.core.data.datastore.ProviderDataStore
 import com.lhzkml.jasmine.core.data.manager.dispatcher.DispatcherManager
 import com.lhzkml.jasmine.core.data.model.BuiltInProviders
-import com.lhzkml.jasmine.core.data.model.ModelCatalog
+import com.lhzkml.jasmine.core.data.model.CatalogModel
+import com.lhzkml.jasmine.core.data.model.ModelList
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -31,6 +32,12 @@ interface ProviderRepository {
      * the result is transient UI data, never persisted by the repository.
      */
     suspend fun fetchModels(provider: ProviderConfig): List<String>
+
+    /**
+     * 核心目录里认得的模型（名字、上下文容量），界面拿它把模型表单自动填好。只有出厂那几家
+     * 供应商有目录（按 [providerId] 认），认不出就是空的。纯本地查询，同样不落盘。
+     */
+    suspend fun catalog(providerId: String): List<CatalogModel>
 }
 
 /**
@@ -39,7 +46,7 @@ interface ProviderRepository {
  */
 class ProviderRepositoryImpl(
     private val providerDataStore: ProviderDataStore,
-    private val modelCatalog: ModelCatalog,
+    private val modelList: ModelList,
     private val builtInProviders: BuiltInProviders,
     dispatcherManager: DispatcherManager,
 ) : ProviderRepository {
@@ -70,5 +77,8 @@ class ProviderRepositoryImpl(
         }
 
     override suspend fun fetchModels(provider: ProviderConfig): List<String> =
-        modelCatalog.list(provider)
+        modelList.fetch(provider)
+
+    override suspend fun catalog(providerId: String): List<CatalogModel> =
+        modelList.catalog(providerId)
 }

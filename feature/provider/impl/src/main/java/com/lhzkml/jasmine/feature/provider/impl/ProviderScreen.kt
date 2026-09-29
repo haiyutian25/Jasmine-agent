@@ -580,7 +580,8 @@ private fun ModelRow(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = model.modelId,
+                // 出厂目录给了名字就用它（例如 `GPT-5.5`），否则显示线上 id。
+                text = model.name.ifEmpty { model.modelId },
                 fontSize = ProviderRowNameFontSize,
                 fontWeight = FontWeight.Medium,
                 color = currentTheme.foreground
@@ -756,7 +757,7 @@ private fun ModelPickerSheet(
                     }
                     ProviderDivider(currentTheme)
 
-                    if (sheet.modelIds.isEmpty()) {
+                    if (sheet.items.isEmpty()) {
                         Text(
                             text = stringResource(R.string.provider_fetch_empty),
                             fontSize = ProviderRowNameFontSize,
@@ -770,11 +771,11 @@ private fun ModelPickerSheet(
                                 .heightIn(max = ModelSheetListMaxHeight)
                                 .verticalScroll(rememberScrollState())
                         ) {
-                            sheet.modelIds.forEach { modelId ->
+                            sheet.items.forEach { item ->
                                 Button(
-                                    onClick = { onAction(ProviderAction.ModelSelected(modelId)) },
+                                    onClick = { onAction(ProviderAction.ModelSelected(item.modelId)) },
                                     modifier = Modifier.fillMaxWidth(),
-                                    testTag = "provider_model_pick_$modelId"
+                                    testTag = "provider_model_pick_${item.modelId}"
                                 ) {
                                     Row(
                                         modifier = Modifier
@@ -783,7 +784,8 @@ private fun ModelPickerSheet(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            text = modelId,
+                                            // 目录给了名字就用它（例如 `DeepSeek-V4-Pro`），否则显示线上 id。
+                                            text = item.name ?: item.modelId,
                                             fontSize = ProviderRowNameFontSize,
                                             color = currentTheme.foreground,
                                             modifier = Modifier.weight(1f)
@@ -847,7 +849,15 @@ private fun ModelEditorSheet(
                 onValueChange = { onAction(ProviderAction.ModelIdChanged(it)) },
                 currentTheme = currentTheme,
                 keyboardType = KeyboardType.Text,
-                testTag = "provider_model_field_id"
+                testTag = "provider_model_field_id",
+                // 从「获取模型列表」里挑来的模型：这个 id 就是端点报的那一个，不给改 —— 要自己写 id 就走
+                // 「自定义模型 ID」那条路（那种模型的 id 本来就该由用户定）。
+                readOnly = editor.modelIdLocked,
+                hint = if (editor.modelIdLocked) {
+                    stringResource(R.string.provider_model_id_locked_hint)
+                } else {
+                    null
+                }
             )
             Spacer(modifier = Modifier.height(14.dp))
             ProviderField(
@@ -869,20 +879,20 @@ private fun ModelEditorSheet(
                 hint = stringResource(R.string.provider_max_output_hint)
             )
 
-            // 默认档：照 ZCode 那样做成一个下拉，取值是七个档 + 「未设置」。
-            ProviderReasoningEffortField(
-                value = editor.reasoningEffort,
-                onValueChange = { onAction(ProviderAction.ModelReasoningEffortSelected(it)) },
-                currentTheme = currentTheme
-            )
-            Spacer(modifier = Modifier.height(18.dp))
-            // 支持档位：会话里那张档位面板只列这些；都不勾 = 不限制。
-            ProviderReasoningEffortsField(
-                values = editor.reasoningEfforts,
-                onValuesChange = { onAction(ProviderAction.ModelReasoningEffortsChanged(it)) },
-                currentTheme = currentTheme
-            )
-            Spacer(modifier = Modifier.height(18.dp))
+            // 「推理强度」：这个模型的默认档（新建会话的起点）。**目录里认得的模型不显示它** —— 它的档位
+            // 由后端目录直接给（那套档位会自动出现在聊天页的档位面板里），这里再摆一个只会读成重复设置。
+            // 目录外的模型（自己填的 id）没有这层数据，才需要在这儿自己定。
+            //
+            // 这里**没有**"这个模型支持哪些档"那一项：那是目录的事（codex 的
+            // `supported_reasoning_levels` 同样来自后端目录），界面上再填一遍等于第二份真源。
+            if (!editor.isCatalogModel) {
+                ProviderReasoningEffortField(
+                    value = editor.reasoningEffort,
+                    onValueChange = { onAction(ProviderAction.ModelReasoningEffortSelected(it)) },
+                    currentTheme = currentTheme
+                )
+                Spacer(modifier = Modifier.height(18.dp))
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -944,27 +954,96 @@ private fun ProviderSectionLabel(text: String, currentTheme: CssVariables) {
  * Themed single-line text field: label above a `subtleSurface` input box with
  * a hairline border (same chrome language as the rest of the settings flow).
  */
-// ── 推理强度下拉 ───────────────────────────────────────────────────────
+
+
+@Composable
+private fun ProviderField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    currentTheme: CssVariables,
+    keyboardType: KeyboardType,
+    testTag: String,
+    obscure: Boolean = false,
+    /** 字段底下的一句说明；不传就没有。 */
+    hint: String? = null,
+    /** 只读：值照常显示（还能选中复制），但点不动、不弹键盘 —— 用于"这个值不是在这儿填的"。 */
+    readOnly: Boolean = false,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            fontSize = ProviderFieldLabelFontSize,
+            fontWeight = FontWeight.SemiBold,
+            color = currentTheme.mutedForeground
+        )
+        Spacer(modifier = Modifier.height(ProviderFieldLabelSpacing))
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            readOnly = readOnly,
+            textStyle = TextStyle(
+                fontSize = ProviderFieldTextFontSize,
+                color = if (readOnly) currentTheme.mutedForeground else currentTheme.foreground
+            ),
+            cursorBrush = SolidColor(currentTheme.primary),
+            visualTransformation =
+                if (obscure) PasswordVisualTransformation() else VisualTransformation.None,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = keyboardType,
+                imeAction = ImeAction.Done
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(testTag)
+                .clip(RoundedCornerShape(currentTheme.radiusSm))
+                .background(currentTheme.subtleSurface)
+                .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusSm))
+                .padding(
+                    horizontal = ProviderFieldPaddingHorizontal,
+                    vertical = ProviderFieldPaddingVertical
+                )
+        )
+        if (hint != null) {
+            Spacer(modifier = Modifier.height(ProviderFieldLabelSpacing))
+            Text(
+                text = hint,
+                fontSize = ProviderRowBaseUrlFontSize,
+                color = currentTheme.mutedForeground
+            )
+        }
+    }
+}
+
+/** Hairline separator between rows inside a grouped card. */
+@Composable
+private fun ProviderDivider(currentTheme: CssVariables) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(ProviderRowDividerHeight)
+            .background(currentTheme.border)
+    )
+}
+
+// ── 「推理强度」下拉（只在目录外的模型上出现） ─────────────────────────────
 
 /**
- * 八个取值：空串是「未设置」（请求里一个推理字段都不发），`"none"` 是「关闭」（显式要求不思考），
- * 其余六个与 Rust 的 `ReasoningEffort` 同名，也是两种协议上线时用的字面量。与聊天输入行那张表
- * **完全一致**，加档位时三处要一起改。
+ * 八个取值：空串是「未设置」（请求里一个推理字段都不发），`"none"` 是「关闭」（显式要求不思考），其余
+ * 六个是**上游两家目录的并集**（`low`/`medium`/`high`/`xhigh`/`max`，OpenAI 那边还有一个界面档
+ * `ultra`）。与聊天输入行那张表**完全一致**，加档位时两处要一起改。
  */
 private val ProviderReasoningEffortOptions = listOf(
     "" to R.string.provider_reasoning_effort_unset,
     "none" to R.string.provider_reasoning_effort_none,
-    "minimal" to R.string.provider_reasoning_effort_minimal,
     "low" to R.string.provider_reasoning_effort_low,
     "medium" to R.string.provider_reasoning_effort_medium,
     "high" to R.string.provider_reasoning_effort_high,
     "xhigh" to R.string.provider_reasoning_effort_xhigh,
     "max" to R.string.provider_reasoning_effort_max,
+    "ultra" to R.string.provider_reasoning_effort_ultra,
 )
-
-/** 可勾选的档位（不含「未设置」—— 它不是档位，是"一个字段都不发"）。 */
-private val ProviderReasoningEffortLevels =
-    ProviderReasoningEffortOptions.filter { it.first.isNotEmpty() }
 
 private val ProviderReasoningChevronSize = 14.dp
 private val ProviderReasoningPaddingVertical = 6.dp
@@ -1016,8 +1095,8 @@ private fun ProviderReasoningEffortField(
                 )
             }
             if (open) {
-                // 用我们自己的 BottomSheet（与同页的模型列表、供应商表单同一个做法），不再用 M3 的
-                // DropdownMenu —— 全仓最后一处 Material 菜单也在这次换掉了。
+                // 用我们自己的 BottomSheet（与同页的模型列表、供应商表单同一个做法），不用 M3 的
+                // DropdownMenu —— 全仓最后一处 Material 菜单早先也是这样换掉的。
                 BottomSheet(
                     onDismiss = { open = false },
                     currentTheme = currentTheme,
@@ -1079,205 +1158,5 @@ private fun ProviderReasoningEffortField(
         text = stringResource(R.string.provider_reasoning_effort_hint),
         fontSize = ProviderRowBaseUrlFontSize,
         color = currentTheme.mutedForeground
-    )
-}
-
-/**
- * 支持档位：一行「标签 + 摘要（全部 / 低・高 / …）」，点开是个**多选**面板（勾一个不关面板）。
- *
- * 一个都不勾 = **不限制**，会话里就列出全部档 —— 这也是没配过的模型的默认，所以摘要处显示「全部」。
- * 对应 codex 的 `ModelInfo.supported_reasoning_levels`：它只管"会话里能选哪些"，不碰请求。
- */
-@Composable
-private fun ProviderReasoningEffortsField(
-    values: List<String>,
-    onValuesChange: (List<String>) -> Unit,
-    currentTheme: CssVariables,
-) {
-    var open by remember { mutableStateOf(false) }
-    val summary = if (values.isEmpty()) {
-        stringResource(R.string.provider_reasoning_efforts_all)
-    } else {
-        // 按档位表的顺序拼，免得勾选顺序不同显示成两种样子。
-        // （`map` 是 inline 的，`stringResource` 才能在里面调；`joinToString` 不是。）
-        ProviderReasoningEffortLevels
-            .filter { it.first in values }
-            .map { stringResource(it.second) }
-            .joinToString("・")
-    }
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = stringResource(R.string.provider_reasoning_efforts),
-            fontSize = ProviderRowBaseUrlFontSize,
-            color = currentTheme.mutedForeground
-        )
-        Spacer(modifier = Modifier.width(ProviderFieldLabelSpacing))
-        Box {
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(currentTheme.radiusSm))
-                    .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusSm))
-                    .clickable { open = true }
-                    .padding(
-                        horizontal = ProviderFieldPaddingHorizontal,
-                        vertical = ProviderReasoningPaddingVertical
-                    ),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = summary,
-                    fontSize = ProviderRowBaseUrlFontSize,
-                    color = currentTheme.foreground,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Icon(
-                    imageVector = LucideIcons.ChevronDown,
-                    contentDescription = null,
-                    tint = currentTheme.mutedForeground,
-                    modifier = Modifier.size(ProviderReasoningChevronSize)
-                )
-            }
-            if (open) {
-                BottomSheet(
-                    onDismiss = { open = false },
-                    currentTheme = currentTheme,
-                    modifier = Modifier.testTag("provider_reasoning_efforts_sheet")
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = ProviderFieldPaddingHorizontal)
-                            .padding(bottom = 16.dp)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.provider_reasoning_efforts),
-                            fontSize = ModelSheetTitleFontSize,
-                            fontWeight = FontWeight.SemiBold,
-                            color = currentTheme.foreground
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        ProviderReasoningEffortLevels.forEach { option ->
-                            val checked = option.first in values
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(currentTheme.radiusSm))
-                                    .clickable {
-                                        val next = if (checked) {
-                                            values - option.first
-                                        } else {
-                                            values + option.first
-                                        }
-                                        // 存成档位表的顺序（勾选先后不影响存下来的样子）。
-                                        onValuesChange(
-                                            ProviderReasoningEffortLevels
-                                                .map { it.first }
-                                                .filter { it in next }
-                                        )
-                                    }
-                                    .padding(vertical = ProviderReasoningPaddingVertical),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = stringResource(option.second),
-                                    fontSize = ProviderRowBaseUrlFontSize,
-                                    color = if (checked) {
-                                        currentTheme.primary
-                                    } else {
-                                        currentTheme.foreground
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                if (checked) {
-                                    Icon(
-                                        imageVector = LucideIcons.Check,
-                                        contentDescription = null,
-                                        tint = currentTheme.primary,
-                                        modifier = Modifier.size(ProviderReasoningChevronSize)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    Spacer(modifier = Modifier.height(ProviderFieldLabelSpacing))
-    Text(
-        text = stringResource(R.string.provider_reasoning_efforts_hint),
-        fontSize = ProviderRowBaseUrlFontSize,
-        color = currentTheme.mutedForeground
-    )
-}
-
-@Composable
-private fun ProviderField(
-    label: String,
-    value: String,
-    onValueChange: (String) -> Unit,
-    currentTheme: CssVariables,
-    keyboardType: KeyboardType,
-    testTag: String,
-    obscure: Boolean = false,
-    /** 字段底下的一句说明；不传就没有。 */
-    hint: String? = null,
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = label,
-            fontSize = ProviderFieldLabelFontSize,
-            fontWeight = FontWeight.SemiBold,
-            color = currentTheme.mutedForeground
-        )
-        Spacer(modifier = Modifier.height(ProviderFieldLabelSpacing))
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            singleLine = true,
-            textStyle = TextStyle(
-                fontSize = ProviderFieldTextFontSize,
-                color = currentTheme.foreground
-            ),
-            cursorBrush = SolidColor(currentTheme.primary),
-            visualTransformation =
-                if (obscure) PasswordVisualTransformation() else VisualTransformation.None,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = keyboardType,
-                imeAction = ImeAction.Done
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag(testTag)
-                .clip(RoundedCornerShape(currentTheme.radiusSm))
-                .background(currentTheme.subtleSurface)
-                .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusSm))
-                .padding(
-                    horizontal = ProviderFieldPaddingHorizontal,
-                    vertical = ProviderFieldPaddingVertical
-                )
-        )
-        if (hint != null) {
-            Spacer(modifier = Modifier.height(ProviderFieldLabelSpacing))
-            Text(
-                text = hint,
-                fontSize = ProviderRowBaseUrlFontSize,
-                color = currentTheme.mutedForeground
-            )
-        }
-    }
-}
-
-/** Hairline separator between rows inside a grouped card. */
-@Composable
-private fun ProviderDivider(currentTheme: CssVariables) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(ProviderRowDividerHeight)
-            .background(currentTheme.border)
     )
 }

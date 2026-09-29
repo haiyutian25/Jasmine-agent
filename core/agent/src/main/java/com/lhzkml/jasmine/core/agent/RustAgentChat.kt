@@ -162,12 +162,13 @@ internal fun ProviderConfig.toProviderInput(): ProviderInput = ProviderInput(
         ProviderApiType.RESPONSES -> WireApi.RESPONSES
     },
     apiKey = apiKey,
-    // 界面给每个模型配的 token 预算（上下文长度 / 最大输出）与推理强度随 provider 一起进核心；
-    // 0 / 空串表示没设置，核心自己决定默认。
+    // 界面给每个模型配的 token 预算（上下文长度 / 最大输出）与默认档随 provider 一起进核心；0 / 空串
+    // 表示没设置，核心自己决定默认（起点档先问模型目录）。档位**表**不在这里 —— 那是目录的事。
     models = models.map { model ->
         ModelInput(
             id = model.id,
             modelId = model.modelId,
+            name = model.name,
             contextLength = model.contextLength.toUInt(),
             maxOutputLength = model.maxOutputLength.toUInt(),
             reasoningEffort = model.reasoningEffort,

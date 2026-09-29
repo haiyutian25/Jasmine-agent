@@ -165,36 +165,46 @@ private const val ChatEffortTrackAlpha = 0.15f
 
 /**
  * 「推理强度」的档位表（值 → 文案），顺序就是面板里的顺序：空串（未设置 → 请求里不发任何推理字段）→
- * `none`（关闭 → 显式要求不思考）→ `minimal` → `low` → `medium` → `high` → `xhigh` → `max`。与供应商页
- * 那张表**完全一致**，也都对应 Rust 的 `ReasoningEffort`；加档位时两处要一起改。
+ * `none`（关闭 → 显式要求不思考）→ `low` → `medium` → `high` → `xhigh` → `max` → `ultra`。
+ *
+ * 这份表就是**上游两家目录的并集**：DeepSeek 照 `dsh` 的四档（`none`/`low`/`high`/`max`），OpenAI 照
+ * codex 的 `models.json`（逐模型 `low`…`max`，其中四个还有 `ultra`）。两家都不声明的档这里就没有 ——
+ * 所以没有 `minimal`。与供应商页那张表**完全一致**，加档位时两处要一起改。
  */
 private val ChatReasoningEffortOptions = listOf(
     "" to R.string.chat_reasoning_effort_unset,
     "none" to R.string.chat_reasoning_effort_none,
-    "minimal" to R.string.chat_reasoning_effort_minimal,
     "low" to R.string.chat_reasoning_effort_low,
     "medium" to R.string.chat_reasoning_effort_medium,
     "high" to R.string.chat_reasoning_effort_high,
     "xhigh" to R.string.chat_reasoning_effort_xhigh,
     "max" to R.string.chat_reasoning_effort_max,
+    "ultra" to R.string.chat_reasoning_effort_ultra,
 )
 
 /** 「关闭」：它表达的是"不思考"，不是"思考得很少"，所以竖条不给它填充。 */
 private const val ChatReasoningEffortOff = "none"
 
 /**
- * 这次会话能选的档位：模型声明了支持哪些就**只列哪些**（空 = 不限制），「未设置」不是档位、永远在，
- * 当前值即使不在声明里也留着 —— 否则面板里看不到自己现在是什么档。
+ * **界面档**：`ultra` 是 codex 目录里声明的取值，但线上没有这个词 —— 发请求前核心会把它换成该模型支持的
+ * 最强档（见 `presets::wire_level`）。所以"不限制"（目录没声明支持表）时**不列它**：那种情况下换不成。
+ */
+private const val ChatReasoningEffortUltra = "ultra"
+
+/**
+ * 这次会话能选的档位：**目录**给了这个模型哪几档就只列哪几档（没给 = 不限制，列全部）；「未设置」
+ * 不是档位、永远在；当前值即使不在目录里也留着 —— 否则面板里看不到自己现在是什么档。
  *
- * 对应 codex 的 `ModelInfo.supported_reasoning_levels`：它按模型目录过滤选择器，我们按供应商页那份
- * 「支持档位」来。
+ * 对应 codex 的 `ModelInfo.supported_reasoning_levels`：它按后端模型目录过滤选择器，我们按核心目录
+ * 传过来的那份 `levels` 来。
  */
 private fun chatReasoningEffortOptionsFor(
     declared: List<String>,
     current: String,
 ): List<Pair<String, Int>> {
     val declaredOptions = if (declared.isEmpty()) {
-        ChatReasoningEffortOptions
+        // 不限制：列全部**线上**档 —— 界面档（`ultra`）不列，它得先知道模型支持什么才换得成。
+        ChatReasoningEffortOptions.filter { it.first != ChatReasoningEffortUltra }
     } else {
         ChatReasoningEffortOptions.filter { it.first in declared }
     }
@@ -1113,11 +1123,6 @@ private fun Composer(
     val resume = state.canContinue && !canSend
     // 「推理强度」选择面板（复用我们的 BottomSheet）的开合。
     var isEffortSheetOpen by remember { mutableStateOf(false) }
-    // 这次会话能选的档位：按**这个模型声明的**支持档过滤（没声明就是全部）。
-    val effortOptions = chatReasoningEffortOptionsFor(
-        declared = state.activeModel?.reasoningEfforts.orEmpty(),
-        current = state.reasoningEffort
-    )
     val shape = RoundedCornerShape(currentTheme.radiusMd)
 
     // One card holds both the text field and a tool row underneath it: model picker
@@ -1220,11 +1225,16 @@ private fun Composer(
 
             // 推理强度：有激活模型才显示（没有模型就无从谈起档位）。点开面板挑一档，落库走
             // ChatAction.ThoughtLevelSelected —— 改的是**这个会话**的档位（不是模型配置）。
+            // 这次会话能选的档位：目录给了这个模型哪几档就列哪几档（没给 = 不限制）。
+            val effortOptions = chatReasoningEffortOptionsFor(
+                declared = state.allowedEfforts,
+                current = state.reasoningEffort,
+            )
             state.activeModel?.let {
                 Spacer(modifier = Modifier.width(ChatComposerToolRowGap))
                 ChatReasoningEffortControl(
-                    options = effortOptions,
                     effort = state.reasoningEffort,
+                    options = effortOptions,
                     currentTheme = currentTheme,
                     onClick = { isEffortSheetOpen = true }
                 )
@@ -1234,8 +1244,8 @@ private fun Composer(
             // 只列这个模型支持的档（+「未设置」+ 当前值）。
             if (isEffortSheetOpen) {
                 ChatReasoningEffortSheet(
-                    options = effortOptions,
                     current = state.reasoningEffort,
+                    options = effortOptions,
                     currentTheme = currentTheme,
                     onDismiss = { isEffortSheetOpen = false },
                     onSelect = { value ->
@@ -1810,8 +1820,8 @@ private val ChatEffortSheetCheckSize = 16.dp
  */
 @Composable
 private fun ChatReasoningEffortSheet(
-    options: List<Pair<String, Int>>,
     current: String,
+    options: List<Pair<String, Int>>,
     currentTheme: CssVariables,
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit,
@@ -1869,24 +1879,30 @@ private fun ChatReasoningEffortSheet(
  * 档位名**。点一下打开选择面板（[ChatReasoningEffortSheet]，复用我们自己的 `BottomSheet`）——
  * 手机上没有悬停，做成下拉面板比"点一下切一档"更好挑。
  *
- * 进度条的比例用它的算法（点亮数 = 当前档在**本次可选思考档**里的位置 + 1，分母 = 可选思考档数）：
- * 空串（未设置）与 `none`（关闭）都停在空轨道，其余依次铺满 —— 所以同一个「高」在 4 档的模型上是
- * 4/4、在 6 档的模型上是 4/6。
+ * 进度条的比例用它的算法（点亮数 = 当前档在档位表里的位置 + 1，分母 = 档位数）：空串（未设置）与
+ * `none`（关闭）都停在空轨道，其余依次铺满。
  */
 @Composable
 private fun ChatReasoningEffortControl(
-    options: List<Pair<String, Int>>,
     effort: String,
+    options: List<Pair<String, Int>>,
     currentTheme: CssVariables,
     onClick: () -> Unit,
 ) {
     val label = stringResource(
-        options.firstOrNull { it.first == effort }?.second ?: ChatReasoningEffortOptions.first().second
+        options.firstOrNull { it.first == effort }?.second
+            ?: ChatReasoningEffortOptions.first().second
     )
-    // 竖条只表达"思考强度"：未设置与关闭都停在空轨道，其余按在**本次可选思考档**里的位置铺满。
-    val thinking = options.filter { it.first.isNotEmpty() && it.first != ChatReasoningEffortOff }
+    // 竖条只表达"思考强度"：未设置与关闭都停在空轨道，其余按在**这次可选**的那几张档里的位置铺满。
+    val thinking = options.filter {
+        it.first.isNotEmpty() && it.first != ChatReasoningEffortOff
+    }
     val position = thinking.indexOfFirst { it.first == effort }
-    val progress = if (position < 0) 0f else (position + 1).toFloat() / thinking.size
+    val progress = if (position < 0 || thinking.isEmpty()) {
+        0f
+    } else {
+        (position + 1).toFloat() / thinking.size
+    }
 
     Button(
         onClick = onClick,

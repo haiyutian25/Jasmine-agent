@@ -126,13 +126,17 @@ pub struct ProviderInput {
 
 /// 平台侧配置进来的一个模型。
 ///
-/// 只带核心用得上的数：界面上那两栏 token 预算（0 表示"没设置"），以及推理强度（空串表示"没设置"）。
+/// 只带核心用得上的数：名字（出厂目录给的，空 = 显示 model_id）、界面上那两栏 token 预算（0 表示
+/// "没设置"），以及**默认推理档**（目录外的模型才用得上）。档位**表**不在这里 —— 那由核心的模型
+/// 目录说了算（见 [`provider_catalog`]），会话的起点档也是先问目录。
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct ModelInput {
     pub id: String,
     pub model_id: String,
+    pub name: String,
     pub context_length: u32,
     pub max_output_length: u32,
+    /// 这个模型的默认推理档（线上取值）；空 = 未设置。
     pub reasoning_effort: String,
 }
 
@@ -150,6 +154,7 @@ impl ProviderInput {
                 .map(|model| jasmine_model_provider_info::ModelConfig {
                     id: model.id,
                     model_id: model.model_id,
+                    name: model.name,
                     context_length: model.context_length,
                     max_output_length: model.max_output_length,
                     reasoning_effort: model.reasoning_effort,
@@ -246,6 +251,7 @@ impl AgentHandle {
             .map(|candidate| ModelConfig {
                 id: candidate.id.clone(),
                 model_id: candidate.model_id.clone(),
+                name: candidate.name.clone(),
                 context_length: candidate.context_length,
                 max_output_length: candidate.max_output_length,
                 reasoning_effort: candidate.reasoning_effort.clone(),
@@ -516,7 +522,38 @@ pub fn list_models(provider: ProviderInput) -> Result<Vec<String>, AgentFailure>
         .map_err(|detail| AgentFailure::Failed { detail })
 }
 
-/// 出厂内置的供应商（现在只有 DeepSeek）：界面首次启动拿它当种子。
+/// 核心目录里的一个模型：认得它，界面就能把表单填好（名字、上下文容量、档位表）。
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct ProviderCatalogModel {
+    pub model_id: String,
+    pub name: String,
+    pub context_length: u32,
+    /// 目录声明这个模型支持哪些档（线上取值）；空 = 没声明，界面按"不限制"处理。
+    pub levels: Vec<String>,
+}
+
+/// 这个供应商的模型目录（核心认得的模型）。
+///
+/// 界面拿它干三件事：填表单（名字、上下文容量）、判"这个 id 是不是目录里的模型"（是的话档位就不在
+/// 配置页填），以及把**档位表**交给聊天页那张档位面板 —— 目录只在核心，这里出去的是**值**。
+#[uniffi::export]
+pub fn provider_catalog(provider_id: String) -> Vec<ProviderCatalogModel> {
+    jasmine_model_provider_info::presets::catalog(&provider_id)
+        .into_iter()
+        .map(|entry| ProviderCatalogModel {
+            model_id: entry.model_id.to_string(),
+            name: entry.name.to_string(),
+            context_length: entry.context_window,
+            levels: entry
+                .levels
+                .iter()
+                .map(|level| level.as_str().to_string())
+                .collect(),
+        })
+        .collect()
+}
+
+/// 出厂内置的供应商：界面首次启动拿它当种子。模型与它们的能力都来自核心的**模型目录**。
 ///
 /// 清单的真源是 `model-provider-info` 的 `presets`，界面不再各自写死一份；这里出去的每条按定义都是
 /// 内置的，所以不带 `is_built_in`，也没有密钥。
@@ -536,6 +573,7 @@ pub fn built_in_providers() -> Vec<ProviderInput> {
                 .map(|model| ModelInput {
                     id: model.id,
                     model_id: model.model_id,
+                    name: model.name,
                     context_length: model.context_length,
                     max_output_length: model.max_output_length,
                     reasoning_effort: model.reasoning_effort,

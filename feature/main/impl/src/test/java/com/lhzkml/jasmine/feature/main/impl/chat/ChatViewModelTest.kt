@@ -6,6 +6,7 @@ import com.lhzkml.jasmine.core.agent.ChatEvent
 import com.lhzkml.jasmine.core.agent.ContextUsage
 import com.lhzkml.jasmine.core.data.model.ChatRole
 import com.lhzkml.jasmine.core.data.model.Conversation
+import com.lhzkml.jasmine.core.data.model.CatalogModel
 import com.lhzkml.jasmine.core.data.model.ModelConfig
 import com.lhzkml.jasmine.core.data.model.ProviderApiType
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
@@ -93,6 +94,38 @@ class ChatViewModelTest {
         assertEquals(MODEL_ID, state.activeModelId)
         assertEquals("deepseek-chat", state.activeModel?.modelId)
         assertTrue(state.isReady)
+    }
+
+    // ── 推理档位：面板能列哪几档由核心目录说了算 ─────────────────────────
+
+    @Test
+    fun `the effort menu keeps only the levels the catalog declares`() =
+        runTest(testDispatcher) {
+            // 目录给这个模型声明了两档 —— 面板就只列这两档（+「未设置」，在界面那边补）。
+            providerRepository = FakeProviderRepository(
+                initial = listOf(PROVIDER),
+                catalogModels = listOf(
+                    CatalogModel(
+                        modelId = "deepseek-chat",
+                        name = "DeepSeek-Chat",
+                        contextLength = 1_000_000,
+                        levels = listOf("low", "high"),
+                    ),
+                ),
+            )
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            assertEquals(listOf("low", "high"), viewModel.stateFlow.value.allowedEfforts)
+        }
+
+    @Test
+    fun `a model the catalog does not know keeps every level`() = runTest(testDispatcher) {
+        // 目录里没有这个模型（这里是空目录）→ 不限制：界面按全部档列。
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.stateFlow.value.allowedEfforts.isEmpty())
     }
 
     @Test
@@ -375,7 +408,8 @@ class ChatViewModelTest {
             val created = conversationStore.created.single()
             assertEquals("hi", created.title)
             assertEquals(PROVIDER.id, created.providerId)
-            assertEquals(MODEL_ID, created.modelId)
+            // 会话文件里存的是**线上模型名**（与 attach 时交给核心的一致），不是模型条目的 id。
+            assertEquals(PROVIDER.models.first().modelId, created.modelId)
             assertEquals(created.id, viewModel.stateFlow.value.activeConversationId)
         }
 
@@ -589,12 +623,18 @@ class ChatViewModelTest {
     }
 }
 
-private class FakeProviderRepository(initial: List<ProviderConfig>) : ProviderRepository {
+private class FakeProviderRepository(
+    initial: List<ProviderConfig>,
+    private val catalogModels: List<CatalogModel> = emptyList(),
+) : ProviderRepository {
     override val providersStateFlow = MutableStateFlow(initial)
     override suspend fun upsertProvider(provider: ProviderConfig) = Unit
     override suspend fun deleteProvider(id: String) = Unit
     override suspend fun fetchModels(provider: ProviderConfig): List<String> = emptyList()
+    override suspend fun catalog(providerId: String): List<CatalogModel> = catalogModels
 }
+
+
 
 /**
  * 纯 Kotlin 解析器工厂。

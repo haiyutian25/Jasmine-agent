@@ -37,8 +37,8 @@ pub struct ChatRequest {
     pub top_p: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_tokens: Option<u32>,
-    /// 推理强度：OpenAI 兼容端点上的字段名就是它（`minimal` / `low` / `medium` / `high` /
-    /// `xhigh` / `max`）。
+    /// 推理强度：OpenAI 兼容端点上的字段名就是它（上游两家目录的并集：`none` / `low` / `medium` /
+    /// `high` / `xhigh` / `max`；`ultra` 是界面档，进请求前会被换成该模型支持的最强档）。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

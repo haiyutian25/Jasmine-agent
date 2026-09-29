@@ -193,10 +193,18 @@ data class ChatState(
     /**
      * 当前会话的推理档位（codex 那套值；空串 = 未设置）。
      *
-     * 它是**这次对话**的值：会话第一次附着时核心从模型配置里抄一次，之后在输入框那边改就是改它；
-     * 打开旧会话时用它自己的记录填回来。模型配置里那个档位只作为"新建对话时的起点"。
+     * 它是**这次对话**的值：会话第一次附着时核心按目录里的起点档抄一次，之后在输入框那边改就是改它；
+     * 打开旧会话时用它自己的记录填回来。
      */
     val reasoningEffort: String = "",
+    /**
+     * 当前模型**允许**的档位（线上取值，来自核心目录）；空 = 目录没声明、或者这模型不在目录里，
+     * 面板按"不限制"列出全部。
+     *
+     * 目录里有这个模型就不用在界面上自己填：后端那套档位直接列进面板，对应 codex 的
+     * `ModelInfo.supported_reasoning_levels`。
+     */
+    val allowedEfforts: List<String> = emptyList(),
     /** Set while the agent is blocked on a question; see [ChatUserPrompt]. */
     val pendingPrompt: ChatUserPrompt? = null,
 ) {
@@ -430,16 +438,19 @@ class ChatViewModel @Inject constructor(
                 updateState {
                     copy(activeProviderId = action.providerId, activeModelId = action.modelId)
                 }
-                // 当前模型要等偏好读回来才知道，所以新会话的窗口在这里再对一次。
+                // 当前模型要等偏好读回来才知道，所以新会话的窗口、模型允许的档位都在这里再对一次。
                 if (state.activeConversationId == null) {
                     updateState {
                         copy(
                             contextWindow = newConversationContextWindow(),
-                            // 还没有会话：先照模型配置显示 —— 第一次附着时核心会把它抄成会话自己的第一条。
+                            // 还没有会话：先照模型配置里的默认档显示 —— 第一次附着时核心会定下这条会话
+                            // 自己的起点档（目录里有这个模型就用目录的），附着后
+                            // [syncReasoningEffortAfterAttach] 再把核心那边的值读回来。
                             reasoningEffort = state.activeModel?.reasoningEffort.orEmpty(),
                         )
                     }
                 }
+                viewModelScope.launch { refreshAllowedEfforts() }
             }
             is ChatAction.Internal.TranscriptRestored -> {
                 handleTranscriptRestored(action)
@@ -677,6 +688,24 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 刷新"当前模型允许哪些档"：**目录**给的（目录里有这个模型就用它那套）；目录里没有就是空的，
+     * 面板按"不限制"列出全部。
+     *
+     * 只读一次目录、不落盘 —— 它决定聊天页那张档位面板列哪几档（对应 codex 的
+     * `ModelInfo.supported_reasoning_levels`）。
+     */
+    private suspend fun refreshAllowedEfforts() {
+        val provider = state.activeProvider ?: return
+        val modelId = state.activeModel?.modelId ?: return
+        val levels = runCatching { providerRepository.catalog(provider.id) }
+            .getOrDefault(emptyList())
+            .firstOrNull { it.modelId == modelId }
+            ?.levels
+            .orEmpty()
+        updateState { copy(allowedEfforts = levels) }
+    }
+
     private suspend fun syncContextWindowAfterAttach() {
         val pending = pendingContextWindow
         if (pending != null) {
@@ -744,7 +773,8 @@ class ChatViewModel @Inject constructor(
             copy(messages = emptyList(), isSending = false, activeConversationId = null)
         }
         // 新会话的窗口按当前模型预设定；它第一次附着时核心会把这个值写进这条会话的文件。
-        // 档位同理：先照模型配置显示，附着时被抄成会话自己的第一条记录。
+        // 档位先照模型的默认档显示：附着时核心会定下这条会话自己的起点档（目录里有就用目录那份），
+        // 随后从核心读回来。
         updateState {
             copy(
                 contextWindow = newConversationContextWindow(),
@@ -756,6 +786,9 @@ class ChatViewModel @Inject constructor(
     /**
      * 推理档位改的是**当前会话**：交给核心追加一条记录（会话文件里因此留下完整的变化史），请求从这
      * 一刻起用新值。供应商页那个模型级的档位不动 —— 它只作为"新建对话时抄一次"的起点。
+     */
+    /**
+     * 选了以后：界面立刻跟上；还没附着会话就先记下来，附着那一刻交给核心。
      */
     private fun handleThoughtLevelSelected(action: ChatAction.ThoughtLevelSelected) {
         // 选了就是选了：界面立刻跟上。
@@ -794,11 +827,19 @@ class ChatViewModel @Inject constructor(
         // 会话里的窗口不跟着模型走：它在这条会话第一次附着时就定下了。只有还没有会话
         // （新会话）时，界面上的窗口才跟着换后的模型预设。
         if (state.activeConversationId == null) {
-            updateState { copy(contextWindow = newConversationContextWindow()) }
+            updateState {
+                copy(
+                    contextWindow = newConversationContextWindow(),
+                    // 换模型了：还没发第一条消息，档位先照新模型的默认档显示。
+                    reasoningEffort = state.activeModel?.reasoningEffort.orEmpty(),
+                )
+            }
         }
         viewModelScope.launch {
             userPreferencesRepository.updateActiveModel(action.providerId, action.modelId)
         }
+        // 面板列哪几档也跟着模型走（目录里有的模型用目录那份）。
+        viewModelScope.launch { refreshAllowedEfforts() }
     }
 
     private fun handleConversationSelected(action: ChatAction.ConversationSelected) {

@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import androidx.lifecycle.viewModelScope
 import com.lhzkml.jasmine.core.agent.ProbeResult
 import com.lhzkml.jasmine.core.agent.ProviderProbe
+import com.lhzkml.jasmine.core.data.model.CatalogModel
 import com.lhzkml.jasmine.core.data.model.ModelConfig
 import com.lhzkml.jasmine.core.data.model.ProviderApiType
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
@@ -23,28 +24,40 @@ import kotlinx.coroutines.launch
  * [id] is null while adding; [modelId] may be prefilled from the fetched
  * catalog or left empty for a custom id. Length fields are raw input text so
  * the field can be cleared mid-edit; blank/invalid parses to 0 ("not set").
+ *
+ * [contextLengthTouched] 记"用户自己动过这一栏没有"：没动过时改 [modelId] 会照核心目录重填，
+ * 动过之后就完全交给他，不再被覆盖。
  */
 data class ModelEditorState(
     val id: String?,
     val modelId: String,
     val contextLength: String,
     val maxOutputLength: String,
+    val contextLengthTouched: Boolean = false,
+    /** 这个模型的默认档（新建会话的起点）；空串 = 未设置。只有目录外的模型才编辑它。 */
+    val reasoningEffort: String = "",
     /**
-     * 默认档（新建会话时抄进会话的那一档）：空串 = 未设置（不发任何推理字段），`none` = 关闭
-     * （要求不思考），其余取 `minimal` / `low` / `medium` / `high` / `xhigh` / `max`。
+     * 模型 ID 这一栏能不能改。**从「获取模型列表」里挑来的模型 = `true`** —— 那个 id 是端点报的，
+     * 不该在这张表单上被改掉；要自己写 id 就走「自定义模型 ID」那条路（它的 id 本来就该由用户定）。
      */
-    val reasoningEffort: String,
-    /** 这个模型支持哪些档；空 = 不限制（会话里的档位面板会列出全部）。 */
-    val reasoningEfforts: List<String>,
+    val modelIdLocked: Boolean = false,
+    /**
+     * 这个 id 是不是核心目录里的模型。是的话档位由目录直接给（那套档位会自动出现在聊天页的档位
+     * 面板里），这一页就不显示档位那一行 —— 免得读成第二处设置。
+     */
+    val isCatalogModel: Boolean = false,
 )
+
+/** 选择列表里的一项：线上 id + 核心目录给的名字（目录不认得它时为 null，界面就显示 id）。 */
+data class ModelSheetItem(val modelId: String, val name: String?)
 
 /** Content of the model-picker bottom sheet. */
 sealed interface ModelSheetState {
     /** Catalog request in flight. */
     data object Fetching : ModelSheetState
 
-    /** Catalog fetched; [modelIds] may be empty (endpoint returned none). */
-    data class ModelList(val modelIds: List<String>) : ModelSheetState
+    /** 端点报出来的模型；[items] 可能是空的（端点一个都没报）。 */
+    data class ModelList(val items: List<ModelSheetItem>) : ModelSheetState
 
     /** Catalog request failed; the sheet stays open with a retry/custom path. */
     data object Error : ModelSheetState
@@ -127,10 +140,9 @@ sealed interface ProviderAction {
     data class ModelIdChanged(val value: String) : ProviderAction
     data class ModelContextLengthChanged(val value: String) : ProviderAction
     data class ModelMaxOutputChanged(val value: String) : ProviderAction
-    /** 选了默认档；空串代表「未设置」（请求里不发任何推理参数）。 */
+
+    /** 选了这个模型的默认档；空串代表「未设置」（请求里不发任何推理参数）。 */
     data class ModelReasoningEffortSelected(val value: String) : ProviderAction
-    /** 改了这个模型支持的档位；空列表代表「不限制」。 */
-    data class ModelReasoningEffortsChanged(val values: List<String>) : ProviderAction
     data object ModelSaveClicked : ProviderAction
     data object ModelCancelClicked : ProviderAction
 
@@ -140,7 +152,7 @@ sealed interface ProviderAction {
      */
     sealed interface Internal : ProviderAction {
         data class ProvidersReceived(val providers: List<ProviderConfig>) : Internal
-        data class ModelsFetched(val modelIds: List<String>) : Internal
+        data class ModelsFetched(val models: List<ModelSheetItem>) : Internal
         data object ModelsFetchFailed : Internal
         data class ProbeFinished(val result: ProbeResult) : Internal
     }
@@ -173,20 +185,24 @@ class ProviderViewModel @Inject constructor(
 
     override fun handleAction(action: ProviderAction) {
         when (action) {
-            ProviderAction.AddClicked -> updateState {
-                copy(
-                    editor = ProviderEditorState(
-                        id = null,
-                        name = "",
-                        baseUrl = "",
-                        apiKey = "",
-                        apiType = ProviderApiType.CHAT_COMPLETIONS,
-                        isBuiltIn = false,
-                        models = emptyList(),
-                        modelSheet = null,
-                        modelEditor = null,
-                    ),
-                )
+            ProviderAction.AddClicked -> {
+                // 新供应商还没有 id，目录认不出它 —— 把上一家的清掉，免得拿别人的值来填。
+                catalog = emptyMap()
+                updateState {
+                    copy(
+                        editor = ProviderEditorState(
+                            id = null,
+                            name = "",
+                            baseUrl = "",
+                            apiKey = "",
+                            apiType = ProviderApiType.CHAT_COMPLETIONS,
+                            isBuiltIn = false,
+                            models = emptyList(),
+                            modelSheet = null,
+                            modelEditor = null,
+                        ),
+                    )
+                }
             }
 
             is ProviderAction.EditClicked -> handleEditClicked(action)
@@ -210,8 +226,8 @@ class ProviderViewModel @Inject constructor(
                         modelId = "",
                         contextLength = "",
                         maxOutputLength = "",
-                        reasoningEffort = "",
-                        reasoningEfforts = emptyList(),
+                        // 自己填的 id：先当成目录外，打了 id 之后按目录再判。
+                        isCatalogModel = false,
                     ),
                 )
             }
@@ -222,25 +238,44 @@ class ProviderViewModel @Inject constructor(
                     modelEditor = ModelEditorState(
                         id = null,
                         modelId = action.modelId,
-                        contextLength = "",
+                        // 目录认得这个模型就顺手把上下文容量填上；不认得就空着 —— 不猜。
+                        contextLength = catalog[action.modelId].catalogContextLength(),
                         maxOutputLength = "",
-                        reasoningEffort = "",
-                        reasoningEfforts = emptyList(),
+                        isCatalogModel = catalog.containsKey(action.modelId),
+                        // 这个 id 是端点报的、用户刚点的那个：锁住不给改。
+                        modelIdLocked = true,
                     ),
                 )
             }
 
             is ProviderAction.ModelEditClicked -> handleModelEditClicked(action)
             is ProviderAction.ModelDeleteClicked -> handleModelDeleteClicked(action)
-            is ProviderAction.ModelIdChanged -> updateModelEditor { copy(modelId = action.value) }
-            is ProviderAction.ModelContextLengthChanged ->
-                updateModelEditor { copy(contextLength = action.value.filter(Char::isDigit)) }
-            is ProviderAction.ModelMaxOutputChanged ->
-                updateModelEditor { copy(maxOutputLength = action.value.filter(Char::isDigit)) }
+            is ProviderAction.ModelIdChanged -> updateModelEditor {
+                // 手打/粘贴自定义 id 走的是同一条规矩：目录认得就填；用户自己动过那一栏就不再覆盖。
+                val isCatalog = catalog.containsKey(action.value.trim())
+                copy(
+                    modelId = action.value,
+                    contextLength = if (contextLengthTouched) {
+                        contextLength
+                    } else {
+                        catalog[action.value.trim()].catalogContextLength()
+                    },
+                    // 一旦变成目录里的模型，档位就交给目录：配置里那份默认档清掉，免得留个不再生效的值。
+                    reasoningEffort = if (isCatalog) "" else reasoningEffort,
+                    isCatalogModel = isCatalog,
+                )
+            }
             is ProviderAction.ModelReasoningEffortSelected ->
                 updateModelEditor { copy(reasoningEffort = action.value) }
-            is ProviderAction.ModelReasoningEffortsChanged ->
-                updateModelEditor { copy(reasoningEfforts = action.values) }
+            is ProviderAction.ModelContextLengthChanged ->
+                updateModelEditor {
+                    copy(
+                        contextLength = action.value.filter(Char::isDigit),
+                        contextLengthTouched = true,
+                    )
+                }
+            is ProviderAction.ModelMaxOutputChanged ->
+                updateModelEditor { copy(maxOutputLength = action.value.filter(Char::isDigit)) }
             ProviderAction.ModelSaveClicked -> handleModelSaveClicked()
             ProviderAction.ModelCancelClicked -> updateEditor { copy(modelEditor = null) }
 
@@ -248,7 +283,7 @@ class ProviderViewModel @Inject constructor(
                 updateState { copy(providers = action.providers) }
             }
             is ProviderAction.Internal.ModelsFetched -> updateEditor {
-                copy(modelSheet = ModelSheetState.ModelList(action.modelIds))
+                copy(modelSheet = ModelSheetState.ModelList(action.models))
             }
             ProviderAction.Internal.ModelsFetchFailed -> {
                 updateEditor { copy(modelSheet = ModelSheetState.Error) }
@@ -277,6 +312,8 @@ class ProviderViewModel @Inject constructor(
                 ),
             )
         }
+        // 目录是核心里的一张本地表：先把这家供应商的取回来，后面"改模型 id"才有得填。
+        viewModelScope.launch { catalog = loadCatalog(provider.id) }
     }
 
     private fun handleDeleteClicked(action: ProviderAction.DeleteClicked) {
@@ -392,15 +429,33 @@ class ProviderViewModel @Inject constructor(
             apiType = editor.apiType,
         )
         viewModelScope.launch {
+            // 先取目录（本地表，跟端点无关）：列表拿它显示名字，选中/手打 id 时拿它填表单。
+            // 放在 fetch 之前 —— 这样端点取列表失败、转去"自定义模型"时也照样有得填。
+            catalog = loadCatalog(editor.id)
             val result = runCatching { providerRepository.fetchModels(probe) }
             sendAction(
                 result.fold(
-                    onSuccess = { ProviderAction.Internal.ModelsFetched(it) },
+                    onSuccess = { modelIds ->
+                        ProviderAction.Internal.ModelsFetched(
+                            modelIds.map { ModelSheetItem(modelId = it, name = catalog[it]?.name) }
+                        )
+                    },
                     onFailure = { ProviderAction.Internal.ModelsFetchFailed },
                 )
             )
         }
     }
+
+    /**
+     * 核心目录：`线上 id → 目录条目`。只用来填表单 / 显示名字 —— 不落盘，也不参与请求。
+     * 认不出这家供应商（或读取失败）就是空的，界面按"没有目录"处理，绝不猜值。
+     */
+    private var catalog: Map<String, CatalogModel> = emptyMap()
+
+    private suspend fun loadCatalog(providerId: String?): Map<String, CatalogModel> =
+        runCatching { providerRepository.catalog(providerId.orEmpty()) }
+            .getOrDefault(emptyList())
+            .associateBy { it.modelId }
 
     private fun handleModelEditClicked(action: ProviderAction.ModelEditClicked) {
         val model = state.editor?.models?.firstOrNull { it.id == action.id } ?: return
@@ -412,7 +467,7 @@ class ProviderViewModel @Inject constructor(
                     contextLength = model.contextLength.takeIf { it > 0 }?.toString() ?: "",
                     maxOutputLength = model.maxOutputLength.takeIf { it > 0 }?.toString() ?: "",
                     reasoningEffort = model.reasoningEffort,
-                    reasoningEfforts = model.reasoningEfforts,
+                    isCatalogModel = catalog.containsKey(model.modelId.trim()),
                 ),
             )
         }
@@ -430,13 +485,16 @@ class ProviderViewModel @Inject constructor(
             sendEvent(ProviderEvent.ShowToast(R.string.provider_model_id_required_toast))
             return
         }
+        val id = modelEditor.id ?: UUID.randomUUID().toString()
         val model = ModelConfig(
-            id = modelEditor.id ?: UUID.randomUUID().toString(),
+            id = id,
             modelId = modelId,
             contextLength = modelEditor.contextLength.toIntOrNull() ?: 0,
             maxOutputLength = modelEditor.maxOutputLength.toIntOrNull() ?: 0,
+            // 名字这一页不改（界面上没有那一行），存着的值原样带回去，别把它抹了。
+            name = editor.models.firstOrNull { it.id == id }?.name.orEmpty(),
+            // 默认档只在目录外的模型上有意义；目录模型这一页不显示它，值也已经被清空。
             reasoningEffort = modelEditor.reasoningEffort,
-            reasoningEfforts = modelEditor.reasoningEfforts,
         )
         updateEditor {
             val index = models.indexOfFirst { it.id == model.id }
@@ -469,6 +527,10 @@ class ProviderViewModel @Inject constructor(
         mutableStateFlow.update(block)
     }
 }
+
+/** 目录给的上下文容量；目录里没有这个模型、或它没声明容量时都是空串（= 不填）。 */
+private fun CatalogModel?.catalogContextLength(): String =
+    this?.contextLength?.takeIf { it > 0 }?.toString().orEmpty()
 
 /** Keeps a model reply short enough to read inside a toast. */
 private const val ProbeReplyMaxLength = 60
