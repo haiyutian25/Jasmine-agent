@@ -29,6 +29,7 @@ use jasmine_rollout::find_session_path;
 use jasmine_rollout::read_response_items;
 use jasmine_tools::ConversationTitles;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 struct Host;
 
@@ -673,4 +674,101 @@ fn a_carried_turn_lists_everything_it_had_shown_in_order() {
              下面是一段"
         )
     );
+}
+
+/// 回合**失败**时也必须走收尾（F1a）。
+///
+/// 以前收尾写在 `?` 之后：任一处提前返回（请求失败、落盘失败）就把 `release_if_detach_requested`
+/// 整段跳过 —— 平台以为已经关掉的会话会一直留在内存里（HTTP 客户端、连接池、文件句柄都还挂着），
+/// 而且下一次 `send` 还能拿它继续跑一轮。
+#[test]
+fn a_failed_turn_still_releases_the_conversation() {
+    let dir = sessions_dir("detach-on-failure");
+    let service = service(&dir);
+    attach(&service, "s1", "chat");
+
+    // "平台在回合中途请求了释放"：`end_conversation` 在有回合占着槽时就是这么记的。这里直接置位，
+    // 因为测试里没有真并发。
+    let slot = service.attached_slot("s1").expect("slot");
+    slot.detach_requested.store(true, Ordering::SeqCst);
+    drop(slot);
+
+    // 这一轮会失败（测试不发真请求），但失败同样要走收尾。
+    let mut sink = Collector { events: Vec::new() };
+    let _ = service.send("s1", "hello", &mut sink);
+
+    assert!(
+        service.slot("s1").is_none(),
+        "回合失败也必须在收尾里放开「平台请求过释放」的会话"
+    );
+}
+
+/// 读会话长度**不排队**等正在跑的那一轮（F1c）。
+///
+/// 这个方法是平台在自己的线程上直接调的非挂起 FFI；回合跑着时锁在那一轮手里，以前这里会一直等，
+/// 等于把调用方钉住一整轮回复。
+#[test]
+fn reading_the_context_length_does_not_wait_for_a_running_turn() {
+    let dir = sessions_dir("context-len-no-wait");
+    let service = service(&dir);
+    attach(&service, "s1", "chat");
+
+    // 模拟"回合正在跑"：它整个回合都占着这条会话自己的槽。
+    let slot = service.attached_slot("s1").expect("slot");
+    let _held = slot.lock().expect("lock");
+
+    let started = std::time::Instant::now();
+    assert_eq!(service.context_len("s1"), 0, "读不到就报 0，不排队");
+    assert!(
+        started.elapsed() < std::time::Duration::from_millis(200),
+        "读长度不能等着回合跑完"
+    );
+}
+
+/// 中毒的会话照样能被释放（F1d）。
+///
+/// 中毒意味着"上一个持锁的调用 panic 过"（平台回调里抛异常经 uniffi 就成了 Rust panic），不是
+/// "这条会话正忙"。用普通 `try_lock` 会把中毒误判成忙 —— 既不清附着也不 forget，这条会话就永远
+/// 留在注册表里。
+#[test]
+fn ending_a_poisoned_conversation_still_clears_it() {
+    let dir = sessions_dir("poisoned-detach");
+    let service = service(&dir);
+    attach(&service, "s1", "chat");
+
+    let slot = service.attached_slot("s1").expect("slot");
+    let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _guard = slot.lock().expect("lock");
+        panic!("模拟平台回调在持锁期间抛异常");
+    }));
+    assert!(panicked.is_err(), "这一下应该真的 panic 了");
+
+    service.end_conversation("s1");
+    assert!(
+        service.slot("s1").is_none(),
+        "中毒不是「正忙」：释放必须照样把它清掉"
+    );
+}
+
+/// `Outbox` 的语义（F1b）：事件按顺序攒着、信号只记一次、flush 一次就够。
+///
+/// 它是"回调搬出持锁范围"的承载物 —— 攒错了就等于事件丢了或重复发。
+#[test]
+fn the_outbox_holds_events_until_flushed_and_collapses_the_signal() {
+    let outbox = super::Outbox::default();
+    outbox.event(ChatEvent::Text("一段".to_string()));
+    outbox.store_changed();
+    outbox.store_changed();
+
+    let mut sink = Collector { events: Vec::new() };
+    let notifications = std::cell::Cell::new(0);
+    outbox.flush(&mut sink, || notifications.set(notifications.get() + 1));
+
+    assert_eq!(sink.events.len(), 1, "事件原样出去");
+    assert_eq!(notifications.get(), 1, "重复的存储信号合成一次");
+
+    // 再 flush 一次不该重发：通道式的语义是"发过就没了"。
+    outbox.flush(&mut sink, || notifications.set(notifications.get() + 1));
+    assert_eq!(sink.events.len(), 1);
+    assert_eq!(notifications.get(), 1);
 }
