@@ -25,7 +25,12 @@ private val Context.providerStore: DataStore<Preferences> by preferencesDataStor
  * The whole list is stored as one JSON string under a single key: provider
  * configs are a small, always-read/written-as-a-whole collection, so a JSON
  * blob keeps reads atomic and avoids a Room table for trivial structured data.
- * Corrupt or missing JSON falls back to the built-in seed ([BuiltInProviders]).
+ *
+ * A **missing** entry means "nothing saved yet" and reads as the built-in seed ([BuiltInProviders]).
+ * An entry that is there but cannot be decoded is not that: it is what the user saved (API keys
+ * included). The read still hands the seed out so the screen has something to show, but the write
+ * refuses to touch unreadable text — see [update]. Nothing here silently replaces what it could not
+ * parse: configuration that does not parse is reported by whoever reads it, not overwritten.
  */
 @Singleton
 class ProviderDataStore @Inject constructor(
@@ -36,7 +41,7 @@ class ProviderDataStore @Inject constructor(
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    /** Provider stream; a missing/corrupt entry falls back to the factory seed. */
+    /** Provider stream; a missing entry reads as the factory seed (see the class doc). */
     val providers: Flow<List<ProviderConfig>> = store.data.map { prefs ->
         val raw = prefs[KEY_PROVIDERS]
         if (raw.isNullOrBlank()) {
@@ -47,15 +52,23 @@ class ProviderDataStore @Inject constructor(
         }
     }
 
-    /** Atomically updates the provider list; [transform] receives the current value. */
+    /**
+     * Atomically updates the provider list; [transform] receives the current value.
+     *
+     * When the stored text cannot be decoded the update is **skipped** instead of being applied to
+     * the seed: writing the seed back would replace what the user saved (API keys included) with a
+     * factory list, silently and with no copy anywhere. Leaving the bytes alone keeps the failure
+     * visible to whoever reads them and the data recoverable.
+     */
     suspend fun update(transform: (List<ProviderConfig>) -> List<ProviderConfig>) {
         store.edit { prefs ->
-            val current = prefs[KEY_PROVIDERS]
-                ?.takeIf { it.isNotBlank() }
-                ?.let { raw ->
-                    runCatching { json.decodeFromString<List<ProviderConfig>>(raw) }.getOrNull()
-                }
-                ?: builtInProviders.list()
+            val raw = prefs[KEY_PROVIDERS]
+            val current = if (raw.isNullOrBlank()) {
+                builtInProviders.list()
+            } else {
+                runCatching { json.decodeFromString<List<ProviderConfig>>(raw) }.getOrNull()
+                    ?: return@edit
+            }
             // 没变就不写：省一次落盘，也不会因为这个动作把界面那条流再推一遍。
             val next = json.encodeToString(transform(current))
             if (next != prefs[KEY_PROVIDERS]) prefs[KEY_PROVIDERS] = next
