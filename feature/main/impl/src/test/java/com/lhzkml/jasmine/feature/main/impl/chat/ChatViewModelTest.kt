@@ -1261,6 +1261,39 @@ class ChatViewModelTest {
         assertFalse(toolCallFallsBackToRaw("some_mcp_tool", "whatever", null))
     }
 
+    /**
+     * 选中模型后，偏好流里**不相关**的旧值不许把这次选择盖回去（F8）。
+     *
+     * 偏好那条流是整份 `UserPreferences`：改主题/字体/字号都会让它重发一次，带上尚未落盘的旧
+     * `activeModelId`。没有守卫的话界面就是"选完闪一下"（先被旧值盖回，等落盘完成再翻正）。
+     */
+    @Test
+    fun `a stale preference emission does not undo a just-made model choice`() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        assertEquals(MODEL_ID, viewModel.stateFlow.value.activeModelId)
+
+        // 换到第二个模型：乐观写 + 出站落盘（在途）。
+        viewModel.trySendAction(ChatAction.ModelSelected(PROVIDER.id, "model-2"))
+        advanceUntilIdle()
+        assertEquals("model-2", viewModel.stateFlow.value.activeModelId)
+
+        // 落盘还没回来，偏好流带着**旧值**又发了一次（比如用户顺手改了主题）。
+        viewModel.trySendAction(ChatAction.Internal.ActiveModelReceived(PROVIDER.id, MODEL_ID))
+        advanceUntilIdle()
+
+        assertEquals(
+            "在途的落盘期间，旧值不许把刚选的模型盖回去",
+            "model-2",
+            viewModel.stateFlow.value.activeModelId,
+        )
+
+        // 落盘完成、权威值到达：照收。
+        viewModel.trySendAction(ChatAction.Internal.ActiveModelReceived(PROVIDER.id, "model-2"))
+        advanceUntilIdle()
+        assertEquals("model-2", viewModel.stateFlow.value.activeModelId)
+    }
+
     private fun createViewModel() = ChatViewModel(
         providerRepository = providerRepository,
         userPreferencesRepository = preferencesRepository,

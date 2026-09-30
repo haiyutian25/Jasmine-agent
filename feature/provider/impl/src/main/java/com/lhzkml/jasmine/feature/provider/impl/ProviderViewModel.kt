@@ -445,8 +445,9 @@ class ProviderViewModel @Inject constructor(
             )
         }
         viewModelScope.launch {
-            val loaded = loadCatalog(provider.id)
-            sendAction(ProviderAction.Internal.CatalogLoaded(provider.id, loaded))
+            loadCatalog(provider.id)?.let { loaded ->
+                sendAction(ProviderAction.Internal.CatalogLoaded(provider.id, loaded))
+            }
         }
     }
 
@@ -570,13 +571,15 @@ class ProviderViewModel @Inject constructor(
             // 放在 fetch 之前 —— 这样端点取列表失败、转去"自定义模型"时也照样有得填。
             // 用刚读回来的这一份（不是类字段）：读到的名字一定是这家供应商的。
             val loaded = loadCatalog(editor.id)
-            sendAction(ProviderAction.Internal.CatalogLoaded(editor.id, loaded))
+            if (loaded != null) {
+                sendAction(ProviderAction.Internal.CatalogLoaded(editor.id, loaded))
+            }
             val result = runCatching { providerRepository.fetchModels(probe) }
             sendAction(
                 result.fold(
                     onSuccess = { modelIds ->
                         ProviderAction.Internal.ModelsFetched(
-                            modelIds.map { ModelSheetItem(modelId = it, name = loaded[it]?.name) }
+                            modelIds.map { ModelSheetItem(modelId = it, name = loaded?.get(it)?.name) }
                         )
                     },
                     onFailure = { ProviderAction.Internal.ModelsFetchFailed },
@@ -597,10 +600,22 @@ class ProviderViewModel @Inject constructor(
         return catalog[modelId] ?: catalog[catalogKey(modelId)]
     }
 
-    private suspend fun loadCatalog(providerId: String?): Map<String, CatalogModel> =
-        runCatching { providerRepository.catalog(providerId.orEmpty()) }
-            .getOrDefault(emptyList())
-            .associateBy { it.modelId }
+    /**
+     * 读某一家的模型目录（模型 id → 目录条目）。
+     *
+     * **读失败返回 `null`**（F7）：空表在这张表的语义里是"目录里没有这个模型"，拿失败去冒充它会让
+     * 模型名字与上下文容量静默填不出来 —— 看起来就像"目录里本来没这个模型"。
+     */
+    private suspend fun loadCatalog(providerId: String?): Map<String, CatalogModel>? {
+        val catalog = runCatching { providerRepository.catalog(providerId.orEmpty()) }
+        val failure = catalog.exceptionOrNull()
+        if (failure != null) {
+            Log.w(TAG, "模型目录读取失败", failure)
+            sendEvent(ProviderEvent.ShowToast(R.string.provider_catalog_failed_toast))
+            return null
+        }
+        return catalog.getOrThrow().associateBy { it.modelId }
+    }
 
     private fun handleModelEditClicked(action: ProviderAction.ModelEditClicked) {
         val model = state.editor?.models?.firstOrNull { it.id == action.id } ?: return

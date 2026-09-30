@@ -109,6 +109,15 @@ class ChatViewModel @Inject constructor(
      */
     private var languagePreference: String = UserPreferences.DEFAULT.agentOutputLanguage
 
+    /**
+     * 正在落盘的那次模型选择（乐观值）。null = 没有在途的落盘。
+     *
+     * 偏好那条流是**整份** `UserPreferences`：改主题、改字体、改字号都会让它重发一次，带上尚未落盘的
+     * 旧 `activeModelId`。没有这个守卫的话，那条重发会把刚选的模型盖回旧值，等落盘完成再翻回来 ——
+     * 界面上就是"选完闪一下"。
+     */
+    private var pendingActiveModel: Pair<String, String>? = null
+
     /** 偏好里的语言设置**第一次读回来**不算"改了"，不用重挂会话。 */
     private var languagePreferenceSeen = false
 
@@ -429,6 +438,12 @@ class ChatViewModel @Inject constructor(
             is ChatAction.Internal.ConversationsReceived ->
                 updateState { copy(conversations = action.conversations) }
             is ChatAction.Internal.ActiveModelReceived -> {
+                val incoming = action.providerId to action.modelId
+                val inFlight = pendingActiveModel
+                // 身份守卫（F8）：在途的落盘还没回来时，**忽略与它不同的旧值** —— 偏好那条流是整份的，
+                // 改主题/字体/字号都会重发一次，带上尚未落盘的旧模型；照收就会把刚选的盖回去。
+                if (inFlight != null && incoming != inFlight) return
+                if (inFlight != null) pendingActiveModel = null
                 updateState {
                     copy(activeProviderId = action.providerId, activeModelId = action.modelId)
                 }
@@ -449,15 +464,7 @@ class ChatViewModel @Inject constructor(
                 val provider = state.activeProvider
                 val modelId = state.activeModel?.modelId
                 if (provider != null && modelId != null) {
-                    viewModelScope.launch {
-                        sendAction(
-                            ChatAction.Internal.AllowedEffortsLoaded(
-                                providerId = provider.id,
-                                modelId = modelId,
-                                levels = readAllowedEfforts(provider.id, modelId),
-                            )
-                        )
-                    }
+                    viewModelScope.launch { refreshAllowedEfforts(provider.id, modelId) }
                 }
             }
             is ChatAction.Internal.LanguagePreferenceReceived ->
@@ -469,21 +476,26 @@ class ChatViewModel @Inject constructor(
                 viewModelScope.launch {
                     val unfinished = runCatching {
                         conversationStore.interruptedTurn(action.conversationId)
-                    }.getOrNull()
-                    // 只取数与发 action —— 状态由 handler 同步落（守卫也搬到了那里：过期会话的结论
-                    // 不会再写进状态，这是这一处原有的隐患）。
-                    sendAction(
-                        ChatAction.Internal.CanContinueResolved(
-                            conversationId = action.conversationId,
-                            canContinue = unfinished != null,
+                    }
+                    // 读失败**不下结论**（F7）：以前 getOrNull() 会把失败变成 canContinue = false，
+                    // 发送键上的「继续」无声消失，用户以为这条回复是完整的。
+                    if (unfinished.isFailure) {
+                        reportReadFailure(
+                            R.string.chat_interrupted_turn_failed,
+                            unfinished.exceptionOrNull(),
                         )
-                    )
+                    } else {
+                        // 只取数与发 action —— 状态由 handler 同步落（守卫也搬到了那里：过期会话的结论
+                        // 不会再写进状态，这是这一处原有的隐患）。
+                        sendAction(
+                            ChatAction.Internal.CanContinueResolved(
+                                conversationId = action.conversationId,
+                                canContinue = unfinished.getOrNull() != null,
+                            )
+                        )
+                    }
                     // 窗口/用量/档位同样从它的文件里读回来 —— 重启之后要显示的是这条会话自己的值。
-                    sendAction(
-                        ChatAction.Internal.ConversationFactsLoaded(
-                            readConversationFacts(action.conversationId)
-                        )
-                    )
+                    refreshConversationFacts(action.conversationId)
                 }
             }
             is ChatAction.Internal.ReplyChunk ->
@@ -613,6 +625,8 @@ class ChatViewModel @Inject constructor(
                 sendEvent(ChatUiEvent.ShowError(R.string.chat_action_failed, action.message))
             }
             is ChatAction.Internal.ActiveModelPersistRejected -> {
+                // 这次落盘结束了（失败了）：守卫解除，之后照收偏好流送来的权威值。
+                pendingActiveModel = null
                 // 身份守卫回滚（D4）：当前选择仍等于那条乐观值才回退。
                 if (state.activeProviderId == action.optimisticProviderId &&
                     state.activeModelId == action.optimisticModelId
@@ -735,11 +749,7 @@ class ChatViewModel @Inject constructor(
             // 这个调用只会报一条用量事件；面板要的是那条会话自己的最新数字，直接从它的文件读回来
             // 更稳（用户可能已经切走，这条结论仍然落到它自己那条会话上）。
             agentChat.setContextWindow(effect.conversationId, effect.tokens).collect { }
-            sendAction(
-                ChatAction.Internal.ConversationFactsLoaded(
-                    readConversationFacts(effect.conversationId)
-                )
-            )
+            refreshConversationFacts(effect.conversationId)
             ChatAction.Internal.ContextWindowApplied(effect.conversationId, effect.tokens)
         } catch (cancellation: CancellationException) {
             throw cancellation
@@ -961,14 +971,20 @@ class ChatViewModel @Inject constructor(
      *
      * 只读一次目录、不落盘 —— 它决定聊天页那张档位面板列哪几档（对应 codex 的
      * `ModelInfo.supported_reasoning_levels`）。
+     *
+     * **读失败返回 `null`**（F7）：空列表在这张表的语义里是"不限制"，拿失败去冒充它会让面板列出
+     * 该模型并不支持的档位。返回 `null` 时调用方不回流，保持现状。
      */
-    private suspend fun readAllowedEfforts(providerId: String, modelId: String): List<String> =
+    private suspend fun readAllowedEfforts(providerId: String, modelId: String): List<String>? {
         // 网关上的 id 带 `厂商/` 前缀与 `:变体` 后缀，按归一化后的键也能认出来（与核心同一条规则）。
-        runCatching { providerRepository.catalog(providerId) }
-            .getOrDefault(emptyList())
-            .findInCatalog(modelId)
-            ?.levels
-            .orEmpty()
+        val catalog = runCatching { providerRepository.catalog(providerId) }
+        val failure = catalog.exceptionOrNull()
+        if (failure != null) {
+            reportReadFailure(R.string.chat_allowed_efforts_failed, failure)
+            return null
+        }
+        return catalog.getOrThrow().findInCatalog(modelId)?.levels.orEmpty()
+    }
 
     private suspend fun syncContextWindowAfterAttach(conversationId: String) {
         val pending = pendingContextWindow
@@ -1128,6 +1144,8 @@ class ChatViewModel @Inject constructor(
             }
         }
         // 落盘是出站命令（D3）：失败经 ActiveModelPersistRejected 守卫回滚（D4）。
+        // 在途期间置上守卫，别让偏好流的旧值把这次选择盖回去（F8）。
+        pendingActiveModel = action.providerId to action.modelId
         effects.send(
             ChatEffect.PersistActiveModel(
                 providerId = action.providerId,
@@ -1140,15 +1158,7 @@ class ChatViewModel @Inject constructor(
         val provider = state.activeProvider
         val modelId = state.activeModel?.modelId
         if (provider != null && modelId != null) {
-            viewModelScope.launch {
-                sendAction(
-                    ChatAction.Internal.AllowedEffortsLoaded(
-                        providerId = provider.id,
-                        modelId = modelId,
-                        levels = readAllowedEfforts(provider.id, modelId),
-                    )
-                )
-            }
+            viewModelScope.launch { refreshAllowedEfforts(provider.id, modelId) }
         }
     }
 
@@ -1166,9 +1176,7 @@ class ChatViewModel @Inject constructor(
         // 自动切过去（D1）—— 已经流出去的片段都还在，接着渲染（照 ZCode 的 acquire 命中）。
         // 冷掉了才回落到从核心读转写。
         if (chats.has(action.id)) {
-            viewModelScope.launch {
-                sendAction(ChatAction.Internal.ConversationFactsLoaded(readConversationFacts(action.id)))
-            }
+            viewModelScope.launch { refreshConversationFacts(action.id) }
             return
         }
         updateChat(action.id) { copy(messages = emptyList(), isSending = false) }
@@ -1188,8 +1196,39 @@ class ChatViewModel @Inject constructor(
             // 守卫搬进 handler（"读-判-写"全在一帧里）：选中的会话中途又变了，这条就被丢弃。
             sendAction(ChatAction.Internal.TranscriptLoaded(action.id, restored))
             // 窗口/用量/档位：同一个 launch 里再发一条，各自带自己的守卫。
+            refreshConversationFacts(action.id)
+        }
+    }
+
+    /**
+     * 读会话状态失败时的统一出口（F7）。
+     *
+     * 这一系列读口（会话窗口 / 用量 / 档位 / 未完成回合 / 目录）以前都用 `runCatching{}.getOrNull()`
+     * 或 `.getOrDefault(emptyList())` 把失败抹成"没有"：窗口被悄悄换成模型预设、档位显示成"未设置"、
+     * "有没有未完成回合"变成"没有"（发送键上的「继续」无声消失）、目录读坏变成"不限制"（面板列出
+     * 全部档位）。读失败**不再下结论**，并且提示一次。
+     */
+    private fun reportReadFailure(messageRes: Int, error: Throwable?) {
+        Log.w(TAG, "会话状态读取失败：${error?.message}", error)
+        sendEvent(ChatUiEvent.ShowToast(messageRes))
+    }
+
+    /** 读这条会话自己的窗口 / 用量 / 档位并回流；读不出来就**不回流**（F7）。 */
+    private suspend fun refreshConversationFacts(conversationId: String) {
+        readConversationFacts(conversationId)?.let { facts ->
+            sendAction(ChatAction.Internal.ConversationFactsLoaded(facts))
+        }
+    }
+
+    /** 读"这个模型允许哪些档位"并回流；读不出来就**不回流**（F7）。 */
+    private suspend fun refreshAllowedEfforts(providerId: String, modelId: String) {
+        readAllowedEfforts(providerId, modelId)?.let { levels ->
             sendAction(
-                ChatAction.Internal.ConversationFactsLoaded(readConversationFacts(action.id))
+                ChatAction.Internal.AllowedEffortsLoaded(
+                    providerId = providerId,
+                    modelId = modelId,
+                    levels = levels,
+                )
             )
         }
     }
@@ -1203,20 +1242,26 @@ class ChatViewModel @Inject constructor(
      *
      * **只读，不写 state**：结果由调用方以 [ChatAction.Internal.ConversationFactsLoaded] 回流，
      * 由 handler 同步落状态（R2）。窗口从没记过（会话还没附着过）时由 handler 按当前模型预设推一个。
+     *
+     * **读失败返回 `null`**（F7）：不下结论、不回流 —— 三处 `getOrNull()` 会把"读失败"塞进与
+     * "核心从没记过"同一个 `null`，于是界面把预设当成这条会话的值显示出来。
      */
-    private suspend fun readConversationFacts(conversationId: String): ConversationFacts {
-        val storedWindow = runCatching {
-            agentChat.conversationContextWindow(conversationId)
-        }.getOrNull()
-        val storedUsage = runCatching { agentChat.conversationUsage(conversationId) }.getOrNull()
-        val storedEffort = runCatching {
-            agentChat.conversationReasoningEffort(conversationId)
-        }.getOrNull()
+    private suspend fun readConversationFacts(conversationId: String): ConversationFacts? {
+        val storedWindow = runCatching { agentChat.conversationContextWindow(conversationId) }
+        val storedUsage = runCatching { agentChat.conversationUsage(conversationId) }
+        val storedEffort = runCatching { agentChat.conversationReasoningEffort(conversationId) }
+        val failure = listOf(storedWindow, storedUsage, storedEffort)
+            .firstOrNull { it.isFailure }
+            ?.exceptionOrNull()
+        if (failure != null) {
+            reportReadFailure(R.string.chat_conversation_facts_failed, failure)
+            return null
+        }
         return ConversationFacts(
             conversationId = conversationId,
-            window = storedWindow,
-            usage = storedUsage,
-            effort = storedEffort,
+            window = storedWindow.getOrNull(),
+            usage = storedUsage.getOrNull(),
+            effort = storedEffort.getOrNull(),
         )
     }
 

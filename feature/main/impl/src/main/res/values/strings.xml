@@ -58,6 +58,10 @@
     <string name="chat_input_hint">Message…</string>
     <string name="chat_action_failed">Something went wrong</string>
     <string name="chat_store_read_failed">Couldn\'t read your conversation history just now — showing the last list we had.</string>
+    <!-- 读会话状态失败时的提示（F7）：读失败不再被抹成"没有"，所以要有话说。 -->
+    <string name="chat_conversation_facts_failed">Couldn\'t read this conversation\'s settings just now.</string>
+    <string name="chat_allowed_efforts_failed">Couldn\'t read which thinking levels this model allows.</string>
+    <string name="chat_interrupted_turn_failed">Couldn\'t check whether this reply was left unfinished.</string>
 
     <!-- 失败分型给出的提示（见 ChatFailureKind）：告诉用户"能怎么办"，而不是让他猜错误文本。 -->
     <string name="chat_failure_hint_transport">Network request failed — you can send it again.</string>

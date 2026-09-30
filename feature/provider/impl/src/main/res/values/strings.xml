@@ -24,6 +24,8 @@
     <string name="provider_fetching">Fetching…</string>
     <string name="provider_fetch_failed">Could not load the model list</string>
     <string name="provider_fetch_failed_toast">Failed to fetch model list</string>
+    <!-- 模型目录读取失败（F7）：以前被抹成"目录里没有这个模型"，现在说一声。 -->
+    <string name="provider_catalog_failed_toast">Couldn\'t read the built-in model list</string>
     <string name="provider_fetch_needs_endpoint_toast">Fill in Base URL and API Key first</string>
     <string name="provider_fetch_empty">No models returned</string>
     <string name="provider_retry">Retry</string>

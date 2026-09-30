@@ -59,6 +59,10 @@
     <string name="chat_input_hint">输入消息…</string>
     <string name="chat_action_failed">操作失败</string>
     <string name="chat_store_read_failed">刚才没能读到你的会话记录，先显示上一次的列表。</string>
+    <!-- 读会话状态失败时的提示（F7）：读失败不再被抹成「没有」，所以要有话说。 -->
+    <string name="chat_conversation_facts_failed">刚才没能读到这条会话的设置。</string>
+    <string name="chat_allowed_efforts_failed">没能读到这个模型允许哪些推理档位。</string>
+    <string name="chat_interrupted_turn_failed">没能判断这条回复是不是没写完。</string>
     <!-- 失败分型给出的提示（见 ChatFailureKind）：告诉用户「能怎么办」，而不是让他猜错误文本。 -->
     <string name="chat_failure_hint_transport">网络请求失败了，可以再发一次。</string>
     <string name="chat_failure_hint_transcript">这个会话的本地文件读不出来，重试也没用。</string>

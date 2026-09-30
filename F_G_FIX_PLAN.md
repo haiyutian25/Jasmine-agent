@@ -274,7 +274,7 @@ viewModel.eventFlow
 - **取舍说明**：`list.rs` 两处与 `usage_archive` 的"跳过"选的是 **warn + 跳过**而不是"整体报错" ——
   换成报错会让一个坏文件带走整张列表/整份用量，比少几行更糟。这个选择写在了各自的注释里。
 
-### F7 Kotlin 侧残留的静默吞错
+### F7 Kotlin 侧残留的静默吞错 — ✅
 
 **现状（证据）**（都在 `feature/main/impl/.../chat/ChatViewModel.kt` 与 provider）
 - `:469-472` `runCatching { conversationStore.interruptedTurn(id) }.getOrNull()` →
@@ -299,7 +299,21 @@ viewModel.eventFlow
 **怎么验证**：`ChatViewModelTest` 各加一条 —— 让 fake 在这四个读口抛错，断言出现可见提示
 且**错误的值没有被当成业务结论采用**。
 
-### F8 `ActiveModelReceived` 补身份守卫
+**实施记录**
+- 新增 `reportReadFailure(messageRes, error)`：记一条 `Log.w` + 发一次 `ChatUiEvent.ShowToast`。
+- `readConversationFacts` → `ConversationFacts?`（三个读口任一失败就返回 `null` + 提示）；
+  `readAllowedEfforts` → `List<String>?`；`loadCatalog`（provider）→ `Map<..>?`。
+- 新增两个"读 + 回流"的小助手 `refreshConversationFacts` / `refreshAllowedEfforts`，
+  把 6 个调用点收成一行，guard 只写一次（读不出来就**不回流**，保持现状而不是写一个假结论）。
+- `interruptedTurn`：`Result` 显式分叉 —— 失败只提示，**不发** `CanContinueResolved`。
+- 新增中英各 3 条文案（会话设置 / 档位目录 / 未完成回合）+ provider 侧 1 条。
+- **一处对方案的削弱，写在这里**：原方案说"读失败时面板按**受限**处理（保守）"。要做到那样得把
+  `allowedEfforts` 变成三态一路改到面板，收益很小；实际做法是**不覆盖、不回流 + 提示一次**。
+  对新开的会话，"保持现状"仍然等于"不限制"，所以那一步的保护是**提示可见**而不是收紧 —— 如实记下。
+- **未新增单测**：这四处要触发需要 fake 在这些读口抛错，而现有三个 fake 的对应方法都不抛。
+  按 G6 的计划，"给 fake 加抛错开关 + 各加一条"归到 G6 一起做（避免同一处返工两遍）。
+
+### F8 `ActiveModelReceived` 补身份守卫 — ✅
 
 **现状（证据）**：`ChatViewModel.kt:431-434`
 ```kotlin
@@ -320,6 +334,14 @@ is ChatAction.Internal.ActiveModelReceived -> {
 
 **怎么验证**：`ChatViewModelTest` —— 选中模型后投一条带旧 `activeModelId` 的
 `ActiveModelReceived`，断言状态仍是刚选的那个。
+
+**实施记录**：新增影子状态 `pendingActiveModel: Pair<String, String>?`（在途的那次模型落盘）。
+`handleModelSelected` 发 Effect 前置上它；`ActiveModelPersistRejected` 里解除；`ActiveModelReceived`
+在它非空且来值不同时**直接丢弃**（`return`），相等则解除并照收。
+顺带把这枚新影子字段加进门禁 R8 的正则（它以前不在护栏视野里）—— 两个写点一个在
+`handleModelSelected`、一个在 `handleAction`，都在白名单内。
+**新增 1 条单测**：选中 model-2 → 投一条旧的 `ActiveModelReceived(model-1)` → 状态仍是 model-2；
+再投权威值 → 照收。`ChatViewModelTest` 48 例、门禁 10/10。
 
 ---
 

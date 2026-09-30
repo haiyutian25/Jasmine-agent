@@ -447,6 +447,7 @@ class MvvmUdfGateTest {
             """attachedKeys\[[^\]]+\]\s*=(?!=)|attachedKeys\.(?:remove|clear|put)\b|""" +
                 """conversationEpoch\s*(?:\+\+|--)|conversationEpoch\s*=(?!=)|""" +
                 """pendingContextWindow\s*=(?!=)|pendingReasoningEffort\s*=(?!=)|""" +
+                """pendingActiveModel\s*=(?!=)|""" +
                 """languagePreference\s*=(?!=)|languagePreferenceSeen\s*=(?!=)|""" +
                 """chats\.(?:update|drop|rekey)\s*\(|""" +
                 """turns\[[^\]]+\]\s*=(?!=)|turns\.(?:remove|clear|put)\b|""" +
