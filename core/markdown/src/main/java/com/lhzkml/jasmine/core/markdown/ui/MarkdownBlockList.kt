@@ -192,7 +192,7 @@ private fun MarkdownBlockView(
         // 图片块：`![alt](url)` 独占一行时解析成这个类型。
         MarkdownBlockType.IMAGE -> {
             val image = block.content.soleImage()
-            if (image != null && failedImageUrls.containsKey(image.first.url.orEmpty())) {
+            if (image != null && failedImageUrls[image.first.url.orEmpty()] == true) {
                 // 加载失败过 —— 原样显示这一句源码（同一规则：失败就显示完整的原始内容）。
                 Text(
                     text = rawImageMarkdown(image.first),
@@ -381,13 +381,23 @@ private fun List<MarkdownInline>.soleImage(): Pair<MarkdownInline, String?>? {
  * 而「改显源码」必须重建 AnnotatedString —— 用一份可观察的集合，读过它的组合函数会在
  * 失败时自动重组、把那一小格换成原文；否则得把失败状态一层层透传下来。
  *
- * 键是 url：同一个地址记一次即可。
+ * 键是 url：同一个地址记一次即可。读的时候按 key 读（`failedImageUrls[url]`），
+ * 这样别的地址失败不会牵连到只关心自己那一格的组合函数。
+ *
+ * 这张表是进程级的，所以**有上限**：到顶就整体清掉。失败本来就是少数事件，清掉之后那些图
+ * 会先按图片渲染一次、再失败时重新登记 —— 换来的是它不会随使用时长无限增长。
  */
+private const val MAX_REMEMBERED_IMAGE_FAILURES = 256
+
 private val failedImageUrls = mutableStateMapOf<String, Boolean>()
 
 /** 图片加载失败 → 记下地址，交给下一次重组按原文显示。 */
 internal fun markImageFailed(url: String) {
-    if (url.isNotEmpty()) failedImageUrls[url] = true
+    if (url.isEmpty()) return
+    if (failedImageUrls.size >= MAX_REMEMBERED_IMAGE_FAILURES) {
+        failedImageUrls.clear()
+    }
+    failedImageUrls[url] = true
 }
 
 /**
@@ -1355,7 +1365,7 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendInlines(
             // 行内图片：嵌进文本流，由 Coil 加载。
             MarkdownInlineType.IMAGE -> {
                 val url = node.url.orEmpty()
-                if (isImageUrl(url) && !failedImageUrls.containsKey(url)) {
+                if (isImageUrl(url) && failedImageUrls[url] != true) {
                     val id = "md-image-" + contents.size
                     appendInlineContent(id, alternateText = node.children.plainText())
                     contents[id] = inlineImageContent(url, theme, bodyFontSize)

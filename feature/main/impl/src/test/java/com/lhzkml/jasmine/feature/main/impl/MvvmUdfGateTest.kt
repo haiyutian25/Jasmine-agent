@@ -147,6 +147,25 @@ class MvvmUdfGateTest {
         )
     }
 
+    /** 全局可观察状态：View 层不得声明顶层 `mutableStateMapOf` —— 状态要住在状态容器里。 */
+    @Test
+    fun `no view file declares observable state at the top level`() {
+        val offenders = listOf(
+            "feature/main/impl/src/main/java",
+            "feature/settings/impl/src/main/java",
+        )
+            .flatMap { root -> repoFile(root).walkTopDown().filter { it.extension == "kt" }.toList() }
+            .flatMap { file -> file.readLines().map { file.name to it } }
+            .filter { (_, line) -> TopLevelObservable.containsMatchIn(line) }
+
+        assertEquals(
+            "View 层不得声明顶层可观察状态（应放进 ChatState / ViewModel 作用域）：" +
+                offenders.joinToString { "${it.first}: ${it.second.trim()}" },
+            0,
+            offenders.size,
+        )
+    }
+
     private data class FunctionRange(
         val name: String,
         val start: Int,
@@ -219,6 +238,9 @@ class MvvmUdfGateTest {
         /** `updateState` 的调用点（两种写法都要认）。 */
         val CallSite = Regex("""updateState\s*[({]""")
 
+        /** 顶层可观察状态：`private val x = mutableStateMapOf(...)` 这类声明。 */
+        val TopLevelObservable = Regex("""^\s*(?:private\s+|internal\s+)?val\s+\w+\s*=\s*mutableState(Map|List)Of""")
+
         /** 方案 §4.3 的同步助手白名单：这些函数由 `handleAction` 同步调用（或本身就是 handler）。 */
         val SynchronousHelpers = setOf(
             "handleAction",
@@ -236,6 +258,7 @@ class MvvmUdfGateTest {
             "handlePromptAnswered",
             "handleContextWindowSelected",
             "handleStopClicked",
+            "handleToolRowToggled",
             "applyStreamBlocks",
             "appendBlock",
             "startAssistantSegment",

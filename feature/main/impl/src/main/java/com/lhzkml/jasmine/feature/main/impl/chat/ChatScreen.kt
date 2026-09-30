@@ -300,6 +300,7 @@ fun ChatScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             MessageList(
                 state = state,
+                onAction = onAction,
                 currentTheme = currentTheme,
                 modifier = Modifier.weight(1f),
             )
@@ -334,6 +335,7 @@ fun ChatScreen(
 @Composable
 private fun MessageList(
     state: ChatState,
+    onAction: (ChatAction) -> Unit,
     currentTheme: CssVariables,
     modifier: Modifier = Modifier,
 ) {
@@ -442,7 +444,9 @@ private fun MessageList(
                     )
                     else -> ToolActivityRow(
                             activity = tool,
-                            rowKey = message.id,
+                            // 用户拨过就以他的为准；没拨过这里传 null，行内按运行状态自动开合。
+                            expandedOverride = state.toolRowOpen[message.id],
+                            onToggle = { onAction(ChatAction.ToolRowToggled(message.id, it)) },
                             currentTheme = currentTheme,
                         )
                 }
@@ -972,9 +976,6 @@ private fun ReasoningRow(
     }
 }
 
-/** 工具卡的展开态按行 id 记住（ZCode 按工具 id 持久化）：滚出屏幕、列表重组都不丢。 */
-private val openToolRows = androidx.compose.runtime.mutableStateMapOf<String, Boolean>()
-
 /**
  * 卡头图标按工具类型选 —— ZCode 的每个 renderer 都有自己的图标（edit 是铅笔、todo 是清单、execute
  * 是终端）。这里取 Material **核心**图标集里含义最接近的那个。
@@ -990,38 +991,26 @@ private fun toolCallIconOf(name: String, resultOnly: Boolean): ImageVector =
 @Composable
 private fun ToolActivityRow(
     activity: ChatToolActivity,
-    rowKey: String,
+    expandedOverride: Boolean?,
+    onToggle: (Boolean) -> Unit,
     currentTheme: CssVariables,
 ) {
     val resultOnly = activity.isResultOnly
     // 状态读数据，不猜（照 ZCode 的六态）。
     val running = activity.status == ChatToolStatus.RUNNING ||
         activity.status == ChatToolStatus.PENDING
-    var expanded by remember(rowKey) { mutableStateOf(openToolRows[rowKey] == true) }
-    // 跑着的时候展开看进度、结果一回来就收好（ZCode 的 autoCollapseOnComplete）。
-    var seenRunning by remember(rowKey) { mutableStateOf(running) }
-    // 开始跑时自动展开一次（ZCode 的 autoOpen 是一次性的）：用户随后自己收起，就不再自动开。
-    var autoOpened by remember(rowKey) { mutableStateOf(false) }
-    LaunchedEffect(running) {
-        if (running && !autoOpened && openToolRows[rowKey] == null) {
-            autoOpened = true
-            expanded = true
-            openToolRows[rowKey] = true
-        }
-        if (running) {
-            seenRunning = true
-        } else if (seenRunning) {
-            expanded = false
-            openToolRows[rowKey] = false
-        }
-    }
-    LaunchedEffect(expanded) { openToolRows[rowKey] = expanded }
+    // 展开态：用户拨过（[expandedOverride] 非空）以他的为准；没拨过就按运行状态自动开合 ——
+    // 跑着展开看进度、结果一回来收好（ZCode 的 autoOpen / autoCollapseOnComplete）。
+    //
+    // 这里是**推导**出来的、不记任何东西：以前那版靠"首次组合把它写进全局表里"，一写就把
+    // "没拨过才自动开"的守卫写坏，自动展开从此静默失效；而且那张表是进程级的、从不清理。
+    val expanded = expandedOverride ?: running
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(currentTheme.radiusSm))
-                .clickable { expanded = !expanded }
+                .clickable { onToggle(!expanded) }
                 .padding(vertical = ChatToolRowPaddingVertical),
             verticalAlignment = Alignment.CenterVertically
         ) {

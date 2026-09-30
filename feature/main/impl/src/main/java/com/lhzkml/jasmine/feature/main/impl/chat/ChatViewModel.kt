@@ -175,6 +175,15 @@ data class ChatUserPrompt(
  */
 data class ChatState(
     val messages: List<ChatMessage> = emptyList(),
+
+    /**
+     * 工具卡的展开态：**用户显式拨过**的那些行（键 = 那条消息的 id）。
+     *
+     * 键不存在 = 用户没拨过 —— 这时界面按运行状态自动开合（跑着展开、结果回来收起）；
+     * 用户拨过之后就以这里为准。它跟着会话走：换会话/新建会话时随 [resetSession] 一起清掉，
+     * 不是进程级的全局状态。
+     */
+    val toolRowOpen: Map<String, Boolean> = emptyMap(),
     val input: String = "",
     val isSending: Boolean = false,
     /** 上一回合被中断了，输入区的按钮因此是「继续」形态；见 [handleContinueClicked]。 */
@@ -260,6 +269,9 @@ sealed interface ChatAction {
 
     /** 模型面板里改了当前会话的上下文窗口（token 数）。 */
     data class ContextWindowSelected(val tokens: Long) : ChatAction
+
+    /** 用户点了工具卡头：[expanded] 是他要的状态（不是"翻转"，界面已经算好了）。 */
+    data class ToolRowToggled(val rowKey: String, val expanded: Boolean) : ChatAction
 
     /**
      * 输入框里的「推理强度」切了一档：改的是**当前模型**的配置（codex 的 `ReasoningEffort` 那四档，
@@ -619,6 +631,7 @@ class ChatViewModel @Inject constructor(
             ChatAction.ContextPanelDismissed -> updateState { copy(isContextPanelOpen = false) }
             is ChatAction.ModelSelected -> handleModelSelected(action)
             is ChatAction.ContextWindowSelected -> handleContextWindowSelected(action.tokens)
+            is ChatAction.ToolRowToggled -> handleToolRowToggled(action)
             is ChatAction.ThoughtLevelSelected -> handleThoughtLevelSelected(action)
             is ChatAction.ConversationSelected -> handleConversationSelected(action)
             is ChatAction.ConversationDeleted -> handleConversationDeleted(action)
@@ -1945,6 +1958,16 @@ class ChatViewModel @Inject constructor(
      * 跑的那一轮，回合自己走到 [finishTurn] 时会清干净。切对话时消息被整体替换，后续
      * 分片会因为按 id 找不到目标消息而被丢弃（见 [appendReplyChunk]），不会串进新对话。
      */
+    /**
+     * 用户拨过的那一行工具卡。
+     *
+     * 只记他的选择：没拨过的行不进这张表 —— 那种行由界面按运行状态推出自动开合
+     * （跑着展开、结果回来收起），所以"开始跑时自动展开一次"不会被谁悄悄写坏。
+     */
+    private fun handleToolRowToggled(action: ChatAction.ToolRowToggled) {
+        updateState { copy(toolRowOpen = toolRowOpen + (action.rowKey to action.expanded)) }
+    }
+
     private fun resetSession() {
         agentChat.endConversation()
         sessionKey = null
@@ -1960,9 +1983,11 @@ class ChatViewModel @Inject constructor(
                 pendingPrompt = null,
                 contextUsage = null,
                 isContextPanelOpen = false,
+                // 工具卡的展开态是那条会话的东西，跟着一起清。
+                toolRowOpen = emptyMap(),
                 // 会话已经换掉/新建：中断请求随之作废（回合自己的收尾仍由它那条路做）。
                 isInterruptRequested = false,
-            )
+                )
         }
     }
 
