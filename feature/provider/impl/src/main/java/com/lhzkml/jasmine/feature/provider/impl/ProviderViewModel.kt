@@ -95,6 +95,16 @@ data class ProviderState(
     /** 首帧先空着：内置种子由核心给出，仓库那条流立刻会送上第一份。 */
     val providers: List<ProviderConfig> = emptyList(),
     val editor: ProviderEditorState? = null,
+
+    /**
+     * 目录属于**哪一家**供应商，以及那家的模型目录（线上 id → 目录条目）。
+     *
+     * 目录是核心里的一张本地表，只用来填表单、显示名字。它必须是**这一家**的：换一家先把归属改掉
+     * 并清空，迟到的读取结果也会被丢掉（见 [ProviderAction.Internal.CatalogLoaded]）。
+     * 以前它是个类字段、又只由协程写 —— 读到哪家取决于两次加载谁最后完成，界面还看不到它的变化。
+     */
+    val catalogFor: String? = null,
+    val catalog: Map<String, CatalogModel> = emptyMap(),
 )
 
 /**
@@ -156,6 +166,16 @@ sealed interface ProviderAction {
         data class ModelsFetched(val models: List<ModelSheetItem>) : Internal
         data object ModelsFetchFailed : Internal
         data class ProbeFinished(val result: ProbeResult) : Internal
+
+        /**
+         * 某家供应商的目录读回来了（[providerId] 是它属于谁）。
+         *
+         * 只认当前这一家：换供应商之后迟到的结果直接丢掉，不会把上一家的表写进来。
+         */
+        data class CatalogLoaded(
+            val providerId: String?,
+            val catalog: Map<String, CatalogModel>,
+        ) : Internal
     }
 }
 
@@ -187,11 +207,12 @@ class ProviderViewModel @Inject constructor(
     override fun handleAction(action: ProviderAction) {
         when (action) {
             ProviderAction.AddClicked -> {
-                // 新供应商还没有 id，目录认不出它 —— 把上一家的清掉，免得拿别人的值来填。
-                catalog = emptyMap()
-                updateState {
-                    copy(
-                        editor = ProviderEditorState(
+              updateState {
+                  copy(
+                      // 新供应商还没有 id，目录认不出它 —— 把上一家的清掉，免得拿别人的值来填。
+                      catalogFor = null,
+                      catalog = emptyMap(),
+                      editor = ProviderEditorState(
                             id = null,
                             name = "",
                             baseUrl = "",
@@ -293,6 +314,11 @@ class ProviderViewModel @Inject constructor(
                 sendEvent(ProviderEvent.ShowToast(R.string.provider_fetch_failed_toast))
             }
             is ProviderAction.Internal.ProbeFinished -> handleProbeFinished(action)
+            is ProviderAction.Internal.CatalogLoaded -> {
+                // 只认当前这一家：换过供应商之后迟到的结果丢掉。
+                if (action.providerId != state.catalogFor) return
+                updateState { copy(catalog = action.catalog) }
+            }
         }
     }
 
@@ -302,6 +328,10 @@ class ProviderViewModel @Inject constructor(
         val provider = state.providers.firstOrNull { it.id == action.id } ?: return
         updateState {
             copy(
+                // 目录是核心里的一张本地表：先把这家供应商的取回来，后面"改模型 id"才有得填。
+                // 归属同步落在这里 —— 这期间读到的是"这家还没有目录"，不是上一家的。
+                catalogFor = provider.id,
+                catalog = emptyMap(),
                 editor = ProviderEditorState(
                     id = provider.id,
                     name = provider.name,
@@ -315,8 +345,10 @@ class ProviderViewModel @Inject constructor(
                 ),
             )
         }
-        // 目录是核心里的一张本地表：先把这家供应商的取回来，后面"改模型 id"才有得填。
-        viewModelScope.launch { catalog = loadCatalog(provider.id) }
+        viewModelScope.launch {
+            val loaded = loadCatalog(provider.id)
+            sendAction(ProviderAction.Internal.CatalogLoaded(provider.id, loaded))
+        }
     }
 
     private fun handleDeleteClicked(action: ProviderAction.DeleteClicked) {
@@ -451,13 +483,15 @@ class ProviderViewModel @Inject constructor(
         viewModelScope.launch {
             // 先取目录（本地表，跟端点无关）：列表拿它显示名字，选中/手打 id 时拿它填表单。
             // 放在 fetch 之前 —— 这样端点取列表失败、转去"自定义模型"时也照样有得填。
-            catalog = loadCatalog(editor.id)
+            // 用刚读回来的这一份（不是类字段）：读到的名字一定是这家供应商的。
+            val loaded = loadCatalog(editor.id)
+            sendAction(ProviderAction.Internal.CatalogLoaded(editor.id, loaded))
             val result = runCatching { providerRepository.fetchModels(probe) }
             sendAction(
                 result.fold(
                     onSuccess = { modelIds ->
                         ProviderAction.Internal.ModelsFetched(
-                            modelIds.map { ModelSheetItem(modelId = it, name = catalog[it]?.name) }
+                            modelIds.map { ModelSheetItem(modelId = it, name = loaded[it]?.name) }
                         )
                     },
                     onFailure = { ProviderAction.Internal.ModelsFetchFailed },
@@ -467,17 +501,16 @@ class ProviderViewModel @Inject constructor(
     }
 
     /**
-     * 核心目录：`线上 id → 目录条目`。只用来填表单 / 显示名字 —— 不落盘，也不参与请求。
-     * 认不出这家供应商（或读取失败）就是空的，界面按"没有目录"处理，绝不猜值。
-     */
-    private var catalog: Map<String, CatalogModel> = emptyMap()
-
-    /**
      * 目录里认得这个 id 吗：先按原样找，再按 [catalogKey] 归一化后的键找一遍 —— 网关的 id 带
      * `厂商/` 前缀与 `:变体` 后缀（免费档才有那截后缀），目录里的键是裸 id，归一化后才对得上。
+     *
+     * 读的是状态里那一份，而它只可能是**当前这家**供应商的（见 [ProviderState.catalogFor]）：
+     * 换一家会先清空，迟到的读取结果也会被丢掉。
      */
-    private fun knownModel(modelId: String): CatalogModel? =
-        catalog[modelId] ?: catalog[catalogKey(modelId)]
+    private fun knownModel(modelId: String): CatalogModel? {
+        val catalog = state.catalog
+        return catalog[modelId] ?: catalog[catalogKey(modelId)]
+    }
 
     private suspend fun loadCatalog(providerId: String?): Map<String, CatalogModel> =
         runCatching { providerRepository.catalog(providerId.orEmpty()) }

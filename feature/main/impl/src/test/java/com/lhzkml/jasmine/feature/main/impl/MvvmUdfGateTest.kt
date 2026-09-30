@@ -147,6 +147,45 @@ class MvvmUdfGateTest {
         )
     }
 
+    /**
+     * 管道逃逸：任何 ViewModel 的状态写入都不得落在 `launch` / `withContext` / `async` 块里。
+     *
+     * 这条是"不对称"的病根 —— 同一个意图的同步部分在 `handleAction` 里守着约定、异步部分顺手写一下，
+     * 守卫就形同虚设。异步结果必须先做成 action 回流（`Internal.*`），由 handler 同步落。
+     */
+    @Test
+    fun `no view model writes state from an asynchronous block`() {
+        val roots = listOf(
+            "feature/main/impl/src/main/java",
+            "feature/settings/impl/src/main/java",
+            "feature/provider/impl/src/main/java",
+        )
+        val offenders = roots
+            .flatMap { root ->
+                repoFile(root).walkTopDown()
+                    .filter { it.extension == "kt" && it.name.endsWith("ViewModel.kt") }
+                    .toList()
+            }
+            .flatMap { file ->
+                val lines = file.readLines()
+                val functions = functionRanges(lines)
+                lines.withIndex()
+                    .filter { (_, line) -> StateWrite.containsMatchIn(line) }
+                    .filter { (index, _) ->
+                        val owner = functions.lastOrNull { it.start <= index } ?: return@filter false
+                        isInsideAsyncBlock(lines, owner.start, index)
+                    }
+                    .map { (index, line) -> "${file.name}:${index + 1}: ${line.trim()}" }
+            }
+
+        assertEquals(
+            "状态写入不得落在协程块里（异步结果要先以 action 回流）：\n" +
+                offenders.joinToString("\n"),
+            0,
+            offenders.size,
+        )
+    }
+
     /** 全局可观察状态：View 层不得声明顶层 `mutableStateMapOf` —— 状态要住在状态容器里。 */
     @Test
     fun `no view file declares observable state at the top level`() {
@@ -240,6 +279,9 @@ class MvvmUdfGateTest {
 
         /** 顶层可观察状态：`private val x = mutableStateMapOf(...)` 这类声明。 */
         val TopLevelObservable = Regex("""^\s*(?:private\s+|internal\s+)?val\s+\w+\s*=\s*mutableState(Map|List)Of""")
+
+        /** 状态写入点：各 VM 自己的 `updateState` / `updateEditor` / 直接摸 `mutableStateFlow`。 */
+        val StateWrite = Regex("""(updateState|updateEditor|updateModelEditor|mutableStateFlow\s*\.\s*update)\s*[({]""")
 
         /** 方案 §4.3 的同步助手白名单：这些函数由 `handleAction` 同步调用（或本身就是 handler）。 */
         val SynchronousHelpers = setOf(
