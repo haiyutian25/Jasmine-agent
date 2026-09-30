@@ -28,6 +28,7 @@ import com.lhzkml.jasmine.core.markdown.model.MarkdownUpdate
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -1109,10 +1110,18 @@ private class FakeConversationStore : ConversationStore {
 
     override suspend fun refresh() = Unit
 
-    override suspend fun latestConversation(): Conversation? = latest
+    // 真实的 store 是 Room 挂起读：ViewModel 构造期那次恢复本来就落在构造返回**之后**。这里也挂起
+    // 一拍，用例才有机会先换掉 `ChatViewModel.parseDispatcher` —— 否则恢复会在真线程上解析，越过
+    // `advanceUntilIdle()` 的栅栏，把状态拖到用例之后（本文件记录过的那类续体撞 Main）。
+    override suspend fun latestConversation(): Conversation? {
+        delay(1)
+        return latest
+    }
 
-    override suspend fun messagesOf(conversationId: String): List<TranscriptMessage> =
-        transcripts[conversationId].orEmpty().toList()
+    override suspend fun messagesOf(conversationId: String): List<TranscriptMessage> {
+        delay(1)
+        return transcripts[conversationId].orEmpty().toList()
+    }
 
     override suspend fun createConversation(
         providerId: String,

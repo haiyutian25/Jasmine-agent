@@ -295,9 +295,13 @@ sealed interface ChatAction {
 
         /** 偏好里的"模型回复语言"（[com.lhzkml.jasmine.core.data.model.AgentOutputLanguage]）。 */
         data class LanguagePreferenceReceived(val value: String) : Internal
+        /**
+         * 启动时那条"最近改过"的会话回来了。消息**已经解析好**（正文要过 native，见
+         * [restoreLatestConversation]）—— handler 只落状态，主线程不等几百次 JNI 往返。
+         */
         data class TranscriptRestored(
             val conversationId: String,
-            val messages: List<TranscriptMessage>,
+            val messages: List<ChatMessage>,
         ) : Internal
         data class ReplyChunk(val text: String) : Internal
         data class ReasoningChunk(val text: String) : Internal
@@ -320,10 +324,10 @@ sealed interface ChatAction {
         /** 打开/恢复一条会话时，它自己的窗口、用量、档位（见 [readConversationFacts]）。 */
         data class ConversationFactsLoaded(val facts: ConversationFacts) : Internal
 
-        /** 一条会话的消息列表读回来了（守卫在 handler 里做）。 */
+        /** 一条会话的消息列表读回来了（守卫在 handler 里做）；消息已经解析好，同 [TranscriptRestored]。 */
         data class TranscriptLoaded(
             val conversationId: String,
-            val messages: List<TranscriptMessage>,
+            val messages: List<ChatMessage>,
         ) : Internal
 
         /** 上下文窗口写进核心成功。 */
@@ -739,16 +743,7 @@ class ChatViewModel @Inject constructor(
             }
             is ChatAction.Internal.TranscriptLoaded -> {
                 if (state.activeConversationId != action.conversationId) return
-                updateState {
-                    copy(
-                        messages = action.messages.map {
-                            it.toChatMessage(
-                                fallbackModelLabel = modelLabelOf(action.conversationId),
-                                parserFactory = markdownParserFactory,
-                            )
-                        },
-                    )
-                }
+                updateState { copy(messages = action.messages) }
             }
             is ChatAction.Internal.ContextWindowApplied ->
                 updateState { copy(contextWindow = action.tokens) }
@@ -809,13 +804,26 @@ class ChatViewModel @Inject constructor(
      * The model selection is left to preferences: they are the single source for
      * "which model am I using", while the conversation only records what produced
      * it (shown in the history list).
+     *
+     * 正文的解析是 native 的，几百条消息就是上千次 JNI 往返 —— 全在 [parseDispatcher] 上做完再
+     * 回流，主线程（这一屏正等着显示）一次都不碰 native。
      */
     private suspend fun restoreLatestConversation() {
         val conversation = runCatching { conversationStore.latestConversation() }
             .getOrNull() ?: return
         val messages = runCatching { conversationStore.messagesOf(conversation.id) }
             .getOrDefault(emptyList())
-        sendAction(ChatAction.Internal.TranscriptRestored(conversation.id, messages))
+        // 兜底模型名在主线程上读（state 只在这儿动），解析带着它一起下后台。
+        val fallbackModelLabel = modelLabelOf(conversation.id)
+        val restored = withContext(parseDispatcher) {
+            messages.map {
+                it.toChatMessage(
+                    fallbackModelLabel = fallbackModelLabel,
+                    parserFactory = markdownParserFactory,
+                )
+            }
+        }
+        sendAction(ChatAction.Internal.TranscriptRestored(conversation.id, restored))
     }
 
     private fun handleTranscriptRestored(action: ChatAction.Internal.TranscriptRestored) {
@@ -824,12 +832,7 @@ class ChatViewModel @Inject constructor(
         updateState {
             copy(
                 activeConversationId = action.conversationId,
-                messages = action.messages.map {
-                    it.toChatMessage(
-                        fallbackModelLabel = modelLabelOf(action.conversationId),
-                        parserFactory = markdownParserFactory,
-                    )
-                },
+                messages = action.messages,
             )
         }
     }
@@ -1259,8 +1262,18 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             val messages = runCatching { conversationStore.messagesOf(action.id) }
                 .getOrDefault(emptyList())
+            // 与启动恢复同一条规矩：正文解析（native）走 parseDispatcher，主线程不跑几百次 JNI。
+            val fallbackModelLabel = modelLabelOf(action.id)
+            val restored = withContext(parseDispatcher) {
+                messages.map {
+                    it.toChatMessage(
+                        fallbackModelLabel = fallbackModelLabel,
+                        parserFactory = markdownParserFactory,
+                    )
+                }
+            }
             // 守卫搬进 handler（"读-判-写"全在一帧里）：选中的会话中途又变了，这条就被丢弃。
-            sendAction(ChatAction.Internal.TranscriptLoaded(action.id, messages))
+            sendAction(ChatAction.Internal.TranscriptLoaded(action.id, restored))
             // 窗口/用量/档位：同一个 launch 里再发一条，各自带自己的守卫。
             sendAction(
                 ChatAction.Internal.ConversationFactsLoaded(readConversationFacts(action.id))

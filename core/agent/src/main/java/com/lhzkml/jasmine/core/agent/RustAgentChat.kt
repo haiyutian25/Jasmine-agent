@@ -3,10 +3,11 @@ package com.lhzkml.jasmine.core.agent
 import com.lhzkml.jasmine.core.data.model.AgentSettings
 import com.lhzkml.jasmine.core.data.model.ProviderApiType
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import uniffi.jasmine_ffi.AgentFailure
@@ -119,23 +120,8 @@ class RustAgentChat(
      * runs to completion on its own thread, and the events it produces after that go nowhere.
      * Interrupting a turn is not implemented yet.
      */
-    private fun turn(run: (EventListener) -> Unit): Flow<ChatEvent> = callbackFlow {
-        val listener = object : EventListener {
-            override fun onEvent(event: CoreChatEvent) {
-                val mapped = event.toChatEvent()
-                trySend(mapped)
-                if (mapped.endsTurn()) close()
-            }
-        }
-        val job = launch(Dispatchers.IO) {
-            try {
-                run(listener)
-            } catch (failure: AgentFailure) {
-                trySend(ChatEvent.Failed(failure.message ?: failure.toString()))
-                close()
-            }
-        }
-        awaitClose { job.cancel() }
+    private fun turn(run: (EventListener) -> Unit): Flow<ChatEvent> = coreEvents { listener ->
+        run(listener)
     }
 
     /**
@@ -144,21 +130,53 @@ class RustAgentChat(
      * Unlike [turn] this cannot wait for an end-of-turn event: the call is over once it returns, so
      * the flow closes then, after everything the call emitted.
      */
-    private fun once(run: (EventListener) -> Unit): Flow<ChatEvent> = callbackFlow {
+    private fun once(run: (EventListener) -> Unit): Flow<ChatEvent> = coreEvents { listener ->
+        run(listener)
+    }
+
+    /**
+     * Forwards one core call's events as a flow.
+     *
+     * The events go through an **unbounded** channel, for the same reason the ViewModels' action
+     * channels are: a stream of tokens must never be dropped to make room — the reply would come out
+     * truncated with nothing reported anywhere, and the user would see it just stop mid-sentence.
+     *
+     * `callbackFlow` cannot be used here: it hands out [Channel.BUFFERED] (64 slots) and its `trySend`
+     * fails, silently, the moment the collector falls behind — which the main thread does whenever it
+     * is busy. The listener runs on a thread the core owns, so waiting for room is not an option
+     * either; queuing is.
+     *
+     * The core's call runs on [Dispatchers.IO] and the flow ends when a terminal event closes the
+     * channel ([ChatEvent.Completed]/a failure) or, for calls that just report and return, when the
+     * call is over.
+     */
+    private fun coreEvents(run: (EventListener) -> Unit): Flow<ChatEvent> = flow {
+        val events = Channel<ChatEvent>(capacity = Channel.UNLIMITED)
         val listener = object : EventListener {
             override fun onEvent(event: CoreChatEvent) {
-                trySend(event.toChatEvent())
+                val mapped = event.toChatEvent()
+                events.trySend(mapped)
+                if (mapped.endsTurn()) {
+                    events.close()
+                }
             }
         }
-        val job = launch(Dispatchers.IO) {
+        val worker = CoroutineScope(Dispatchers.IO).launch {
             try {
                 run(listener)
             } catch (failure: AgentFailure) {
-                trySend(ChatEvent.Failed(failure.message ?: failure.toString()))
+                events.trySend(ChatEvent.Failed(failure.message ?: failure.toString()))
             }
-            close()
+            events.close()
         }
-        awaitClose { job.cancel() }
+        try {
+            for (event in events) {
+                emit(event)
+            }
+        } finally {
+            events.close()
+            worker.cancel()
+        }
     }
 }
 
