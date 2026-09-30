@@ -175,6 +175,14 @@ struct SessionSlot {
     detach_requested: AtomicBool,
 }
 
+/// 会话存储有变化时的通知（创建 / 删除 / 追加）。
+///
+/// 这是一个**信号**，不是数据：平台收到后自己去刷新列表。回合中途每写一行都会触发，
+/// 平台侧要自己做防抖（见 `RustConversationStore` 的 debounce）。
+pub trait StoreListener: Send + Sync {
+    fn on_store_changed(&self);
+}
+
 impl SessionSlot {
     fn new() -> Self {
         Self {
@@ -215,6 +223,8 @@ pub struct AgentChatService {
     runtime: ToolCallRuntime,
     /// Every attached conversation, keyed by its own id.
     sessions: Mutex<HashMap<String, Arc<SessionSlot>>>,
+    /// 存储变更的推送口（D5）：平台注册一次，之后任何写入都会收到信号。
+    store_listener: Mutex<Option<Arc<dyn StoreListener>>>,
 }
 
 impl AgentChatService {
@@ -236,6 +246,28 @@ impl AgentChatService {
             clock,
             runtime: ToolCallRuntime::new(Arc::new(registry)),
             sessions: Mutex::new(HashMap::new()),
+            store_listener: Mutex::new(None),
+        }
+    }
+
+    /// 注册存储变更监听（D5）。重复注册替换旧的。
+    pub fn set_store_listener(&self, listener: Arc<dyn StoreListener>) {
+        if let Ok(mut slot) = self.store_listener.lock() {
+            *slot = Some(listener);
+        }
+    }
+
+    /// 通知平台"会话存储变了"。只发信号；刷新动作在平台侧做。
+    ///
+    /// 先克隆 Arc 再调用：不在 listener 的锁里做平台的活。
+    fn notify_store_changed(&self) {
+        let listener = self
+            .store_listener
+            .lock()
+            .ok()
+            .and_then(|slot| slot.as_ref().map(Arc::clone));
+        if let Some(listener) = listener {
+            listener.on_store_changed();
         }
     }
 
@@ -305,7 +337,7 @@ impl AgentChatService {
             Some(tokens) => tokens,
             None => {
                 let tokens = starting_context_window(model);
-                record_boundary(&mut rollout, RolloutItem::ContextWindow { tokens })?;
+                record_boundary(&mut rollout, RolloutItem::ContextWindow { tokens }, &|| self.notify_store_changed())?;
                 tokens
             }
         };
@@ -340,6 +372,7 @@ impl AgentChatService {
                     RolloutItem::ReasoningEffort {
                         value: value.clone(),
                     },
+                    &|| self.notify_store_changed(),
                 )?;
                 value
             }
@@ -410,7 +443,7 @@ impl AgentChatService {
             context_window_tokens,
             ..
         } = attached;
-        record_boundary(rollout, RolloutItem::ContextWindow { tokens })?;
+        record_boundary(rollout, RolloutItem::ContextWindow { tokens }, &|| self.notify_store_changed())?;
         *context_window_tokens = tokens;
         thread.note_context_window(to_tokens(tokens));
         if let Some(event) = thread.usage_event() {
@@ -447,6 +480,7 @@ impl AgentChatService {
             RolloutItem::ReasoningEffort {
                 value: value.to_string(),
             },
+            &|| self.notify_store_changed(),
         )?;
         *reasoning_effort = value.to_string();
         client.set_reasoning_effort(parse_reasoning_effort(value));
@@ -581,6 +615,7 @@ impl AgentChatService {
                 // 就是"这一轮实际用的档位"。
                 reasoning_effort: reasoning_effort.clone(),
             },
+            &|| self.notify_store_changed(),
         )?;
 
         let outcome = block_on(send_text(
@@ -600,14 +635,14 @@ impl AgentChatService {
         if matches!(outcome, Ok(Err(SessionError::TurnAborted))) {
             // 文件的顺序就是界面上的顺序：这一轮已经有的条目（用户消息）先落，再落被停时已经想到的
             // 与已经写出来的部分 —— 两条都是展示记录，不进对话 —— 最后才是中断标记。
-            record_turn(rollout, history, recorded)?;
+            record_turn(rollout, history, recorded, &|| self.notify_store_changed())?;
             recorded = history.len();
-            record_interrupted_reasoning(rollout, thread, turn_id)?;
-            record_interrupted_reply(rollout, thread, turn_id)?;
+            record_interrupted_reasoning(rollout, thread, turn_id, &|| self.notify_store_changed())?;
+            record_interrupted_reply(rollout, thread, turn_id, &|| self.notify_store_changed())?;
             history.push(interrupted_turn_marker());
         }
-        record_turn(rollout, history, recorded)?;
-        record_usage(rollout, thread)?;
+        record_turn(rollout, history, recorded, &|| self.notify_store_changed())?;
+        record_usage(rollout, thread, &|| self.notify_store_changed())?;
         let finished = finish_turn(
             rollout,
             &mut emit,
@@ -615,6 +650,7 @@ impl AgentChatService {
             interrupted,
             started.elapsed().as_millis() as u64,
             outcome?,
+            &|| self.notify_store_changed(),
         );
         // 平台可能在回合中途请求过释放（新建 / 切换对话）：那一步不能等这一轮，由这里放手。
         self.release_if_detach_requested(session_id, &slot, &mut guard);
@@ -662,6 +698,7 @@ impl AgentChatService {
                 // 就是"这一轮实际用的档位"。
                 reasoning_effort: reasoning_effort.clone(),
             },
+            &|| self.notify_store_changed(),
         )?;
 
         let outcome = block_on(continue_turn(
@@ -681,14 +718,14 @@ impl AgentChatService {
         if matches!(outcome, Ok(Err(SessionError::TurnAborted))) {
             // 文件的顺序就是界面上的顺序：这一轮已经有的条目（用户消息）先落，再落被停时已经想到的
             // 与已经写出来的部分 —— 两条都是展示记录，不进对话 —— 最后才是中断标记。
-            record_turn(rollout, history, recorded)?;
+            record_turn(rollout, history, recorded, &|| self.notify_store_changed())?;
             recorded = history.len();
-            record_interrupted_reasoning(rollout, thread, turn_id)?;
-            record_interrupted_reply(rollout, thread, turn_id)?;
+            record_interrupted_reasoning(rollout, thread, turn_id, &|| self.notify_store_changed())?;
+            record_interrupted_reply(rollout, thread, turn_id, &|| self.notify_store_changed())?;
             history.push(interrupted_turn_marker());
         }
-        record_turn(rollout, history, recorded)?;
-        record_usage(rollout, thread)?;
+        record_turn(rollout, history, recorded, &|| self.notify_store_changed())?;
+        record_usage(rollout, thread, &|| self.notify_store_changed())?;
         let finished = finish_turn(
             rollout,
             &mut emit,
@@ -696,6 +733,7 @@ impl AgentChatService {
             interrupted,
             started.elapsed().as_millis() as u64,
             outcome?,
+            &|| self.notify_store_changed(),
         );
         // 平台可能在回合中途请求过释放（新建 / 切换对话）：那一步不能等这一轮，由这里放手。
         self.release_if_detach_requested(session_id, &slot, &mut guard);
@@ -760,6 +798,7 @@ impl AgentChatService {
                 // 就是"这一轮实际用的档位"。
                 reasoning_effort: reasoning_effort.clone(),
             },
+            &|| self.notify_store_changed(),
         )?;
 
         let outcome = block_on(crate::session::run_turn(
@@ -778,14 +817,14 @@ impl AgentChatService {
         if matches!(outcome, Ok(Err(SessionError::TurnAborted))) {
             // 文件的顺序就是界面上的顺序：这一轮已经有的条目（用户消息）先落，再落被停时已经想到的
             // 与已经写出来的部分 —— 两条都是展示记录，不进对话 —— 最后才是中断标记。
-            record_turn(rollout, history, recorded)?;
+            record_turn(rollout, history, recorded, &|| self.notify_store_changed())?;
             recorded = history.len();
-            record_interrupted_reasoning(rollout, thread, turn_id)?;
-            record_interrupted_reply(rollout, thread, turn_id)?;
+            record_interrupted_reasoning(rollout, thread, turn_id, &|| self.notify_store_changed())?;
+            record_interrupted_reply(rollout, thread, turn_id, &|| self.notify_store_changed())?;
             history.push(interrupted_turn_marker());
         }
-        record_turn(rollout, history, recorded)?;
-        record_usage(rollout, thread)?;
+        record_turn(rollout, history, recorded, &|| self.notify_store_changed())?;
+        record_usage(rollout, thread, &|| self.notify_store_changed())?;
         let finished = finish_turn(
             rollout,
             &mut emit,
@@ -793,6 +832,7 @@ impl AgentChatService {
             interrupted,
             started.elapsed().as_millis() as u64,
             outcome?,
+            &|| self.notify_store_changed(),
         );
         // 平台可能在回合中途请求过释放（新建 / 切换对话）：那一步不能等这一轮，由这里放手。
         self.release_if_detach_requested(session_id, &slot, &mut guard);
@@ -836,6 +876,7 @@ impl AgentChatService {
                 turn_id: attached.turn_id.clone(),
                 text: text.to_string(),
             },
+            &|| self.notify_store_changed(),
         )
     }
 
@@ -864,7 +905,7 @@ impl AgentChatService {
             model_id: model_id.to_string(),
         };
         RolloutRecorder::create(&self.sessions_dir, &meta)
-            .map(|_| ())
+            .map(|_| self.notify_store_changed())
             .map_err(|error| AgentError::Transcript(error.to_string()))
     }
 
@@ -873,6 +914,7 @@ impl AgentChatService {
         // 连附着一起放掉：文件都没了，留着这条会话的槽没有意义（回合跑着的话，由那一轮自己放手）。
         self.end_conversation(session_id.as_str());
         delete_session(&self.sessions_dir, session_id.as_str())
+            .map(|_| self.notify_store_changed())
             .map_err(|error| AgentError::Transcript(error.to_string()))
     }
 
@@ -1336,11 +1378,15 @@ fn to_tokens(context_window: u64) -> i64 {
 ///
 /// A turn that reported nothing leaves the file as it was: the previous figure is still the last
 /// thing that was known.
-fn record_usage(rollout: &mut RolloutRecorder, thread: &ChatThread) -> Result<(), AgentError> {
+fn record_usage(
+    rollout: &mut RolloutRecorder,
+    thread: &ChatThread,
+    notify: &dyn Fn(),
+) -> Result<(), AgentError> {
     let Some((info, breakdown)) = thread.usage_record() else {
         return Ok(());
     };
-    record_boundary(rollout, RolloutItem::TokenUsageRecord { info, breakdown })
+    record_boundary(rollout, RolloutItem::TokenUsageRecord { info, breakdown }, notify)
 }
 
 /// The marker the core leaves in the conversation when a turn is interrupted on purpose.
@@ -1448,6 +1494,7 @@ fn record_interrupted_reasoning(
     rollout: &mut RolloutRecorder,
     thread: &mut ChatThread,
     turn_id: &str,
+    notify: &dyn Fn(),
 ) -> Result<(), AgentError> {
     match thread.take_interrupted_reasoning() {
         Some(text) => record_boundary(
@@ -1456,6 +1503,7 @@ fn record_interrupted_reasoning(
                 turn_id: turn_id.to_string(),
                 text,
             },
+            notify,
         ),
         None => Ok(()),
     }
@@ -1473,6 +1521,7 @@ fn record_interrupted_reply(
     rollout: &mut RolloutRecorder,
     thread: &mut ChatThread,
     turn_id: &str,
+    notify: &dyn Fn(),
 ) -> Result<(), AgentError> {
     match thread.take_interrupted_reply() {
         Some(text) => record_boundary(
@@ -1481,16 +1530,25 @@ fn record_interrupted_reply(
                 turn_id: turn_id.to_string(),
                 text,
             },
+            notify,
         ),
         None => Ok(()),
     }
 }
 
 /// Appends one turn boundary, so the file says which turn is still open.
-fn record_boundary(rollout: &mut RolloutRecorder, item: RolloutItem) -> Result<(), AgentError> {
+///
+/// 写成功后发一次"存储变了"的信号（D5）：推送让平台的列表不必等回合结束才动。
+fn record_boundary(
+    rollout: &mut RolloutRecorder,
+    item: RolloutItem,
+    notify: &dyn Fn(),
+) -> Result<(), AgentError> {
     rollout
         .record_items(&[item])
-        .map_err(|error| AgentError::Transcript(error.to_string()))
+        .map_err(|error| AgentError::Transcript(error.to_string()))?;
+    notify();
+    Ok(())
 }
 
 /// Closes a turn in the file and tells the platform how it ended.
@@ -1504,6 +1562,7 @@ fn finish_turn(
     interrupted: &mut bool,
     duration_ms: u64,
     outcome: Result<(), SessionError>,
+    notify: &dyn Fn(),
 ) -> Result<(), AgentError> {
     match outcome {
         Ok(()) => record_boundary(
@@ -1511,6 +1570,7 @@ fn finish_turn(
             RolloutItem::TurnComplete {
                 turn_id: turn_id.to_string(),
             },
+            notify,
         ),
         Err(SessionError::TurnAborted) => {
             *interrupted = true;
@@ -1521,6 +1581,7 @@ fn finish_turn(
                     reason: jasmine_rollout::TurnAbortReason::Interrupted,
                     duration_ms,
                 },
+                notify,
             )?;
             emit(ChatEvent::Aborted { duration_ms });
             Ok(())
@@ -1537,6 +1598,7 @@ fn record_turn(
     rollout: &mut RolloutRecorder,
     history: &[ResponseItem],
     recorded: usize,
+    notify: &dyn Fn(),
 ) -> Result<(), AgentError> {
     let items = history[recorded..]
         .iter()
@@ -1545,7 +1607,9 @@ fn record_turn(
         .collect::<Vec<_>>();
     rollout
         .record_items(&items)
-        .map_err(|error| AgentError::Transcript(error.to_string()))
+        .map_err(|error| AgentError::Transcript(error.to_string()))?;
+    notify();
+    Ok(())
 }
 
 /// Drives one operation of the async core to completion.

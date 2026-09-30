@@ -109,6 +109,27 @@ pub trait EventListener: Send + Sync {
     fn on_event(&self, event: ChatEvent);
 }
 
+/// 会话存储变更的推送口（D5）：核心每次落盘（创建 / 删除 / 追加）都会发一次信号。
+///
+/// 与 [EventListener] 不同，它是**常驻**的（构造后注册一次，见 `set_store_listener`），
+/// 因为它描述的是"存储这个事实变了"，不属于某一次调用。它只发信号不带数据 —— 平台收到后
+/// 自己去 `conversations()` 刷新，并且要自己做防抖：回合中途每写一行都会触发。
+#[uniffi::export(with_foreign)]
+pub trait ConversationStoreListener: Send + Sync {
+    fn on_store_changed(&self);
+}
+
+/// 把平台的推送口接成核心要的形状。
+struct StoreListenerAdapter {
+    listener: Arc<dyn ConversationStoreListener>,
+}
+
+impl jasmine_core::session::StoreListener for StoreListenerAdapter {
+    fn on_store_changed(&self) {
+        self.listener.on_store_changed();
+    }
+}
+
 /// 平台侧配置进来的 provider。
 ///
 /// 密钥在最后一刻才拼进来（[`ResolvedProvider`]），这样"元信息"可以被界面随便传阅，
@@ -243,6 +264,12 @@ impl AgentHandle {
                 Arc::new(ClockAdapter::new(clock)),
             ),
         }
+    }
+
+    /// 注册存储变更监听（D5）：核心每次落盘都会回调它。重复注册替换旧的。
+    pub fn set_store_listener(&self, listener: Arc<dyn ConversationStoreListener>) {
+        self.inner
+            .set_store_listener(Arc::new(StoreListenerAdapter { listener }));
     }
 
     /// 附着会话。失败原因是给界面看的字符串（跨边界不做错误类型学）。

@@ -33,18 +33,25 @@ abstract class BaseViewModel<S, E, A>(
     initialState: S,
 ) : ViewModel() {
     protected val mutableStateFlow: MutableStateFlow<S> = MutableStateFlow(initialState)
+
     private val eventChannel: Channel<E> = Channel(capacity = Channel.UNLIMITED)
     private val internalActionChannel: Channel<A> = Channel(capacity = Channel.UNLIMITED)
 
     /**
      * A helper that returns the current state of the view model.
+     *
+     * `open`（P0 修复方案 D1）：子类可以把状态做成"基座状态 ⊕ 派生部分"的同步重建
+     * （见 ChatViewModel 的每会话投影），handler 的读-判-写仍然同帧。
      */
-    protected val state: S get() = mutableStateFlow.value
+    protected open val state: S get() = mutableStateFlow.value
 
     /**
      * A [StateFlow] representing state updates.
+     *
+     * `open`（D1）：子类可以暴露一条派生流（如 combine 全局状态与每会话投影）。覆写时
+     * 必须与 [state] 用同一个投影函数，保证"handler 读到的"与"界面看到的"是同一份。
      */
-    val stateFlow: StateFlow<S> = mutableStateFlow.asStateFlow()
+    open val stateFlow: StateFlow<S> = mutableStateFlow.asStateFlow()
 
     /**
      * A [Flow] of one-shot events. These may be received and consumed by only a single consumer.

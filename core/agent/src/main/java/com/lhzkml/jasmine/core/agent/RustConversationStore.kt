@@ -3,13 +3,20 @@ package com.lhzkml.jasmine.core.agent
 import com.lhzkml.jasmine.core.data.model.ChatRole
 import com.lhzkml.jasmine.core.data.model.Conversation
 import com.lhzkml.jasmine.core.data.model.TranscriptMessage
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
 import uniffi.jasmine_ffi.AgentHandle
+import uniffi.jasmine_ffi.ConversationStoreListener
 import uniffi.jasmine_protocol.AppUsageStats as CoreAppUsageStats
 import uniffi.jasmine_protocol.Role
 
@@ -17,16 +24,44 @@ import uniffi.jasmine_protocol.Role
  * [ConversationStore] over the core's own session files.
  *
  * There is no second store: the core writes the transcript as each turn runs, and this reads it
- * back. The handle built here is never attached to a conversation — every call below is a fact
- * about files — so one instance can be shared while each [RustAgentChat] owns its own. Reads and
- * writes are blocking calls into the core, so they run on [Dispatchers.IO].
+ * back. It shares the process's single [AgentHandle] with the chat side (D5) — that sharing is what
+ * makes the core's store-changed signal reachable: the signal fires on whichever instance wrote the
+ * file, and with separate services this store would never hear about a turn's output.
+ *
+ * Reads and writes are blocking calls into the core, so they run on [Dispatchers.IO]. The core's
+ * signal only says "something changed"; the refresh itself is debounced here, because a running
+ * turn writes a line per event.
  */
 class RustConversationStore(
-    sessionsDir: String,
+    private val handle: AgentHandle,
 ) : ConversationStore {
 
-    private val handle = AgentHandle(sessionsDir, DeviceClock)
     private val conversations = MutableStateFlow<List<Conversation>>(emptyList())
+
+    /**
+     * 核心推送的"存储变了"信号。`conflate` 让积压的信号合并成一个 —— 刷新是"读当前状态"，
+     * 排在后面的那次读已经包含了前面所有的变化，中间那些重复刷新没有意义。
+     */
+    private val storeChanges = Channel<Unit>(Channel.CONFLATED)
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    init {
+        // 回调在核心的调用线程上同步执行（回合跑着时就是跑回合那条 IO 线程）：只允许"投一条信号"
+        // 这种极轻的操作 —— 重活与异常都不能在这里做，否则会拖住/污染正在进行的那次调用。
+        handle.setStoreListener(
+            object : ConversationStoreListener {
+                override fun onStoreChanged() {
+                    storeChanges.trySend(Unit)
+                }
+            }
+        )
+        scope.launch {
+            storeChanges.receiveAsFlow()
+                .debounce(STORE_CHANGE_DEBOUNCE_MS)
+                .collect { read() }
+        }
+    }
 
     override val conversationsStateFlow: StateFlow<List<Conversation>> =
         conversations.asStateFlow()
@@ -107,6 +142,16 @@ class RustConversationStore(
         }
         conversations.value = listed
         return listed
+    }
+
+    private companion object {
+        /**
+         * 核心信号的防抖窗口（ms）。
+         *
+         * 回合中途每落一行都会发信号（流式分片级别），逐条刷新会把 `list_sessions` 的目录扫描
+         * 打成密集 IO。300ms 足够让侧边栏的"最近更新"跟手，又把扫描频率压到人眼看不出的延迟。
+         */
+        const val STORE_CHANGE_DEBOUNCE_MS = 300L
     }
 }
 

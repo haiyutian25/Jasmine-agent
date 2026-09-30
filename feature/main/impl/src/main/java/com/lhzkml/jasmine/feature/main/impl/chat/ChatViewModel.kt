@@ -28,6 +28,7 @@ import com.lhzkml.jasmine.core.markdown.model.MarkdownInline
 import com.lhzkml.jasmine.core.markdown.model.MarkdownInlineType
 import com.lhzkml.jasmine.core.markdown.model.MarkdownUpdate
 import com.lhzkml.jasmine.core.ui.base.BaseViewModel
+import com.lhzkml.jasmine.core.ui.base.EffectRunner
 import com.lhzkml.jasmine.feature.main.impl.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.Locale
@@ -44,10 +45,13 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.consumeAsFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -172,7 +176,8 @@ data class ChatUserPrompt(
  * 它是**界面看到的那一份**：全局的东西（[providers]、[conversations]、当前选的模型、面板开合）放在
  * 这里；**会话自己的东西**（消息、发送中、提问、窗口/档位/用量、工具卡展开态）属于
  * [ConversationChatState]，由 [ConversationChats] 每会话存一份 —— [conversation] 是**当前显示那条**
- * 的那一份（照 ZCode 的 conversation projection）。
+ * 的**派生投影**（修复方案 D1：由 `ChatViewModel.stateFlow` 的 combine 从会话表算出，没有人能
+ * 手动写它 —— 门禁 R9）。
  *
  * 下面那些 `val … get()` 是会话级字段的读口：界面照旧读 `state.messages` / `state.isSending` …，
  * 而**写**一律写到会话那份状态上（见 `ChatViewModel.updateChat`），所以"正在跑的那一轮的输出"
@@ -359,6 +364,33 @@ sealed interface ChatAction {
         data class ConversationCreated(val epoch: Long, val id: String) : Internal
 
         /**
+         * 一条会话附着完成（核心那边已确认）：[key] = `会话|provider|model`。
+         *
+         * `attachedKeys` 的**唯一**异步回流入口 —— 注册表写在 handler 里落（修复方案 D2），
+         * 协程（`runTurn` / `runContinuedTurn`）只发这条 action，自己不动注册表。
+         */
+        data class ConversationAttached(val conversationId: String, val key: String) : Internal
+
+        /**
+         * 附着时待补交的窗口值已经交给 Effect：回 handler 清除 pending。
+         *
+         * 清除带**等值守卫**（`if (pending == value) pending = null`）：补交在飞、用户又选了一个
+         * 新值时，迟到的这条回流不能把新值抹掉。
+         */
+        data class PendingContextWindowConsumed(val value: Long) : Internal
+
+        /** 附着时待补交的档位已交给 Effect：同 [PendingContextWindowConsumed] 的等值守卫。 */
+        data class PendingReasoningEffortConsumed(val value: String) : Internal
+
+        /**
+         * 一条会话的 keep-warm 到期。
+         *
+         * 到期**判定**（有没有新一轮在跑、是不是正显示着）必须在 handler 这一帧里做 ——
+         * delay 之后协程里直接 `chats.drop` 是异步写影子状态（修复方案 D2 收编的口子）。
+         */
+        data class KeepWarmExpired(val key: String) : Internal
+
+        /**
          * 一次解析结果（见 [deliverParsed]）。
          *
          * 贴完之后**必须** `ack.complete(Unit)`：worker 正挂在 [deliverParsed] 的 `ack.await()` 上等这一句，
@@ -386,6 +418,18 @@ sealed interface ChatAction {
             val tag: String,
             val message: String,
             val conversationId: String? = null,
+        ) : Internal
+
+        /**
+         * 模型选择落盘失败（修复方案 D4）：带回乐观值与回退值 —— handler 只在当前选择仍等于
+         * 乐观值时回滚（用户可能已经又选了别的）。
+         */
+        data class ActiveModelPersistRejected(
+            val optimisticProviderId: String,
+            val optimisticModelId: String,
+            val fallbackProviderId: String,
+            val fallbackModelId: String,
+            val message: String,
         ) : Internal
     }
 }
@@ -440,6 +484,17 @@ sealed interface ChatEffect {
     data object RefreshConversations : ChatEffect
 
     /**
+     * 把当前模型选择落盘（修复方案 D4）。失败回流 [ChatAction.Internal.ActiveModelPersistRejected]，
+     * 带回乐观值与回退值做身份守卫回滚。
+     */
+    data class PersistActiveModel(
+        val providerId: String,
+        val modelId: String,
+        val fallbackProviderId: String,
+        val fallbackModelId: String,
+    ) : ChatEffect
+
+    /**
      * 这条命令冲着哪条会话去的；没有会话归属的（删除 / 刷新）为 null。
      *
      * 失败兜底按它把"这条命令的后果"落回**它自己的**会话：用户可能在命令飞出去的这段时间里
@@ -477,6 +532,9 @@ class ChatViewModel @Inject constructor(
      *
      * 照 ZCode：**一条会话一份**。所以切到别的会话不再"换掉"谁、也不用重挂；只有同一条会话里换了
      * provider / model 时才需要重挂（值变了，见 [runTurn]）。
+     *
+     * 写纪律（修复方案 D2，门禁 R8 守护）：**只由同步 handler 写** —— 附着成功的异步结果经
+     * [ChatAction.Internal.ConversationAttached] 回流到这里；协程自己不动这张表。
      */
     private val attachedKeys = mutableMapOf<String, String>()
 
@@ -615,8 +673,41 @@ class ChatViewModel @Inject constructor(
      *
      * 每一轮的事件**只往它自己那条会话里写**（见 [Turn.chatKey]），与当前显示哪条无关；切走再切
      * 回来直接用内存里这份接着渲染（keep-warm 到期才回落到读转写）。
+     *
+     * 修复方案 D1：它是界面投影的**输入**，界面看到的 `ChatState.conversation` 由 [stateFlow]
+     * 用 combine 派生 —— 这里只管存真身，不存在"忘了投影"。
      */
     private val chats = ConversationChats()
+
+    /**
+     * 界面看到的状态 = 基座状态 ⊕ 当前会话投影（修复方案 D1）。
+     *
+     * 投影由 combine **派生**：每会话状态的真身是 [chats]，这里只负责"当前显示哪条"的选择
+     * （`activeConversationId`）。写会话状态只写真身（[updateChat]），投影自动跟上。
+     */
+    override val stateFlow: StateFlow<ChatState> =
+        combine(mutableStateFlow, chats.flow) { global, table -> project(global, table) }
+            .stateIn(
+                viewModelScope,
+                SharingStarted.Eagerly,
+                project(mutableStateFlow.value, chats.flow.value),
+            )
+
+    /**
+     * handler 的读-判-写在同一帧：同步重建，不经过 combine 的调度间隙。
+     * 与 [stateFlow] 共用同一个 [project]，保证"handler 读到的"与"界面看到的"是同一份。
+     */
+    override val state: ChatState get() = project(mutableStateFlow.value, chats.flow.value)
+
+    /**
+     * 唯一投影函数（D1）：全局状态 + 会话表 → 界面状态。`conversation` 字段只能在这里出现
+     * （门禁 R9）——任何手动的 `copy(conversation = …)` 都是手动投影的回退。
+     */
+    private fun project(global: ChatState, table: Map<String, ConversationChatState>): ChatState =
+        global.copy(
+            conversation = table[global.activeConversationId ?: ConversationChats.NEW_CONVERSATION]
+                ?: ConversationChatState(),
+        )
 
     /** 当前显示的那条会话的键；还没发出第一条消息的新会话用 [ConversationChats.NEW_CONVERSATION]。 */
     private fun displayKey(): String = state.activeConversationId ?: ConversationChats.NEW_CONVERSATION
@@ -646,18 +737,16 @@ class ChatViewModel @Inject constructor(
     private fun turnMessages(turn: Turn): List<ChatMessage> = chats.stateOf(turn.chatKey).messages
 
     /**
-     * 改一条会话的状态，并（只有它正显示时才）投影给界面。
+     * 改一条会话的状态（真身那张表）。
      *
-     * 与 [updateState] 同一条规矩：**只由 handler 同步调用**。
+     * 与 [updateState] 同一条规矩：**只由 handler 同步调用**。修复方案 D1 之后这里不再投影 ——
+     * 界面那份由 [stateFlow] 的 combine 派生，写真身就够了。
      */
     private fun updateChat(
         key: String,
         transform: ConversationChatState.() -> ConversationChatState,
     ) {
         chats.update(key, transform)
-        if (key == displayKey()) {
-            updateState { copy(conversation = chats.stateOf(key)) }
-        }
     }
 
     /** 界面意图（输入、拨工具卡、切窗口…）：改当前显示那条会话。 */
@@ -677,15 +766,22 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    /** 把某条会话的状态投影给界面（切换会话、回合落到别的会话上时用）。 */
-    private fun publishChat(key: String) {
-        if (key == displayKey()) {
-            updateState { copy(conversation = chats.stateOf(key)) }
-        }
-    }
-
-    /** 出站命令通道；由 init 里的 EffectRunner 单消费者执行（见 [ChatEffect]）。 */
-    private val effects = Channel<ChatEffect>(Channel.UNLIMITED)
+    /**
+     * 出站命令执行器（core:ui 通用件，修复方案 D3）：单消费者、FIFO；每条命令的结果/失败都以
+     * Internal action 回流（成功 = [performEffect] 的返回值，失败兜底 = [ChatAction.Internal.EffectFailed]）。
+     */
+    private val effects = EffectRunner<ChatEffect, ChatAction.Internal>(
+        scope = viewModelScope,
+        sendAction = ::sendAction,
+        perform = ::performEffect,
+        onFailure = { effect, error ->
+            ChatAction.Internal.EffectFailed(
+                tag = effect.tag(),
+                message = error.message.orEmpty(),
+                conversationId = effect.conversationId,
+            )
+        },
+    )
 
     /**
      * 解析用的调度器。
@@ -726,25 +822,8 @@ class ChatViewModel @Inject constructor(
 
         // The session store is not observable, so the list has to be read once here.
         // 这是一条**出站命令**：走 Effect（结果由 conversationsStateFlow 回灌，失败回流见 §3 第 13 条）。
-        effects.trySend(ChatEffect.RefreshConversations)
+        effects.send(ChatEffect.RefreshConversations)
         viewModelScope.launch { restoreLatestConversation() }
-
-        // EffectRunner：单消费者；每条命令的结果/失败都以 Internal action 回流。
-        // 用与 action 通道同一套写法（`consumeAsFlow().collect`），让两边的消费语义完全一致。
-        viewModelScope.launch {
-            effects.consumeAsFlow().collect { effect ->
-                val followUp = try {
-                    performEffect(effect)
-                } catch (cancellation: CancellationException) {
-                    // 与 [runTurn] / [resumeTurn] 同一约定：取消必须重抛，
-                    // 不能被 runCatching 吞成一次"失败"。
-                    throw cancellation
-                } catch (error: Exception) {
-                    ChatAction.Internal.EffectFailed(effect.tag(), error.message.orEmpty())
-                }
-                followUp?.let { sendAction(it) }
-            }
-        }
         // 流式解析的 worker 不在这里起：它属于**每一轮**，见 launchTurn。
     }
 
@@ -913,11 +992,26 @@ class ChatViewModel @Inject constructor(
             }
             is ChatAction.Internal.ConversationCreated -> {
                 if (action.epoch != conversationEpoch) return
-                // 还没有 id 的那份状态与那一轮一起搬到真实 id 上。
+                // 还没有 id 的那份状态与那一轮一起搬到真实 id 上；投影随 activeConversationId 自动跟上（D1）。
                 chats.rekey(ConversationChats.NEW_CONVERSATION, action.id)
                 rekeyTurns(ConversationChats.NEW_CONVERSATION, action.id)
                 updateState { copy(activeConversationId = action.id) }
-                publishChat(action.id)
+            }
+            // 附着注册表的唯一写入口：协程只发 action，写在 handler 里落（修复方案 D2）。
+            is ChatAction.Internal.ConversationAttached ->
+                attachedKeys[action.conversationId] = action.key
+            is ChatAction.Internal.PendingContextWindowConsumed -> {
+                // 等值守卫：补交在飞期间用户又选了新值，迟到的回流不能把新值抹掉。
+                if (pendingContextWindow == action.value) pendingContextWindow = null
+            }
+            is ChatAction.Internal.PendingReasoningEffortConsumed -> {
+                if (pendingReasoningEffort == action.value) pendingReasoningEffort = null
+            }
+            is ChatAction.Internal.KeepWarmExpired -> {
+                // 读-判-写同帧：又跑了新一轮、或者正显示着它，就不丢。
+                if (turnOfChat(action.key) == null && displayKey() != action.key) {
+                    chats.drop(action.key)
+                }
             }
             is ChatAction.Internal.StreamParsed -> {
                 // ⚠️ 无论贴没贴都要放行：worker 正挂在 ack 上，漏掉这一行回合就 join 不回来。
@@ -940,13 +1034,31 @@ class ChatViewModel @Inject constructor(
                 }
                 sendEvent(ChatUiEvent.ShowError(R.string.chat_action_failed, action.message))
             }
+            is ChatAction.Internal.ActiveModelPersistRejected -> {
+                // 身份守卫回滚（D4）：当前选择仍等于那条乐观值才回退。
+                if (state.activeProviderId == action.optimisticProviderId &&
+                    state.activeModelId == action.optimisticModelId
+                ) {
+                    updateState {
+                        copy(
+                            activeProviderId = action.fallbackProviderId,
+                            activeModelId = action.fallbackModelId,
+                        )
+                    }
+                }
+                sendEvent(ChatUiEvent.ShowError(R.string.chat_action_failed, action.message))
+            }
         }
     }
 
     override fun onCleared() {
         // 正在跑的那几轮由作用域取消收尾：取消会通报核心让它们**各自**收手（见 [RustAgentChat]）。
         // 附着着的会话一并放掉 —— 历史不动，别的什么都不动。
-        attachedKeys.keys.toList().forEach { id -> agentChat.endConversation(id) }
+        // 拆毁路径（D3）：action/event 通道已随作用域关闭，失败只能进日志。
+        attachedKeys.keys.toList().forEach { id ->
+            runCatching { agentChat.endConversation(id) }
+                .onFailure { Log.w(TAG, "endConversation($id) failed during onCleared", it) }
+        }
         attachedKeys.clear()
         super.onCleared()
     }
@@ -1030,6 +1142,7 @@ class ChatViewModel @Inject constructor(
             conversationStore.refresh()
             null
         }
+        is ChatEffect.PersistActiveModel -> performPersistActiveModel(effect)
     }
 
     /**
@@ -1080,6 +1193,28 @@ class ChatViewModel @Inject constructor(
             ChatAction.Internal.ReasoningEffortRejected(
                 conversationId = effect.conversationId,
                 coreValue = runCatching { agentChat.reasoningEffort(effect.conversationId) }.getOrNull(),
+                message = error.message ?: error::class.simpleName.orEmpty(),
+            )
+        }
+
+    /**
+     * 把模型选择写进偏好（修复方案 D4）。
+     *
+     * 成功 → null（不需要回执：`preferencesStateFlow` 回灌即确认）；失败 →
+     * [ChatAction.Internal.ActiveModelPersistRejected]，带回乐观值与回退值。
+     */
+    private suspend fun performPersistActiveModel(effect: ChatEffect.PersistActiveModel): ChatAction.Internal? =
+        try {
+            userPreferencesRepository.updateActiveModel(effect.providerId, effect.modelId)
+            null
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (error: Exception) {
+            ChatAction.Internal.ActiveModelPersistRejected(
+                optimisticProviderId = effect.providerId,
+                optimisticModelId = effect.modelId,
+                fallbackProviderId = effect.fallbackProviderId,
+                fallbackModelId = effect.fallbackModelId,
                 message = error.message ?: error::class.simpleName.orEmpty(),
             )
         }
@@ -1153,7 +1288,7 @@ class ChatViewModel @Inject constructor(
         // 状态位 = "已请求中断、回合尚未收尾"：只有回合真正收尾、或命令失败才清。
         updateConversation { copy(isInterruptRequested = true) }
         // 命令走 Effect（这是唯一的旁路出口），失败由 EffectFailed 清位 + 提示。
-        effects.trySend(ChatEffect.Interrupt(conversationId))
+        effects.send(ChatEffect.Interrupt(conversationId))
     }
 
     /**
@@ -1232,8 +1367,9 @@ class ChatViewModel @Inject constructor(
         // （它失败时由第 5 条的 Rejected 把界面纠正回核心值）。
         val pending = pendingReasoningEffort
         if (pending != null) {
-            pendingReasoningEffort = null
-            effects.trySend(ChatEffect.SetReasoningEffort(conversationId, pending))
+            effects.send(ChatEffect.SetReasoningEffort(conversationId, pending))
+            // pending 的清除回 handler（等值守卫，D2）：本协程不写影子字段。
+            sendAction(ChatAction.Internal.PendingReasoningEffortConsumed(pending))
         }
         // 读回来的值以 action 回流，由 handler 同步写（本函数自己**不**碰 state）。
         agentChat.reasoningEffort(conversationId)?.let { attached ->
@@ -1259,10 +1395,11 @@ class ChatViewModel @Inject constructor(
     private suspend fun syncContextWindowAfterAttach(conversationId: String) {
         val pending = pendingContextWindow
         if (pending != null) {
-            pendingContextWindow = null
             // pending 这条本来就是"用户已经选过、界面也已经显示着"的值，所以补交走 Effect，
             // 结果由 Applied 确认（失败则 Rejected 把它纠正回核心值）。
-            effects.trySend(ChatEffect.SetContextWindow(conversationId, pending))
+            effects.send(ChatEffect.SetContextWindow(conversationId, pending))
+            // pending 的清除回 handler（等值守卫，D2）：本协程不写影子字段。
+            sendAction(ChatAction.Internal.PendingContextWindowConsumed(pending))
             sendAction(ChatAction.Internal.ContextWindowApplied(conversationId, pending))
             return
         }
@@ -1291,7 +1428,7 @@ class ChatViewModel @Inject constructor(
             return
         }
         // 写进会话文件是**出站命令**：走 Effect。成功 → Applied；失败 → Rejected（回退 + 提示）。
-        effects.trySend(ChatEffect.SetContextWindow(conversationId, tokens))
+        effects.send(ChatEffect.SetContextWindow(conversationId, tokens))
     }
 
     /** 照 [runTurn] 的做法跑完这一轮，只是入口换成「续采样」。 */
@@ -1320,7 +1457,8 @@ class ChatViewModel @Inject constructor(
                     instruction = CHAT_PERSONA,
                     settings = agentSettings(),
                 )
-                attachedKeys[id] = key
+                // 与 [runTurn] 同一条规矩：附着结果回流，协程不写注册表（D2）。
+                sendAction(ChatAction.Internal.ConversationAttached(id, key))
                 syncContextWindowAfterAttach(id)
                 syncReasoningEffortAfterAttach(id)
                 if (epoch != conversationEpoch) return
@@ -1377,7 +1515,7 @@ class ChatViewModel @Inject constructor(
         }
         // 写进会话文件是**出站命令**：走 Effect。成功 → Applied（带核心读回的值）；
         // 失败 → Rejected（回退到核心值 + 提示）—— 界面不会停在一个没落定的档上。
-        effects.trySend(ChatEffect.SetReasoningEffort(conversationId, action.value))
+        effects.send(ChatEffect.SetReasoningEffort(conversationId, action.value))
     }
 
     private fun handleModelSelected(action: ChatAction.ModelSelected) {
@@ -1390,6 +1528,8 @@ class ChatViewModel @Inject constructor(
         // An ADK session is bound to one model, so a switch re-attaches it. The
         // stored session (and the transcript) stay.
         state.activeConversationId?.let { id -> resetSession(id) }
+        val fallbackProviderId = state.activeProviderId
+        val fallbackModelId = state.activeModelId
         updateState {
             copy(
                 activeProviderId = action.providerId,
@@ -1408,9 +1548,15 @@ class ChatViewModel @Inject constructor(
                 )
             }
         }
-        viewModelScope.launch {
-            userPreferencesRepository.updateActiveModel(action.providerId, action.modelId)
-        }
+        // 落盘是出站命令（D3）：失败经 ActiveModelPersistRejected 守卫回滚（D4）。
+        effects.send(
+            ChatEffect.PersistActiveModel(
+                providerId = action.providerId,
+                modelId = action.modelId,
+                fallbackProviderId = fallbackProviderId,
+                fallbackModelId = fallbackModelId,
+            )
+        )
         // 面板列哪几档也跟着模型走（目录里有的模型用目录那份）：只读 + 回流。
         val provider = state.activeProvider
         val modelId = state.activeModel?.modelId
@@ -1437,10 +1583,10 @@ class ChatViewModel @Inject constructor(
         // 只放掉正在离开的那一条（下次往它发消息会重挂）；目标那条不碰，正在跑的那一轮也不碰。
         state.activeConversationId?.let { left -> releaseConversation(left) }
         updateState { copy(activeConversationId = action.id) }
-        // 内存里已经有这条会话（那一轮还在跑，或还在 keep-warm 里）：直接用它 —— 已经流出去的片段都
-        // 还在，接着渲染（照 ZCode 的 acquire 命中）。冷掉了才回落到从核心读转写。
+        // 内存里已经有这条会话（那一轮还在跑，或还在 keep-warm 里）：投影随 activeConversationId
+        // 自动切过去（D1）—— 已经流出去的片段都还在，接着渲染（照 ZCode 的 acquire 命中）。
+        // 冷掉了才回落到从核心读转写。
         if (chats.has(action.id)) {
-            publishChat(action.id)
             viewModelScope.launch {
                 sendAction(ChatAction.Internal.ConversationFactsLoaded(readConversationFacts(action.id)))
             }
@@ -1504,7 +1650,7 @@ class ChatViewModel @Inject constructor(
     private fun handleConversationDeleted(action: ChatAction.ConversationDeleted) {
         // 出站命令走 Effect：失败经 EffectFailed → ChatUiEvent.ShowError 回流（§3 第 13 条）；
         // 成功不需要回执 —— 列表由 conversationsStateFlow 回灌。
-        effects.trySend(ChatEffect.DeleteConversation(action.id))
+        effects.send(ChatEffect.DeleteConversation(action.id))
         if (state.activeConversationId == action.id) {
             // 删的正是当前会话：代次 +1，在途的会话创建结果作废。
             conversationEpoch++
@@ -1546,7 +1692,8 @@ class ChatViewModel @Inject constructor(
                     instruction = CHAT_PERSONA,
                     settings = agentSettings(),
                 )
-                attachedKeys[id] = key
+                // 注册表只能由 handler 写（D2）：附着结果回流，本协程不动 attachedKeys。
+                sendAction(ChatAction.Internal.ConversationAttached(id, key))
                 syncContextWindowAfterAttach(id)
                 syncReasoningEffortAfterAttach(id)
                 // 附着期间被换掉了：这一轮的请求不能发出去（它会被算到新会话头上）。
@@ -1781,9 +1928,9 @@ class ChatViewModel @Inject constructor(
     private fun endTurnKeepingWarm(key: String) {
         viewModelScope.launch {
             delay(ConversationChats.KEEP_WARM_MS)
-            // 又跑了新一轮、或者正显示着它，就不丢。
-            if (turnOfChat(key) != null || displayKey() == key) return@launch
-            chats.drop(key)
+            // 到期只发信号：丢不丢由 handler 在**那一帧**判定（又跑了新一轮、或者正显示着它，
+            // 就不丢）——协程里直接 drop 是异步写影子状态（D2 收编的口子）。
+            sendAction(ChatAction.Internal.KeepWarmExpired(key))
         }
     }
 
@@ -2135,7 +2282,7 @@ class ChatViewModel @Inject constructor(
                 },
             )
         }
-        endTurn(turn)
+        endTurn()
     }
 
     private fun finishTurn(turn: Turn) {
@@ -2153,24 +2300,18 @@ class ChatViewModel @Inject constructor(
                 },
             )
         }
-        endTurn(turn)
+        endTurn()
     }
 
     /**
-     * Ends the turn's bookkeeping. Nothing is written: the runner already appended this
-     * turn's user message and model replies to the session as they happened, so the
-     * transcript needs no write of its own.
+     * 回合收尾的收口点。**不写任何东西、也不再需要重读列表**（修复方案 D5）：
      *
-     * All that is left is to re-read the conversation list, whose `updatedAt` the session
-     * store moved. [turn] 自己的那些游标随它一起消失（它已经不在 [turns] 里了）。
+     * - 转写由核心在回合跑动时自行落盘，这里无话可写；
+     * - 会话列表的更新由核心的"存储变了"推送驱动 —— `RustConversationStore` 防抖后重读并回灌
+     *   `conversationsStateFlow`。D5 之前这里是"回合结束才刷一次列表"的补丁，那也是跑动期间
+     *   列表长期陈旧的原因。
      */
-    private fun endTurn(turn: Turn) {
-        // 会话都没建起来（创建期间就被放弃了）就没有什么好刷新的。
-        if (turn.chatKey.isEmpty()) return
-        // 出站命令走 Effect：成功不需要回流（列表由 conversationsStateFlow 回灌），
-        // 失败经 EffectFailed → ChatUiEvent.ShowError（§3 第 13 条）。
-        effects.trySend(ChatEffect.RefreshConversations)
-    }
+    private fun endTurn() = Unit
 
     /**
      * 模型回复语言变了：把当前会话**重挂**一次 —— 系统指令只在附着时交给核心，所以下一次发送就用上
@@ -2211,9 +2352,24 @@ class ChatViewModel @Inject constructor(
      * **刻意不取消进行中的回合**：切走 / 换会话都不该把那条回复掐掉，它会继续跑完（正在跑的那一轮
      * 自己带着它的会话与游标，见 [Turn]）。要停止只有 [handleStopClicked]（输入框那个停止按钮）
      * 这一条路径。
+     *
+     * 为什么**不**走 Effect 通道（修复方案 D3 的例外，门禁 R11 白名单）：释放必须与"下一次附着"
+     * 严格有序 —— Effect 排队期间 `runTurn` 可能已经在 IO 线程上重新 `startConversation`，
+     * 排在后面的旧释放令会把新附着割掉（核心对重复 start 是整体重挂，对释放是拆槽）。
+     * 核心的释放是本地、幂等操作（未附着 = no-op、无文件 IO），属注册表维护而非出站命令，
+     * 所以同步做；失败经 action 回流成可见提示 —— "失败可观察"不打折扣。
      */
     private fun releaseConversation(conversationId: String) {
-        agentChat.endConversation(conversationId)
+        runCatching { agentChat.endConversation(conversationId) }
+            .onFailure { error ->
+                trySendAction(
+                    ChatAction.Internal.EffectFailed(
+                        tag = END_CONVERSATION_TAG,
+                        message = error.message.orEmpty(),
+                        conversationId = conversationId,
+                    ),
+                )
+            }
         attachedKeys.remove(conversationId)
         // 还没有会话时界面先选的窗口 / 档位：只对"这条还没附着的新会话"有意义，放掉就等于放弃它们。
         pendingContextWindow = null
@@ -2252,6 +2408,15 @@ class ChatViewModel @Inject constructor(
 
         /** 流式解析的日志标签（`adb logcat -s ChatParse`）。 */
         const val CHAT_PARSE_TAG = "ChatParse"
+
+        /** 本类的通用日志标签。 */
+        const val TAG = "ChatViewModel"
+
+        /**
+         * [ChatAction.Internal.EffectFailed] 的 tag：会话附着释放失败。释放是注册表维护
+         * （必须与下一次附着严格有序），不走 Effect 通道，见 [releaseConversation]。
+         */
+        const val END_CONVERSATION_TAG = "EndConversation"
 
         /**
          * 两次「贴块 + 重组」之间的最小间隔。

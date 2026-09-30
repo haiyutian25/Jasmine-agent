@@ -1,6 +1,10 @@
 package com.lhzkml.jasmine.feature.main.impl.chat
 
 import com.lhzkml.jasmine.core.agent.ContextUsage
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 /**
  * 一条会话自己的聊天状态。
@@ -64,23 +68,32 @@ data class ConversationChatState(
  * 照 ZCode 的做法：**谁在跑、写到哪一份**由那一轮自己带着（见 `ChatViewModel.Turn`），这里只管
  * 存这份状态 —— 与当前显示哪条无关。会话切走之后还热一阵（[KEEP_WARM_MS]），期间切回来直接复用
  * 内存里这份（已经流出去的片段都还在，接着渲染）；冷掉之后才回到"从核心读转写"。
+ *
+ * 修复方案 D1：这张表是 `StateFlow`，"当前显示哪一条"的投影由 `ChatViewModel` 用 combine 从
+ * 这张表**派生** —— 写会话状态不再需要手动投影，"内存有、界面没"这一类 bug 在结构上消失。
+ *
+ * 写纪律不变（门禁 R8 守护）：[update] / [drop] / [rekey] 只许由同步 handler 调用。
  */
 class ConversationChats {
-    private val entries = mutableMapOf<String, ConversationChatState>()
+    private val mutableFlow = MutableStateFlow<Map<String, ConversationChatState>>(emptyMap())
 
+    /** 整张表的只读流：派生投影（combine）的输入。 */
+    val flow: StateFlow<Map<String, ConversationChatState>> = mutableFlow.asStateFlow()
+
+    /** 读一条会话的状态；没存过就是默认空态（**只读，不建条目** —— 建条目是 update 的事）。 */
     fun stateOf(key: String): ConversationChatState =
-        entries.getOrPut(key) { ConversationChatState() }
+        flow.value[key] ?: ConversationChatState()
 
-    fun has(key: String): Boolean = entries.containsKey(key)
+    fun has(key: String): Boolean = flow.value.containsKey(key)
 
-    /** 改一条会话的状态（**只由 handler 同步调用**，与 [ChatViewModel.updateState] 同一条规矩）。 */
+    /** 改一条会话的状态（**只由 handler 同步调用**，与 `ChatViewModel.updateState` 同一条规矩）。 */
     fun update(key: String, transform: ConversationChatState.() -> ConversationChatState) {
-        entries[key] = stateOf(key).transform()
+        mutableFlow.update { map -> map + (key to stateOf(key).transform()) }
     }
 
-    /** 丢掉一份会话状态（keep-warm 到期，或这条会话被删掉）。 */
+    /** 丢掉一份会话状态（keep-warm 到期经 Internal 回流后，或这条会话被删掉）。 */
     fun drop(key: String) {
-        entries.remove(key)
+        mutableFlow.update { map -> map - key }
     }
 
     /**
@@ -91,11 +104,14 @@ class ConversationChats {
      */
     fun rekey(from: String, to: String) {
         if (from == to) return
-        entries.remove(from)?.let { entries[to] = it }
+        mutableFlow.update { map ->
+            val entry = map[from] ?: return@update map
+            map - from + (to to entry)
+        }
     }
 
     /** 只给测试与调试看：现在留着几份。 */
-    val size: Int get() = entries.size
+    val size: Int get() = flow.value.size
 
     companion object {
         /** "新建但还没发第一条消息"那一份的键。 */

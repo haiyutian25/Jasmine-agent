@@ -5,6 +5,7 @@ pub mod turn_input;
 pub use service::AgentChatService;
 pub use service::AgentError;
 pub use service::ChatSink;
+pub use service::StoreListener;
 pub use turn::run_turn;
 pub use turn_input::respond_to_prompts;
 pub use turn_input::send_text;

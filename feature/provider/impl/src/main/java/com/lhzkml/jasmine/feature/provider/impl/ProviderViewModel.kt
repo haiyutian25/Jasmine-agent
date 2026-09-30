@@ -2,6 +2,7 @@ package com.lhzkml.jasmine.feature.provider.impl
 
 import androidx.annotation.StringRes
 import androidx.lifecycle.viewModelScope
+import android.util.Log
 import com.lhzkml.jasmine.core.agent.ProbeResult
 import com.lhzkml.jasmine.core.agent.ProviderProbe
 import com.lhzkml.jasmine.core.data.model.CatalogModel
@@ -11,6 +12,7 @@ import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import com.lhzkml.jasmine.core.data.model.catalogKey
 import com.lhzkml.jasmine.core.data.repository.ProviderRepository
 import com.lhzkml.jasmine.core.ui.base.BaseViewModel
+import com.lhzkml.jasmine.core.ui.base.EffectRunner
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
@@ -176,7 +178,31 @@ sealed interface ProviderAction {
             val providerId: String?,
             val catalog: Map<String, CatalogModel>,
         ) : Internal
+
+        /**
+         * 删除落盘失败（P0 修复方案 D4）：带快照与原位置回流，handler 按身份守卫插回
+         * （列表仍然缺这家才恢复 —— 用户期间又做了别的操作就不动）。
+         */
+        data class ProviderDeleteRejected(val snapshot: ProviderConfig, val index: Int) : Internal
+
+        /**
+         * 保存落盘失败（D4）：恢复列表快照，并把没存上的草稿重新打开（用户的心血不能丢）。
+         */
+        data class ProviderSaveRejected(
+            val draft: ProviderConfig,
+            val previous: List<ProviderConfig>,
+        ) : Internal
     }
+}
+
+/**
+ * 供应商页的出站命令（P0 修复方案 D3/D4）：整列表重写是唯一持久化手段，所以命令带上
+ * 回滚材料（快照），失败经 EffectRunner 兜底成 *Rejected 回流。探测 / 拉模型 / 读目录是
+ * 长活或只读，各有自己的 Internal 回流，不走这条通道。
+ */
+private sealed interface ProviderEffect {
+    data class DeleteProvider(val snapshot: ProviderConfig, val index: Int) : ProviderEffect
+    data class SaveProvider(val provider: ProviderConfig, val previous: List<ProviderConfig>) : ProviderEffect
 }
 
 /**
@@ -195,6 +221,37 @@ class ProviderViewModel @Inject constructor(
 ) : BaseViewModel<ProviderState, ProviderEvent, ProviderAction>(
     initialState = ProviderState(),
 ) {
+
+    /** 出站命令执行器（D3）：供应商列表落盘的唯一出口。 */
+    private val effects = EffectRunner<ProviderEffect, ProviderAction>(
+        scope = viewModelScope,
+        sendAction = ::sendAction,
+        perform = ::performEffect,
+        onFailure = ::effectFailed,
+    )
+
+    /** 执行出站命令（suspend = 异步路径）。成功不需要回执：providersStateFlow 回灌即确认。 */
+    private suspend fun performEffect(effect: ProviderEffect): ProviderAction? = when (effect) {
+        is ProviderEffect.DeleteProvider -> {
+            providerRepository.deleteProvider(effect.snapshot.id)
+            null
+        }
+        is ProviderEffect.SaveProvider -> {
+            providerRepository.upsertProvider(effect.provider)
+            null
+        }
+    }
+
+    /** 失败兜底：命令连同回滚材料回流成 *Rejected（D4）。 */
+    private fun effectFailed(effect: ProviderEffect, error: Throwable): ProviderAction {
+        Log.w(TAG, "effect $effect failed", error)
+        return when (effect) {
+            is ProviderEffect.DeleteProvider ->
+                ProviderAction.Internal.ProviderDeleteRejected(effect.snapshot, effect.index)
+            is ProviderEffect.SaveProvider ->
+                ProviderAction.Internal.ProviderSaveRejected(effect.provider, effect.previous)
+        }
+    }
 
     init {
         providerRepository
@@ -319,6 +376,39 @@ class ProviderViewModel @Inject constructor(
                 if (action.providerId != state.catalogFor) return
                 updateState { copy(catalog = action.catalog) }
             }
+            is ProviderAction.Internal.ProviderDeleteRejected -> {
+                // 身份守卫（D4）：列表仍然缺这家才按原位插回 —— 用户期间做了别的就不动。
+                if (state.providers.none { it.id == action.snapshot.id }) {
+                    updateState {
+                        copy(
+                            providers = providers.toMutableList().also {
+                                it.add(action.index.coerceIn(0, it.size), action.snapshot)
+                            },
+                        )
+                    }
+                }
+                sendEvent(ProviderEvent.ShowToast(R.string.provider_delete_failed_toast))
+            }
+            is ProviderAction.Internal.ProviderSaveRejected -> {
+                // 恢复列表快照；没存上的草稿重新打开（已经有新草稿在编辑就不顶掉它）。
+                updateState {
+                    copy(
+                        providers = action.previous,
+                        editor = editor ?: ProviderEditorState(
+                            id = action.draft.id,
+                            name = action.draft.name,
+                            baseUrl = action.draft.baseUrl,
+                            apiKey = action.draft.apiKey,
+                            apiType = action.draft.apiType,
+                            isBuiltIn = action.draft.isBuiltIn,
+                            models = action.draft.models,
+                            modelSheet = null,
+                            modelEditor = null,
+                        ),
+                    )
+                }
+                sendEvent(ProviderEvent.ShowToast(R.string.provider_save_failed_toast))
+            }
         }
     }
 
@@ -355,25 +445,11 @@ class ProviderViewModel @Inject constructor(
         val provider = state.providers.firstOrNull { it.id == action.id } ?: return
         // Built-in presets (DeepSeek) can be edited but never deleted.
         if (provider.isBuiltIn) return
-        // Optimistic removal; the repository StateFlow echo is a no-op afterwards.
+        val index = state.providers.indexOfFirst { it.id == action.id }
+        // 乐观移除；落盘是出站命令（D3）—— 失败经 ProviderDeleteRejected 插回原位（D4）。
         updateState { copy(providers = providers.filterNot { it.id == action.id }) }
-        launchWrite(R.string.provider_delete_failed_toast) {
-            providerRepository.deleteProvider(action.id)
-        }
+        effects.send(ProviderEffect.DeleteProvider(snapshot = provider, index = index))
         sendEvent(ProviderEvent.ShowToast(R.string.provider_deleted_toast))
-    }
-
-    /**
-     * 一条"出站写命令"：乐观写已经落状态，这里只负责把**失败**变成可见的提示
-     * （成功提示仍由调用点按原来那条时序发）。以前这些写入是 fire-and-forget，
-     * 落盘失败时界面什么都看不出来。
-     */
-    private fun launchWrite(@StringRes failureToast: Int, block: suspend () -> Unit) {
-        viewModelScope.launch {
-            runCatching { block() }.exceptionOrNull()?.let {
-                sendEvent(ProviderEvent.ShowToast(failureToast))
-            }
-        }
     }
 
     private fun handleSaveClicked() {
@@ -394,7 +470,9 @@ class ProviderViewModel @Inject constructor(
             isBuiltIn = editor.isBuiltIn,
             models = editor.models,
         )
-        // Optimistic write-through; the repository echo reconciles the list.
+        val previous = state.providers
+        // 乐观写穿（落盘走 Effect，失败经 ProviderSaveRejected 恢复快照并重开草稿 —— D3/D4）；
+        // 成功由 providersStateFlow 回灌确认，内容相同回灌是 no-op。
         updateState {
             val index = providers.indexOfFirst { it.id == provider.id }
             val next = if (index >= 0) {
@@ -404,9 +482,7 @@ class ProviderViewModel @Inject constructor(
             }
             copy(providers = next, editor = null)
         }
-        launchWrite(R.string.provider_save_failed_toast) {
-            providerRepository.upsertProvider(provider)
-        }
+        effects.send(ProviderEffect.SaveProvider(provider = provider, previous = previous))
         sendEvent(ProviderEvent.ShowToast(R.string.provider_saved_toast))
     }
 
@@ -585,6 +661,10 @@ class ProviderViewModel @Inject constructor(
     /** Single mutation point of [mutableStateFlow] (mirrors MainViewModel's helper). */
     private inline fun updateState(block: ProviderState.() -> ProviderState) {
         mutableStateFlow.update(block)
+    }
+
+    private companion object {
+        const val TAG = "ProviderViewModel"
     }
 }
 

@@ -28,7 +28,7 @@ class MvvmUdfGateTest {
         "feature/settings/impl/src/main/java/com/lhzkml/jasmine/feature/settings/impl/screens"
     )
 
-    /** ① 唯一写入点：`mutableStateFlow` 只能出现在 `updateState` 的定义里。 */
+    /** ① 唯一写入点：`mutableStateFlow` 只能出现在 `updateState` 的定义里（D1 的投影覆写是只读例外）。 */
     @Test
     fun `mutableStateFlow is touched only by the single mutation point`() {
         val lines = chatViewModelSource.readLines()
@@ -38,11 +38,35 @@ class MvvmUdfGateTest {
         val offenders = lines.withIndex()
             .filter { it.value.contains("mutableStateFlow") }
             .filter { it.index < definitionLine - 2 || it.index > definitionLine + 2 }
+            // D1：stateFlow / state 的投影覆写可以**读**它（combine / project 的输入）；写仍然只有 updateState。
+            .filter { !D1ProjectionRead.containsMatchIn(it.value) }
             .toList()
 
         assertEquals(
             "mutableStateFlow 只能出现在 updateState 的定义体里，以下行越界了：" +
                 offenders.joinToString { "${it.index + 1}: ${it.value.trim()}" },
+            0,
+            offenders.size,
+        )
+    }
+
+    /** R9（方案 D1）：会话投影只能由 `project()` 派生 —— 手动 `copy(conversation = …)` 就是回退。 */
+    @Test
+    fun `conversation projection is derived, never hand-copied`() {
+        val lines = chatViewModelSource.readLines()
+        val functions = functionRanges(lines)
+        val offenders = lines.withIndex()
+            // 精确匹配 copy(conversation = …（排除 copy(conversations = …）与注释行）。
+            .filter { (_, line) -> R9CopyConversation.containsMatchIn(line) }
+            .filter { (_, line) ->
+                val trimmed = line.trimStart()
+                !trimmed.startsWith("*") && !trimmed.startsWith("//")
+            }
+            .filter { (index, _) -> functions.lastOrNull { it.start <= index }?.name != "project" }
+
+        assertEquals(
+            "ChatState.conversation 只能由 project() 派生（手动投影已在方案 D1 删除）：" +
+                offenders.joinToString { "L${it.index + 1}: ${it.value.trim()}" },
             0,
             offenders.size,
         )
@@ -120,6 +144,81 @@ class MvvmUdfGateTest {
         assertEquals(
             "UsageStatsViewModel 里 mutableStateFlow 只能出现在 updateState 的定义体里：" +
                 offenders.joinToString { "${it.index + 1}: ${it.value.trim()}" },
+            0,
+            offenders.size,
+        )
+    }
+
+    /**
+     * R8（P0 修复方案 D2）：**影子可变状态**与 StateFlow 同一条规矩 —— 写点只允许落在同步
+     * handler 白名单里；suspend 函数与 launch/withContext/async 块里一律禁止。
+     *
+     * 覆盖对象是"不进 StateFlow 的行为状态"：`attachedKeys`、`conversationEpoch`、
+     * `pendingContextWindow` / `pendingReasoningEffort`、`languagePreference`、`chats`、
+     * `turns` 与 `Turn` 的可变字段。②⑥ 两条正则只认 `updateState`，看不见它们 ——
+     * 这条把那块灰色地带收进护栏。
+     */
+    @Test
+    fun `shadow state is written only from synchronous handlers`() {
+        val lines = chatViewModelSource.readLines()
+        val functions = functionRanges(lines)
+        val offenders = lines.withIndex()
+            // 声明行（private var x = …）不是写点。
+            .filter { (_, line) -> !PropertyDeclaration.containsMatchIn(line) }
+            .filter { (_, line) -> ShadowWrite.containsMatchIn(line) }
+            .filter { (index, _) ->
+                val owner = functions.lastOrNull { it.start <= index } ?: return@filter true
+                owner.isSuspend ||
+                    isInsideAsyncBlock(lines, owner.start, index) ||
+                    owner.name !in ShadowWriteHelpers
+            }
+
+        assertEquals(
+            "影子状态只能由同步 handler 白名单写（异步结果先回流成 Internal action，方案 D2）：\n" +
+                offenders.joinToString("\n") { "L${it.index + 1}: ${it.value.trim()}" },
+            0,
+            offenders.size,
+        )
+    }
+
+    /**
+     * R11（P0 修复方案 D3）：handler 必须是纯的 —— 边界调用（agent 门面 / 各仓库 / 平台语言仓库 /
+     * 字体缓存 / 探测器）只允许出现在 suspend 函数或协程块里（异步路径）；同步函数里出现即违规。
+     *
+     * 白名单只剩三类例外：与附着严格有序、必须同步的**释放/拆毁**（`releaseConversation` /
+     * `onCleared`，注释见 ChatViewModel）；装配订阅的 `init`；登记在案的 P1 债
+     * （`customFontFamily` / `resolveContentFont` —— 内存缓存读，根治另案）。
+     */
+    @Test
+    fun `view model handlers do not touch boundaries synchronously`() {
+        val roots = listOf(
+            "feature/main/impl/src/main/java",
+            "feature/settings/impl/src/main/java",
+            "feature/provider/impl/src/main/java",
+        )
+        val offenders = roots
+            .flatMap { root ->
+                repoFile(root).walkTopDown()
+                    .filter { it.extension == "kt" && it.name.endsWith("ViewModel.kt") }
+                    .toList()
+            }
+            .flatMap { file ->
+                val lines = file.readLines()
+                val functions = functionRanges(lines)
+                lines.withIndex()
+                    .filter { (_, line) -> BoundaryCall.containsMatchIn(line) }
+                    .filter { (index, _) ->
+                        val owner = functions.lastOrNull { it.start <= index } ?: return@filter true
+                        !owner.isSuspend &&
+                            !isInsideAsyncBlock(lines, owner.start, index) &&
+                            owner.name !in BoundaryWhitelist
+                    }
+                    .map { (index, line) -> "${file.name}:${index + 1}: ${line.trim()}" }
+            }
+
+        assertEquals(
+            "handler 不得同步触碰边界（出站一律走 EffectRunner；读取走协程 + Internal 回流，方案 D3）：\n" +
+                offenders.joinToString("\n"),
             0,
             offenders.size,
         )
@@ -217,6 +316,9 @@ class MvvmUdfGateTest {
      *
      * 修饰符要全带：`override fun handleAction` 也是函数头（漏了它，`handleAction` 里的调用点会被
      * 误判成上一个函数 —— 这正是本门禁第一版踩过的坑）。
+     *
+     * `init {` 也切成一个区间（名字记作 "init"）：否则类体的订阅装配代码会被误判进它上面那个
+     * 函数，R11 会因此误伤。
      */
     private fun functionRanges(lines: List<String>): List<FunctionRange> {
         val header = Regex(
@@ -230,6 +332,10 @@ class MvvmUdfGateTest {
                     end = lines.lastIndex,
                     isSuspend = line.contains("suspend fun"),
                 )
+            } ?: if (line.trimStart().startsWith("init {")) {
+                FunctionRange(name = "init", start = index, end = lines.lastIndex, isSuspend = false)
+            } else {
+                null
             }
         }
         return starts.mapIndexed { i, range ->
@@ -283,13 +389,20 @@ class MvvmUdfGateTest {
         /** 状态写入点：各 VM 自己的 `updateState` / `updateEditor` / 直接摸 `mutableStateFlow`。 */
         val StateWrite = Regex("""(updateState|updateEditor|updateModelEditor|mutableStateFlow\s*\.\s*update)\s*[({]""")
 
+        /** ① 的配套：D1 投影覆写里的**只读**引用（combine/project 的输入、两个 override 声明行）。 */
+        val D1ProjectionRead = Regex(
+            """override val state(?:Flow)?\b|combine\(mutableStateFlow|project\(mutableStateFlow"""
+        )
+
+        /** R9 的配套：`copy(conversation = …`（复数 `conversations` 不匹配；注释行在测试里另滤）。 */
+        val R9CopyConversation = Regex("""copy\(conversation\s*=""")
+
         /** 方案 §4.3 的同步助手白名单：这些函数由 `handleAction` 同步调用（或本身就是 handler）。 */
         val SynchronousHelpers = setOf(
             "handleAction",
             // 每会话状态（照 ZCode 的 conversation projection）的唯一写入口：与 handleAction 同一条
             // 规矩 —— 只由同步的 handler 调用，自己不做任何异步。
             "updateChat",
-            "publishChat",
             "releaseConversation",
             "resetSession",
             "handleTranscriptRestored",
@@ -320,6 +433,56 @@ class MvvmUdfGateTest {
             "finishTurn",
             "endTurn",
             "handleLanguagePreference",
+        )
+
+        /** R8 的配套：属性声明行（`private var x = …`）不是写点。 */
+        val PropertyDeclaration = Regex("""^\s*(?:(?:private|protected|internal|public)\s+)*va[rl]\s""")
+
+        /**
+         * R8 的影子写点正则。只匹配**写**：索引写要求 `] =`（排除 `] ==` 这类读比较），
+         * 等号带 `(?!=)` 排除 `==`。原子字段（`pendingParse`/`parseQueued`）与命令通道
+         * （`commands`）为跨线程设计，不在此列。
+         */
+        val ShadowWrite = Regex(
+            """attachedKeys\[[^\]]+\]\s*=(?!=)|attachedKeys\.(?:remove|clear|put)\b|""" +
+                """conversationEpoch\s*(?:\+\+|--)|conversationEpoch\s*=(?!=)|""" +
+                """pendingContextWindow\s*=(?!=)|pendingReasoningEffort\s*=(?!=)|""" +
+                """languagePreference\s*=(?!=)|languagePreferenceSeen\s*=(?!=)|""" +
+                """chats\.(?:update|drop|rekey)\s*\(|""" +
+                """turns\[[^\]]+\]\s*=(?!=)|turns\.(?:remove|clear|put)\b|""" +
+                """\.(?:chatKey|streamingMessageId|parsedLength|job)\s*=(?!=)|""" +
+                """assistantIds\s*(?:\+=|-=)|assistantIds\.(?:remove|add)\b"""
+        )
+
+        /**
+         * R11 的边界调用正则：agent 门面、各仓库、平台语言仓库、字体缓存、探测器。
+         * 注意这是文本级护栏：改掉 receiver 命名就绕得过它 —— 命名约定本身就是规矩的一部分。
+         */
+        val BoundaryCall = Regex(
+            """(?:agentChat|conversationStore|providerRepository|userPreferencesRepository|""" +
+                """customFontRepository|customFontFamilyCache|appLanguageRepository|providerProbe)\s*\."""
+        )
+
+        /** R11 白名单：例外类型见测试上的注释。 */
+        val BoundaryWhitelist = setOf(
+            "init",
+            "releaseConversation",
+            "onCleared",
+            "customFontFamily",
+            "resolveContentFont",
+        )
+
+        /**
+         * R8 白名单 = 同步 handler/助手（同 [SynchronousHelpers]）加上四个"本身同步、由 handler
+         * 直接调用"的注册表管理者与拆毁钩子。新影子状态字段或新写点出现时，先想明白为什么它
+         * 配得上这份名单，再扩充。
+         */
+        val ShadowWriteHelpers = SynchronousHelpers + setOf(
+            "beginTurn",
+            "launchTurn",
+            "rekeyTurns",
+            "onCleared",
+            "closeStreamParser",
         )
     }
 }

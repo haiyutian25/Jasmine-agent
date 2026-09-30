@@ -13,6 +13,7 @@ import com.lhzkml.jasmine.core.ui.theme.ProductionPalettes
 import com.lhzkml.jasmine.feature.main.impl.chat.ChatMessage
 import com.lhzkml.jasmine.feature.main.impl.chat.ChatScreen
 import com.lhzkml.jasmine.feature.main.impl.chat.ChatState
+import com.lhzkml.jasmine.feature.main.impl.chat.ConversationChatState
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -40,12 +41,14 @@ class MainScreenshotTest {
       JasmineTheme(cssVars = ProductionPalettes.GeistDark) {
         ChatScreen(
           state = ChatState(
-            messages = listOf(
-              ChatMessage(id = "1", role = ChatRole.USER, text = "What is Jasmine?"),
-              ChatMessage(
-                id = "2",
-                role = ChatRole.ASSISTANT,
-                text = "A multi-module Compose app driven by live CSS-variable design tokens.",
+            conversation = ConversationChatState(
+              messages = listOf(
+                ChatMessage(id = "1", role = ChatRole.USER, text = "What is Jasmine?"),
+                ChatMessage(
+                  id = "2",
+                  role = ChatRole.ASSISTANT,
+                  text = "A multi-module Compose app driven by live CSS-variable design tokens.",
+                ),
               ),
             ),
             providers = listOf(PROVIDER),

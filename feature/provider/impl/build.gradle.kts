@@ -16,6 +16,10 @@ android {
   }
 
   buildFeatures { compose = true }
+
+  // ViewModel 的失败路径会打日志（android.util.Log）；纯 JVM 单测里它必须退化成 no-op，
+  // 而不是抛 "not mocked"（main:impl 同一个做法）。
+  testOptions { unitTests { isReturnDefaultValues = true } }
 }
 
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11) } }
@@ -37,4 +41,7 @@ dependencies {
 
   implementation(libs.hilt.android)
   ksp(libs.hilt.compiler)
+
+  testImplementation(libs.junit)
+  testImplementation(libs.kotlinx.coroutines.test)
 }

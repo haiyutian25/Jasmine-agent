@@ -35,10 +35,8 @@ import uniffi.jasmine_protocol.TokenUsageInfo as CoreTokenUsageInfo
  * the provider's metadata and the credential cross with the call.
  */
 class RustAgentChat(
-    sessionsDir: String,
+    private val handle: AgentHandle,
 ) : AgentChat {
-
-    private val handle = AgentHandle(sessionsDir, DeviceClock)
 
     /** How many messages one conversation's context holds right now (diagnostics). */
     fun contextLen(sessionId: String): Int = handle.contextLen(sessionId).toInt()

@@ -3,6 +3,7 @@ package com.lhzkml.jasmine.feature.main.impl
 import android.content.Context
 import android.content.res.Configuration
 import android.net.Uri
+import android.util.Log
 import androidx.annotation.StringRes
 import androidx.compose.ui.text.font.FontFamily
 import androidx.lifecycle.viewModelScope
@@ -14,6 +15,7 @@ import com.lhzkml.jasmine.core.data.model.UserPreferences
 import com.lhzkml.jasmine.core.data.repository.CustomFontRepository
 import com.lhzkml.jasmine.core.data.repository.UserPreferencesRepository
 import com.lhzkml.jasmine.core.ui.base.BaseViewModel
+import com.lhzkml.jasmine.core.ui.base.EffectRunner
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.core.ui.theme.ThemeResolver
 import com.lhzkml.jasmine.feature.main.impl.fonts.CustomFontFamilyCache
@@ -99,7 +101,48 @@ sealed interface MainAction {
         data class DownloadProgressReceived(val progress: Map<String, Float>) : Internal
         data class FontDownloadCompleted(val success: Boolean) : Internal
         data class FontImportCompleted(val fontId: String?) : Internal
+
+        /**
+         * 落盘失败的回执（P0 修复方案 D4）：带回乐观值与回退值，handler 按**身份守卫**
+         * 回滚 —— 当前状态仍等于乐观值才回退（连点竞态下，迟到的失败不能把新选择抹掉）。
+         */
+        data class ThemePersistRejected(val optimistic: String, val fallback: String) : Internal
+        data class ColorModePersistRejected(val optimistic: ColorMode, val fallback: ColorMode) : Internal
+        data class TypographyPersistRejected(
+            val optimistic: AppTypographyChoice,
+            val fallback: AppTypographyChoice,
+            val fallbackFontId: String,
+        ) : Internal
+        data class CustomFontPersistRejected(val optimistic: String, val fallback: String) : Internal
+        data class FontScalePersistRejected(val optimistic: Float, val fallback: Float) : Internal
+        data class AgentOutputLanguagePersistRejected(val optimistic: String, val fallback: String) : Internal
+
+        /** 字体删除完成（成功/失败）；列表本身由 installedVersion 回灌，无需回滚。 */
+        data class FontDeleteCompleted(val success: Boolean) : Internal
     }
+}
+
+/**
+ * 语言页之外所有主功能的出站命令（P0 修复方案 D3/D4）。
+ *
+ * 落盘类命令带 [optimistic]（界面正在显示的值）与回滚材料，失败由 EffectRunner 兜底成
+ * `*Rejected` 回流。短命令走这里；**长任务**（字体下载/导入 —— 有自己的进度流与
+ * Completed 回流）不占这条单消费者通道，留在各自的协程里。
+ */
+private sealed interface MainEffect {
+    data class PersistTheme(val optimistic: String, val fallback: String) : MainEffect
+    data class PersistColorMode(val optimistic: ColorMode, val fallback: ColorMode) : MainEffect
+    data class PersistTypography(
+        val optimistic: AppTypographyChoice,
+        val fallback: AppTypographyChoice,
+        val fallbackFontId: String,
+    ) : MainEffect
+    data class PersistCustomFont(val optimistic: String, val fallback: String) : MainEffect
+    data class PersistFontScale(val optimistic: Float, val fallback: Float) : MainEffect
+    data class PersistAgentOutputLanguage(val optimistic: String, val fallback: String) : MainEffect
+
+    /** 删字体：缓存驱逐与删文件是同一事务的两半步，一起成功才算成功。 */
+    data class DeleteFont(val fontId: String) : MainEffect
 }
 
 /**
@@ -159,6 +202,62 @@ class MainViewModel @Inject constructor(
     },
 ) {
 
+    /** 出站命令执行器（D3）：落盘与缓存驱逐的唯一出口；失败兜底成 *Rejected / Completed(false)。 */
+    private val effects = EffectRunner<MainEffect, MainAction>(
+        scope = viewModelScope,
+        sendAction = ::sendAction,
+        perform = ::performEffect,
+        onFailure = ::effectFailed,
+    )
+
+    /** 执行出站命令（suspend = 异步路径）。成功不需要回执：仓库 StateFlow 回灌即确认。 */
+    private suspend fun performEffect(effect: MainEffect): MainAction? = when (effect) {
+        is MainEffect.PersistTheme ->
+            userPreferencesRepository.updateTheme(effect.optimistic).let { null }
+        is MainEffect.PersistColorMode ->
+            userPreferencesRepository.updateColorMode(effect.optimistic.id).let { null }
+        is MainEffect.PersistTypography -> {
+            userPreferencesRepository.updateTypography(effect.optimistic.name)
+            userPreferencesRepository.updateActiveCustomFont("")
+            null
+        }
+        is MainEffect.PersistCustomFont ->
+            userPreferencesRepository.updateActiveCustomFont(effect.optimistic).let { null }
+        is MainEffect.PersistFontScale ->
+            userPreferencesRepository.updateFontScale(effect.optimistic).let { null }
+        is MainEffect.PersistAgentOutputLanguage ->
+            userPreferencesRepository.updateAgentOutputLanguage(effect.optimistic).let { null }
+        is MainEffect.DeleteFont -> {
+            customFontFamilyCache.evict(effect.fontId)
+            customFontRepository.deleteFont(effect.fontId)
+            MainAction.Internal.FontDeleteCompleted(true)
+        }
+    }
+
+    /** 失败兜底：把命令连同它的回滚材料回流成 *Rejected（D4）。 */
+    private fun effectFailed(effect: MainEffect, error: Throwable): MainAction {
+        Log.w(TAG, "effect $effect failed", error)
+        return when (effect) {
+            is MainEffect.PersistTheme ->
+                MainAction.Internal.ThemePersistRejected(effect.optimistic, effect.fallback)
+            is MainEffect.PersistColorMode ->
+                MainAction.Internal.ColorModePersistRejected(effect.optimistic, effect.fallback)
+            is MainEffect.PersistTypography ->
+                MainAction.Internal.TypographyPersistRejected(
+                    effect.optimistic,
+                    effect.fallback,
+                    effect.fallbackFontId,
+                )
+            is MainEffect.PersistCustomFont ->
+                MainAction.Internal.CustomFontPersistRejected(effect.optimistic, effect.fallback)
+            is MainEffect.PersistFontScale ->
+                MainAction.Internal.FontScalePersistRejected(effect.optimistic, effect.fallback)
+            is MainEffect.PersistAgentOutputLanguage ->
+                MainAction.Internal.AgentOutputLanguagePersistRejected(effect.optimistic, effect.fallback)
+            is MainEffect.DeleteFont -> MainAction.Internal.FontDeleteCompleted(false)
+        }
+    }
+
     init {
         userPreferencesRepository
             .preferencesStateFlow
@@ -209,6 +308,18 @@ class MainViewModel @Inject constructor(
             }
             is MainAction.Internal.FontDownloadCompleted -> handleFontDownloadCompleted(action)
             is MainAction.Internal.FontImportCompleted -> handleFontImportCompleted(action)
+            is MainAction.Internal.FontDeleteCompleted -> {
+                // 列表由 installedVersion 回灌（删除失败就没有回灌，列表本就未变）；失败只需可见。
+                if (!action.success) sendEvent(MainEvent.ShowToast(R.string.font_delete_failed_toast))
+            }
+
+            is MainAction.Internal.ThemePersistRejected,
+            is MainAction.Internal.ColorModePersistRejected,
+            is MainAction.Internal.TypographyPersistRejected,
+            is MainAction.Internal.CustomFontPersistRejected,
+            is MainAction.Internal.FontScalePersistRejected,
+            is MainAction.Internal.AgentOutputLanguagePersistRejected,
+            -> handlePersistRejected(action)
 
             is MainAction.AgentOutputLanguageSelected ->
                 handleAgentOutputLanguageSelected(action)
@@ -218,29 +329,29 @@ class MainViewModel @Inject constructor(
     // region Action handlers
 
     private fun handleThemeSelected(action: MainAction.ThemeSelected) {
+        val fallback = state.themeId
         updateState { copy(themeId = action.palette.themeId) }
-        viewModelScope.launch { userPreferencesRepository.updateTheme(action.palette.themeId) }
+        effects.send(MainEffect.PersistTheme(optimistic = action.palette.themeId, fallback = fallback))
     }
 
     private fun handleColorModeChanged(action: MainAction.ColorModeChanged) {
+        val fallback = state.colorMode
         updateState { copy(colorMode = action.mode) }
-        viewModelScope.launch { userPreferencesRepository.updateColorMode(action.mode.id) }
+        effects.send(MainEffect.PersistColorMode(optimistic = action.mode, fallback = fallback))
     }
 
     private fun handleTypographySelected(action: MainAction.TypographySelected) {
+        val fallbackChoice = state.typographyChoice
+        val fallbackFontId = state.activeCustomFontId
         // Selecting a system engine clears any custom-font override.
         updateState { copy(typographyChoice = action.choice, activeCustomFontId = "") }
-        viewModelScope.launch {
-            userPreferencesRepository.updateTypography(action.choice.name)
-            userPreferencesRepository.updateActiveCustomFont("")
-        }
+        effects.send(MainEffect.PersistTypography(action.choice, fallbackChoice, fallbackFontId))
     }
 
     private fun handleCustomFontSelected(action: MainAction.CustomFontSelected) {
+        val fallback = state.activeCustomFontId
         updateState { copy(activeCustomFontId = action.fontId) }
-        launchWrite(R.string.setting_save_failed_toast) {
-            userPreferencesRepository.updateActiveCustomFont(action.fontId)
-        }
+        effects.send(MainEffect.PersistCustomFont(optimistic = action.fontId, fallback = fallback))
     }
 
     private fun handleFontDownloadClicked(action: MainAction.FontDownloadClicked) {
@@ -252,15 +363,12 @@ class MainViewModel @Inject constructor(
 
     private fun handleFontDeleteClicked(action: MainAction.FontDeleteClicked) {
         if (state.activeCustomFontId == action.fontId) {
+            val fallback = state.activeCustomFontId
             updateState { copy(activeCustomFontId = "") }
-            launchWrite(R.string.setting_save_failed_toast) {
-                userPreferencesRepository.updateActiveCustomFont("")
-            }
+            effects.send(MainEffect.PersistCustomFont(optimistic = "", fallback = fallback))
         }
-        customFontFamilyCache.evict(action.fontId)
-        launchWrite(R.string.font_delete_failed_toast) {
-            customFontRepository.deleteFont(action.fontId)
-        }
+        // 缓存驱逐 + 删文件是出站命令（D3）：结果以 FontDeleteCompleted 回流。
+        effects.send(MainEffect.DeleteFont(action.fontId))
         sendEvent(MainEvent.ShowToast(R.string.font_deleted_toast))
     }
 
@@ -272,36 +380,20 @@ class MainViewModel @Inject constructor(
     }
 
     private fun handleFontScaleSaved(action: MainAction.FontScaleSaved) {
+        val fallback = state.fontScale
         updateState { copy(fontScale = action.scale) }
-        launchWrite(R.string.setting_save_failed_toast) {
-            userPreferencesRepository.updateFontScale(action.scale)
-        }
+        effects.send(MainEffect.PersistFontScale(optimistic = action.scale, fallback = fallback))
         sendEvent(MainEvent.ShowToast(R.string.font_size_saved_toast))
     }
 
     /**
-     * 模型回复语言：界面立刻跟上，落盘走仓库。它进的是**系统指令**，所以聊天那边在下一次附着会话时
-     * 才会用上新的那句（聊天页自己会重挂会话，见 ChatViewModel）。
+     * 模型回复语言：界面立刻跟上，落盘走 Effect（失败由 Rejected 回滚，D4）。它进的是**系统指令**，
+     * 所以聊天那边在下一次附着会话时才会用上新的那句（聊天页自己会重挂会话，见 ChatViewModel）。
      */
     private fun handleAgentOutputLanguageSelected(action: MainAction.AgentOutputLanguageSelected) {
+        val fallback = state.agentOutputLanguage
         updateState { copy(agentOutputLanguage = action.value) }
-        launchWrite(R.string.setting_save_failed_toast) {
-            userPreferencesRepository.updateAgentOutputLanguage(action.value)
-        }
-    }
-
-    /**
-     * 一条"出站写命令"：乐观写已经落状态，这里只负责把**失败**变成可见的提示。
-     *
-     * 成功提示仍由调用点按原来那条时序发（有些入口压根没有成功提示）。以前这些写入是
-     * fire-and-forget，落盘失败时界面什么都看不出来。
-     */
-    private fun launchWrite(@StringRes failureToast: Int, block: suspend () -> Unit) {
-        viewModelScope.launch {
-            runCatching { block() }.exceptionOrNull()?.let {
-                sendEvent(MainEvent.ShowToast(failureToast))
-            }
-        }
+        effects.send(MainEffect.PersistAgentOutputLanguage(optimistic = action.value, fallback = fallback))
     }
 
     // endregion
@@ -341,14 +433,48 @@ class MainViewModel @Inject constructor(
     private fun handleFontImportCompleted(action: MainAction.Internal.FontImportCompleted) {
         val fontId = action.fontId
         if (fontId != null) {
+            val fallback = state.activeCustomFontId
             updateState { copy(activeCustomFontId = fontId) }
-            launchWrite(R.string.setting_save_failed_toast) {
-                userPreferencesRepository.updateActiveCustomFont(fontId)
-            }
+            effects.send(MainEffect.PersistCustomFont(optimistic = fontId, fallback = fallback))
             sendEvent(MainEvent.ShowToast(R.string.font_imported_toast))
         } else {
             sendEvent(MainEvent.ShowToast(R.string.font_import_failed_toast))
         }
+    }
+
+    /**
+     * 落盘失败的统一归口（D4）：**身份守卫**回滚 —— 当前状态仍等于那条乐观值才回退
+     * （用户可能已经又选了别的，迟到的失败不能把新选择抹掉），然后提示。
+     */
+    private fun handlePersistRejected(action: MainAction.Internal) {
+        when (action) {
+            is MainAction.Internal.ThemePersistRejected ->
+                if (state.themeId == action.optimistic) updateState { copy(themeId = action.fallback) }
+            is MainAction.Internal.ColorModePersistRejected ->
+                if (state.colorMode == action.optimistic) updateState { copy(colorMode = action.fallback) }
+            is MainAction.Internal.TypographyPersistRejected ->
+                // 守卫两个字段都还是那条命令写下的样子：用户随后选了自定义字体的话，不回滚。
+                if (state.typographyChoice == action.optimistic && state.activeCustomFontId.isEmpty()) {
+                    updateState {
+                        copy(
+                            typographyChoice = action.fallback,
+                            activeCustomFontId = action.fallbackFontId,
+                        )
+                    }
+                }
+            is MainAction.Internal.CustomFontPersistRejected ->
+                if (state.activeCustomFontId == action.optimistic) {
+                    updateState { copy(activeCustomFontId = action.fallback) }
+                }
+            is MainAction.Internal.FontScalePersistRejected ->
+                if (state.fontScale == action.optimistic) updateState { copy(fontScale = action.fallback) }
+            is MainAction.Internal.AgentOutputLanguagePersistRejected ->
+                if (state.agentOutputLanguage == action.optimistic) {
+                    updateState { copy(agentOutputLanguage = action.fallback) }
+                }
+            else -> return
+        }
+        sendEvent(MainEvent.ShowToast(R.string.setting_save_failed_toast))
     }
 
     // endregion
@@ -371,12 +497,22 @@ class MainViewModel @Inject constructor(
                     colorMode = next.colorMode,
                     isSystemDark = next.isSystemDark,
                 ),
-                activeContentFont = customFontFamilyCache.fontFamilyFor(next.activeCustomFontId)
-                    ?: next.typographyChoice.font,
+                activeContentFont = resolveContentFont(next.activeCustomFontId, next.typographyChoice.font),
             )
         }
     }
 
+    /**
+     * 内存缓存读（非 IO、无副作用）。与 [customFontFamily] 同属一类已登记豁免 —— 门禁 R11 白名单，
+     * 真正的根治（查询旁路并进 State）是 P1-6 另案。
+     */
+    private fun resolveContentFont(customFontId: String, fallback: FontFamily): FontFamily =
+        customFontFamilyCache.fontFamilyFor(customFontId) ?: fallback
+
     /** Resolves an installed custom font to a [FontFamily] for UI previews. */
     fun customFontFamily(fontId: String): FontFamily? = customFontFamilyCache.fontFamilyFor(fontId)
+
+    private companion object {
+        const val TAG = "MainViewModel"
+    }
 }

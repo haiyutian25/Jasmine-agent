@@ -55,10 +55,12 @@ class ProviderDataStore @Inject constructor(
     /**
      * Atomically updates the provider list; [transform] receives the current value.
      *
-     * When the stored text cannot be decoded the update is **skipped** instead of being applied to
-     * the seed: writing the seed back would replace what the user saved (API keys included) with a
-     * factory list, silently and with no copy anywhere. Leaving the bytes alone keeps the failure
-     * visible to whoever reads them and the data recoverable.
+     * When the stored text cannot be decoded the update **fails loudly** (throws) instead of
+     * being applied to the seed: writing the seed back would replace what the user saved (API
+     * keys included) with a factory list, silently and with no copy anywhere; silently skipping
+     * would leave the UI's optimistic state standing with no echo and no error (P0 修复方案 D4
+     * 堵的就是这个"既无回灌又无事件"的洞)。抛出让失败可观察：EffectRunner 兜底成 Rejected，
+     * 界面回滚并提示，而磁盘上的原文保持不动、仍可人工恢复。
      */
     suspend fun update(transform: (List<ProviderConfig>) -> List<ProviderConfig>) {
         store.edit { prefs ->
@@ -67,7 +69,7 @@ class ProviderDataStore @Inject constructor(
                 builtInProviders.list()
             } else {
                 runCatching { json.decodeFromString<List<ProviderConfig>>(raw) }.getOrNull()
-                    ?: return@edit
+                    ?: throw IllegalStateException("stored provider list is undecodable; refusing to overwrite it")
             }
             // 没变就不写：省一次落盘，也不会因为这个动作把界面那条流再推一遍。
             val next = json.encodeToString(transform(current))
