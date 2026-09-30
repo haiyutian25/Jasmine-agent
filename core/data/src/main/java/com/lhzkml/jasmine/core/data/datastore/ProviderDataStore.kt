@@ -12,6 +12,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
 
@@ -41,6 +43,9 @@ class ProviderDataStore @Inject constructor(
 
     private val json = Json { ignoreUnknownKeys = true }
 
+    /** 读路径解码失败的通知口（G1），见 [readFailures]。 */
+    private val failures = MutableSharedFlow<String>(extraBufferCapacity = 1)
+
     /** Provider stream; a missing entry reads as the factory seed (see the class doc). */
     val providers: Flow<List<ProviderConfig>> = store.data.map { prefs ->
         val raw = prefs[KEY_PROVIDERS]
@@ -48,9 +53,22 @@ class ProviderDataStore @Inject constructor(
             builtInProviders.list()
         } else {
             runCatching { json.decodeFromString<List<ProviderConfig>>(raw) }
-                .getOrDefault(builtInProviders.list())
+                .getOrElse { failure ->
+                    // 解码失败**要上报**（G1）：以前这里是静默换成出厂种子，而"存了但读不出来"与
+                    // "还没存过"在调用方看来完全一样 —— 界面显示出厂列表、用户一改就被 update 拒掉，
+                    // 他自己那份（含 API key）被"藏起来"，而且没有任何人知道。
+                    failures.tryEmit(failure.message ?: failure.toString())
+                    builtInProviders.list()
+                }
         }
     }
+
+    /**
+     * 读路径解码失败的通知（G1）；每次失败发一条（原因文本，供日志）。
+     *
+     * `extraBufferCapacity = 1`：这是提示不是数据，投不进去也不算错。
+     */
+    val readFailures: Flow<String> = failures.asSharedFlow()
 
     /**
      * Atomically updates the provider list; [transform] receives the current value.

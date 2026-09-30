@@ -9,9 +9,11 @@ import com.lhzkml.jasmine.core.data.repository.ProviderRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -144,6 +146,9 @@ class ProviderViewModelRollbackTest {
 private class FakeProviderRepository : ProviderRepository {
     /** 测试直接往里塞初始列表；成功落盘也写这里（回灌同真实仓库）。 */
     val providers = MutableStateFlow<List<ProviderConfig>>(emptyList())
+
+    /** 用例里没有读失败。 */
+    override val readFailures: Flow<String> = emptyFlow()
 
     var deleteFailure: Exception? = null
     var upsertFailure: Exception? = null

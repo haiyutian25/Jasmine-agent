@@ -19,9 +19,19 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 import java.io.IOException
 import kotlin.coroutines.resume
+
+/**
+ * 等宿主页 `onReady` 的上限（G2）。
+ *
+ * 页面模块始终不回调（assets 缺失 / 加载失败）时，没有超时的话 [MermaidRenderer.awaitRender] 永不返回，
+ * 而它是在 [MermaidRenderer.mutex] **里面**等的 —— 全进程后续所有 mermaid 渲染（含"保存图片"）
+ * 都会永久排队，图片一直停在加载态。
+ */
+private const val PAGE_READY_TIMEOUT_MS = 5_000L
 
 /**
  * mermaid 离屏渲染器 —— **全进程只持有一个 WebView**，且它从不显示。
@@ -107,29 +117,39 @@ internal object MermaidRenderer {
 
     /**
      * 发指令并等桥回调。页面还没就绪时先把调用攒起来，等宿主页的 `onReady` 再发。
+     *
+     * **带超时**（G2）：页面始终不就绪时按渲染失败返回 `null`，而不是让调用方（以及它外面那把
+     * [mutex]）一直等下去。
      */
     private suspend fun awaitRender(
         web: WebView,
         source: String,
         isDark: Boolean,
         scale: Float,
-    ): RawRender? = suspendCancellableCoroutine { cont ->
-        val fire = {
-            Log.d(TAG, "派发渲染指令，源码 ${source.length} 字符，scale=$scale")
-            web.evaluateJavascript(
-                "window.setTheme($isDark);" +
-                    "window.renderDiagram(${JSONObject.quote(source)}, $scale);",
-                null,
-            )
-        }
-        pending = { result -> if (cont.isActive) cont.resume(result.getOrNull()) }
-        cont.invokeOnCancellation { pending = null }
-        if (pageReady) {
-            fire()
-        } else {
-            // 页面模块还没执行完，先攒着 —— 由宿主页的 onReady 回调触发。
-            Log.d(TAG, "页面未就绪，指令入队")
-            queued = fire
+    ): RawRender? = withTimeoutOrNull(PAGE_READY_TIMEOUT_MS) {
+        suspendCancellableCoroutine { cont ->
+            val fire = {
+                Log.d(TAG, "派发渲染指令，源码 ${source.length} 字符，scale=$scale")
+                web.evaluateJavascript(
+                    "window.setTheme($isDark);" +
+                        "window.renderDiagram(${JSONObject.quote(source)}, $scale);",
+                    null,
+                )
+            }
+            pending = { result -> if (cont.isActive) cont.resume(result.getOrNull()) }
+            cont.invokeOnCancellation {
+                pending = null
+                // 取消（含超时）时把攒下的调用也扔掉：否则它会在页面终于就绪时突然发一条
+                // 早就没人等的渲染指令。
+                queued = null
+            }
+            if (pageReady) {
+                fire()
+            } else {
+                // 页面模块还没执行完，先攒着 —— 由宿主页的 onReady 回调触发。
+                Log.d(TAG, "页面未就绪，指令入队")
+                queued = fire
+            }
         }
     }
 

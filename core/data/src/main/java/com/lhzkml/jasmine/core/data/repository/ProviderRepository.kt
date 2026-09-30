@@ -8,6 +8,7 @@ import com.lhzkml.jasmine.core.data.model.ModelList
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -20,6 +21,14 @@ import kotlinx.coroutines.launch
 interface ProviderRepository {
     /** Hot stream of the persisted providers, started eagerly at injection time. */
     val providersStateFlow: StateFlow<List<ProviderConfig>>
+
+    /**
+     * 读存储失败的通知（G1）：存的那份**解不出来**时每次失败发一条（原因文本，供日志）。
+     *
+     * 它让"存了但读不出来"不再与"还没存过"长得一样 —— 两者以前都会让界面显示出厂清单，
+     * 而前者意味着用户自己那份（含 API key）还在磁盘上、只是读不出来。
+     */
+    val readFailures: Flow<String>
 
     /** Inserts [provider] or replaces the stored entry with the same id. */
     suspend fun upsertProvider(provider: ProviderConfig)
@@ -76,6 +85,8 @@ class ProviderRepositoryImpl(
                 started = SharingStarted.Eagerly,
                 initialValue = builtInProviders.list(),
             )
+
+    override val readFailures: Flow<String> = providerDataStore.readFailures
 
     override suspend fun upsertProvider(provider: ProviderConfig) =
         providerDataStore.update { current ->

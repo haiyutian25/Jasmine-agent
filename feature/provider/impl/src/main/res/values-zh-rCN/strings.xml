@@ -26,6 +26,8 @@
     <string name="provider_fetch_failed_toast">获取模型列表失败</string>
     <!-- 模型目录读取失败（F7）：以前被抹成「目录里没有这个模型」，现在说一声。 -->
     <string name="provider_catalog_failed_toast">没能读到内置模型目录</string>
+    <!-- 存下来的供应商配置读不出来（G1）：界面这时显示的是出厂清单，得说一声。 -->
+    <string name="provider_read_failed_toast">没能读到你保存的供应商配置，先显示出厂清单。</string>
     <string name="provider_fetch_needs_endpoint_toast">请先填写接口地址与 API 密钥</string>
     <string name="provider_fetch_empty">未返回任何模型</string>
     <string name="provider_retry">重试</string>

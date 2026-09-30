@@ -268,6 +268,15 @@ class ProviderViewModel @Inject constructor(
             .map { ProviderAction.Internal.ProvidersReceived(it) }
             .onEach(::sendAction)
             .launchIn(viewModelScope)
+
+        // 存的那份读不出来（G1）：界面这时显示的是出厂清单，得让用户知道"你自己的那份还在，
+        // 只是没读出来"，否则他会以为配置丢了、然后照着出厂清单重填一遍。
+        providerRepository.readFailures
+            .onEach {
+                Log.w(TAG, "供应商配置读取失败：$it")
+                sendEvent(ProviderEvent.ShowToast(R.string.provider_read_failed_toast))
+            }
+            .launchIn(viewModelScope)
     }
 
     override fun handleAction(action: ProviderAction) {

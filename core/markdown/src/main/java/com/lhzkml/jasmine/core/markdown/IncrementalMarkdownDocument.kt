@@ -21,7 +21,15 @@ class IncrementalMarkdownDocument : Closeable {
     /** 累积的块列表 —— 即 [IncrementalMarkdownParser.apply] 的作用对象。 */
     private val _blocks = mutableListOf<MarkdownBlock>()
 
-    val blocks: List<MarkdownBlock> get() = _blocks
+    /**
+     * 累积块列表的**快照**。
+     *
+     * 返回 `_blocks.toList()` 而不是本体（G3）：[append] / [finalizeStream] 会**就地**改这个列表
+     * （`IncrementalMarkdownParser.apply` 里 `subList(...).clear()` + `addAll(...)`），所以把本体交出去
+     * 意味着调用方存下的"快照"会在下一次追加时被改掉 —— 违反 `List` 的不可变预期，在 UDF 里尤其危险
+     * （界面上某一帧的块列表会跟着变）。
+     */
+    val blocks: List<MarkdownBlock> get() = _blocks.toList()
 
     /** 追加增量并立即应用到块列表，返回最新块列表。 */
     fun append(chunk: String): List<MarkdownBlock> {

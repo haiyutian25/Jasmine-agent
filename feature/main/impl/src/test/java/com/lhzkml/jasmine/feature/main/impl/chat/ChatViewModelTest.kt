@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.resetMain
@@ -1294,6 +1295,49 @@ class ChatViewModelTest {
         assertEquals("model-2", viewModel.stateFlow.value.activeModelId)
     }
 
+    /**
+     * 只"打开看了一眼"的会话，离开并冷掉之后要被回收（G4）。
+     *
+     * 以前 keep-warm 计时只在回合结束时排期，纯浏览过的会话会一直留在 `chats` 里 —— 切遍 N 条
+     * 就常驻 N 份消息列表，直到 ViewModel 销毁。观测点：冷掉之后再回去，它会**重新从存储读一次**
+     * 转写（说明内存里那份已经没有了）。
+     *
+     * ⚠️ 时间一步一步推：keep-warm 的计时从"离开"起算，只有把它和"回读"分在两拍上，才分得清
+     * "这次回读是选中引起的"还是"冷掉之后重读引起的"（守卫按那一帧谁在显示决定丢不丢）。
+     */
+    @Test
+    fun `a conversation that was only opened is released once it goes cold`() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+        conversationStore.seedConversation("c1", "一号", emptyList())
+        conversationStore.seedConversation("c2", "二号", emptyList())
+        // 启动恢复读最近那条（c2）并把它设成当前会话。
+        advanceUntilIdle()
+
+        viewModel.trySendAction(ChatAction.ConversationSelected("c1"))
+        // 只走完回读（fake 的 `messagesOf` 挂起 1ms），别把 keep-warm 的 30 秒一起推过去。
+        advanceTimeBy(10)
+        val readsWhileWarm = conversationStore.messagesOfCalls.count { it == "c1" }
+        assertEquals(
+            "选中之后应当回读一次转写；实际回读序列=${conversationStore.messagesOfCalls}",
+            1,
+            readsWhileWarm,
+        )
+
+        // 切走 —— c1 从这一刻起不再显示，keep-warm 计时开始；推到空闲即到期，它该被回收。
+        viewModel.trySendAction(ChatAction.ConversationSelected("c2"))
+        advanceUntilIdle()
+
+        viewModel.trySendAction(ChatAction.ConversationSelected("c1"))
+        advanceUntilIdle()
+
+        assertEquals(
+            "冷掉之后再回去应当重新回读一次转写；实际回读序列=${conversationStore.messagesOfCalls}" +
+                "，active=${viewModel.stateFlow.value.activeConversationId}",
+            readsWhileWarm + 1,
+            conversationStore.messagesOfCalls.count { it == "c1" },
+        )
+    }
+
     private fun createViewModel() = ChatViewModel(
         providerRepository = providerRepository,
         userPreferencesRepository = preferencesRepository,
@@ -1329,6 +1373,8 @@ private class FakeProviderRepository(
     private val catalogModels: List<CatalogModel> = emptyList(),
 ) : ProviderRepository {
     override val providersStateFlow = MutableStateFlow(initial)
+    /** 用例里没有读失败。 */
+    override val readFailures: Flow<String> = emptyFlow()
     override suspend fun upsertProvider(provider: ProviderConfig) = Unit
     override suspend fun deleteProvider(id: String) = Unit
     override suspend fun fetchModels(provider: ProviderConfig): List<String> = emptyList()
@@ -1417,6 +1463,9 @@ private class FakeConversationStore : ConversationStore {
     private val transcripts = mutableMapOf<String, MutableList<TranscriptMessage>>()
     private var latest: Conversation? = null
 
+    /** 每次从存储回读转写都记一笔（见 `messagesOf`）。 */
+    val messagesOfCalls = mutableListOf<String>()
+
     /** Seeds a stored conversation and makes it the most recent one. */
     fun seedConversation(
         conversationId: String,
@@ -1460,6 +1509,8 @@ private class FakeConversationStore : ConversationStore {
     }
 
     override suspend fun messagesOf(conversationId: String): List<TranscriptMessage> {
+        // 记下每次回读：会话"冷掉之后又回读一次"就等于它被回收过（G4 的观测点）。
+        messagesOfCalls += conversationId
         delay(1)
         return transcripts[conversationId].orEmpty().toList()
     }

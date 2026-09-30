@@ -1075,9 +1075,12 @@ class ChatViewModel @Inject constructor(
     private fun handleNewConversation() {
         // 换掉当前会话：代次 +1，让在途的"会话创建完成"作废（见 [conversationEpoch]）。
         conversationEpoch++
+        val leftKey = displayKey()
         // 只放掉正在离开的那一条：别的会话（含正在跑的那一轮）一个都不碰。
         state.activeConversationId?.let { left -> releaseConversation(left) }
         updateState { copy(activeConversationId = null) }
+        // 离开的那份照 keep-warm 计时（G4），与切会话同一条规矩（"新建对话"不影响这条规则）。
+        keepWarm(leftKey)
         // 还没发第一条消息的新会话有它自己那一份空状态（见 [ConversationChats.NEW_CONVERSATION]）。
         updateConversation { copy(messages = emptyList(), isSending = false) }
         // 新会话的窗口按当前模型预设定；它第一次附着时核心会把这个值写进这条会话的文件。
@@ -1169,9 +1172,17 @@ class ChatViewModel @Inject constructor(
 
         // 换掉当前会话：代次 +1，让在途的"会话创建完成"作废（见 [conversationEpoch]）。
         conversationEpoch++
+        // 离开的那一份（还在显示时可能是"新建但还没发第一条消息"那份，见 [displayKey]）。
+        val leftKey = displayKey()
         // 只放掉正在离开的那一条（下次往它发消息会重挂）；目标那条不碰，正在跑的那一轮也不碰。
         state.activeConversationId?.let { left -> releaseConversation(left) }
         updateState { copy(activeConversationId = action.id) }
+        // 离开的那份从这一刻起不再是"正在显示的那条"，照 keep-warm 计时（G4）：冷掉即被回收，
+        // 切遍 N 条会话不会常驻 N 份消息列表。**按"离开"排期而不是按"进入"**：一直看着它超过窗口
+        // 再切走时，按进入排的那次到期会被守卫（那一刻它还在显示）放过去，此后就没有第二次计时了 ——
+        // 条目会一直留到 ViewModel 销毁。到期那一刻若它又跑了新一轮、或被切了回来，handler 的守卫
+        // 同样会把它留下。
+        keepWarm(leftKey)
         // 内存里已经有这条会话（那一轮还在跑，或还在 keep-warm 里）：投影随 activeConversationId
         // 自动切过去（D1）—— 已经流出去的片段都还在，接着渲染（照 ZCode 的 acquire 命中）。
         // 冷掉了才回落到从核心读转写。
@@ -1540,20 +1551,28 @@ class ChatViewModel @Inject constructor(
                 // 撤销登记**排在最后**：这一轮剩下的输出（还有 worker 贴回来的那些）都还在动作队列里，
                 // 先让它们落到它自己那条会话上（见 [ChatAction.Internal.TurnRetired]）。
                 sendAction(ChatAction.Internal.TurnRetired(turn.id))
-                endTurnKeepingWarm(turn.chatKey)
+                keepWarm(turn.chatKey)
             }
         }
     }
 
     /**
-     * 回合收尾：这一轮不再往它的会话上写东西了，并按 ZCode 的 keep-warm 让它再热一阵 —— 期间切回来
-     * 还是内存里这份（已经流出去的片段都在，接着看）；冷掉之后才回落到读转写。
+     * 让这条会话在内存里再热一阵（ZCode 的 keep-warm）：期间切回来还是内存里这份（已经流出去的
+     * 片段都在，接着看）；冷掉之后才回落到读转写。
+     *
+     * 两个排期点：**回合收尾**（这一轮不再往它上面写东西了），以及**离开这条会话**（切走 /
+     * 新建对话，G4）—— 以前只有前者，于是纯浏览过的会话会一直留在 `chats` 里，切遍 N 条会话就
+     * 常驻 N 份消息列表，直到 ViewModel 销毁。
+     *
+     * 按"离开"排期而不是按"进入"：正显示着的那份到期时守卫一定放它过去，只有离开之后那次到期才有
+     * 意义（[ChatAction.Internal.KeepWarmExpired] 里那一帧的判定）。
+     *
+     * 到期只发信号：丢不丢由 handler 在**那一帧**判定（又跑了新一轮、或者正显示着它，就不丢）——
+     * 协程里直接 drop 是异步写影子状态（D2 收编的口子）。
      */
-    private fun endTurnKeepingWarm(key: String) {
+    private fun keepWarm(key: String) {
         viewModelScope.launch {
             delay(ConversationChats.KEEP_WARM_MS)
-            // 到期只发信号：丢不丢由 handler 在**那一帧**判定（又跑了新一轮、或者正显示着它，
-            // 就不丢）——协程里直接 drop 是异步写影子状态（D2 收编的口子）。
             sendAction(ChatAction.Internal.KeepWarmExpired(key))
         }
     }

@@ -347,7 +347,7 @@ is ChatAction.Internal.ActiveModelReceived -> {
 
 ## 2. Phase G — 可观察性、一致性与护栏
 
-### G1 `ProviderDataStore` 读路径：与自己的文档对齐
+### G1 `ProviderDataStore` 读路径：与自己的文档对齐 — ✅
 
 **现状（证据）**：`core/data/.../datastore/ProviderDataStore.kt:45-53` 读失败时
 `.getOrDefault(builtInProviders.list())`，而同一个类的 KDoc `:32-33` 写
@@ -364,7 +364,20 @@ is ChatAction.Internal.ActiveModelReceived -> {
 **怎么验证**：`core/data` 补测试（该模块目前无 `src/test`）—— 写入坏 JSON 后读，
 断言上报了一次失败且没有把它当成"没存过"。
 
-### G2 `MermaidRenderer.awaitRender` 加超时、缩短持锁
+**实施记录**
+
+- `ProviderDataStore` 新增 `private val failures = MutableSharedFlow<String>(extraBufferCapacity = 1)`
+  与 `val readFailures: Flow<String>`；读路径 `.getOrDefault(...)` 改成 `.getOrElse { failures.tryEmit(原因) ; builtInProviders.list() }`
+  —— 失败**先上报再**回落到出厂清单（顺序上保证"报"不被回落吞掉）。
+- `ProviderRepository` 接口加 `val readFailures: Flow<String>`，Impl 直接转发 DataStore 的那条流。
+- `ProviderViewModel` 构造期收集它：`Log.w(TAG, ...)` + `ProviderEvent.ShowToast(R.string.provider_read_failed_toast)`
+  （中英各一条：`没能读到你保存的供应商配置，先显示出厂清单。`）。
+- 两个测试替身（`ChatViewModelTest.FakeProviderRepository`、`ProviderViewModelRollbackTest.FakeProviderRepository`）
+  补 `override val readFailures: Flow<String> = emptyFlow()`。
+- **未做方案里那条验证**：`core/data` 至今没有 `src/test`，而 `ProviderDataStore` 要 `Context` + 真 DataStore
+  才起得来（纯 JVM 单测不行）—— 已如实归入 G6（需 Robolectric）。
+
+### G2 `MermaidRenderer.awaitRender` 加超时、缩短持锁 — ✅
 
 **现状（证据）**：`core/markdown/.../ui/MermaidRenderer.kt:111-134` —— `suspendCancellableCoroutine`
 **没有超时**，`pageReady` 为 false 时把 `fire` 存进 `queued` 等宿主页 `onReady`；
@@ -380,7 +393,20 @@ is ChatAction.Internal.ActiveModelReceived -> {
 **怎么验证**：`core/markdown` 补测试（该模块目前无 `src/test`）—— 让 `pageReady` 永不置位，
 断言按期返回 `null` 而不是挂住。
 
-### G3 `IncrementalMarkdownDocument.blocks` 的别名
+**实施记录**
+
+- 文件级 `private const val PAGE_READY_TIMEOUT_MS = 5_000L`；`awaitRender` 整体包进
+  `withTimeoutOrNull(PAGE_READY_TIMEOUT_MS) { suspendCancellableCoroutine { ... } }`
+  —— 超时即返回 `null`（调用方按渲染失败处理），持锁的 `render` 因此**必然**能返回。
+- `invokeOnCancellation` 里除 `pending = null` 外**同时清掉 `queued`**：否则超时之后那次攒下的调用
+  会在页面终于就绪时突然发出去（已经没人等的渲染指令）。
+- **对原方案的一处更正**：方案里"把持锁范围收窄到只保护 `pending` / `queued`"**没有做**，也不该做 ——
+  那把锁保护的是"全进程唯一的那个 WebView + 它的 `pending`/`queued`"，渲染本来就是与它的顺序交互；
+  缩锁只会把并发放进来（同一时刻两条 `evaluateJavascript` 打同一个 WebView）。造成**永久**排队的根因是
+  等待**无上界**，超时把它解掉了。
+- **未做方案里那条验证**：要真 `WebView`（纯 JVM / Robolectric 都起不了）—— 归入 G6。
+
+### G3 `IncrementalMarkdownDocument.blocks` 的别名 — ✅
 
 **现状（证据）**：`core/markdown/.../IncrementalMarkdownDocument.kt:22-30` —— `blocks` 与
 `append` / `finalizeStream` 返回的都是**内部同一个可变列表**；`IncrementalMarkdownParser.apply`
@@ -393,7 +419,12 @@ is ChatAction.Internal.ActiveModelReceived -> {
 
 **怎么验证**：`core/markdown` 补测试 —— 取一次 `blocks`，再 `append`，断言先前取到的那份没变。
 
-### G4 `chats` 里"只被打开过"的会话条目不回收
+**实施记录**：`val blocks: List<MarkdownBlock> get() = _blocks.toList()`（对外只给**快照**）。
+`append` / `finalizeStream` 仍返回内部那份（它们是"本次追加的结果"，调用方立刻取用；而且"就地改"正是
+它们与 `blocks` 的约定）。**未做方案里那条验证**：`IncrementalMarkdownDocument` 的解析器是 JNI 的
+（构造时就 `System.loadLibrary`），纯 JVM 单测加载不了 `.so` —— 归入 G6（需设备/仪器化测试）。
+
+### G4 `chats` 里"只被打开过"的会话条目不回收 — ✅
 
 **现状（证据）**：`ChatViewModel.kt:1174`（选中冷会话时 `updateChat` 建条目）+ 
 `chat/ConversationChats.kt:90`（`update` 无条件建条目）；唯一回收路径是
@@ -406,6 +437,24 @@ is ChatAction.Internal.ActiveModelReceived -> {
 两者取其一，保持"有回合的会话不被误清"。
 
 **怎么验证**：`ChatViewModelTest` —— 连续打开 N 条冷会话，断言常驻条目数有上界。
+
+**实施记录**
+
+- 排期点从"进入 + 回合收尾"改成**"离开 + 回合收尾"**：`handleConversationSelected` 与
+  `handleNewConversation` 在换掉当前会话时，对 `displayKey()`（**离开**的那一份，含"新建但还没发第一条
+  消息"那份 `""`）调 `keepWarm(leftKey)`；`endTurnKeepingWarm` 因此改名 `keepWarm`（现在不止一个排期点）。
+- **为什么不是"进入时排期"**（第一版这么写的，测试直接把它逮住了）：正显示着的那份到期时，
+  `KeepWarmExpired` 的守卫（`displayKey() != key`）**一定**放它过去 —— 计时器就此消耗掉，此后不会再有第二次。
+  于是"一直看着它超过 30 秒再切走"这条常见路径会把这一条永久留在 `chats` 里，正是 G4 要治的病。
+  按**离开**排期则保证"不再显示"之后必然还有一次到期；到期那一刻它若又跑了新一轮、或被切回来，
+  守卫照旧把它留下（"有回合的会话不被误清"这条不变量不破）。
+- 验证：`ChatViewModelTest` 新增 `a conversation that was only opened is released once it goes cold` ——
+  先只把**回读**推完（`advanceTimeBy(10)`，keep-warm 是 30 秒，这一拍到不了），切走之后再推到空闲；
+  断言"冷掉之后回去会**重新回读一次**转写"。
+  没有用方案里写的"常驻条目数有上界"：`chats` 对测试不可见，而"重读一次"正是"内存里那份已经没了"的
+  直接可观测后果（`FakeConversationStore` 记 `messagesOfCalls`）。
+- ⚠️ 写这个用例时必须知道的事：`advanceUntilIdle()` **不是**"推进一点点"，它会把 30 秒的计时器一并跑完。
+  第一步排查时正是踩了这个 —— 第一版用例在"还显示着 c1"的那一帧把计时器跑掉了，于是后面怎么等都等不到回收。
 
 ### G5 文档与现状全面对齐
 
@@ -481,7 +530,7 @@ is ChatAction.Internal.ActiveModelReceived -> {
 | F6 | Rust "读坏了"可观察 + transcript 兜底状态 | 无 | Rust 单测 3 条 |
 | F7 | Kotlin 四处静默吞错收口 | 无 | `ChatViewModelTest` 各 1 条 |
 | F8 | `ActiveModelReceived` 身份守卫 | 无 | `ChatViewModelTest` 1 条 |
-| G1–G4 | 一致性 / 卡死 / 别名 / 回收 | 无 | 各自模块新增单测（`core/data`、`core/markdown`、`chat` 需先建测试源集） |
+| G1–G4 | 一致性 / 卡死 / 别名 / 回收 | 无 | G4 有 `ChatViewModelTest` 回归；G1/G2/G3 的行为级测试因需 `Context`/`WebView`/JNI 顺延到 G6（各条实施记录里已记录） |
 | G5 | 文档对齐 | 无 | 逐条 grep 抽查 |
 | G6 | 测试空白补齐 | F、G1–G4 | 全量测试全绿 |
 
