@@ -166,7 +166,8 @@ pub fn interrupted_turn(path: &Path) -> Option<String> {
             | RolloutItem::ResponseItem(_)
             | RolloutItem::ContextWindow { .. }
             | RolloutItem::ReasoningEffort { .. }
-            | RolloutItem::TokenUsageRecord { .. } => {}
+            | RolloutItem::TokenUsageRecord { .. }
+            | RolloutItem::InterruptedReply { .. } => {}
         }
     }
     None

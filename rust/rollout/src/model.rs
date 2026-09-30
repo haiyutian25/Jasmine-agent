@@ -76,6 +76,16 @@ pub enum RolloutItem {
         /// How long the turn had been running, which the platform shows as "stopped after N s".
         duration_ms: u64,
     },
+    /// The part of an answer a stopped turn had already written.
+    ///
+    /// A presentation record, not a model-visible one: the conversation is made of the items the
+    /// provider marked done, and a round cut off in the middle never got that far. `read_response_items`
+    /// reads `ResponseItem` only, so the next request does not carry this, and the transcript shows it
+    /// as the text the turn had reached.
+    InterruptedReply {
+        turn_id: String,
+        text: String,
+    },
 }
 
 /// Why a turn stopped before it finished.

@@ -478,7 +478,7 @@ impl AgentChatService {
         let registry = self.runtime.registry();
         let runtime = &self.runtime;
         let mut emit = |event: ChatEvent| sink.emit(event);
-        let recorded = history.len();
+        let mut recorded = history.len();
         *cancellation = self.fresh_cancellation()?;
         let started = std::time::Instant::now();
         *turn_id = uuid::Uuid::new_v4().to_string();
@@ -509,8 +509,11 @@ impl AgentChatService {
             &mut emit,
         ));
         if matches!(outcome, Ok(Err(SessionError::TurnAborted))) {
-            // Recorded before the abort event, as upstream does: a client that re-reads the
-            // rollout on that event must already see why the turn ended.
+            // 文件的顺序就是界面上的顺序：这一轮已经有的条目（用户消息）先落，再落被停时已写出的
+            // 那半截正文，最后才是中断标记。
+            record_turn(rollout, history, recorded)?;
+            recorded = history.len();
+            record_interrupted_reply(rollout, thread, turn_id)?;
             history.push(interrupted_turn_marker());
         }
         record_turn(rollout, history, recorded)?;
@@ -550,7 +553,7 @@ impl AgentChatService {
         let registry = self.runtime.registry();
         let runtime = &self.runtime;
         let mut emit = |event: ChatEvent| sink.emit(event);
-        let recorded = history.len();
+        let mut recorded = history.len();
         *cancellation = self.fresh_cancellation()?;
         let started = std::time::Instant::now();
         *turn_id = uuid::Uuid::new_v4().to_string();
@@ -581,8 +584,11 @@ impl AgentChatService {
             &mut emit,
         ));
         if matches!(outcome, Ok(Err(SessionError::TurnAborted))) {
-            // Recorded before the abort event, as upstream does: a client that re-reads the
-            // rollout on that event must already see why the turn ended.
+            // 文件的顺序就是界面上的顺序：这一轮已经有的条目（用户消息）先落，再落被停时已写出的
+            // 那半截正文，最后才是中断标记。
+            record_turn(rollout, history, recorded)?;
+            recorded = history.len();
+            record_interrupted_reply(rollout, thread, turn_id)?;
             history.push(interrupted_turn_marker());
         }
         record_turn(rollout, history, recorded)?;
@@ -638,7 +644,7 @@ impl AgentChatService {
         let registry = self.runtime.registry();
         let runtime = &self.runtime;
         let mut emit = |event: ChatEvent| sink.emit(event);
-        let recorded = history.len();
+        let mut recorded = history.len();
         *cancellation = self.fresh_cancellation()?;
         let started = std::time::Instant::now();
         *interrupted = false;
@@ -670,8 +676,11 @@ impl AgentChatService {
             &mut emit,
         ));
         if matches!(outcome, Ok(Err(SessionError::TurnAborted))) {
-            // Recorded before the abort event, as upstream does: a client that re-reads the
-            // rollout on that event must already see why the turn ended.
+            // 文件的顺序就是界面上的顺序：这一轮已经有的条目（用户消息）先落，再落被停时已写出的
+            // 那半截正文，最后才是中断标记。
+            record_turn(rollout, history, recorded)?;
+            recorded = history.len();
+            record_interrupted_reply(rollout, thread, turn_id)?;
             history.push(interrupted_turn_marker());
         }
         record_turn(rollout, history, recorded)?;
@@ -688,8 +697,9 @@ impl AgentChatService {
 
     /// Stops the turn that is running.
     ///
-    /// Nothing is cut off mid-flight: the turn notices at its next await point, keeps whatever it
-    /// had already produced, and reports itself as aborted.
+    /// Nothing is cut off mid-flight: the turn notices at its next await point and reports itself as
+    /// aborted. What it had already streamed went to the platform; a stopped round does not join the
+    /// conversation.
     pub fn interrupt(&self) -> Result<(), AgentError> {
         let token = self
             .cancellation
@@ -712,8 +722,9 @@ impl AgentChatService {
 
     /// Keeps the half-written reply a cancelled turn left behind.
     ///
-    /// The platform owns the durable transcript; this puts the same text into the model's
-    /// context so both sides agree on what was said.
+    /// The platform owns the durable transcript, and this puts that text where the transcript reads
+    /// it. It is not part of the conversation: only what the provider marked done is, so the next
+    /// request does not carry it — the model sees that round's interrupted marker and nothing else.
     pub fn persist_interrupted_reply(&self, text: &str) -> Result<(), AgentError> {
         if text.trim().is_empty() {
             return Ok(());
@@ -721,19 +732,13 @@ impl AgentChatService {
 
         let mut guard = self.lock()?;
         let attached = guard.as_mut().ok_or(AgentError::NoSession)?;
-        let item = ResponseItem::Message {
-            id: None,
-            role: Role::Model.as_str().to_string(),
-            content: vec![ContentItem::OutputText {
+        record_boundary(
+            &mut attached.rollout,
+            RolloutItem::InterruptedReply {
+                turn_id: attached.turn_id.clone(),
                 text: text.to_string(),
-            }],
-        };
-        attached.history.push(item.clone());
-        attached
-            .rollout
-            .record_items(&[RolloutItem::ResponseItem(item)])
-            .map_err(|error| AgentError::Transcript(error.to_string()))?;
-        Ok(())
+            },
+        )
     }
 
     /// Creates a conversation's file, so a new conversation exists before it is attached.
@@ -891,6 +896,25 @@ impl AgentChatService {
                             tool_detail: None,
                             tool_result: None,
                             thinking: text.trim().to_string(),
+                            tool_status: String::new(),
+                        });
+                    }
+                }
+                // 被停的那一轮写出来的正文：转写里就是普通一行，但它是展示记录，不是模型条目
+                // （见 `RolloutItem::InterruptedReply`）。
+                RolloutItem::InterruptedReply { text, .. } => {
+                    if !text.trim().is_empty() {
+                        lines.push(HistoryEntry {
+                            role: Role::Model,
+                            text: text.clone(),
+                            tool_call_id: None,
+                            stopped_after_ms: None,
+                            recorded_at: at,
+                            model_label: model_label.clone(),
+                            tool_name: None,
+                            tool_detail: None,
+                            tool_result: None,
+                            thinking: String::new(),
                             tool_status: String::new(),
                         });
                     }
@@ -1149,6 +1173,28 @@ fn interrupted_turn_marker() -> ResponseItem {
                    </turn_aborted>"
                 .to_string(),
         }],
+    }
+}
+
+/// Records the part of an answer a stopped round had already written.
+///
+/// A presentation record, not a model-visible one: the conversation is made of what the provider
+/// marked done, so this never reaches the model (`read_response_items` reads `ResponseItem` only),
+/// and the transcript shows it as the text the turn had reached.
+fn record_interrupted_reply(
+    rollout: &mut RolloutRecorder,
+    thread: &mut ChatThread,
+    turn_id: &str,
+) -> Result<(), AgentError> {
+    match thread.take_interrupted_reply() {
+        Some(text) => record_boundary(
+            rollout,
+            RolloutItem::InterruptedReply {
+                turn_id: turn_id.to_string(),
+                text,
+            },
+        ),
+        None => Ok(()),
     }
 }
 

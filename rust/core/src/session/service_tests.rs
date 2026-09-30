@@ -12,6 +12,7 @@ use jasmine_model_provider_info::ModelProviderInfo;
 use jasmine_model_provider_info::WireApi;
 use jasmine_protocol::ChatEvent;
 use jasmine_protocol::SessionId;
+use jasmine_protocol::Role;
 use jasmine_protocol::models::ContentItem;
 use jasmine_protocol::models::ResponseItem;
 use jasmine_rollout::RolloutItem;
@@ -204,8 +205,10 @@ fn ending_the_conversation_detaches_it() {
     ));
 }
 
+/// 被停的那一轮写出来的正文落进文件、转写里当普通一行显示，但**不进模型上下文** ——
+/// 带工具表的思考模式请求要求每条 assistant 都带完整思考，半截内容进去就会被整轮拒 400。
 #[test]
-fn an_interrupted_reply_joins_the_context_and_the_file() {
+fn a_stopped_reply_is_shown_but_stays_out_of_the_context() {
     let dir = sessions_dir("interrupted");
     let service = service(&dir);
     attach(&service, "s1", "chat");
@@ -214,9 +217,18 @@ fn an_interrupted_reply_joins_the_context_and_the_file() {
         .persist_interrupted_reply("half a sentence")
         .expect("persist");
 
-    assert_eq!(service.context_len(), 1);
+    // 模型上下文里没有它：下一轮请求不会带上。
+    assert_eq!(service.context_len(), 0);
     let path = find_session_path(&dir, "s1").expect("find").expect("path");
-    assert_eq!(read_response_items(&path).expect("read").len(), 1);
+    assert!(read_response_items(&path).expect("read").is_empty());
+
+    // 转写里有，而且是一行普通的模型回复。
+    assert!(
+        service
+            .transcript(&SessionId::new("s1"))
+            .iter()
+            .any(|entry| entry.role == Role::Model && entry.text == "half a sentence"),
+    );
 }
 
 /// 新建会话时，会话自己的档位从**核心目录里的起点档**抄一次；此后只认会话自己的记录。

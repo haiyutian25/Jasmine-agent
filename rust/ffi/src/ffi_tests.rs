@@ -228,7 +228,11 @@ fn what_a_conversation_said_crosses_the_boundary_on_attach() {
     let second = handle(&dir);
     attach(&second, "s1", "昨天的对话");
 
-    assert_eq!(second.context_len(), 1, "会话自己的文件应当被装载回来");
+    // 跨进程留下的是转写（展示记录），不是模型上下文：被停的那一轮不进对话。
+    assert_eq!(second.context_len(), 0, "被停的那一轮不进模型上下文");
+    let transcript = second.transcript("s1".to_string());
+    assert_eq!(transcript.len(), 1, "转写里仍然有那半句");
+    assert_eq!(transcript[0].text, "上一次答的");
 }
 
 #[test]

@@ -73,8 +73,7 @@ pub async fn run_turn<T: HttpTransport>(
             .await
             .map_err(SessionError::from)?;
 
-        // Stopping is noticed inside the stream read, which keeps the part that had already
-        // arrived: what is on screen is what the file will hold.
+        // Stopping is noticed inside the stream read, which ends it there.
         let round = match drain_stream(stream, &mut *turn.thread, emit, turn.cancellation).await {
             Ok(round) => round,
             Err(error) => {
@@ -82,6 +81,14 @@ pub async fn run_turn<T: HttpTransport>(
                 return Err(error.into());
             }
         };
+
+        // A stopped round contributes nothing to the conversation. Only what the provider marked
+        // done belongs to it, and a round cut off in the middle never got that far. What it did
+        // write is handed over instead, for the record the platform shows it from.
+        if turn.cancellation.is_cancelled() {
+            turn.thread.note_interrupted_reply(&round.text);
+            return Err(SessionError::TurnAborted);
+        }
 
         // A settled item belongs to the round that produced it: a thinking model's reasoning is
         // part of what the next request has to see.
@@ -99,11 +106,6 @@ pub async fn run_turn<T: HttpTransport>(
                 role: "assistant".to_string(),
                 content: vec![ContentItem::OutputText { text: round.text }],
             });
-        }
-
-        // The part that arrived is in the history, so the file keeps what the screen showed.
-        if turn.cancellation.is_cancelled() {
-            return Err(SessionError::TurnAborted);
         }
 
         // A prompt stops the turn: the interactive call has no result yet, and asking the
@@ -153,7 +155,7 @@ async fn drain_stream(
     loop {
         let event = tokio::select! {
             event = stream.next() => event,
-            // Stopping keeps whatever had already arrived, so the caller can put it in the history.
+            // Stopping ends the read here; the caller reports the turn as aborted.
             _ = cancellation.cancelled() => break,
         };
         let Some(event) = event else { break };

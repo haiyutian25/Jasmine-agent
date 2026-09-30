@@ -345,6 +345,21 @@ fn reasoning_text(content: &Option<Vec<ReasoningItemContent>>) -> Option<String>
     (!text.trim().is_empty()).then_some(text)
 }
 
+/// The role one item's text goes out as.
+///
+/// The core injects items whose role is `developer` ([`crate::session::interrupted_turn_marker`] writes
+/// the interrupted-turn marker that way). That role is legal on the Responses protocol and means the
+/// same thing as `system`, but this wire's endpoints only take `system` / `user` / `assistant` / `tool`
+/// — one that does not (DeepSeek) rejects the **whole request** with
+/// `422 unknown variant \`developer\``, which turns every turn after an interrupt into a failure.
+fn chat_role(role: &str) -> String {
+    if role == "developer" {
+        "system".to_string()
+    } else {
+        role.to_string()
+    }
+}
+
 /// Maps one item to the messages it becomes. A tool result is its own message, so an item
 /// that carries only a result yields exactly one.
 fn chat_messages(item: &ResponseItem) -> Vec<ChatMessage> {
@@ -363,7 +378,7 @@ fn chat_messages(item: &ResponseItem) -> Vec<ChatMessage> {
                 return Vec::new();
             }
             vec![ChatMessage {
-                role: role.clone(),
+                role: chat_role(role),
                 content: Some(text),
                 reasoning_content: None,
                 tool_calls: None,
@@ -469,6 +484,41 @@ mod tests {
             namespace: None,
             output: FunctionCallOutputPayload::from_text(text.to_string()),
         }
+    }
+
+    /// 中断之后的那一轮曾经整条被拒。
+    ///
+    /// 核心注入的中断提示是 `role: "developer"`（见 `session::interrupted_turn_marker`）：它符合
+    /// Responses 协议，但这边的端点只认 `system` / `user` / `assistant` / `tool` —— 原样发出去，
+    /// DeepSeek 会回 `422 ... unknown variant \`developer\``，于是**停止过一次的会话，之后每一轮都失败**。
+    /// 这条线上它落成 `system`（同一含义），内容一个字符都不改。
+    #[test]
+    fn an_injected_developer_item_goes_out_as_system() {
+        let request = request(vec![
+            message("user", "讲个笑话"),
+            message("assistant", "为什么程序员分不清万圣节和圣诞节"),
+            message(
+                "developer",
+                "<turn_aborted>\nThe previous turn was interrupted on purpose.\n</turn_aborted>",
+            ),
+            message("user", "继续"),
+        ]);
+
+        let chat = chat_request("m", &request, None, None).expect("a chat request");
+        let roles: Vec<&str> = chat
+            .messages
+            .iter()
+            .map(|message| message.role.as_str())
+            .collect();
+        assert_eq!(roles, vec!["user", "assistant", "system", "user"]);
+
+        // 内容是上下文，照旧带上。
+        assert!(
+            chat.messages[2]
+                .content
+                .as_deref()
+                .is_some_and(|text| text.contains("<turn_aborted>")),
+        );
     }
 
     /// The shape a thinking model's turn has to take on this wire.

@@ -45,6 +45,11 @@ pub struct ChatThread {
     /// Which part of the request the last round sent, counted by the turn. Kept so the platform
     /// can be given the same picture again when only the window changes.
     request_breakdown: Vec<ContextUsageBreakdownItem>,
+
+    /// The part of an answer a stopped round had already written, for the caller to record as the
+    /// presentation record it is (`RolloutItem::InterruptedReply`). It is not part of the
+    /// conversation: a round the provider never marked done contributes nothing to it.
+    interrupted_reply: Option<String>,
 }
 
 impl ChatThread {
@@ -169,11 +174,25 @@ impl ChatThread {
         self.token_usage_info = None;
         self.context_window = 0;
         self.request_breakdown = Vec::new();
+        self.interrupted_reply = None;
     }
 
     /// Starts a turn: the pause flag belongs to the turn, not to the session.
     pub fn begin_turn(&mut self) {
         self.paused_for_prompt = false;
+        self.interrupted_reply = None;
+    }
+
+    /// Keeps the part of an answer a stopped round had already written, for the caller to record.
+    pub fn note_interrupted_reply(&mut self, text: &str) {
+        if !text.trim().is_empty() {
+            self.interrupted_reply = Some(text.to_string());
+        }
+    }
+
+    /// Takes that answer back, so one stop is recorded once.
+    pub fn take_interrupted_reply(&mut self) -> Option<String> {
+        self.interrupted_reply.take()
     }
 
     pub fn note_invocation(&mut self, invocation_id: Option<String>) {
