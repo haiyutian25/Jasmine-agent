@@ -1043,6 +1043,19 @@ fn tool_line(
     }
 }
 
+/// The markers an injected contextual fragment carries: the interrupted-turn notice.
+const TURN_ABORTED_MARKERS: (&str, &str) = ("<turn_aborted>", "</turn_aborted>");
+
+/// Whether an item is a contextual fragment the core injected, rather than something that was said.
+///
+/// Upstream keeps the same split and tells them apart by the fragment's own markers, so the model
+/// sees the notice and the platform does not show it as a message of its own.
+fn is_contextual_user_fragment(role: &str, text: &str) -> bool {
+    role == Role::User.as_str()
+        && text.trim_start().starts_with(TURN_ABORTED_MARKERS.0)
+        && text.trim_end().ends_with(TURN_ABORTED_MARKERS.1)
+}
+
 /// What the platform's transcript shows for one recorded item.
 ///
 /// A tool result is shown as the model's own line, keyed by the call it answers.
@@ -1058,8 +1071,9 @@ fn transcript_entry(item: &ResponseItem) -> Option<HistoryEntry> {
                     ContentItem::InputImage { .. } | ContentItem::InputAudio { .. } => None,
                 })
                 .collect::<String>();
-            // A developer item is context the core injected, not something the conversation said.
-            if text.is_empty() || role == "developer" {
+            // A contextual fragment is context the core injected, not something the conversation
+            // said: the model sees it, the transcript does not.
+            if text.is_empty() || is_contextual_user_fragment(role, &text) {
                 return None;
             }
             Some(HistoryEntry {
@@ -1157,17 +1171,18 @@ fn record_usage(rollout: &mut RolloutRecorder, thread: &ChatThread) -> Result<()
 
 /// The marker the core leaves in the conversation when a turn is interrupted on purpose.
 ///
-/// It is the shape upstream records on its interrupt path (`reason == Interrupted`): a developer
-/// item carrying the interrupted-turn guidance, written before the abort event so a client that
-/// re-reads the rollout on that event already sees it. The platform does not show it — see
-/// [transcript_entry] — and the next request sends it to the model.
+/// It is the shape upstream records on its interrupt path when no multi-agent version speaks for the
+/// conversation: a **contextual user fragment** carrying the interrupted-turn guidance, wrapped in
+/// the fragment's own markers. Written before the abort event, so a client that re-reads the rollout
+/// on that event already sees it. The platform does not show it — see [transcript_entry] — and the
+/// next request sends it to the model as a user message, which every wire accepts as it is.
 fn interrupted_turn_marker() -> ResponseItem {
     ResponseItem::Message {
         id: None,
-        role: "developer".to_string(),
+        role: Role::User.as_str().to_string(),
         content: vec![ContentItem::InputText {
             text: "<turn_aborted>\n\
-                   The previous turn was interrupted on purpose. Any running unified exec \
+                   The user interrupted the previous turn on purpose. Any running unified exec \
                    processes may still be running in the background. If any tools/commands were \
                    aborted, they may have partially executed.\n\
                    </turn_aborted>"

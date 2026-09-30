@@ -345,21 +345,6 @@ fn reasoning_text(content: &Option<Vec<ReasoningItemContent>>) -> Option<String>
     (!text.trim().is_empty()).then_some(text)
 }
 
-/// The role one item's text goes out as.
-///
-/// The core injects items whose role is `developer` ([`crate::session::interrupted_turn_marker`] writes
-/// the interrupted-turn marker that way). That role is legal on the Responses protocol and means the
-/// same thing as `system`, but this wire's endpoints only take `system` / `user` / `assistant` / `tool`
-/// — one that does not (DeepSeek) rejects the **whole request** with
-/// `422 unknown variant \`developer\``, which turns every turn after an interrupt into a failure.
-fn chat_role(role: &str) -> String {
-    if role == "developer" {
-        "system".to_string()
-    } else {
-        role.to_string()
-    }
-}
-
 /// Maps one item to the messages it becomes. A tool result is its own message, so an item
 /// that carries only a result yields exactly one.
 fn chat_messages(item: &ResponseItem) -> Vec<ChatMessage> {
@@ -378,7 +363,7 @@ fn chat_messages(item: &ResponseItem) -> Vec<ChatMessage> {
                 return Vec::new();
             }
             vec![ChatMessage {
-                role: chat_role(role),
+                role: role.clone(),
                 content: Some(text),
                 reasoning_content: None,
                 tool_calls: None,
@@ -486,20 +471,16 @@ mod tests {
         }
     }
 
-    /// 中断之后的那一轮曾经整条被拒。
-    ///
-    /// 核心注入的中断提示是 `role: "developer"`（见 `session::interrupted_turn_marker`）：它符合
-    /// Responses 协议，但这边的端点只认 `system` / `user` / `assistant` / `tool` —— 原样发出去，
-    /// DeepSeek 会回 `422 ... unknown variant \`developer\``，于是**停止过一次的会话，之后每一轮都失败**。
-    /// 这条线上它落成 `system`（同一含义），内容一个字符都不改。
+    /// 角色原样上线：核心注入的上下文片段（中断提示）自己就是一条 `user` 消息，见
+    /// `session::interrupted_turn_marker` —— 这条线上不改写任何角色。
     #[test]
-    fn an_injected_developer_item_goes_out_as_system() {
+    fn injected_context_goes_out_under_its_own_role() {
         let request = request(vec![
             message("user", "讲个笑话"),
             message("assistant", "为什么程序员分不清万圣节和圣诞节"),
             message(
-                "developer",
-                "<turn_aborted>\nThe previous turn was interrupted on purpose.\n</turn_aborted>",
+                "user",
+                "<turn_aborted>\nThe user interrupted the previous turn on purpose.\n</turn_aborted>",
             ),
             message("user", "继续"),
         ]);
@@ -510,7 +491,7 @@ mod tests {
             .iter()
             .map(|message| message.role.as_str())
             .collect();
-        assert_eq!(roles, vec!["user", "assistant", "system", "user"]);
+        assert_eq!(roles, vec!["user", "assistant", "user", "user"]);
 
         // 内容是上下文，照旧带上。
         assert!(

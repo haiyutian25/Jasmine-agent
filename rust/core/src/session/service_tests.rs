@@ -2,6 +2,8 @@
 
 use super::AgentChatService;
 use super::AgentError;
+use super::interrupted_turn_marker;
+use super::transcript_entry;
 use crate::agent_settings::AgentSettings;
 use super::ChatSink;
 use super::ConversationsBridge;
@@ -229,6 +231,27 @@ fn a_stopped_reply_is_shown_but_stays_out_of_the_context() {
             .iter()
             .any(|entry| entry.role == Role::Model && entry.text == "half a sentence"),
     );
+}
+
+/// 中断标记是核心注入的上下文片段：**user** 角色（每条 wire 都收，不需要任何改写 ✓），模型看得见，
+/// 转写里不显示 —— 界面上的「你在 N 秒后停止了」来自 `TurnAborted`，不是它。
+#[test]
+fn the_interrupted_turn_marker_is_context_the_platform_does_not_show() {
+    let marker = interrupted_turn_marker();
+    let ResponseItem::Message { role, content, .. } = &marker else {
+        panic!("the marker is a message");
+    };
+    assert_eq!(role, Role::User.as_str(), "标记是 user 的上下文片段");
+    let text = match &content[0] {
+        ContentItem::InputText { text } => text.clone(),
+        other => panic!("unexpected content: {other:?}"),
+    };
+    assert!(
+        text.starts_with("<turn_aborted>") && text.ends_with("</turn_aborted>"),
+        "标记自带首尾标记：{text}"
+    );
+
+    assert!(transcript_entry(&marker).is_none(), "转写不该显示它");
 }
 
 /// 新建会话时，会话自己的档位从**核心目录里的起点档**抄一次；此后只认会话自己的记录。
