@@ -24,6 +24,10 @@ class MvvmUdfGateTest {
         "feature/main/impl/src/main/java/com/lhzkml/jasmine/feature/main/impl/UsageStatsViewModel.kt"
     )
 
+    private val settingsScreensDir = repoFile(
+        "feature/settings/impl/src/main/java/com/lhzkml/jasmine/feature/settings/impl/screens"
+    )
+
     /** ① 唯一写入点：`mutableStateFlow` 只能出现在 `updateState` 的定义里。 */
     @Test
     fun `mutableStateFlow is touched only by the single mutation point`() {
@@ -116,6 +120,28 @@ class MvvmUdfGateTest {
         assertEquals(
             "UsageStatsViewModel 里 mutableStateFlow 只能出现在 updateState 的定义体里：" +
                 offenders.joinToString { "${it.index + 1}: ${it.value.trim()}" },
+            0,
+            offenders.size,
+        )
+    }
+
+    /** View 层纯净度：设置页的屏幕不得直接调用平台 API（语言选择曾是唯一一处，已改为 VM 承接）。 */
+    @Test
+    fun `settings screens do not call the platform`() {
+        val offenders = settingsScreensDir.listFiles()
+            .orEmpty()
+            .filter { it.extension == "kt" }
+            .flatMap { file -> file.readLines().map { file.name to it } }
+            .filter { (_, line) ->
+                line.contains("AppCompatDelegate") ||
+                    line.contains("setApplicationLocales") ||
+                    line.contains("getApplicationLocales") ||
+                    line.contains("LocaleListCompat")
+            }
+
+        assertEquals(
+            "View 层不得直接调用平台 API（语言/主题之类经仓库 + ViewModel）：" +
+                offenders.joinToString { "${it.first}: ${it.second.trim()}" },
             0,
             offenders.size,
         )

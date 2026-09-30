@@ -6,6 +6,8 @@ import com.lhzkml.jasmine.core.data.datastore.ProviderDataStore
 import com.lhzkml.jasmine.core.data.datastore.UserPreferencesDataStore
 import com.lhzkml.jasmine.core.data.manager.dispatcher.DispatcherManager
 import com.lhzkml.jasmine.core.data.manager.dispatcher.DispatcherManagerImpl
+import com.lhzkml.jasmine.core.data.repository.AppLanguageRepository
+import com.lhzkml.jasmine.core.data.repository.AppLanguageRepositoryImpl
 import com.lhzkml.jasmine.core.data.repository.ProviderRepository
 import com.lhzkml.jasmine.core.data.repository.ProviderRepositoryImpl
 import com.lhzkml.jasmine.core.data.repository.UserPreferencesRepository
@@ -33,6 +35,10 @@ object DataModule {
         userPreferencesDataStore = userPreferencesDataStore,
         dispatcherManager = dispatcherManager,
     )
+
+    @Provides
+    @Singleton
+    fun provideAppLanguageRepository(): AppLanguageRepository = AppLanguageRepositoryImpl()
 
     @Provides
     @Singleton

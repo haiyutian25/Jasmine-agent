@@ -35,6 +35,7 @@ import com.lhzkml.jasmine.feature.provider.impl.ProviderEvent
 import com.lhzkml.jasmine.feature.provider.impl.ProviderScreen
 import com.lhzkml.jasmine.feature.provider.impl.ProviderViewModel
 import com.lhzkml.jasmine.feature.settings.api.SettingsNavKey
+import com.lhzkml.jasmine.feature.settings.impl.LanguageViewModel
 import com.lhzkml.jasmine.feature.settings.impl.R as SettingsR
 import com.lhzkml.jasmine.feature.settings.impl.screens.BehaviourAndPermissionsScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.FontScreen
@@ -210,12 +211,17 @@ fun MainNavHost(
                     }
                 }
                 entry<SettingsNavKey.LanguageSettings> {
+                    val languageViewModel: LanguageViewModel = hiltViewModel()
+                    val languageState by languageViewModel.stateFlow.collectAsStateWithLifecycle()
+
                     SettingsPage(
                         currentTheme = state.theme,
                         title = stringResource(SettingsR.string.language_title),
                         onBack = { navigator.goBack() },
                     ) { contentModifier ->
                         LanguageScreen(
+                            state = languageState,
+                            onAction = languageViewModel::trySendAction,
                             currentTheme = state.theme,
                             modifier = contentModifier,
                         )

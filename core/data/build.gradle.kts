@@ -29,6 +29,8 @@ dependencies {
 
   implementation(libs.kotlinx.coroutines.core)
   implementation(libs.androidx.datastore.preferences)
+  // 界面语言经 AppCompat 的 per-app locales 落地（AppLanguageRepositoryImpl）。
+  implementation(libs.androidx.appcompat)
   // ProviderConfig 列表以 JSON 形式存进 DataStore（模型提供商配置）
   implementation(libs.kotlinx.serialization.json)
   // ResponseBody type of FontDownloadApi (core:network) used by FontRemoteDataSource.

@@ -1,6 +1,7 @@
 plugins {
   alias(libs.plugins.android.library)
   alias(libs.plugins.kotlin.compose)
+  alias(libs.plugins.google.devtools.ksp)
 }
 
 android {
@@ -15,6 +16,9 @@ android {
   }
 
   buildFeatures { compose = true }
+
+  // 语言页 ViewModel 的单测在纯 JVM 跑：android.* 桩方法返回默认值而不是抛。
+  testOptions { unitTests { isReturnDefaultValues = true } }
 }
 
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11) } }
@@ -29,8 +33,14 @@ dependencies {
   implementation(platform(libs.androidx.compose.bom))
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.core.ktx)
-  implementation(libs.androidx.appcompat)
   implementation(libs.androidx.compose.ui)
   implementation(libs.androidx.compose.ui.graphics)
   implementation(libs.androidx.compose.material3)
+  implementation(libs.androidx.lifecycle.viewmodel.ktx)
+
+  implementation(libs.hilt.android)
+  ksp(libs.hilt.compiler)
+
+  testImplementation(libs.junit)
+  testImplementation(libs.kotlinx.coroutines.test)
 }

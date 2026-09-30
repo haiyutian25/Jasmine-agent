@@ -1,6 +1,5 @@
 package com.lhzkml.jasmine.feature.settings.impl.screens
 
-import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -19,15 +18,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import com.lhzkml.jasmine.core.ui.icons.LucideIcons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,35 +30,32 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.os.LocaleListCompat
-import com.lhzkml.jasmine.core.ui.theme.CssVariables
-import com.lhzkml.jasmine.feature.settings.impl.R
+import com.lhzkml.jasmine.core.data.repository.AppLanguage
 import com.lhzkml.jasmine.core.ui.components.Button
-
-/** The three selectable language modes. */
-private enum class LanguageOption { FOLLOW_SYSTEM, ENGLISH, CHINESE }
+import com.lhzkml.jasmine.core.ui.icons.LucideIcons
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+import com.lhzkml.jasmine.feature.settings.impl.LanguageAction
+import com.lhzkml.jasmine.feature.settings.impl.LanguageState
+import com.lhzkml.jasmine.feature.settings.impl.R
 
 /**
- * Language settings page: choose between following the system locale, English
- * or Simplified Chinese. Applies via [AppCompatDelegate.setApplicationLocales],
- * which persists the choice and recreates the activity with the new locale.
+ * Language settings page: choose between following the system locale, English or Simplified Chinese.
  *
- * Selection is derived from the persisted app locales (the single source of
- * truth) on every recomposition. [pendingChoice] is only a transient marker
- * for the tapped option: when the effective locale is unchanged the activity
- * is NOT recreated and [configuration] never invalidates, so nothing else
- * would move the checkmark. As soon as the configuration catches up (recreation
- * or external locale change), the marker is cleared and the derived value wins.
+ * Pure function of [state] + [onAction]: selection and the current locale both live in
+ * [com.lhzkml.jasmine.feature.settings.impl.LanguageViewModel], and applying a choice is an action
+ * (the platform call happens behind `AppLanguageRepository`). The only composition value read here is
+ * the ambient configuration, used to tell the ViewModel "the app was recreated, settle to the
+ * authoritative value" — no platform API is called from the View.
  */
 @Composable
 fun LanguageScreen(
+    state: LanguageState,
+    onAction: (LanguageAction) -> Unit,
     currentTheme: CssVariables,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
-    var pendingChoice by remember { mutableStateOf<LanguageOption?>(null) }
     val configuration = LocalConfiguration.current
-    LaunchedEffect(configuration) { pendingChoice = null }
-    val selected = pendingChoice ?: deriveSelectedOption()
+    LaunchedEffect(configuration) { onAction(LanguageAction.SystemLocaleSettled) }
 
     Column(
         modifier = modifier
@@ -98,61 +89,30 @@ fun LanguageScreen(
         ) {
             LanguageRow(
                 label = stringResource(R.string.language_follow_system),
-                isSelected = selected == LanguageOption.FOLLOW_SYSTEM,
+                isSelected = state.selected == AppLanguage.SYSTEM,
                 currentTheme = currentTheme,
                 testTag = "language_option_follow_system",
-                onClick = {
-                    pendingChoice = LanguageOption.FOLLOW_SYSTEM
-                    applyLanguage(LanguageOption.FOLLOW_SYSTEM)
-                }
+                onClick = { onAction(LanguageAction.Selected(AppLanguage.SYSTEM)) }
             )
             LanguageDivider(currentTheme)
             LanguageRow(
                 label = stringResource(R.string.language_english),
-                isSelected = selected == LanguageOption.ENGLISH,
+                isSelected = state.selected == AppLanguage.ENGLISH,
                 currentTheme = currentTheme,
                 testTag = "language_option_english",
-                onClick = {
-                    pendingChoice = LanguageOption.ENGLISH
-                    applyLanguage(LanguageOption.ENGLISH)
-                }
+                onClick = { onAction(LanguageAction.Selected(AppLanguage.ENGLISH)) }
             )
             LanguageDivider(currentTheme)
             LanguageRow(
                 label = stringResource(R.string.language_chinese),
-                isSelected = selected == LanguageOption.CHINESE,
+                isSelected = state.selected == AppLanguage.CHINESE,
                 currentTheme = currentTheme,
                 testTag = "language_option_chinese",
-                onClick = {
-                    pendingChoice = LanguageOption.CHINESE
-                    applyLanguage(LanguageOption.CHINESE)
-                }
+                onClick = { onAction(LanguageAction.Selected(AppLanguage.CHINESE)) }
             )
         }
 
         Spacer(modifier = Modifier.height(24.dp))
-    }
-}
-
-private fun applyLanguage(option: LanguageOption) {
-    val locales = when (option) {
-        LanguageOption.FOLLOW_SYSTEM -> LocaleListCompat.getEmptyLocaleList()
-        LanguageOption.ENGLISH -> LocaleListCompat.forLanguageTags("en")
-        LanguageOption.CHINESE -> LocaleListCompat.forLanguageTags("zh-CN")
-    }
-    AppCompatDelegate.setApplicationLocales(locales)
-}
-
-/** Derives the currently applied option from the persisted app locales. */
-private fun deriveSelectedOption(): LanguageOption {
-    val currentLocales = AppCompatDelegate.getApplicationLocales()
-    return if (currentLocales.isEmpty) {
-        LanguageOption.FOLLOW_SYSTEM
-    } else {
-        when (currentLocales.get(0)?.language) {
-            "zh" -> LanguageOption.CHINESE
-            else -> LanguageOption.ENGLISH
-        }
     }
 }
 
