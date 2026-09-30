@@ -176,7 +176,7 @@ ViewModel 的收集协程泄漏、界面永远停在"正在生成"。这恰好�
 没有超时的话回归时会卡死）：非 `AgentFailure` 的失败也收口、正常路径按顺序收口、
 收集方中途走人时通报一次"收手"。
 
-### F4 `BaseViewModel.onCleared` 关闭通道
+### F4 `BaseViewModel.onCleared` 关闭通道 — ✅
 
 **现状（证据）**：`core/ui/.../base/BaseViewModel.kt` 全类无 `onCleared` 覆写；
 `:88-92` 的 KDoc 明确写"fails only once the channel is closed, **i.e. after `ViewModel.onCleared`**"，
@@ -191,7 +191,12 @@ ViewModel 的收集协程泄漏、界面永远停在"正在生成"。这恰好�
 
 **怎么验证**：`core/ui` 单测 —— 构造一个最小 VM，`onCleared` 之后 `trySendAction` 返回 `false`。
 
-### F5 `EventsEffect`：恢复后再投递，而不是丢弃
+**实施记录**：`BaseViewModel` 覆写 `onCleared()`，关掉 `internalActionChannel` 与 `eventChannel`。
+**新增测试**：为 `core:ui` 建起测试源集（补 `kotlinx.coroutines.test`）`BaseViewModelTest` 3 例 ——
+动作按序处理、`onCleared` 后 `trySendAction` 返回 `false`、**事件在它对应的状态落定之后才到达**
+（C1 当初承诺过但没写的那条）。
+
+### F5 `EventsEffect`：恢复后再投递，而不是丢弃 — ✅
 
 **现状（证据）**：`core/ui/.../base/util/EventsEffect.kt:25-31`
 ```kotlin
@@ -209,6 +214,13 @@ viewModel.eventFlow
 在 `filter` 位置改成 `currentState` 的等待再放行），保证事件被推迟而不是丢弃。
 
 **怎么验证**：`core/ui` 单测 —— 在非 RESUMED 期投一条事件，回到 RESUMED 后 handler 收到它。
+
+**实施记录**：`filter` 换成 `repeatOnLifecycle(Lifecycle.State.RESUMED)`。停驻时内层块被取消、
+事件**留在无界通道里**，回到 RESUMED 重新订阅时一件不落地补上 —— 这就是"推迟"与"丢弃"的差别。
+与句柄/Composable 无关的那部分提成 `internal suspend fun collectEventsWhileResumed(events, lifecycle, handler)`
+以便单测；`EventsEffect` 另外用 `rememberUpdatedState` 让重组合后的 handler 立刻生效。
+**新增测试** `EventsEffectTest` 1 例：前台当场收到 → 退到 STARTED 期间产生的事件**不消费也不丢** →
+回到 RESUMED 补上。（用旧的 `filter` 写法这条会红。）
 
 ### F6 "读坏了"必须可观察（Rust 侧残留）
 

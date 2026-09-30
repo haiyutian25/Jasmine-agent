@@ -110,4 +110,17 @@ abstract class BaseViewModel<S, E, A>(
     protected fun sendEvent(event: E) {
         eventChannel.trySend(event)
     }
+
+    /**
+     * 关闭两条通道（F4）。
+     *
+     * `viewModelScope` 被取消只让**消费**协程停下来，通道本身还开着 —— 于是 `onCleared` 之后
+     * [trySendAction] 仍然返回 `true`（动作却永远没人处理），正是它自己文档里想避免的那种"静默
+     * 吞掉"。关掉之后返回值才说真话：调用方与用例都能看出"这个动作不会有人接"。
+     */
+    override fun onCleared() {
+        internalActionChannel.close()
+        eventChannel.close()
+        super.onCleared()
+    }
 }
