@@ -18,7 +18,9 @@ pub struct ConversationSummary {
 
 /// Host integration boundary for reading the conversation list.
 pub trait ConversationTitles: Send + Sync {
-    fn conversations(&self) -> Vec<ConversationSummary>;
+    /// 读不出来要给 `Err`（一句能转述给用户的短原因），**不要**用空列表冒充"没有历史对话"（F6）：
+    /// 那是一句与事实相反的话，模型会据此回答用户"你以前没聊过"。
+    fn conversations(&self) -> Result<Vec<ConversationSummary>, String>;
 }
 
 /// Lists the user's earlier conversations in this app, newest first.
@@ -59,7 +61,17 @@ impl Tool for ListPastConversationsTool {
 
     fn execute<'a>(&'a self, _arguments: &'a str) -> ToolFuture<'a> {
         Box::pin(async move {
-            let conversations = self.titles.conversations();
+            let conversations = match self.titles.conversations() {
+                Ok(conversations) => conversations,
+                // 读坏了就说读坏了 —— 别把它答成"没有历史对话"。
+                Err(reason) => {
+                    return Ok(format!(
+                        "The conversation list could not be read just now ({reason}). \
+                         Tell the user it could not be read and to try again; do not claim the \
+                         list is empty."
+                    ))
+                }
+            };
             if conversations.is_empty() {
                 return Ok("The user has no earlier conversations.".to_string());
             }
@@ -92,8 +104,8 @@ mod tests {
     struct Titles(Vec<ConversationSummary>);
 
     impl ConversationTitles for Titles {
-        fn conversations(&self) -> Vec<ConversationSummary> {
-            self.0.clone()
+        fn conversations(&self) -> Result<Vec<ConversationSummary>, String> {
+            Ok(self.0.clone())
         }
     }
 
@@ -119,5 +131,28 @@ mod tests {
     fn says_so_when_there_is_nothing_to_list() {
         let answer = futures::executor::block_on(tool(Vec::new()).execute("{}")).expect("execute");
         assert_eq!(answer, "The user has no earlier conversations.");
+    }
+
+    /// 读坏了**不许**答成"没有历史对话"（F6）：那是一句与事实相反的话，模型会照着说给用户听。
+    #[test]
+    fn says_the_list_could_not_be_read_instead_of_claiming_it_is_empty() {
+        struct Broken;
+
+        impl ConversationTitles for Broken {
+            fn conversations(&self) -> Result<Vec<ConversationSummary>, String> {
+                Err("permission denied".to_string())
+            }
+        }
+
+        let answer = futures::executor::block_on(
+            ListPastConversationsTool::new(Arc::new(Broken)).execute("{}"),
+        )
+        .expect("execute");
+
+        assert!(answer.contains("could not be read"), "实际是：{answer}");
+        assert!(
+            !answer.contains("no earlier conversations"),
+            "不许答成「没有历史对话」：{answer}"
+        );
     }
 }

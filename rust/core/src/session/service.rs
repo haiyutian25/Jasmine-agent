@@ -1285,15 +1285,13 @@ impl AgentChatService {
                 | RolloutItem::TokenUsageRecord { .. } => {}
             }
         }
-        // A call that never got a result — a batch the platform stopped — still shows its card.
+        // 从没等到结果的调用仍然要出现（一张卡都不许凭空消失），但它的状态**不是**"已完成"（F6）：
+        // 同文件另外两处同类兜底都显式标了 stopped，只有这里以前靠 `tool_line` 的默认值，
+        // 于是文件停在未闭合的 FunctionCall（进程被杀等）时，界面会把"从没跑完的调用"显示成"执行完成"。
         for (_, name, arguments, called_at) in pending {
-            lines.push(tool_line(
-                name,
-                arguments,
-                None,
-                called_at,
-                model_label.clone(),
-            ));
+            let mut line = tool_line(name, arguments, None, called_at, model_label.clone());
+            line.tool_status = "stopped".to_string();
+            lines.push(line);
         }
         Ok(lines)
     }
@@ -1403,7 +1401,8 @@ fn tool_line(
         tool_detail: Some(jasmine_protocol::chat_event::abbreviate(&arguments)),
         tool_result: result.map(|result| jasmine_protocol::chat_event::abbreviate(&result)),
         thinking: String::new(),
-        // 成对落下的工具行就是"执行完成"。
+        // 成对落下的工具行才是"执行完成"；没有配对的调用由调用方显式覆写成 "stopped"
+        // （见 [Self::transcript] 里那三处兜底）。
         tool_status: "completed".to_string(),
     }
 }
@@ -1831,17 +1830,20 @@ struct ConversationsBridge {
 }
 
 impl ConversationTitles for ConversationsBridge {
-    fn conversations(&self) -> Vec<ToolConversationSummary> {
-        match list_sessions(&self.sessions_dir) {
-            Ok(entries) => entries
-                .into_iter()
-                .map(|entry| ToolConversationSummary {
-                    title: entry.meta.title,
-                    updated_at: self.clock.format(&entry.updated_at),
-                })
-                .collect(),
-            Err(_) => Vec::new(),
-        }
+    fn conversations(&self) -> Result<Vec<ToolConversationSummary>, String> {
+        // 读失败要往上抛（F6）：以前这里 `Err(_) => Vec::new()` 会把 IO 失败说成"没有历史对话"，
+        // 工具再把它答给模型，模型就会告诉用户"你以前没聊过" —— 一句与事实相反的话。
+        list_sessions(&self.sessions_dir)
+            .map(|entries| {
+                entries
+                    .into_iter()
+                    .map(|entry| ToolConversationSummary {
+                        title: entry.meta.title,
+                        updated_at: self.clock.format(&entry.updated_at),
+                    })
+                    .collect()
+            })
+            .map_err(|error| error.to_string())
     }
 }
 

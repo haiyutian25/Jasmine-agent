@@ -28,7 +28,8 @@ pub struct SessionUsageSnapshot {
     pub total: i64,
 }
 
-fn archive_path(sessions_dir: &Path) -> PathBuf {
+/// 存档文件的位置。`pub(crate)`：测试要往它里面塞一行坏数据。
+pub(crate) fn archive_path(sessions_dir: &Path) -> PathBuf {
     sessions_dir.join(USAGE_ARCHIVE_FILE)
 }
 
@@ -43,9 +44,22 @@ pub fn read(sessions_dir: &Path) -> std::io::Result<BTreeMap<String, SessionUsag
     };
 
     let mut snapshots = BTreeMap::new();
-    for line in text.lines().filter(|line| !line.trim().is_empty()) {
-        let snapshot: SessionUsageSnapshot = serde_json::from_str(line)?;
-        snapshots.insert(snapshot.session_id.clone(), snapshot);
+    for (index, line) in text.lines().enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        match serde_json::from_str::<SessionUsageSnapshot>(line) {
+            Ok(snapshot) => {
+                snapshots.insert(snapshot.session_id.clone(), snapshot);
+            }
+            // 坏一行**不报错、也不带走整份存档**：`usage_stats` 的最后一步会把这份存档整体写回，
+            // 于是坏行在第一次成功刷新后就被修掉了 —— 报错反而会让 `write` 永远走不到，
+            // 那份存档再也回不来（必须人工删文件）。
+            Err(error) => tracing::warn!(
+                "跳过用量存档里读不出来的一行（第 {} 行）：{error}",
+                index + 1,
+            ),
+        }
     }
     Ok(snapshots)
 }

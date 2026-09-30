@@ -222,7 +222,7 @@ viewModel.eventFlow
 **新增测试** `EventsEffectTest` 1 例：前台当场收到 → 退到 STARTED 期间产生的事件**不消费也不丢** →
 回到 RESUMED 补上。（用旧的 `filter` 写法这条会红。）
 
-### F6 "读坏了"必须可观察（Rust 侧残留）
+### F6 "读坏了"必须可观察（Rust 侧残留） — ✅
 
 **现状（证据）**
 - 行级坏行静默跳过：`rust/rollout/src/list.rs:222-224`（`if let Ok(parsed) = ...` 无日志）、
@@ -252,6 +252,27 @@ viewModel.eventFlow
 **怎么验证**：Rust 单测 —— ① 在会话文件里插一行坏 JSON，断言 `transcript()` 仍返回其余行且
 （新加的）告警可断言；② 未闭合的 `FunctionCall` 在 transcript 里是 `stopped`；
 ③ `usage_archive` 坏行后 `usage_stats()` 仍成功且坏行被修掉。
+
+**实施记录**
+- **行级坏行**（`rollout/src/list.rs` 的 `read_lines`）：跳过 + `tracing::warn!`（带文件名与行号）。
+  一行坏掉不能带走整个文件 —— 后面的行还是用户的记录。
+- **整条会话读不出**（`rollout/src/list.rs` 的 `list_sessions`）：跳过 + warn。
+  一条会话读不出来也不带走整张列表（那会让用户以为历史全没了），但**必须留痕**。
+- **用量存档坏行**（`rollout/src/usage_archive.rs` 的 `read`）：跳过 + warn —— 这条是**真行为修复**，
+  不只是日志：`usage_stats` 最后会把存档整体写回，于是坏行在第一次成功刷新后就被修掉。
+  以前 `read` 用 `?` 直接上抛，`write` 因此永远走不到，存档再也回不来（必须人工删文件）。
+  `archive_path` 改 `pub(crate)` 供测试使用。
+- **transcript 兜底状态**（`core/src/session/service.rs`）：那个"从没等到结果的调用"的兜底循环
+  显式覆写成 `stopped`（同文件另外两处同类兜底本来就标了 stopped，只有它靠 `tool_line` 的默认值）。
+  同时把 `tool_line` 的注释改成"成对落下的才是 completed，没配对的由调用方覆写"。
+- **给模型看的那个工具**：`ConversationTitles::conversations` 改为 `Result<Vec<_>, String>`，
+  `ConversationsBridge` 把 IO 错误透上去，工具则答"读不出来，让用户重试"——
+  以前 IO 失败被 `Err(_) => Vec::new()` 抹成"没有历史对话"，模型会照着告诉用户"你以前没聊过"。
+- **新增 3 条测试**：用量存档坏行被跳过且被修好（`usage_stats_tests`）、
+  未闭合的 `FunctionCall` 在转写里是 `stopped`（`service_tests`）、
+  列表读坏时工具不许答成"没有历史"（`list_past_conversations` 的 tests）。
+- **取舍说明**：`list.rs` 两处与 `usage_archive` 的"跳过"选的是 **warn + 跳过**而不是"整体报错" ——
+  换成报错会让一个坏文件带走整张列表/整份用量，比少几行更糟。这个选择写在了各自的注释里。
 
 ### F7 Kotlin 侧残留的静默吞错
 

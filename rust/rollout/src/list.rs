@@ -29,12 +29,15 @@ pub fn list_sessions(sessions_dir: &Path) -> std::io::Result<Vec<SessionEntry>> 
 
     let mut entries = Vec::new();
     for path in paths {
-        if let Some((meta, updated_at)) = read_session(&path) {
-            entries.push(SessionEntry {
+        match read_session(&path) {
+            Some((meta, updated_at)) => entries.push(SessionEntry {
                 path,
                 meta,
                 updated_at,
-            });
+            }),
+            // 一条会话读不出来**不带走整张列表**（那会让用户以为历史全没了），但也不能一声不吭：
+            // 跳过要留下痕迹，否则"文件坏了"与"这条会话不存在"在外部完全分不出来。
+            None => tracing::warn!("跳过读不出来的会话文件：{}", path.display()),
         }
     }
     entries.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
@@ -214,13 +217,20 @@ fn read_lines(path: &Path) -> std::io::Result<Vec<RolloutLine>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
     let mut lines = Vec::new();
-    for line in reader.lines() {
+    for (index, line) in reader.lines().enumerate() {
         let line = line?;
         if line.trim().is_empty() {
             continue;
         }
-        if let Ok(parsed) = serde_json::from_str::<RolloutLine>(&line) {
-            lines.push(parsed);
+        match serde_json::from_str::<RolloutLine>(&line) {
+            Ok(parsed) => lines.push(parsed),
+            // 坏一行**不扔整个文件**（后面的行还是用户的记录），但要留痕：否则转写会悄悄少几行，
+            // 而"读坏了"与"本来就没有"在外面看不出区别。
+            Err(error) => tracing::warn!(
+                "跳过 {} 里读不出来的一行（第 {} 行）：{error}",
+                path.display(),
+                index + 1,
+            ),
         }
     }
     Ok(lines)

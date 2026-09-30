@@ -467,7 +467,7 @@ fn the_tool_list_reads_the_conversations_own_files() {
         clock: Arc::new(Host),
     };
 
-    let conversations = bridge.conversations();
+    let conversations = bridge.conversations().expect("读得出来");
 
     assert_eq!(conversations.len(), 1);
     assert_eq!(conversations[0].title, "earlier");
@@ -700,6 +700,40 @@ fn a_failed_turn_still_releases_the_conversation() {
     assert!(
         service.slot("s1").is_none(),
         "回合失败也必须在收尾里放开「平台请求过释放」的会话"
+    );
+}
+
+/// 文件停在"调用了、还没等到结果"的地方（进程被杀等）：那张卡要出现，但状态**不是**"已执行"（F6）。
+///
+/// 以前那个兜底循环走 `tool_line` 的默认值 `completed`，而同文件另外两处同类兜底都显式标了
+/// `stopped` —— 只有它漏了，于是界面会把"从没跑完的调用"显示成"执行完成"。
+#[test]
+fn a_call_that_never_returned_is_shown_as_stopped_not_completed() {
+    let dir = sessions_dir("unclosed-call");
+    let service = service(&dir);
+    attach(&service, "s1", "chat");
+    let path = find_session_path(&dir, "s1").expect("find").expect("path");
+    // 只有调用、没有配对的返回：文件就停在这儿。
+    RolloutRecorder::open(path)
+        .expect("open")
+        .record_items(&[RolloutItem::ResponseItem(ResponseItem::FunctionCall {
+            id: None,
+            name: "current_time".to_string(),
+            namespace: None,
+            arguments: "{}".to_string(),
+            encrypted_function_args: None,
+            call_id: "c1".to_string(),
+        })])
+        .expect("record");
+
+    let entries = service.transcript(&SessionId::new("s1")).expect("transcript");
+    let tool = entries
+        .iter()
+        .find(|entry| entry.tool_name.as_deref() == Some("current_time"))
+        .expect("那张卡还得在（一张卡都不许凭空消失）");
+    assert_eq!(
+        tool.tool_status, "stopped",
+        "从没跑完的调用不许被显示成「已执行」"
     );
 }
 

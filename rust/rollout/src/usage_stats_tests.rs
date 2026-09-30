@@ -283,3 +283,38 @@ fn nothing_recorded_is_no_usage_at_all() {
     assert!(stats.days.is_empty());
     assert!(stats.models.is_empty());
 }
+
+/// 用量存档里有一行坏数据时：统计仍然出得来，而且那一行会在这次刷新里被**修掉**（F6）。
+///
+/// 以前 `read` 用 `?` 直接上抛 → 每次读都失败；而修复存档的 `write` 只在读成功之后才走得到，
+/// 于是这份存档再也回不来，必须人工删文件 —— 用户从此看不到任何用量。
+#[test]
+fn a_corrupt_archive_line_is_skipped_and_repaired() {
+    let dir = sessions_dir("archive-corrupt");
+    write_session(
+        &dir,
+        "s1",
+        vec![
+            (stamp(today()), turn("deepseek-flash")),
+            (stamp(today()), spent(100)),
+        ],
+    );
+    let first = super::usage_stats(&dir).expect("第一次统计");
+    assert!(first.total_tokens > 0, "先得有一份非零的用量");
+
+    // 往存档里塞一行坏数据。
+    let archive = crate::usage_archive::archive_path(&dir);
+    let mut text = std::fs::read_to_string(&archive).expect("存档应当已写出");
+    text.push_str("{ this is not json }\n");
+    std::fs::write(&archive, text).expect("写回");
+
+    // 坏行不该让统计失败……
+    let second = super::usage_stats(&dir).expect("坏行不该让统计失败");
+    assert_eq!(first.total_tokens, second.total_tokens, "坏行不影响别的会话");
+    // ……而且它会被这次刷新修掉。
+    let repaired = std::fs::read_to_string(&archive).expect("存档还在");
+    assert!(
+        !repaired.contains("this is not json"),
+        "坏行应当被这次刷新修掉：{repaired}"
+    );
+}
