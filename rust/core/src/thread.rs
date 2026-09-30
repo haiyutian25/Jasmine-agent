@@ -249,12 +249,24 @@ impl ChatThread {
     ///
     /// Callers collect the answers in that same order before submitting them, so the pairing
     /// is positional.
-    pub fn take_prompt_answers(&mut self, answers: &[String]) -> Vec<(PendingPrompt, String)> {
-        self.pending_prompts
-            .drain(..)
-            .take(answers.len())
-            .zip(answers.iter().cloned())
-            .collect()
+    ///
+    /// **先校验、后消费**（F2）：数量对不上就 `None`，且**一个都不动**。
+    /// 以前写的是 `drain(..).take(answers.len())` —— `Drain` 一被 drop 就把整个区间移走，于是
+    /// `answers` 为空这种非法输入会**清空待答提示**、却仍然报 `NoPromptWaiting`：这条会话的提问
+    /// 从此再也答不上（平台重试只会再拿同一个错），而历史里留下「有 tool_call、没有 tool_result」
+    /// 的残缺记录，之后每次请求都被服务端以 400 拒掉。
+    ///
+    /// `Some(vec![])`（数量都是 0）表示"确实没有待答"，与 `None`（数量对不上）是两回事。
+    pub fn take_prompt_answers(&mut self, answers: &[String]) -> Option<Vec<(PendingPrompt, String)>> {
+        if answers.len() != self.pending_prompts.len() {
+            return None;
+        }
+        Some(
+            self.pending_prompts
+                .drain(..)
+                .zip(answers.iter().cloned())
+                .collect(),
+        )
     }
 }
 
@@ -383,5 +395,74 @@ mod tests {
     fn has_no_usage_before_any_response_reports_one() {
         let thread = ChatThread::new();
         assert!(thread.token_usage_info().is_none());
+    }
+
+    /// 一条"模型追问用户"的调用事件：它会在这个线程上挂出一个待答提示。
+    fn prompt_event(tool: &str, call_id: &str) -> ResponseEvent {
+        ResponseEvent::OutputItemDone(jasmine_protocol::models::ResponseItem::FunctionCall {
+            id: None,
+            name: tool.to_string(),
+            namespace: None,
+            arguments: r#"{"message":"选一个"}"#.to_string(),
+            encrypted_function_args: None,
+            call_id: call_id.to_string(),
+        })
+    }
+
+    /// 答案条数对不上时，**一个待答提示都不许被消费**（F2）。
+    ///
+    /// 以前写的是 `drain(..).take(answers.len())`：`answers` 为空时 `Drain` 被 drop 就把整个区间
+    /// 移走 —— 于是"空提交"这种非法输入会清空待答提示、却仍然报 `NoPromptWaiting`，这条会话的提问
+    /// 从此再也答不上，历史里留下「有 tool_call、没有 tool_result」的残缺记录，之后每次请求被服务端
+    /// 以 400 拒掉。
+    #[test]
+    fn answers_that_do_not_match_the_prompts_consume_nothing() {
+        let mut thread = ChatThread::new();
+        for id in ["c1", "c2"] {
+            thread.on_response_event(prompt_event(
+                crate::event_mapping::REQUEST_INPUT_TOOL,
+                id,
+            ));
+        }
+        assert_eq!(thread.pending_prompts().count(), 2);
+
+        // 空提交、少交、多交：都不许动状态。
+        assert!(thread.take_prompt_answers(&[]).is_none(), "空提交是数量不符");
+        assert_eq!(thread.pending_prompts().count(), 2, "空提交不能清掉待答提示");
+        assert!(
+            thread
+                .take_prompt_answers(&["a".to_string()])
+                .is_none(),
+            "少交一个是数量不符"
+        );
+        assert_eq!(thread.pending_prompts().count(), 2);
+        assert!(
+            thread
+                .take_prompt_answers(&["a".to_string(), "b".to_string(), "c".to_string()])
+                .is_none(),
+            "多交也是数量不符"
+        );
+        assert_eq!(thread.pending_prompts().count(), 2);
+
+        // 数量对上才消费，而且按提问顺序一一配对。
+        let paired = thread
+            .take_prompt_answers(&["a".to_string(), "b".to_string()])
+            .expect("数量对得上就该消费");
+        assert_eq!(paired.len(), 2);
+        assert_eq!(paired[0].0.id, "c1");
+        assert_eq!(paired[0].1, "a");
+        assert_eq!(paired[1].0.id, "c2");
+        assert_eq!(paired[1].1, "b");
+        assert!(thread.pending_prompts().next().is_none(), "消费干净了");
+    }
+
+    /// 没有待答时的空提交是 `Some(空)`（"确实没有"），不是 `None`（"数量不对"）—— 两者要分得开。
+    #[test]
+    fn an_empty_submission_with_no_prompts_is_not_a_mismatch() {
+        let mut thread = ChatThread::new();
+        let paired = thread
+            .take_prompt_answers(&[])
+            .expect("没有待答时不该报数量不符");
+        assert!(paired.is_empty());
     }
 }

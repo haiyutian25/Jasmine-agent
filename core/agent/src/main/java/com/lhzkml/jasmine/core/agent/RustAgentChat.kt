@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.cancellation.CancellationException
 import uniffi.jasmine_ffi.AgentFailure
 import uniffi.jasmine_ffi.AgentHandle
 import uniffi.jasmine_ffi.AgentSettings as CoreAgentSettings
@@ -144,71 +145,86 @@ class RustAgentChat(
     /**
      * Forwards one core call's events as a flow, **bounded** and without dropping anything.
      *
-     * The listener runs on a thread the core owns, so it cannot wait for a slot the way a
-     * `callbackFlow` producer would — but queuing without a bound means a streaming reply piles up in
-     * heap while the UI is busy, and by the time the UI catches up those events are stale anyway.
-     * The middle ground is [EventSink]: text and reasoning deltas **merge** into one event instead of
-     * queueing one slot each, everything else waits for room. Nothing is ever dropped — a lost
-     * terminal event would leave the flow open forever.
-     *
-     * `callbackFlow` cannot be used here either: it hands out [Channel.BUFFERED] (64 slots) and its
-     * `trySend` fails, silently, the moment the collector falls behind — which the main thread does
-     * whenever it is busy.
-     *
-     * The core's call runs on [Dispatchers.IO] and the flow ends when a terminal event closes the
-     * channel ([ChatEvent.Completed]/a failure) or, for calls that just report and return, when the
-     * call is over.
-     *
-     * [stopsTheTurnWhenCancelled] covers the case the channel cannot: the collector is cancelled
-     * (nobody is listening any more) while the core is still sampling. Cancelling this coroutine does
-     * not reach into the core's own thread, so it asks the core to stop instead — see [turn].
+     * 通道与收口的规则都在 [coreEventFlow] 里（那是可以单测的部分）；这里只把"没人收时怎么让核心
+     * 收手"接上去 —— [stopsTheTurnWhenCancelled] 覆盖通道覆盖不到的那一种情况：收集方被取消
+     * （没人再听了）而核心还在采样。取消这个协程够不到核心自己的线程，所以反过来请核心停下，
+     * 见 [turn]。
      */
     private fun coreEvents(
         sessionId: String?,
         stopsTheTurnWhenCancelled: Boolean = false,
         run: (EventListener) -> Unit,
-    ): Flow<ChatEvent> = flow {
-        val events = Channel<ChatEvent>(capacity = EVENT_CHANNEL_CAPACITY)
-        val sink = EventSink(events)
-        val listener = object : EventListener {
-            override fun onEvent(event: CoreChatEvent) {
-                sink.offer(event.toChatEvent())
+    ): Flow<ChatEvent> = coreEventFlow(
+        run = run,
+        onAbandoned = {
+            if (stopsTheTurnWhenCancelled && sessionId != null) {
+                handle.interrupt(sessionId)
             }
-        }
-        val worker = CoroutineScope(Dispatchers.IO).launch {
-            try {
-                run(listener)
-            } catch (failure: AgentFailure) {
-                sink.offer(
-                    ChatEvent.Failed(
-                        detail = failure.message ?: failure.toString(),
-                        kind = failure.toKind(),
-                    )
-                )
-            }
-            sink.finish()
-        }
-        var drained = false
-        try {
-            for (event in events) {
-                emit(event)
-            }
-            drained = true
-        } finally {
-            events.close()
-            if (!drained && stopsTheTurnWhenCancelled && sessionId != null) {
-                // 取消是"没人再收了"，不是"这一轮跑完了"：通报核心收手。它会在下一个等待点停住，
-                // 把已经产出的部分留下 —— 这也是 [ChatEvent.Aborted] 的来源。别的会话不受影响。
-                withContext(NonCancellable + Dispatchers.IO) {
-                    runCatching { handle.interrupt(sessionId) }
-                }
-            }
-            worker.cancel()
-        }
-    }
+        },
+    )
 }
 
-
+/**
+ * 把"一次核心调用 + 它的回调"变成一条 Flow。
+ *
+ * 从 `RustAgentChat` 里提出来是为了**能测**：它只依赖 [EventListener] 与 [ChatEvent]，不需要
+ * 真的核心句柄。两条不变量都在这里：
+ *
+ * - **失败必须兜住所有异常**，不只是 [AgentFailure]。`AgentChat.send` 的契约写明会话没附着时抛
+ *   `IllegalStateException`，而生成绑定里这些方法并不声明 `AgentFailure` —— 只兜 `AgentFailure`
+ *   的话，真正会发生的异常会逃到这个没有 handler 的根作用域，而且跳过下面的收口。
+ * - **通道必须收口**，正常结束、失败、取消三条路都要。漏掉收口，收集方 `for (event in events)`
+ *   就永久挂起（界面永远停在"正在生成"），而终态事件压根没产生。
+ *
+ * 通道本身是 [EventSink]（有界 + 文本合并 + 终态不丢）；[run] 在 [Dispatchers.IO] 上跑；
+ * 收集方走了而这一轮还没结束时叫一次 [onAbandoned]（让核心收手）。
+ */
+internal fun coreEventFlow(
+    run: (EventListener) -> Unit,
+    onAbandoned: suspend () -> Unit = {},
+): Flow<ChatEvent> = flow {
+    val events = Channel<ChatEvent>(capacity = EVENT_CHANNEL_CAPACITY)
+    val sink = EventSink(events)
+    val listener = object : EventListener {
+        override fun onEvent(event: CoreChatEvent) {
+            sink.offer(event.toChatEvent())
+        }
+    }
+    val worker = CoroutineScope(Dispatchers.IO).launch {
+        try {
+            run(listener)
+        } catch (cancellation: CancellationException) {
+            // 取消不是"这一轮失败了"：原样抛出，别把它翻译成一条 Failed 事件。
+            throw cancellation
+        } catch (failure: Throwable) {
+            sink.offer(
+                ChatEvent.Failed(
+                    detail = failure.message ?: failure.toString(),
+                    kind = failure.toKind(),
+                )
+            )
+        } finally {
+            sink.finish()
+        }
+    }
+    var drained = false
+    try {
+        for (event in events) {
+            emit(event)
+        }
+        drained = true
+    } finally {
+        events.close()
+        if (!drained) {
+            // 取消是"没人再收了"，不是"这一轮跑完了"：通报核心收手。它会在下一个等待点停住，
+            // 把已经产出的部分留下 —— 这也是 [ChatEvent.Aborted] 的来源。别的会话不受影响。
+            withContext(NonCancellable + Dispatchers.IO) {
+                runCatching { onAbandoned() }
+            }
+        }
+        worker.cancel()
+    }
+}
 
 /** The provider entry the core's boundary takes. */
 internal fun ProviderConfig.toProviderInput(): ProviderInput = ProviderInput(
@@ -271,16 +287,22 @@ private fun CoreContextUsageSource.toContextUsageSource(): ContextUsageSource = 
 }
 
 /**
- * 核心的失败类型 → 本模块的分型。
+ * 失败 → 界面分型。
+ *
+ * 除了核心跨边界报的 [AgentFailure]，这里还要认**本地抛的**异常：`AgentChat.send` 的契约写明
+ * 会话没附着时抛 `IllegalStateException`，那是调用时序问题，与"网络失败"不是一回事 —— 认不出来
+ * 就会给用户一句错的"能怎么办"。
  *
  * 「回合中途的失败」走的是另一条路：核心的 `ChatEvent::Failed` 只带一句文本，所以那条路的分型是
  * [ChatFailureKind.UNKNOWN] —— 给事件也带上分型要改跨边界的事件协议，另行评估。
  */
-private fun AgentFailure.toKind(): ChatFailureKind = when (this) {
+private fun Throwable.toKind(): ChatFailureKind = when (this) {
     is AgentFailure.NoSession -> ChatFailureKind.NO_SESSION
     is AgentFailure.Transport -> ChatFailureKind.TRANSPORT
     is AgentFailure.Transcript -> ChatFailureKind.TRANSCRIPT
     is AgentFailure.Internal -> ChatFailureKind.INTERNAL
+    is IllegalStateException -> ChatFailureKind.INTERNAL
+    else -> ChatFailureKind.UNKNOWN
 }
 
 /** Whether this event is the last one of its turn. */

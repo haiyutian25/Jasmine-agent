@@ -32,7 +32,14 @@ pub async fn respond_to_prompts<T: HttpTransport>(
     answers: &[String],
     emit: &mut impl FnMut(ChatEvent),
 ) -> Result<(), SessionError> {
-    let paired = turn.thread.take_prompt_answers(answers);
+    // 数量对不上就**一个都不消费**（F2）：这条会话的待答提示保持原样，平台可以照着条数重交一次。
+    let expected = turn.thread.pending_prompts().count();
+    let Some(paired) = turn.thread.take_prompt_answers(answers) else {
+        return Err(SessionError::AnswerCountMismatch {
+            expected,
+            got: answers.len(),
+        });
+    };
     if paired.is_empty() {
         return Err(SessionError::NoPromptWaiting);
     }

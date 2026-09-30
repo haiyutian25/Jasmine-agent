@@ -272,9 +272,11 @@ impl From<AgentError> for AgentFailure {
             // 中毒 / runtime / 调用时序：都不是网络与文件的问题。
             AgentError::Poisoned
             | AgentError::Runtime(_)
-            | AgentError::Session(SessionError::NoPromptWaiting | SessionError::TurnAborted) => {
-                Self::Internal { detail }
-            }
+            | AgentError::Session(
+                SessionError::NoPromptWaiting
+                | SessionError::AnswerCountMismatch { .. }
+                | SessionError::TurnAborted,
+            ) => Self::Internal { detail },
         }
     }
 }
