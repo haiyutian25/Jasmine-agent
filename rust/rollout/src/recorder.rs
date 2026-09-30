@@ -29,7 +29,16 @@ impl RolloutRecorder {
             .join(started.format("%m").to_string())
             .join(started.format("%d").to_string());
         std::fs::create_dir_all(&dir)?;
-        let path = dir.join(RolloutFileName::new(started, meta.session_id.clone()).render());
+        let name = RolloutFileName::new(started, meta.session_id.clone()).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!(
+                    "session id cannot be part of a file name: {}",
+                    meta.session_id
+                ),
+            )
+        })?;
+        let path = dir.join(name.render());
         let mut recorder = Self::open(path)?;
         recorder.record_meta(meta)?;
         Ok(recorder)
