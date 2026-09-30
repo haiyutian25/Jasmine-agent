@@ -37,14 +37,6 @@
     <string name="provider_max_output_hint">每次请求允许模型输出的上限；留空或不填（0）表示不限制，交给模型默认。</string>
     <string name="provider_reasoning_effort">推理强度</string>
     <string name="provider_reasoning_effort_hint">模型回答前的思考强度：越高越稳，也越慢。选「未设置」则不发任何推理参数。</string>
-    <string name="provider_reasoning_effort_unset">未设置</string>
-    <string name="provider_reasoning_effort_none">关闭</string>
-    <string name="provider_reasoning_effort_low">低</string>
-    <string name="provider_reasoning_effort_medium">中</string>
-    <string name="provider_reasoning_effort_high">高</string>
-    <string name="provider_reasoning_effort_xhigh">极高</string>
-    <string name="provider_reasoning_effort_max">最高</string>
-    <string name="provider_reasoning_effort_ultra">极致</string>
     <string name="provider_model_edit_cd">编辑模型</string>
     <string name="provider_model_delete_cd">删除模型</string>
     <string name="provider_model_params">上下文 %1$d · 输出 %2$d</string>

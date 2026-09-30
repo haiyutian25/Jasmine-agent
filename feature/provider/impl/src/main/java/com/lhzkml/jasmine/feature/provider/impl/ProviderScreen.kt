@@ -56,6 +56,7 @@ import com.lhzkml.jasmine.core.data.model.ProviderApiType
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import com.lhzkml.jasmine.core.ui.components.BottomSheet
 import com.lhzkml.jasmine.core.ui.components.Button
+import com.lhzkml.jasmine.core.ui.components.ReasoningEffort
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 
 // ── Provider screen dimensions ─────────────────────────────────────────
@@ -1056,22 +1057,6 @@ private fun ProviderDivider(currentTheme: CssVariables) {
 
 // ── 「推理强度」下拉（只在目录外的模型上出现） ─────────────────────────────
 
-/**
- * 八个取值：空串是「未设置」（请求里一个推理字段都不发），`"none"` 是「关闭」（显式要求不思考），其余
- * 六个是**上游两家目录的并集**（`low`/`medium`/`high`/`xhigh`/`max`，OpenAI 那边还有一个界面档
- * `ultra`）。与聊天输入行那张表**完全一致**，加档位时两处要一起改。
- */
-private val ProviderReasoningEffortOptions = listOf(
-    "" to R.string.provider_reasoning_effort_unset,
-    "none" to R.string.provider_reasoning_effort_none,
-    "low" to R.string.provider_reasoning_effort_low,
-    "medium" to R.string.provider_reasoning_effort_medium,
-    "high" to R.string.provider_reasoning_effort_high,
-    "xhigh" to R.string.provider_reasoning_effort_xhigh,
-    "max" to R.string.provider_reasoning_effort_max,
-    "ultra" to R.string.provider_reasoning_effort_ultra,
-)
-
 private val ProviderReasoningChevronSize = 14.dp
 private val ProviderReasoningPaddingVertical = 6.dp
 
@@ -1087,8 +1072,8 @@ private fun ProviderReasoningEffortField(
     currentTheme: CssVariables,
 ) {
     var open by remember { mutableStateOf(false) }
-    val current = ProviderReasoningEffortOptions.firstOrNull { it.first == value }
-        ?: ProviderReasoningEffortOptions.first()
+    val current = ReasoningEffort.options.firstOrNull { it.value == value }
+        ?: ReasoningEffort.options.first()
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = stringResource(R.string.provider_reasoning_effort),
@@ -1109,7 +1094,7 @@ private fun ProviderReasoningEffortField(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = stringResource(current.second),
+                    text = stringResource(current.labelRes),
                     fontSize = ProviderRowBaseUrlFontSize,
                     color = currentTheme.foreground
                 )
@@ -1142,21 +1127,21 @@ private fun ProviderReasoningEffortField(
                             color = currentTheme.foreground
                         )
                         Spacer(modifier = Modifier.height(12.dp))
-                        ProviderReasoningEffortOptions.forEach { option ->
-                            val selected = option.first == value
+                        ReasoningEffort.options.forEach { option ->
+                            val selected = option.value == value
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(currentTheme.radiusSm))
                                     .clickable {
-                                        onValueChange(option.first)
+                                        onValueChange(option.value)
                                         open = false
                                     }
                                     .padding(vertical = ProviderReasoningPaddingVertical),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = stringResource(option.second),
+                                    text = stringResource(option.labelRes),
                                     fontSize = ProviderRowBaseUrlFontSize,
                                     color = if (selected) {
                                         currentTheme.primary

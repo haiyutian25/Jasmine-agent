@@ -2,22 +2,22 @@
 
 use super::AgentChatService;
 use super::AgentError;
-use super::interrupted_turn_as_text;
-use super::interrupted_turn_fragment;
-use super::is_contextual_user_fragment;
-use super::interrupted_turn_marker;
-use super::transcript_entry;
-use crate::agent_settings::AgentSettings;
 use super::ChatSink;
 use super::ConversationsBridge;
+use super::interrupted_turn_as_text;
+use super::interrupted_turn_fragment;
+use super::interrupted_turn_marker;
+use super::is_contextual_user_fragment;
+use super::transcript_entry;
+use crate::agent_settings::AgentSettings;
 use crate::host::Clock;
 use jasmine_model_provider::ResolvedProvider;
 use jasmine_model_provider_info::ModelConfig;
 use jasmine_model_provider_info::ModelProviderInfo;
 use jasmine_model_provider_info::WireApi;
 use jasmine_protocol::ChatEvent;
-use jasmine_protocol::SessionId;
 use jasmine_protocol::Role;
+use jasmine_protocol::SessionId;
 use jasmine_protocol::models::ContentItem;
 use jasmine_protocol::models::FunctionCallOutputPayload;
 use jasmine_protocol::models::ReasoningItemContent;
@@ -235,6 +235,7 @@ fn a_stopped_reply_is_shown_but_stays_out_of_the_context() {
     assert!(
         service
             .transcript(&SessionId::new("s1"))
+            .expect("transcript")
             .iter()
             .any(|entry| entry.role == Role::Model && entry.text == "half a sentence"),
     );
@@ -382,7 +383,9 @@ fn changing_the_effort_appends_a_record_and_takes_effect() {
     assert_eq!(service.reasoning_effort("s1").as_deref(), Some("high"));
 
     service.set_reasoning_effort("s1", "low").expect("set low");
-    service.set_reasoning_effort("s1", "high").expect("set high");
+    service
+        .set_reasoning_effort("s1", "high")
+        .expect("set high");
 
     assert_eq!(service.reasoning_effort("s1").as_deref(), Some("high"));
 
@@ -487,9 +490,7 @@ fn the_stopped_turns_content_travels_as_a_contextual_fragment() {
         transcript_entry(&ResponseItem::Message {
             id: None,
             role: Role::User.as_str().to_string(),
-            content: vec![ContentItem::InputText {
-                text: fragment,
-            }],
+            content: vec![ContentItem::InputText { text: fragment }],
         })
         .is_none(),
         "上下文片段不上屏"
@@ -512,7 +513,7 @@ fn the_thinking_a_stopped_turn_had_reached_is_shown_but_stays_out_of_the_context
         }])
         .expect("record");
 
-    let entries = service.transcript(&SessionId::new("s1"));
+    let entries = service.transcript(&SessionId::new("s1")).expect("transcript");
     assert!(
         entries
             .iter()

@@ -93,6 +93,30 @@ fun toolCallKindOf(name: String): ToolCallKind = when (name.lowercase()) {
     else -> ToolCallKind.PLAIN
 }
 
+/**
+ * 这条载荷能不能按它的渲染器画出来？画不出来就是**降级**：退回原文，并在卡片上标出来（E2）。
+ *
+ * 以前降级是**无声**的 —— edit 类工具的参数换个名字，展开区就一片空白，没人分得清"解析失败"和
+ * "本来就没有内容"。现在这件事看得见。
+ *
+ * 在界面这一侧推导，而不是存进 `ChatToolActivity`：它是 name / detail / result 的**纯函数**，
+ * 不是新状态 —— 存进模型会有两个真相，也会让 ViewModel 反过来依赖渲染细节。
+ */
+fun toolCallFallsBackToRaw(name: String, detail: String, result: String?): Boolean =
+    when (toolCallKindOf(name)) {
+        // 补丁认不出来时展开区会是空的 —— 这一路最需要兜底。
+        ToolCallKind.DIFF -> patchTextOf(detail, result).isBlank()
+
+        // 清单一项都认不出来（纯文本里没有 `- [ ]` 也没有 status/content 对）。
+        ToolCallKind.TODO -> todoItemsOf(result ?: detail).isEmpty()
+
+        // 命令和输出都没有：终端渲染器什么也画不出来。
+        ToolCallKind.TERMINAL -> commandOf(detail).isEmpty() && result.isNullOrBlank()
+
+        // 兜底渲染器画的就是原文，不存在"降级"。
+        ToolCallKind.PLAIN -> false
+    }
+
 /** 展开区的内容：先按工具名分流，再交给对应的渲染器。 */
 @Composable
 fun ToolCallDetail(
@@ -101,6 +125,11 @@ fun ToolCallDetail(
     result: String?,
     currentTheme: CssVariables,
 ) {
+    // 认不出形状就画原文：宁可丑，不能空（E2）。
+    if (toolCallFallsBackToRaw(name, detail, result)) {
+        PlainContent(detail = detail, result = result, currentTheme = currentTheme)
+        return
+    }
     when (toolCallKindOf(name)) {
         ToolCallKind.DIFF -> DiffContent(detail = detail, result = result, currentTheme = currentTheme)
         ToolCallKind.TODO -> TodoContent(text = result ?: detail, currentTheme = currentTheme)

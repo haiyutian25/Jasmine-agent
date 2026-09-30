@@ -1,5 +1,6 @@
 package com.lhzkml.jasmine.feature.main.impl.chat
 
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -81,12 +82,15 @@ import kotlinx.coroutines.withContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lhzkml.jasmine.core.agent.ChatFailureKind
 import com.lhzkml.jasmine.core.agent.ContextUsage
 import com.lhzkml.jasmine.core.agent.ContextUsageSource
 import com.lhzkml.jasmine.core.data.model.ChatRole
 import com.lhzkml.jasmine.core.markdown.ui.MarkdownBlockList
 import com.lhzkml.jasmine.core.ui.components.BottomSheet
 import com.lhzkml.jasmine.core.ui.components.Button
+import com.lhzkml.jasmine.core.ui.components.ReasoningEffort
+import com.lhzkml.jasmine.core.ui.components.ReasoningEffortOption
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import android.icu.text.CompactDecimalFormat
 import com.lhzkml.jasmine.feature.main.impl.R
@@ -164,58 +168,18 @@ private val ChatEffortGap = 3.dp
 private const val ChatEffortTrackAlpha = 0.15f
 
 /**
- * 「推理强度」的档位表（值 → 文案），顺序就是面板里的顺序：空串（未设置 → 请求里不发任何推理字段）→
- * `none`（关闭 → 显式要求不思考）→ `low` → `medium` → `high` → `xhigh` → `max` → `ultra`。
+ * 失败消息上面那句"能怎么办"的提示。
  *
- * 这份表就是**上游两家目录的并集**：DeepSeek 照 `dsh` 的四档（`none`/`low`/`high`/`max`），OpenAI 照
- * codex 的 `models.json`（逐模型 `low`…`max`，其中四个还有 `ultra`）。两家都不声明的档这里就没有 ——
- * 所以没有 `minimal`。与供应商页那张表**完全一致**，加档位时两处要一起改。
+ * 只对**用户能做点什么**的几类给提示：网络问题可以重试、本地文件坏了重试没用、会话在核心侧没了
+ * 只能重发。核心没给分型（[ChatFailureKind.UNKNOWN]）或内部问题时**不猜** —— 原始原因那一行已经
+ * 是全部信息，硬加一句反而误导。
  */
-private val ChatReasoningEffortOptions = listOf(
-    "" to R.string.chat_reasoning_effort_unset,
-    "none" to R.string.chat_reasoning_effort_none,
-    "low" to R.string.chat_reasoning_effort_low,
-    "medium" to R.string.chat_reasoning_effort_medium,
-    "high" to R.string.chat_reasoning_effort_high,
-    "xhigh" to R.string.chat_reasoning_effort_xhigh,
-    "max" to R.string.chat_reasoning_effort_max,
-    "ultra" to R.string.chat_reasoning_effort_ultra,
-)
-
-/** 「关闭」：它表达的是"不思考"，不是"思考得很少"，所以竖条不给它填充。 */
-private const val ChatReasoningEffortOff = "none"
-
-/**
- * **界面档**：`ultra` 是 codex 目录里声明的取值，但线上没有这个词 —— 发请求前核心会把它换成该模型支持的
- * 最强档（见 `presets::wire_level`）。所以"不限制"（目录没声明支持表）时**不列它**：那种情况下换不成。
- */
-private const val ChatReasoningEffortUltra = "ultra"
-
-/**
- * 这次会话能选的档位：**目录**给了这个模型哪几档就只列哪几档（没给 = 不限制，列全部）；「未设置」
- * 不是档位、永远在；当前值即使不在目录里也留着 —— 否则面板里看不到自己现在是什么档。
- *
- * 对应 codex 的 `ModelInfo.supported_reasoning_levels`：它按后端模型目录过滤选择器，我们按核心目录
- * 传过来的那份 `levels` 来。
- */
-private fun chatReasoningEffortOptionsFor(
-    declared: List<String>,
-    current: String,
-): List<Pair<String, Int>> {
-    val declaredOptions = if (declared.isEmpty()) {
-        // 不限制：列全部**线上**档 —— 界面档（`ultra`）不列，它得先知道模型支持什么才换得成。
-        ChatReasoningEffortOptions.filter { it.first != ChatReasoningEffortUltra }
-    } else {
-        ChatReasoningEffortOptions.filter { it.first in declared }
-    }
-    val withUnset = if (declaredOptions.any { it.first.isEmpty() }) {
-        declaredOptions
-    } else {
-        listOf(ChatReasoningEffortOptions.first()) + declaredOptions
-    }
-    if (withUnset.any { it.first == current }) return withUnset
-    val extra = ChatReasoningEffortOptions.firstOrNull { it.first == current } ?: return withUnset
-    return withUnset + extra
+@StringRes
+private fun chatFailureHintRes(kind: ChatFailureKind): Int? = when (kind) {
+    ChatFailureKind.TRANSPORT -> R.string.chat_failure_hint_transport
+    ChatFailureKind.TRANSCRIPT -> R.string.chat_failure_hint_transcript
+    ChatFailureKind.NO_SESSION -> R.string.chat_failure_hint_no_session
+    ChatFailureKind.INTERNAL, ChatFailureKind.UNKNOWN -> null
 }
 
 /**
@@ -564,6 +528,19 @@ private fun MessageBubble(
         // arrive. `text` is still the fallback: a message with no blocks (a plain
         // transcript row that failed to parse, or a tool-only turn) shows as text.
         Column(modifier = Modifier.fillMaxWidth()) {
+            // 失败分型给出的"能怎么办"（P1：以前只能匹配错误文本猜）。排在原始原因之前当一句导语，
+            // 原因本身照旧由下面的块/正文显示。
+            message.failureKind?.let { kind ->
+                chatFailureHintRes(kind)?.let { hintRes ->
+                    Text(
+                        text = stringResource(hintRes),
+                        fontSize = ChatMetaFontSize,
+                        color = currentTheme.mutedForeground,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(modifier = Modifier.height(ChatReasoningBottomGap))
+                }
+            }
             // 深度思考排在正文之前（模型先想、再答）：收起时只留一行。
             if (message.thinking.isNotEmpty()) {
                 ReasoningRow(
@@ -996,9 +973,8 @@ private fun ToolActivityRow(
     currentTheme: CssVariables,
 ) {
     val resultOnly = activity.isResultOnly
-    // 状态读数据，不猜（照 ZCode 的六态）。
-    val running = activity.status == ChatToolStatus.RUNNING ||
-        activity.status == ChatToolStatus.PENDING
+    // 状态读数据，不猜。
+    val running = activity.status == ChatToolStatus.RUNNING
     // 展开态：用户拨过（[expandedOverride] 非空）以他的为准；没拨过就按运行状态自动开合 ——
     // 跑着展开看进度、结果一回来收好（ZCode 的 autoOpen / autoCollapseOnComplete）。
     //
@@ -1045,21 +1021,29 @@ private fun ToolActivityRow(
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(modifier = Modifier.width(6.dp))
-            // 状态词（ZCode 的 chat.toolCall.status.*）：六态各有各的词。
+            // 状态词（四态各有各的词，见 ChatToolStatus）。
             Text(
                 text = stringResource(
                     when (activity.status) {
-                        ChatToolStatus.PENDING -> R.string.chat_tool_status_pending
                         ChatToolStatus.RUNNING -> R.string.chat_tool_status_running
                         ChatToolStatus.COMPLETED -> R.string.chat_tool_status_done
                         ChatToolStatus.FAILED -> R.string.chat_tool_status_failed
-                        ChatToolStatus.DENIED -> R.string.chat_tool_status_denied
                         ChatToolStatus.STOPPED -> R.string.chat_tool_status_stopped
                     }
                 ),
                 fontSize = ChatMetaFontSize,
                 color = currentTheme.mutedForeground
             )
+            // 载荷形状认不出来、展开区按原文显示时，标一下（E2）：不让"解析失败"和"没有内容"
+            // 看起来一模一样 —— 那是这条降级链上唯一真正的坑。
+            if (toolCallFallsBackToRaw(activity.name, activity.detail, activity.result)) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = stringResource(R.string.chat_tool_raw_hint),
+                    fontSize = ChatMetaFontSize,
+                    color = currentTheme.mutedForeground
+                )
+            }
             Spacer(modifier = Modifier.weight(1f))
             Icon(
                 imageVector = LucideIcons.ChevronRight,
@@ -1215,7 +1199,7 @@ private fun Composer(
             // 推理强度：有激活模型才显示（没有模型就无从谈起档位）。点开面板挑一档，落库走
             // ChatAction.ThoughtLevelSelected —— 改的是**这个会话**的档位（不是模型配置）。
             // 这次会话能选的档位：目录给了这个模型哪几档就列哪几档（没给 = 不限制）。
-            val effortOptions = chatReasoningEffortOptionsFor(
+            val effortOptions = ReasoningEffort.optionsFor(
                 declared = state.allowedEfforts,
                 current = state.reasoningEffort,
             )
@@ -1820,7 +1804,7 @@ private val ChatEffortSheetCheckSize = 16.dp
 @Composable
 private fun ChatReasoningEffortSheet(
     current: String,
-    options: List<Pair<String, Int>>,
+    options: List<ReasoningEffortOption>,
     currentTheme: CssVariables,
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit,
@@ -1844,17 +1828,17 @@ private fun ChatReasoningEffortSheet(
             )
             Spacer(modifier = Modifier.height(ChatEffortSheetTitleGap))
             options.forEach { option ->
-                val selected = option.first == current
+                val selected = option.value == current
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(currentTheme.radiusSm))
-                        .clickable { onSelect(option.first) }
+                        .clickable { onSelect(option.value) }
                         .padding(vertical = ChatEffortSheetRowPaddingVertical),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = stringResource(option.second),
+                        text = stringResource(option.labelRes),
                         fontSize = ChatBodyFontSize,
                         color = if (selected) currentTheme.primary else currentTheme.foreground,
                         modifier = Modifier.weight(1f)
@@ -1884,19 +1868,19 @@ private fun ChatReasoningEffortSheet(
 @Composable
 private fun ChatReasoningEffortControl(
     effort: String,
-    options: List<Pair<String, Int>>,
+    options: List<ReasoningEffortOption>,
     currentTheme: CssVariables,
     onClick: () -> Unit,
 ) {
     val label = stringResource(
-        options.firstOrNull { it.first == effort }?.second
-            ?: ChatReasoningEffortOptions.first().second
+        options.firstOrNull { it.value == effort }?.labelRes
+            ?: ReasoningEffort.options.first().labelRes
     )
     // 竖条只表达"思考强度"：未设置与关闭都停在空轨道，其余按在**这次可选**的那几张档里的位置铺满。
     val thinking = options.filter {
-        it.first.isNotEmpty() && it.first != ChatReasoningEffortOff
+        it.value.isNotEmpty() && it.value != ReasoningEffort.OFF
     }
-    val position = thinking.indexOfFirst { it.first == effort }
+    val position = thinking.indexOfFirst { it.value == effort }
     val progress = if (position < 0 || thinking.isEmpty()) {
         0f
     } else {

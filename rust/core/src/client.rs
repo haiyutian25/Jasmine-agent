@@ -602,9 +602,8 @@ mod tests {
             .expect("a chat request");
         assert_eq!(chat.reasoning_effort.as_deref(), Some("high"));
 
-        let responses =
-            responses_request("m", &request, None, Some(super::ReasoningEffort::XHigh))
-                .expect("a responses request");
+        let responses = responses_request("m", &request, None, Some(super::ReasoningEffort::XHigh))
+            .expect("a responses request");
         let reasoning = responses.reasoning.expect("the reasoning object");
         assert_eq!(reasoning.effort, Some(super::ReasoningEffort::XHigh));
         // 明文思考要先要到摘要，供应商才给。

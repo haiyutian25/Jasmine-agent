@@ -15,9 +15,6 @@ hilt = "2.60.1"
 hiltViewmodelCompose = "1.4.0"
 kotlinxSerialization = "1.11.0"
 navigation3 = "1.1.7"
-roomRuntime = "2.8.4"
-roomKtx = "2.8.4"
-roomCompiler = "2.8.4"
 kotlinxCoroutinesTest = "1.10.2"
 core = "1.6.1"
 runner = "1.6.2"
@@ -37,7 +34,6 @@ androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = 
 jna = { group = "net.java.dev.jna", name = "jna", version.ref = "jna" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
-androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
 androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
@@ -46,12 +42,8 @@ androidx-compose-foundation = { group = "androidx.compose.foundation", name = "f
 androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
 androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
-androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
-androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "roomRuntime" }
-androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "roomKtx" }
-androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "roomCompiler" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutinesTest" }
 androidx-core = { group = "androidx.test", name = "core", version.ref = "core" }
 androidx-runner = { group = "androidx.test", name = "runner", version.ref = "runner" }

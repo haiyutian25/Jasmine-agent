@@ -57,22 +57,20 @@
     <string name="chat_manage_providers">Manage providers</string>
     <string name="chat_input_hint">Message…</string>
     <string name="chat_action_failed">Something went wrong</string>
+    <string name="chat_store_read_failed">Couldn\'t read your conversation history just now — showing the last list we had.</string>
+
+    <!-- 失败分型给出的提示（见 ChatFailureKind）：告诉用户"能怎么办"，而不是让他猜错误文本。 -->
+    <string name="chat_failure_hint_transport">Network request failed — you can send it again.</string>
+    <string name="chat_failure_hint_transcript">This conversation\'s local file is unreadable — retrying will not help.</string>
+    <string name="chat_failure_hint_no_session">This conversation is no longer open in the core — send the message again.</string>
     <string name="chat_context_window_failed">Could not update the context window</string>
     <string name="chat_reasoning_effort_failed">Could not update the reasoning effort</string>
     <string name="chat_usage_stats_failed">Could not read the usage statistics</string>
     <string name="chat_stopping_cd">Stopping</string>
     <string name="chat_send_cd">Send message</string>
 
-    <!-- 输入框里的「推理强度」控件；档位名与供应商页那五个一致（都取 codex 的 ReasoningEffort 表）。 -->
+    <!-- 输入框里的「推理强度」控件名；档位表（值 → 文案）在 core:ui 的 ReasoningEffort 里，两页共用。 -->
     <string name="chat_reasoning_effort">Reasoning effort</string>
-    <string name="chat_reasoning_effort_unset">Not set</string>
-    <string name="chat_reasoning_effort_none">Off</string>
-    <string name="chat_reasoning_effort_low">Low</string>
-    <string name="chat_reasoning_effort_medium">Medium</string>
-    <string name="chat_reasoning_effort_high">High</string>
-    <string name="chat_reasoning_effort_xhigh">Extra high</string>
-    <string name="chat_reasoning_effort_max">Max</string>
-    <string name="chat_reasoning_effort_ultra">Ultra</string>
     <string name="chat_stop_cd">Stop</string>
     <string name="chat_continue_cd">Continue</string>
     <string name="chat_turn_stopped">You stopped after %1$ds</string>
@@ -102,9 +100,9 @@
     <string name="chat_tool_status_running">Running</string>
     <string name="chat_tool_status_done">Done</string>
     <string name="chat_tool_status_failed">Failed</string>
-    <string name="chat_tool_status_denied">Denied</string>
     <string name="chat_tool_status_stopped">Stopped</string>
-    <string name="chat_tool_status_pending">Pending</string>
+    <!-- 展开区认不出载荷形状、按原文显示时的标记（见 toolCallFallsBackToRaw）。 -->
+    <string name="chat_tool_raw_hint">Raw payload</string>
     <string name="chat_reasoning_title">Thought</string>
     <string name="chat_reasoning_thinking">Thinking</string>
     <string name="chat_reasoning_duration">Thought · %1$d seconds</string>

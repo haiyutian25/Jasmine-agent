@@ -39,6 +39,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -606,6 +607,45 @@ class ChatViewModelTest {
             assertEquals(listOf("from B"), state.messages.map { it.text })
             // Switching conversations must rebuild the session for the new history.
             assertEquals(1, agentChat.conversationsEnded)
+        }
+
+    /**
+     * 抽屉那一片是 ChatViewModel **派生**出来的（P1-7）。
+     *
+     * 钉住两件事：(a) 投影按仓库给的顺序映射出标题与当前高亮；(b) 流式输出**不移动它** ——
+     * 分片只改当前会话的消息，不改 `conversations` / `activeConversationId`，派生值相等，
+     * 抽屉不该跟着分片重组（界面以前是自己 map + `distinctUntilChanged` 自救的）。
+     */
+    @Test
+    fun `the sidebar projection follows the conversation list, not the streaming text`() =
+        runTest(testDispatcher) {
+            conversationStore.seedConversation(
+                "conv-a",
+                "A",
+                listOf(TranscriptMessage(ChatRole.USER, "from A")),
+            )
+            conversationStore.seedConversation(
+                "conv-b",
+                "B",
+                listOf(TranscriptMessage(ChatRole.USER, "from B")),
+            )
+            conversationStore.markLatest("conv-a")
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            val before = viewModel.sidebarState.value
+            assertEquals(listOf("conv-a", "conv-b"), before.conversations.map { it.id })
+            assertEquals(listOf("A", "B"), before.conversations.map { it.title })
+            assertEquals("conv-a", before.activeConversationId)
+
+            agentChat.nextEvents = listOf(ChatEvent.Text("一"), ChatEvent.Text("二"), ChatEvent.Completed)
+            viewModel.trySendAction(ChatAction.InputChanged("hi"))
+            viewModel.trySendAction(ChatAction.SendClicked)
+            advanceUntilIdle()
+
+            assertTrue("这一轮应当已经把正文写进消息里", viewModel.stateFlow.value.messages.isNotEmpty())
+            assertEquals("流式输出不该移动抽屉那一片", before, viewModel.sidebarState.value)
         }
 
     /**
@@ -1183,6 +1223,44 @@ class ChatViewModelTest {
         )
     }
 
+    /**
+     * 转写里那行 `tool_status` → 状态的映射表（E1）：核心只会写 `"completed"` / `"stopped"`，
+     * 其余取值是兼容读法。表错了，恢复出来的历史就会显示成错的状态。
+     */
+    @Test
+    fun `stored tool status strings map onto the four live states`() {
+        assertEquals(ChatToolStatus.COMPLETED, toolStatusOf("completed"))
+        assertEquals(ChatToolStatus.STOPPED, toolStatusOf("stopped"))
+        // 旧数据里的审批语义：没有审批流程了，读法保留但不再产生。
+        assertEquals(ChatToolStatus.RUNNING, toolStatusOf("pending"))
+        assertEquals(ChatToolStatus.FAILED, toolStatusOf("denied"))
+        // 认不出的取值按"已完成"——一行工具记录落了盘，它当时就是跑完了的。
+        assertEquals(ChatToolStatus.COMPLETED, toolStatusOf(""))
+        assertEquals(ChatToolStatus.COMPLETED, toolStatusOf("whatever"))
+    }
+
+    /**
+     * 载荷形状认不出来时必须被判成"降级"（E2）：判漏的后果是展开区一片空白、卡片上还不给标记，
+     * 那正是这条链上要消除的**静默**。
+     */
+    @Test
+    fun `payload shapes the renderer cannot read are flagged as fallbacks`() {
+        // 补丁：参数里没有 patch/diff/new_string，结果也没有正文 → 画不出补丁。
+        assertTrue(toolCallFallsBackToRaw("edit_file", """{"file_path":"a.kt"}""", null))
+        assertFalse(toolCallFallsBackToRaw("edit_file", """{"patch":"@@ -1 +1 @@"}""", null))
+
+        // 清单：既没有 `- [ ]` 行、也没有 status/content 对 → 一项都认不出来。
+        assertTrue(toolCallFallsBackToRaw("todo_write", """{"items":[]}""", "no idea"))
+        assertFalse(toolCallFallsBackToRaw("todo_write", "{}", "- [x] done"))
+
+        // 命令：没有 command 字段、也没有输出 → 终端渲染器画不出任何东西。
+        assertTrue(toolCallFallsBackToRaw("bash", """{"cwd":"/tmp"}""", null))
+        assertFalse(toolCallFallsBackToRaw("bash", """{"command":"ls"}""", null))
+
+        // 兜底渲染器画的就是原文，不存在"降级"。
+        assertFalse(toolCallFallsBackToRaw("some_mcp_tool", "whatever", null))
+    }
+
     private fun createViewModel() = ChatViewModel(
         providerRepository = providerRepository,
         userPreferencesRepository = preferencesRepository,
@@ -1298,6 +1376,8 @@ private class FakeUserPreferencesRepository(initial: UserPreferences) : UserPref
 
 private class FakeConversationStore : ConversationStore {
     override val conversationsStateFlow = MutableStateFlow<List<Conversation>>(emptyList())
+    /** 用例里没有读失败。 */
+    override val readFailures: Flow<String> = emptyFlow()
     val created = mutableListOf<Conversation>()
     val deleted = mutableListOf<String>()
 

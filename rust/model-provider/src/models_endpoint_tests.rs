@@ -8,8 +8,9 @@ fn reads_the_generic_shape() {
 
 #[test]
 fn reads_the_deepseek_shape() {
-    let ids = parse_model_ids(r#"{"models":[{"id":"deepseek-flash"},{"model_name":"deepseek-v4-pro"}]}"#)
-        .expect("ids");
+    let ids =
+        parse_model_ids(r#"{"models":[{"id":"deepseek-flash"},{"model_name":"deepseek-v4-pro"}]}"#)
+            .expect("ids");
     assert_eq!(ids, ["deepseek-flash", "deepseek-v4-pro"]);
 }
 

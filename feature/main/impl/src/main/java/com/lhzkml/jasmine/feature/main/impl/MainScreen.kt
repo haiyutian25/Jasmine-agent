@@ -15,7 +15,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -24,14 +23,11 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lhzkml.jasmine.core.ui.base.util.EventsEffect
 import com.lhzkml.jasmine.core.ui.components.ProductionTopNavBar
-import com.lhzkml.jasmine.core.ui.components.SidebarConversation
 import com.lhzkml.jasmine.core.ui.components.SidebarDrawer
 import com.lhzkml.jasmine.feature.main.impl.chat.ChatAction
 import com.lhzkml.jasmine.feature.main.impl.chat.ChatScreen
 import com.lhzkml.jasmine.feature.main.impl.chat.ChatUiEvent
 import com.lhzkml.jasmine.feature.main.impl.chat.ChatViewModel
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 
 /**
  * Main destination: push-canvas sidebar + the chat surface. Stateless renderer of
@@ -115,22 +111,8 @@ fun MainScreen(
         }
     }
 
-    val sidebar by remember(chatViewModel) {
-        chatViewModel.stateFlow
-            .map { chatState ->
-                SidebarState(
-                    conversations = chatState.conversations.map { conversation ->
-                        SidebarConversation(
-                            id = conversation.id,
-                            title = conversation.title,
-                            subtitle = relativeTimeText(conversation.updatedAt).orEmpty(),
-                        )
-                    },
-                    activeConversationId = chatState.activeConversationId,
-                )
-            }
-            .distinctUntilChanged()
-    }.collectAsStateWithLifecycle(initialValue = SidebarState())
+    // 抽屉要的那一片由 ChatViewModel 派生（P1-7）：界面只收集，不再自己投影会话列表。
+    val sidebar by chatViewModel.sidebarState.collectAsStateWithLifecycle()
 
     Box(modifier = modifier.fillMaxSize()) {
         // Push-canvas sidebar drawer; the main scaffold is its pushed content.
@@ -195,14 +177,3 @@ fun MainScreen(
         }
     }
 }
-
-/**
- * 侧边栏需要的那一小片聊天状态。
- *
- * 单独包一层是为了让 `distinctUntilChanged` 能按值比较：直接订阅整个 [ChatState]
- * 的话，流式回复每个 chunk 都会让抽屉重组一次。
- */
-private data class SidebarState(
-    val conversations: List<SidebarConversation> = emptyList(),
-    val activeConversationId: String? = null,
-)

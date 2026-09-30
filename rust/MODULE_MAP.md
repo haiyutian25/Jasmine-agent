@@ -3,7 +3,10 @@
 > 本文档是 jasmine 把 Agent 核心改成 Rust 的**唯一对照依据**。动代码前先在这里查一行。
 >
 > 位置：`minimal-hello/rust/MODULE_MAP.md`（与骨架放在一起，跟着骨架一起进版本控制）
-> 更新日期：2026-09-27
+> 更新日期：2026-10-01
+>
+> 读法：**§2 里"Android 位置"列标着"旧引擎"的，指 Rust 化之前的 Kotlin 实现 —— 那套代码已整体删除**，
+> 留在这里只为说明"这一项当年是从哪儿长出来的"，不是现存代码。
 
 ---
 
@@ -27,14 +30,14 @@
 | `jasmine-utils-string` | `utils/string` | 文本小工具（token/字节换算等） | `core:agent` 的展示截断 | ✅ 已实现 |
 | `jasmine-utils-output-truncation` | `utils/output-truncation` | 输出长度收口（按字节/token 截断） | `core:agent` 的展示截断 | ✅ 已实现 |
 | `jasmine-protocol` | `protocol/` | 跨边界类型：会话事件、角色、会话 id、探测结果 | `AgentChat.kt` 的事件 + `ProviderProbe.kt` | ✅ 已实现 |
-| `jasmine-http-client` | `http-client/` | 客户端构建、重试节流、端点拼接与错误文本 | `core:network` + 各 `*Wire.kt` 的传输部分 | ⚠️ 重试/拼接已实现，客户端构建待接 |
-| `jasmine-model-provider-info` | `model-provider-info/` | provider 静态元信息、wire 协议、内置预设 | `ProviderConfig.kt`（去掉密钥） | ✅ 已实现 |
-| `jasmine-model-provider` | `model-provider/` | 凭据注入、模型列表端点 | `ProviderConfig.apiKey` + `ProviderModelDataSource.kt` | ✅ 已实现 |
-| `jasmine-api` | `api/` | 两套协议报文 + SSE 解析 | `OpenAi*Model/Wire.kt`（1,123 行） | ⚠️ SSE 已实现，端点待接 |
-| `jasmine-tools` | `tools/` | 工具契约（`Tool`/`ToolError`/`ToolFuture`）+ 工具词汇表（声明、json schema、结果）+ jasmine 自带工具 | `JasmineTools.kt` 的声明部分 | ✅ 已实现 |
-| `jasmine-rollout` | `rollout/` | 会话落盘：每会话一个只追加 JSONL（首行是会话元信息），另附读取与发现 | `ConversationStore.kt` + 旧引擎的 `RoomSessionService` | ✅ 已实现并接线（见 §2.6；旧引擎 那套不再参与） |
-| `jasmine-core` | `core/` | 会话门面（`AgentChatService`）、轮次主循环、模型客户端、上下文、工具注册表、宿主边界、探测 | `AgentChat.kt` / `旧 Kotlin 引擎（已删）` / `ProviderProbe.kt` | ✅ 已实现（绑定待接） |
-| `jasmine-ffi` | `ffi/` | 跨语言边界（Android 无对应，必须新增）：`AgentHandle`（附着 / 发送 / 回答提问 / 结束 + `create_conversation` / `delete_conversation` / `conversations` / `transcript`）/ `EventListener` / `HostClock`（`now` + `format`）+ 适配器 + `probe` | `AgentChat.kt` / `ProviderProbe.kt` 的实现位 | ✅ 已接 UniFFI 0.32.2（注解 + 生成 Kotlin，见 §1.1）；Android 侧构建接线与 Kotlin 适配已完成 |
+| `jasmine-http-client` | `http-client/` | 客户端构建、重试节流、端点拼接与错误文本 | 传输层（`RustAgentChat` 走的唯一 HTTP 出口） | ✅ 已实现并接线（reqwest + rustls，`default-features = false`） |
+| `jasmine-model-provider-info` | `model-provider-info/` | provider 静态元信息、wire 协议、内置预设 + 模型目录（含推理档支持度） | `ProviderConfig` / `ModelConfig`（去掉密钥） | ✅ 已实现 |
+| `jasmine-model-provider` | `model-provider/` | 凭据注入、模型列表端点 | `ProviderConfig.apiKey` + `RustModelList` | ✅ 已实现 |
+| `jasmine-api` | `api/` | 两套协议报文 + SSE 解析 | 传输/报文（Rust 侧自持，Kotlin 无对应） | ✅ 已实现（Chat Completions 与 Responses 两套端点都在真机跑通） |
+| `jasmine-tools` | `tools/` | 工具契约（`Tool`/`ToolError`/`ToolFuture`）+ 工具词汇表（声明、json schema、结果）+ jasmine 自带工具 | 工具声明与执行（Rust 侧自持） | ✅ 已实现 |
+| `jasmine-rollout` | `rollout/` | 会话落盘：每会话一个只追加 JSONL（首行是会话元信息），另附读取与发现 | `ConversationStore.kt` / `RustConversationStore.kt` | ✅ 已实现并接线（见 §2.6） |
+| `jasmine-core` | `core/` | 会话门面（`AgentChatService`）、轮次主循环、模型客户端、上下文、工具注册表、宿主边界、探测 | `AgentChat.kt` / `ProviderProbe.kt` 的实现位 | ✅ 已实现并接线（Rust 化之前的 Kotlin 引擎已整体删除） |
+| `jasmine-ffi` | `ffi/` | 跨语言边界（Android 无对应，必须新增）：`AgentHandle`（附着 / 发送 / 回答提问 / 继续 / 中断 / 结束 + `create_conversation` / `delete_conversation` / `conversations` / `transcript` / 窗口与档位读写 / `usage_stats`）/ `EventListener`（回合事件）/ `ConversationStoreListener`（存储变更）/ `HostClock`（`now` + `format`）+ 适配器 + `probe` / `list_models` / `provider_catalog` / `built_in_providers` | `AgentChat.kt` / `ConversationStore.kt` / `ProviderProbe.kt` 的实现位 | ✅ 已接 UniFFI 0.32.2（注解 + 生成 Kotlin，见 §1.1）；Android 侧构建接线与 Kotlin 适配已完成 |
 
 ### 1.1 跨语言绑定（UniFFI）
 
@@ -53,12 +56,14 @@
   - 坑一：AGP 9 的 library 模块不能用旧式 `android.sourceSets`（访问即 `DefaultAndroidLibrarySourceSet_Decorated cannot be cast to AndroidLibrarySourceSet`），必须走变体源集 API。
   - 坑二：Gradle 用户级代理（`D:\AndroidDev\gradle\gradle.properties` 里的 `127.0.0.1:7897`）不通时，用 `-Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=7897 -Dhttps...` 覆盖即可。
   - 反例：reqwest 的默认特性会带 native-tls → OpenSSL，交叉编译不到 Android，所以工作区里 `reqwest` 改为 `default-features = false` + rustls。
-- **Kotlin 侧适配（已做）**：`RustAgentChat`（用 Rust 实现现有 `AgentChat` 接口：阻塞调用落 `Dispatchers.IO`，核心的回调转 `Flow<ChatEvent>`，失败走 `ChatEvent.Failed`）、`ConversationStoreHost`（`ConversationStore` → 核心要的会话数据；转写里的工具活动没有 call id，按作者文本跨界）与 `DeviceClock`（时间由平台格式化）。
-- **引擎已切换**：Hilt 装配（`core/agent/.../di/AgentModule.kt`）里 `AgentChat` → `RustAgentChat(conversationStore)`、`ProviderProbe` → `RustProviderProbe`（用核心的 `probe`）。旧引擎 的实现与它的 provider 仍留在模块里（自己的测试也还在），**换回去是这一行的事**。会话存储改为核心侧的 rollout（每会话一个只追加 JSONL，见 §2.6），旧引擎的 Room 会话库随之下线。
+- **Kotlin 侧适配（已做）**：`RustAgentChat`（阻塞调用落 `Dispatchers.IO`，核心的回调转 `Flow<ChatEvent>`，失败走 `ChatEvent.Failed`）、`RustConversationStore`（会话列表/转写/建删；订阅核心的**存储变更推送**并防抖重读）与 `DeviceClock`（时间由平台格式化）。
+- **引擎已切换，且只剩一套**：Hilt 装配（`core/agent/.../di/AgentModule.kt`）里 `AgentHandle` 是 `@Singleton`（进程内唯一的核心句柄：按会话分槽、存储变更推送都挂在它上面），`AgentChat` → `RustAgentChat(handle)`（**刻意非单例**：每条会话一个薄门面，隔离靠核心的槽而不是靠多实例），`ConversationStore` → `RustConversationStore(handle)`，`ProviderProbe` → `RustProviderProbe`。Rust 化之前的 Kotlin 引擎与它的会话库已整体删除；会话存储是核心侧的 rollout（每会话一个只追加 JSONL，见 §2.6），**列表更新由核心推送驱动**（`ConversationStoreListener` → 防抖 → 重读），不再靠"回合结束手动 refresh"。
   - 实测：`:core:agent:compileDebugKotlin`、`:app:compileDebugKotlin`（Hilt 整图校验）、`:app:assembleDebug` 均 BUILD SUCCESSFUL；APK 里 `lib/{arm64-v8a,armeabi-v7a,x86,x86_64}/libjasmine_ffi.so` 与 JNA 的 `libjnidispatch.so` 都在。
-- 尚未做：**设备上实测一轮**（发消息 → 回复 / 工具调用）；**停止/中断一轮尚未实现**（Rust 侧是阻塞调用，取消 Flow 不会中断核心的轮次）。
+- **中断已实现并真机验证**：`AgentHandle::interrupt` → 核心在下一个 await 点收手、把已经产出的条目落盘、以 `Aborted` 收尾；Flow 被取消时也会通报核心。真机留证：`interrupted_reasoning` / `interrupted_reply` / `<turn_aborted>` 用户片段 / `turn_aborted{duration_ms}` 四件齐备；继续时把 `<interrupted_turn>` 片段拼回用户消息，模型从断点接上。
+- **真机实测已做**：多轮对话、两套 wire、并行工具调用与结果回填、思考流、用量落盘、重启恢复都验证过（会话文件在 `files/sessions/<年>/<月>/<日>/rollout-*.jsonl`）。
+- 仍未做：错误分型穿 FFI、共享 tokio runtime、事件背压、`AgentHandle` 显式 close —— 见 `P1_P2_FIX_PLAN.md` §5（Phase D）。
 
-验证现状（2026-09-27）：workspace members = api / client / core / ffi / http-client / model-provider / model-provider-info / protocol / tools / utils/{string,output-truncation}；`cargo check --workspace --all-targets` 0 error / 0 warning、`cargo test --workspace` 129 passed、`cargo clippy --workspace --all-targets` 0 error / 0 warning、`cargo fmt --check` 一致。
+验证现状（2026-10-01）：workspace members = api / client / core / ffi / http-client / model-provider / model-provider-info / protocol / rollout / tools / utils/{string,output-truncation}；`cargo test --workspace` **176 passed**、`cargo fmt --check` 一致、`cargo check --workspace` 0 error。`[workspace.dependencies]` 已从 202 项精简到**成员真正引用的 32 项**（其余 170 项在被删前只存在于清单里，从未进过依赖图 —— `Cargo.lock` 里查不到它们）。
 
 ---
 
@@ -68,11 +73,11 @@
 
 | 能力 | Android 位置 | 参照实现的位置 | 骨架状态 |
 |---|---|---|---|
-| 会话门面契约（5 个方法 + 6 个事件） | `AgentChat.kt`（117 行） | `protocol` 的 `ChatEvent`/`SessionId`/`Role` + `core/src/session/service.rs` 的 `AgentChatService` | ✅ 已实现 |
+| 会话门面契约（14 个方法 + 9 类事件） | `AgentChat.kt` | `protocol` 的 `ChatEvent`/`SessionId`/`Role` + `core/src/session/service.rs` 的 `AgentChatService` | ✅ 已实现 |
 | 会话附着 / 释放 | `旧 Kotlin 引擎（已删）`（383 行） | `AgentChatService::start_conversation` / `end_conversation`（附着时从会话文件装载已有上下文） | ✅ 已实现 |
 | 轮次主循环 | 旧引擎内部（自研无代码） | `core/src/session/turn.rs`（`run_turn`） | ✅ 已实现 |
 | 轮内循环（工具调用 → 回填 → 再采样） | 旧引擎内部 | 同上（串行，见 §3.2） | ✅ 已实现（串行） |
-| 停止回复 | `ChatAction.StopClicked` + `handleStopClicked` | `Op::SuspendTurnAndShutdown` | ⚠️ 待接 |
+| 停止回复 | `ChatAction.StopClicked` + `handleStopClicked`（幂等状态位 + 出站 Effect） | `AgentChatService::interrupt`（CancellationToken，回合在下一个 await 点收手） | ✅ 已实现并真机验证 |
 | 恢复被中断的轮次 | `AgentChat.persistInterruptedReply` | `AgentChatService::persist_interrupted_reply`（把半段回复放回模型上下文；持久化归平台） | ✅ 已实现 |
 | 任务抽象（一次任务怎么跑） | 旧引擎 Runner | `core/src/tasks/`（`regular.rs` 等） | 未建（主循环落地时一并） |
 
@@ -81,8 +86,8 @@
 | 能力 | Android 位置 | 参照实现的位置 | 骨架状态 |
 |---|---|---|---|
 | 两套 wire 协议选择 | `OpenAiModelFactory.kt`（35 行） | `model-provider-info` 的 `WireApi` | ✅ |
-| Chat Completions 报文 | `旧 Kotlin 模型适配（已删）`(312) + `OpenAiChatWire.kt`(149) | `codex-api` 的 `endpoint/` + `sse/` | ⚠️ 待接 |
-| Responses 报文 | `OpenAiResponsesModel.kt`(223) + `OpenAiResponsesWire.kt`(221) | 同上 | ⚠️ 待接 |
+| Chat Completions 报文 | ——（Kotlin 侧已无对应实现） | `jasmine-api` 的 `endpoint/chat_completions.rs` + `sse/chat_completions.rs` | ✅ 已实现并真机跑通（含 `reasoning_content` 解析与逐轮回传） |
+| Responses 报文 | —— | `jasmine-api` 的 `endpoint/responses.rs` + `sse/responses.rs` | ✅ 已实现并真机跑通 |
 | SSE 流式解析 | 三个 `*Wire.kt` 的流式部分 | `codex-api/src/sse/` | ✅ 已实现 |
 | 请求重试与节流 | `OpenAiWire.kt` 的重试部分 | `http-client/src/retry_after.rs` | ✅ 已实现 |
 | 凭据注入 | `ProviderConfig.apiKey` → 请求头 | `model-provider/src/auth.rs` | ✅ 已实现 |
@@ -101,7 +106,7 @@
 | 工具注册与按名分发 | 旧引擎 的注解处理器生成 | `core/src/tools/registry.rs` + `spec_plan.rs` | ✅ 已实现 |
 | 内置工具实现 | `JasmineTools.currentTime` / `listPastConversations` | 参照在 `core/src/tools/handlers/`；这里落在 `tools/src/current_time.rs`、`tools/src/list_past_conversations.rs` | ✅ 已实现（有意挪到 tools 侧：契约也在那里，依赖保持单向 `core → tools`） |
 | 工具结果长度收口 | 展示层截断 | `utils/output-truncation/src/lib.rs` | ✅ 已实现 |
-| **并行工具调用** | `旧 Kotlin 模型适配（已删）:160` → `parallelToolCalls = false`（**明确关掉**） | `parallel_tool_calls: true` + `core/src/tools/parallel.rs` | ❌ **缺**（见 §3.2） |
+| **并行工具调用** | 无（Kotlin 侧已无对应） | `core/src/tools/parallel.rs`（`ToolCallRuntime`） | ✅ 已实现：一轮里的多个调用**并发执行**、结果按调用顺序归位；请求侧两套 wire 仍写死 `parallel_tool_calls: false`（不指望服务端听话，见 §3.2） |
 | 工具执行编排（审批 → 沙箱 → 升级重试） | 无（工具是纯函数） | `core/src/tools/orchestrator.rs` + `sandboxing/` | 不迁（见 §4） |
 | 动态工具（宿主注入） | 无 | `tools/src/dynamic_tool.rs` | 未建 |
 
@@ -119,7 +124,7 @@
 
 | 能力 | Android 位置 | 参照实现的位置 | 骨架状态 |
 |---|---|---|---|
-| 交互提问（工具提问/给选项） | 旧引擎的 `get_user_choice` / `旧引擎_request_input` | `tools/handlers/request_user_input.rs` + `elicitation.rs` | ⚠️ 数据模型已就位（`PendingPrompts` + 调用 id 配对），恢复待接 |
+| 交互提问（工具提问/给选项） | `ChatAction.PromptAnswered` + `ChatViewModel.handlePromptAnswered` | `AgentChatService::respond_to_prompts` + 核心的待答提问模型 | ✅ 已实现（一轮多问按序收齐、一次提交；真机验证） |
 | 答案按序收齐一次提交 | `AgentChat.respondToPrompts` 注释里的血泪教训 | 同上 | ✅ 已实现（含"少交一个"拦截） |
 | 中途引导（回复进行中追加输入） | 无 | `codex_thread.rs` 的 `steer_turn` | 参照有、Android 无（见 §5） |
 
@@ -205,7 +210,7 @@
 | 能力 | Android 位置 | 为什么参照没有 | 处理 |
 |---|---|---|---|
 | 连通性探测 | `ProviderProbe.kt` + `旧 Kotlin 探测（已删）` | 参照不提供"这条配置能不能用"的功能 | 自主实现（`core/src/probe.rs`），已登记 |
-| 会话持久化 | `ConversationStore.kt`、`core:data` | 参照的持久化在 `rollout`/`thread-store`；jasmine 照参照做 `rust/rollout`（每会话一个只追加 JSONL，首行是会话元信息与标题/provider/model），列表与转写由核心给出 | ✅ 已改核心侧（旧引擎的 Room 会话库不再参与） |
+| 会话持久化 | `ConversationStore.kt`、`RustConversationStore.kt` | 参照的持久化在 `rollout`/`thread-store`；jasmine 照参照做 `rust/rollout`（每会话一个只追加 JSONL，首行是会话元信息与标题/provider/model），列表与转写由核心给出 | ✅ 已改核心侧（Room 会话库整体下线） |
 | Provider 配置持久化与界面 | `ProviderDataStore` + `feature:provider:impl` | 参照是配置文件驱动 | 留平台 |
 | Markdown/Mermaid 渲染与图片保存 | `core:markdown`、`MarkdownBlockList.kt` | 参照是终端渲染 | 留平台 |
 | 主题/字体/导航/界面 | `core:ui`、`core:navigation`、`feature:*` | 同上 | 留平台 |
@@ -229,13 +234,24 @@
 | 会话重命名 / 归档 / 搜索 | `append_thread_name`、`ARCHIVED_SESSIONS_SUBDIR` | Android 无 |
 | 中途引导（steer） | `codex_thread.rs` | Android 无 |
 | 用量统计与遥测 | `analytics`、`otel` | Android 无 |
-| 会话恢复（RecoverTurn） | `Op::RecoverTurn` | Android 无 |
 
 ---
 
-## 6. 待你确认的问题
+## 6. 决策记录与当前待办
 
-1. **§3.1 token 用量**：现在补（照参照实现），还是等界面要展示时再补？
-2. **§3.2 并行工具调用**：按参照实现改成默认并行（补 `parallel.rs`），还是保持串行并写明是有意偏离？
-3. **§3.3 模型配置的 token 预算**：放 `model-provider-info`，还是每次请求由平台带进来？
-4. **下一步做什么**：① 先接构建（cargo-ndk → `jniLibs`，让 Kotlin 能加载到库）；② 先填实现（加依赖、实现一个端点 + 主循环）。
+### 6.1 已决策（原先"待确认"四项的结论）
+
+1. **§3.1 token 用量**：已补 —— 总量是 provider 真值、构成份额是本地估算后按真值缩放（见 §3.1），界面展示在输入框左侧的环形入口里。
+2. **§3.2 并行工具调用**：**执行侧并行**（`tools/parallel.rs`），**请求侧保持 `parallel_tool_calls: false`** —— 有意偏离：服务端是否真并行不由我们决定，但执行侧必须能接住"一轮里多个调用"（DeepSeek 那次 400 就是缺这条）。
+3. **§3.3 token 预算**：`contextLength` 落成会话起始窗口（写进会话文件、冻结），`maxOutputLength` 走模型配置逐轮上线；两者都不进 `model-provider-info`。
+4. **构建与实现顺序**：都已落地（见 §1.1），并已真机验证。
+
+### 6.2 当前待办（下一批，见 `P1_P2_FIX_PLAN.md` §5）
+
+| 项 | 内容 |
+|---|---|
+| D1 | 共享 tokio runtime：`block_on` 每次新建 runtime，而 `reqwest::Client` 跨轮复用 —— 连接池的 keep-alive 实际每轮重建 |
+| D2 | 错误分型穿 FFI：`AgentError`（NoSession / Transport / Poisoned / Transcript）现在塌缩成单变体 `AgentFailure::Failed{detail}`，界面只能匹配文本 |
+| D3 | 事件背压：`RustAgentChat` 的 `Channel.UNLIMITED`（改为有界 + 文本合并，终态事件绝不丢） |
+| D4 | `AgentHandle` 显式 close（目前靠 GC 触发 UniFFI 析构） |
+| D5 | `conversations()` / `transcript()` 把 IO 错误吞成空列表 —— 改成返回 `Result`，让"存储坏了"可见 |

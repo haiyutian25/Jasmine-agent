@@ -7,9 +7,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import uniffi.jasmine_ffi.AgentFailure
 import uniffi.jasmine_ffi.AgentHandle
@@ -140,16 +142,18 @@ class RustAgentChat(
     }
 
     /**
-     * Forwards one core call's events as a flow.
+     * Forwards one core call's events as a flow, **bounded** and without dropping anything.
      *
-     * The events go through an **unbounded** channel, for the same reason the ViewModels' action
-     * channels are: a stream of tokens must never be dropped to make room — the reply would come out
-     * truncated with nothing reported anywhere, and the user would see it just stop mid-sentence.
+     * The listener runs on a thread the core owns, so it cannot wait for a slot the way a
+     * `callbackFlow` producer would — but queuing without a bound means a streaming reply piles up in
+     * heap while the UI is busy, and by the time the UI catches up those events are stale anyway.
+     * The middle ground is [EventSink]: text and reasoning deltas **merge** into one event instead of
+     * queueing one slot each, everything else waits for room. Nothing is ever dropped — a lost
+     * terminal event would leave the flow open forever.
      *
-     * `callbackFlow` cannot be used here: it hands out [Channel.BUFFERED] (64 slots) and its `trySend`
-     * fails, silently, the moment the collector falls behind — which the main thread does whenever it
-     * is busy. The listener runs on a thread the core owns, so waiting for room is not an option
-     * either; queuing is.
+     * `callbackFlow` cannot be used here either: it hands out [Channel.BUFFERED] (64 slots) and its
+     * `trySend` fails, silently, the moment the collector falls behind — which the main thread does
+     * whenever it is busy.
      *
      * The core's call runs on [Dispatchers.IO] and the flow ends when a terminal event closes the
      * channel ([ChatEvent.Completed]/a failure) or, for calls that just report and return, when the
@@ -164,23 +168,25 @@ class RustAgentChat(
         stopsTheTurnWhenCancelled: Boolean = false,
         run: (EventListener) -> Unit,
     ): Flow<ChatEvent> = flow {
-        val events = Channel<ChatEvent>(capacity = Channel.UNLIMITED)
+        val events = Channel<ChatEvent>(capacity = EVENT_CHANNEL_CAPACITY)
+        val sink = EventSink(events)
         val listener = object : EventListener {
             override fun onEvent(event: CoreChatEvent) {
-                val mapped = event.toChatEvent()
-                events.trySend(mapped)
-                if (mapped.endsTurn()) {
-                    events.close()
-                }
+                sink.offer(event.toChatEvent())
             }
         }
         val worker = CoroutineScope(Dispatchers.IO).launch {
             try {
                 run(listener)
             } catch (failure: AgentFailure) {
-                events.trySend(ChatEvent.Failed(failure.message ?: failure.toString()))
+                sink.offer(
+                    ChatEvent.Failed(
+                        detail = failure.message ?: failure.toString(),
+                        kind = failure.toKind(),
+                    )
+                )
             }
-            events.close()
+            sink.finish()
         }
         var drained = false
         try {
@@ -264,6 +270,19 @@ private fun CoreContextUsageSource.toContextUsageSource(): ContextUsageSource = 
     CoreContextUsageSource.MESSAGES -> ContextUsageSource.MESSAGES
 }
 
+/**
+ * 核心的失败类型 → 本模块的分型。
+ *
+ * 「回合中途的失败」走的是另一条路：核心的 `ChatEvent::Failed` 只带一句文本，所以那条路的分型是
+ * [ChatFailureKind.UNKNOWN] —— 给事件也带上分型要改跨边界的事件协议，另行评估。
+ */
+private fun AgentFailure.toKind(): ChatFailureKind = when (this) {
+    is AgentFailure.NoSession -> ChatFailureKind.NO_SESSION
+    is AgentFailure.Transport -> ChatFailureKind.TRANSPORT
+    is AgentFailure.Transcript -> ChatFailureKind.TRANSCRIPT
+    is AgentFailure.Internal -> ChatFailureKind.INTERNAL
+}
+
 /** Whether this event is the last one of its turn. */
 private fun ChatEvent.endsTurn(): Boolean = when (this) {
     // A prompt stops the turn: the interactive call has no result yet, and nothing more arrives
@@ -280,4 +299,102 @@ private fun ChatEvent.endsTurn(): Boolean = when (this) {
     -> false
     // 用量随每个采样轮一起到，不是回合的结束。
     is ChatEvent.Usage -> false
+}
+
+/**
+ * 事件通道的容量。
+ *
+ * 64 与 `Channel.BUFFERED` 同量级：够吸收一次突发（工具调用前后连着几条），又不至于让界面
+ * 落后太远。**取舍**：不采用"丢帧"策略 —— 文本增量丢掉会让界面与落盘转录不一致，而
+ * 缓冲 + 合并已经能压住积压，不必再牺牲一致性。
+ */
+private const val EVENT_CHANNEL_CAPACITY = 64
+
+/**
+ * 把核心回调线程上的事件排进通道 —— **有界**，文本只合并、不丢。
+ *
+ * 为什么不是无界队列：核心按增量产事件，一次长回复上千条；界面（主线程）一忙，队列就无限涨。
+ * 涨的是进程内存，而积压的事件在界面追上之前**已经是过去时**了。有界 + 文本合并把"界面忙"
+ * 变成**背压**：核心回调线程在非得等的时候等一等。
+ *
+ * 不变量（比容量重要）：
+ * - **顺序不变**：文本/推理的增量按到达顺序拼接；非文本事件入队前先把攒下的增量并成一条发出去。
+ * - **不丢**：文本/推理满了就并进缓冲，凑一条再发（合成一条同类型事件，界面照样只是往后追加）；
+ *   其余事件频次低（工具调用、终态、用量），没位置就阻塞等待 —— 丢掉一条终态，flow 就永远不闭合。
+ * - **终态优先收口**：终态事件入队后随即关通道，之后到达的任何事件都不会再被消费。
+ *
+ * 线程：[offer] / [finish] 由核心的回调线程调用（可能多线程），内部用锁串行化。
+ */
+internal class EventSink(private val events: Channel<ChatEvent>) {
+
+    private val lock = Any()
+    private val pendingText = StringBuilder()
+    private val pendingReasoning = StringBuilder()
+
+    /** 排入一条事件；[ChatEvent.endsTurn] 为真时收口。 */
+    fun offer(event: ChatEvent) {
+        val terminal = synchronized(lock) {
+            when (event) {
+                is ChatEvent.Text -> {
+                    pendingText.append(event.text)
+                    drainText()
+                    return
+                }
+                is ChatEvent.Reasoning -> {
+                    pendingReasoning.append(event.text)
+                    drainReasoning()
+                    return
+                }
+                else -> Unit
+            }
+            // 非文本事件：先把攒下的增量按原顺序发出去，再发它自己，顺序才对得上。
+            drainBuffered()
+            sendBlocking(event)
+            event.endsTurn()
+        }
+        if (terminal) events.close()
+    }
+
+    /** 核心这一轮结束了（正常返回或报错）：把残留增量发完再收口。 */
+    fun finish() {
+        synchronized(lock) { drainBuffered() }
+        events.close()
+    }
+
+    /** 通道还有位置就把增量整条发出去（快路径：一条增量一条事件，与改造前一致）。 */
+    private fun drainText() {
+        while (pendingText.isNotEmpty() && events.trySend(ChatEvent.Text(pendingText.toString())).isSuccess) {
+            pendingText.clear()
+        }
+    }
+
+    private fun drainReasoning() {
+        while (pendingReasoning.isNotEmpty() && events.trySend(ChatEvent.Reasoning(pendingReasoning.toString())).isSuccess) {
+            pendingReasoning.clear()
+        }
+    }
+
+    /** 把攒下的增量发完 —— 推理在前、文本在后，与它们的到达顺序一致。 */
+    private fun drainBuffered() {
+        if (pendingReasoning.isNotEmpty()) {
+            sendBlocking(ChatEvent.Reasoning(pendingReasoning.toString()))
+            pendingReasoning.clear()
+        }
+        if (pendingText.isNotEmpty()) {
+            sendBlocking(ChatEvent.Text(pendingText.toString()))
+            pendingText.clear()
+        }
+    }
+
+    /**
+     * 等通道腾出位置再入队。只在非文本事件（频次低）与收尾时用；通道已收口时直接放弃 ——
+     * 没有接收方了，阻塞没有意义。
+     */
+    private fun sendBlocking(event: ChatEvent) {
+        try {
+            runBlocking { events.send(event) }
+        } catch (_: ClosedSendChannelException) {
+            // 通道已关（终端事件或取消）：这一条没有接收方了。
+        }
+    }
 }

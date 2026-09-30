@@ -20,9 +20,6 @@
     <string name="settings_palette_shadcn_name">Shadcn Zinc</string>
     <string name="settings_palette_notion_name">Notion Warm</string>
     <string name="settings_palette_braun_name">Braun Dieter Rams</string>
-    <string name="settings_typography_editorial_title">Editorial Serif</string>
-    <string name="settings_typography_sans_title">Modern Sans</string>
-    <string name="settings_typography_mono_title">Technical Mono</string>
     <string name="settings_section_custom_fonts">CUSTOM FONTS</string>
     <string name="settings_section_font_library">FONT LIBRARY</string>
     <string name="settings_custom_fonts_upload">Upload Font</string>
@@ -32,9 +29,6 @@
     <string name="settings_font_delete_cd">Delete font</string>
     <string name="settings_font_badge_uploaded">Uploaded</string>
     <string name="settings_font_size_label">Font Size</string>
-    <string name="font_label_serif">Serif</string>
-    <string name="font_label_sans">Sans</string>
-    <string name="font_label_mono">Mono</string>
     <string name="language_title">Language</string>
     <string name="language_section">DISPLAY LANGUAGE</string>
     <string name="language_follow_system">Follow system</string>

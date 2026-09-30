@@ -1,6 +1,7 @@
 package com.lhzkml.jasmine.feature.main.impl
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -175,15 +176,22 @@ fun MainNavHost(
                         }
                     }
 
+                    // 系统返回与顶栏返回走**同一条规则**：编辑态先关表单、不丢草稿。
+                    // 规则本身在 `ProviderState.canNavigateBack` 里（业务规则属于 ViewModel 的状态），
+                    // 这里只做"把系统返回拦下来交给它"这一件事 —— 以前系统返回直接弹栈，
+                    // 编辑中的草稿会连页面一起丢掉。
+                    BackHandler(enabled = !providerState.canNavigateBack) {
+                        providerViewModel.trySendAction(ProviderAction.CancelClicked)
+                    }
+
                     SettingsPage(
                         currentTheme = state.theme,
                         title = stringResource(ProviderR.string.provider_page_title),
                         onBack = {
-                            // 编辑态下先关闭表单回到列表，而不是直接退出页面丢失草稿。
-                            if (providerViewModel.stateFlow.value.editor != null) {
-                                providerViewModel.trySendAction(ProviderAction.CancelClicked)
-                            } else {
+                            if (providerState.canNavigateBack) {
                                 navigator.goBack()
+                            } else {
+                                providerViewModel.trySendAction(ProviderAction.CancelClicked)
                             }
                         },
                     ) { contentModifier ->
@@ -242,7 +250,8 @@ fun MainNavHost(
                             installedFonts = state.installedFonts,
                             activeCustomFontId = state.activeCustomFontId,
                             downloadProgress = state.downloadProgress,
-                            fontFamilyFor = viewModel::customFontFamily,
+                            // 预览表是**状态的一部分**（P1-6）：界面读 state，不再走 ViewModel 的查询方法。
+                            fontFamilyFor = { fontId -> state.fontPreviews[fontId] },
                             onSelectCustomFont = { viewModel.trySendAction(MainAction.CustomFontSelected(it)) },
                             onDeleteCustomFont = { viewModel.trySendAction(MainAction.FontDeleteClicked(it)) },
                             onDownloadFont = { viewModel.trySendAction(MainAction.FontDownloadClicked(it)) },

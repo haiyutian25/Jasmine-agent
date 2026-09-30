@@ -52,5 +52,3 @@ pub const CATALOG: &[ModelCatalogEntry] = &[
 pub fn preset_models() -> Vec<ModelConfig> {
     CATALOG.iter().map(preset_model).collect()
 }
-
-

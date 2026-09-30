@@ -15,6 +15,9 @@ android {
   }
 
   buildFeatures { compose = true }
+
+  // 出站命令的失败路径与组件逻辑要能在纯 JVM 下测（android.* 桩方法退化为默认值）。
+  testOptions { unitTests { isReturnDefaultValues = true } }
 }
 
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11) } }
@@ -30,4 +33,6 @@ dependencies {
   implementation(libs.androidx.lifecycle.viewmodel.ktx)
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.kotlinx.coroutines.core)
+
+  testImplementation(libs.junit)
 }

@@ -14,5 +14,3 @@ pub const CATALOG: &[ModelCatalogEntry] = &[];
 pub fn preset_models() -> Vec<ModelConfig> {
     Vec::new()
 }
-
-

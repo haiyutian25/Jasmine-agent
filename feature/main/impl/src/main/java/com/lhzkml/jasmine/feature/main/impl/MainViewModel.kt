@@ -16,10 +16,10 @@ import com.lhzkml.jasmine.core.data.repository.CustomFontRepository
 import com.lhzkml.jasmine.core.data.repository.UserPreferencesRepository
 import com.lhzkml.jasmine.core.ui.base.BaseViewModel
 import com.lhzkml.jasmine.core.ui.base.EffectRunner
+import com.lhzkml.jasmine.core.ui.theme.AppTypographyChoice
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.core.ui.theme.ThemeResolver
 import com.lhzkml.jasmine.feature.main.impl.fonts.CustomFontFamilyCache
-import com.lhzkml.jasmine.feature.settings.impl.screens.AppTypographyChoice
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -47,6 +47,15 @@ data class MainState(
     // Derived
     val theme: CssVariables,
     val activeContentFont: FontFamily,
+    /**
+     * 已安装字体的**预览表**：字体 id → FontFamily（派生字段，与 [activeContentFont] 一处算）。
+     *
+     * 字体列表的每一行要一个 FontFamily 来画「Aa」预览。以前这是 `MainViewModel.customFontFamily(id)`
+     * 这条**同步查询旁路**：不进状态、订阅关系断裂，界面输入被劈成"状态"与"另一次函数调用"两半
+     * （P1-6）。并进状态后界面只有一份输入。解析只读内存（[CustomFontFamilyCache] 查仓库的内存快照），
+     * 不碰磁盘；解析不出来（文件已不在）的 id 不进表，界面按缺省字体兜底。
+     */
+    val fontPreviews: Map<String, FontFamily> = emptyMap(),
     // Navigation / chrome
     val isSidebarOpen: Boolean,
     // Typography
@@ -498,19 +507,27 @@ class MainViewModel @Inject constructor(
                     isSystemDark = next.isSystemDark,
                 ),
                 activeContentFont = resolveContentFont(next.activeCustomFontId, next.typographyChoice.font),
+                fontPreviews = resolveFontPreviews(next.installedFonts),
             )
         }
     }
 
     /**
-     * 内存缓存读（非 IO、无副作用）。与 [customFontFamily] 同属一类已登记豁免 —— 门禁 R11 白名单，
-     * 真正的根治（查询旁路并进 State）是 P1-6 另案。
+     * 已安装字体 → [FontFamily] 的预览表。
+     *
+     * 纯内存读（[CustomFontFamilyCache] 只查仓库的内存快照 + 自己的 per-id 缓存），无 IO、无副作用 ——
+     * 与 [resolveContentFont] 同属门禁 R11 的登记豁免。
+     */
+    private fun resolveFontPreviews(installedFonts: List<InstalledFont>): Map<String, FontFamily> =
+        installedFonts.mapNotNull { font ->
+            customFontFamilyCache.fontFamilyFor(font.id)?.let { family -> font.id to family }
+        }.toMap()
+
+    /**
+     * 内存缓存读（非 IO、无副作用）。与 [resolveFontPreviews] 同属一类已登记豁免 —— 门禁 R11 白名单。
      */
     private fun resolveContentFont(customFontId: String, fallback: FontFamily): FontFamily =
         customFontFamilyCache.fontFamilyFor(customFontId) ?: fallback
-
-    /** Resolves an installed custom font to a [FontFamily] for UI previews. */
-    fun customFontFamily(fontId: String): FontFamily? = customFontFamilyCache.fontFamilyFor(fontId)
 
     private companion object {
         const val TAG = "MainViewModel"

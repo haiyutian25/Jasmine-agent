@@ -102,8 +102,12 @@ abstract class BaseViewModel<S, E, A>(
 
     /**
      * Helper method for sending an event.
+     *
+     * 与状态更新**同帧入队**（不用 `launch` 转发）：handler 里 `updateState` 之后紧接着发的事件，
+     * 其顺序就等于触发顺序 —— 界面收到事件时，它对应的状态一定已经落定。通道无界，唯一会失败
+     * 的场景是 `onCleared` 之后通道已关闭，那时界面已经走了，丢弃是设计行为。
      */
     protected fun sendEvent(event: E) {
-        viewModelScope.launch { eventChannel.send(event) }
+        eventChannel.trySend(event)
     }
 }

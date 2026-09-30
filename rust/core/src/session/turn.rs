@@ -89,7 +89,8 @@ pub async fn run_turn<T: HttpTransport>(
         // done belongs to it, and a round cut off in the middle never got that far. What it did
         // write is handed over instead, for the record the platform shows it from.
         if turn.cancellation.is_cancelled() {
-            turn.thread.note_interrupted_reasoning(&round.streamed_reasoning);
+            turn.thread
+                .note_interrupted_reasoning(&round.streamed_reasoning);
             turn.thread.note_interrupted_reply(&round.text);
             return Err(SessionError::TurnAborted);
         }

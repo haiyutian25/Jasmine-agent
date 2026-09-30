@@ -91,7 +91,11 @@ fn the_provider_catalog_carries_the_names_and_windows() {
             .any(|entry| entry.model_id == "deepseek-v4-pro")
     );
     assert!(openrouter.iter().any(|entry| entry.model_id == "gpt-5.5"));
-    assert!(openrouter.iter().any(|entry| entry.model_id == "gpt-6-astra"));
+    assert!(
+        openrouter
+            .iter()
+            .any(|entry| entry.model_id == "gpt-6-astra")
+    );
     // 认不出的供应商拿到的是同一份并集。
     assert_eq!(
         crate::provider_catalog("nope".to_string()).len(),
@@ -128,7 +132,12 @@ fn built_in_providers_come_from_the_factory_presets() {
         .find(|provider| provider.id == "openai")
         .expect("OpenAI preset");
     assert_eq!(openai.wire_api, WireApi::Responses);
-    assert!(openai.models.iter().any(|model| model.model_id == "gpt-5.5"));
+    assert!(
+        openai
+            .models
+            .iter()
+            .any(|model| model.model_id == "gpt-5.5")
+    );
 
     // 第三家是 OpenRouter：聚合网关，**没有目录**，所以模型列表空着（用户拉/自己填）。
     let openrouter = providers
@@ -209,6 +218,27 @@ fn handle_reports_call_order_errors_as_text() {
 }
 
 #[test]
+fn shutdown_detaches_every_conversation_and_is_idempotent() {
+    let handle = handle(&sessions_dir("shutdown"));
+    attach(&handle, "s1", "新对话");
+    attach(&handle, "s2", "另一个对话");
+
+    handle.shutdown();
+    handle.shutdown(); // 幂等：重复交还资源不该有副作用。
+
+    // 两条会话都已脱离：再发消息应报"尚未附着"。
+    for session_id in ["s1", "s2"] {
+        let listener = Arc::new(Collector {
+            events: Mutex::new(Vec::new()),
+        });
+        let error = handle
+            .send(session_id.to_string(), "你好".to_string(), listener)
+            .unwrap_err();
+        assert!(error.to_string().contains("尚未附着会话"));
+    }
+}
+
+#[test]
 fn a_new_session_starts_with_empty_context() {
     let handle = handle(&sessions_dir("fresh"));
 
@@ -236,7 +266,7 @@ fn what_a_conversation_said_crosses_the_boundary_on_attach() {
         0,
         "被停的那一轮不进模型上下文"
     );
-    let transcript = second.transcript("s1".to_string());
+    let transcript = second.transcript("s1".to_string()).expect("transcript");
     assert_eq!(transcript.len(), 1, "转写里仍然有那半句");
     assert_eq!(transcript[0].text, "上一次答的");
 }
@@ -250,14 +280,14 @@ fn the_platform_list_and_transcript_come_from_the_core() {
         .persist_interrupted_reply("s1".to_string(), "半句话".to_string())
         .expect("persist");
 
-    let conversations = handle.conversations();
+    let conversations = handle.conversations().expect("conversations");
     assert_eq!(conversations.len(), 1);
     assert_eq!(conversations[0].session_id, "s1");
     assert_eq!(conversations[0].title, "列出你全部的工具");
     assert!(conversations[0].updated_at > 0);
     assert_eq!(conversations[0].provider_id, "deepseek");
 
-    let transcript = handle.transcript("s1".to_string());
+    let transcript = handle.transcript("s1".to_string()).expect("transcript");
     assert_eq!(transcript.len(), 1);
     assert_eq!(transcript[0].role, Role::Model);
     assert_eq!(transcript[0].text, "半句话");

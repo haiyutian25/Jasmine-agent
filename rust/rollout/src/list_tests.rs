@@ -149,7 +149,10 @@ fn the_stopped_turns_own_items_read_back_in_order() {
         4,
         "边界不算内容，被停那一轮的思考也不跟着新消息走"
     );
-    assert_eq!(items[0], RolloutItem::ResponseItem(message("user", "写一段示例")));
+    assert_eq!(
+        items[0],
+        RolloutItem::ResponseItem(message("user", "写一段示例"))
+    );
     assert_eq!(
         items[1],
         RolloutItem::ResponseItem(message("assistant", "先看看工具"))

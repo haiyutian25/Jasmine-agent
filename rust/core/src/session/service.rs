@@ -225,6 +225,19 @@ pub struct AgentChatService {
     sessions: Mutex<HashMap<String, Arc<SessionSlot>>>,
     /// 存储变更的推送口（D5）：平台注册一次，之后任何写入都会收到信号。
     store_listener: Mutex<Option<Arc<dyn StoreListener>>>,
+    /// **全部异步工作共用的 runtime**（请求下发、SSE 读取、工具并发都在它上面）。
+    ///
+    /// 以前每次调用现场新建一个 current_thread runtime、跑完即销毁，而 `reqwest::Client` 是
+    /// **跨轮复用**的（存在 `Attached` 里）—— 连接池建在"创建它那个已经死掉的 runtime"上，
+    /// keep-alive 实际每一轮都重建。共用一个 runtime 之后连接池才真正生效。
+    ///
+    /// 建不起来时为 `None`（现实中只有"操作系统创建不了线程"才会发生）：此时任何异步操作都会以
+    /// [`AgentError::Runtime`] 明确报错，而不是 panic —— 本仓库的 clippy 策略禁止在非测试代码里
+    /// `unwrap`/`expect`，所以失败必须走返回值。
+    ///
+    /// 包在 `Mutex<Option<Arc<_>>>` 里是为了 [`AgentChatService::close`]：它要在 `&self` 上把 runtime
+    /// 交还（置 `None`），而在途调用各自持有一份 `Arc`，不会因为关闭而被抽走脚下。
+    tokio_runtime: Mutex<Option<Arc<tokio::runtime::Runtime>>>,
 }
 
 impl AgentChatService {
@@ -241,12 +254,21 @@ impl AgentChatService {
             },
         )));
 
+        // multi-thread flavor：平台的多个会话可以各自从自己的线程上 `block_on`，互不排队。
+        let tokio_runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .ok()
+            .map(Arc::new);
+
         Self {
             sessions_dir,
             clock,
             runtime: ToolCallRuntime::new(Arc::new(registry)),
             sessions: Mutex::new(HashMap::new()),
             store_listener: Mutex::new(None),
+            tokio_runtime: Mutex::new(tokio_runtime),
         }
     }
 
@@ -337,7 +359,9 @@ impl AgentChatService {
             Some(tokens) => tokens,
             None => {
                 let tokens = starting_context_window(model);
-                record_boundary(&mut rollout, RolloutItem::ContextWindow { tokens }, &|| self.notify_store_changed())?;
+                record_boundary(&mut rollout, RolloutItem::ContextWindow { tokens }, &|| {
+                    self.notify_store_changed()
+                })?;
                 tokens
             }
         };
@@ -378,8 +402,11 @@ impl AgentChatService {
             }
         };
         // 请求侧发的是**解析后的取值**：`ultra` 这种界面档在这里换成这个模型支持的最强档。
-        let wire_effort =
-            jasmine_model_provider_info::presets::wire_level(provider_id, &model.model_id, &reasoning_effort);
+        let wire_effort = jasmine_model_provider_info::presets::wire_level(
+            provider_id,
+            &model.model_id,
+            &reasoning_effort,
+        );
         let client = client.with_reasoning_effort(parse_reasoning_effort(&wire_effort));
 
         let mut thread = ChatThread::new();
@@ -443,7 +470,9 @@ impl AgentChatService {
             context_window_tokens,
             ..
         } = attached;
-        record_boundary(rollout, RolloutItem::ContextWindow { tokens }, &|| self.notify_store_changed())?;
+        record_boundary(rollout, RolloutItem::ContextWindow { tokens }, &|| {
+            self.notify_store_changed()
+        })?;
         *context_window_tokens = tokens;
         thread.note_context_window(to_tokens(tokens));
         if let Some(event) = thread.usage_event() {
@@ -618,7 +647,7 @@ impl AgentChatService {
             &|| self.notify_store_changed(),
         )?;
 
-        let outcome = block_on(send_text(
+        let outcome = self.block_on(send_text(
             Turn {
                 client,
                 thread,
@@ -637,7 +666,9 @@ impl AgentChatService {
             // 与已经写出来的部分 —— 两条都是展示记录，不进对话 —— 最后才是中断标记。
             record_turn(rollout, history, recorded, &|| self.notify_store_changed())?;
             recorded = history.len();
-            record_interrupted_reasoning(rollout, thread, turn_id, &|| self.notify_store_changed())?;
+            record_interrupted_reasoning(rollout, thread, turn_id, &|| {
+                self.notify_store_changed()
+            })?;
             record_interrupted_reply(rollout, thread, turn_id, &|| self.notify_store_changed())?;
             history.push(interrupted_turn_marker());
         }
@@ -655,7 +686,7 @@ impl AgentChatService {
         // 平台可能在回合中途请求过释放（新建 / 切换对话）：那一步不能等这一轮，由这里放手。
         self.release_if_detach_requested(session_id, &slot, &mut guard);
         finished
-            }
+    }
 
     /// Answers the prompts a turn stopped on and continues that turn.
     pub fn respond_to_prompts(
@@ -701,7 +732,7 @@ impl AgentChatService {
             &|| self.notify_store_changed(),
         )?;
 
-        let outcome = block_on(continue_turn(
+        let outcome = self.block_on(continue_turn(
             Turn {
                 client,
                 thread,
@@ -720,7 +751,9 @@ impl AgentChatService {
             // 与已经写出来的部分 —— 两条都是展示记录，不进对话 —— 最后才是中断标记。
             record_turn(rollout, history, recorded, &|| self.notify_store_changed())?;
             recorded = history.len();
-            record_interrupted_reasoning(rollout, thread, turn_id, &|| self.notify_store_changed())?;
+            record_interrupted_reasoning(rollout, thread, turn_id, &|| {
+                self.notify_store_changed()
+            })?;
             record_interrupted_reply(rollout, thread, turn_id, &|| self.notify_store_changed())?;
             history.push(interrupted_turn_marker());
         }
@@ -738,7 +771,7 @@ impl AgentChatService {
         // 平台可能在回合中途请求过释放（新建 / 切换对话）：那一步不能等这一轮，由这里放手。
         self.release_if_detach_requested(session_id, &slot, &mut guard);
         finished
-            }
+    }
 
     /// One conversation's unfinished turn, if it has one.
     ///
@@ -757,7 +790,11 @@ impl AgentChatService {
     /// carries, which is what the platform's continue affordance asks for. What the model then does
     /// with the interrupted transcript — pick the answer up or write it again — is the model's own
     /// call. A turn that finished is not continued: the call does nothing.
-    pub fn recover_turn(&self, session_id: &str, sink: &mut dyn ChatSink) -> Result<(), AgentError> {
+    pub fn recover_turn(
+        &self,
+        session_id: &str,
+        sink: &mut dyn ChatSink,
+    ) -> Result<(), AgentError> {
         let slot = self.attached_slot(session_id)?;
         let mut guard = slot.lock()?;
         let attached = guard.as_mut().ok_or(AgentError::NoSession)?;
@@ -801,7 +838,7 @@ impl AgentChatService {
             &|| self.notify_store_changed(),
         )?;
 
-        let outcome = block_on(crate::session::run_turn(
+        let outcome = self.block_on(crate::session::run_turn(
             Turn {
                 client,
                 thread,
@@ -819,7 +856,9 @@ impl AgentChatService {
             // 与已经写出来的部分 —— 两条都是展示记录，不进对话 —— 最后才是中断标记。
             record_turn(rollout, history, recorded, &|| self.notify_store_changed())?;
             recorded = history.len();
-            record_interrupted_reasoning(rollout, thread, turn_id, &|| self.notify_store_changed())?;
+            record_interrupted_reasoning(rollout, thread, turn_id, &|| {
+                self.notify_store_changed()
+            })?;
             record_interrupted_reply(rollout, thread, turn_id, &|| self.notify_store_changed())?;
             history.push(interrupted_turn_marker());
         }
@@ -837,7 +876,7 @@ impl AgentChatService {
         // 平台可能在回合中途请求过释放（新建 / 切换对话）：那一步不能等这一轮，由这里放手。
         self.release_if_detach_requested(session_id, &slot, &mut guard);
         finished
-            }
+    }
 
     /// Stops the turn that is running **in this conversation**.
     ///
@@ -852,7 +891,11 @@ impl AgentChatService {
             return Ok(());
         };
         // Only the token's own lock, never the conversation's: the turn holds that one all the way.
-        let token = slot.cancellation.lock().map_err(|_| AgentError::Poisoned)?.clone();
+        let token = slot
+            .cancellation
+            .lock()
+            .map_err(|_| AgentError::Poisoned)?
+            .clone();
         token.cancel();
         Ok(())
     }
@@ -862,7 +905,11 @@ impl AgentChatService {
     /// The platform owns the durable transcript, and this puts that text where the transcript reads
     /// it. It is not part of the conversation: only what the provider marked done is, so the next
     /// request does not carry it — the model sees that round's interrupted marker and nothing else.
-    pub fn persist_interrupted_reply(&self, session_id: &str, text: &str) -> Result<(), AgentError> {
+    pub fn persist_interrupted_reply(
+        &self,
+        session_id: &str,
+        text: &str,
+    ) -> Result<(), AgentError> {
         if text.trim().is_empty() {
             return Ok(());
         }
@@ -919,30 +966,37 @@ impl AgentChatService {
     }
 
     /// The conversations this app has, the most recently written first.
-    pub fn conversations(&self) -> Vec<ConversationSummary> {
-        match list_sessions(&self.sessions_dir) {
-            Ok(entries) => entries
-                .into_iter()
-                .map(|entry| ConversationSummary {
-                    session_id: entry.meta.session_id,
-                    title: entry.meta.title,
-                    provider_id: entry.meta.provider_id,
-                    model_id: entry.meta.model_id,
-                    updated_at: millis(&entry.updated_at),
-                })
-                .collect(),
-            Err(_) => Vec::new(),
-        }
+    ///
+    /// 目录读不出来时返回 `Err` 而不是空表：空表和"读坏了"在界面上是两回事 —— 前者是"还没有
+    /// 会话"，后者是"这次没读到，**别把上次的列表清掉**"（见 D5）。
+    pub fn conversations(&self) -> Result<Vec<ConversationSummary>, AgentError> {
+        list_sessions(&self.sessions_dir)
+            .map(|entries| {
+                entries
+                    .into_iter()
+                    .map(|entry| ConversationSummary {
+                        session_id: entry.meta.session_id,
+                        title: entry.meta.title,
+                        provider_id: entry.meta.provider_id,
+                        model_id: entry.meta.model_id,
+                        updated_at: millis(&entry.updated_at),
+                    })
+                    .collect()
+            })
+            .map_err(|error| AgentError::Transcript(error.to_string()))
     }
 
     /// One conversation's transcript, in the order it happened.
-    pub fn transcript(&self, session_id: &SessionId) -> Vec<HistoryEntry> {
-        let Ok(Some(path)) = find_session_path(&self.sessions_dir, session_id.as_str()) else {
-            return Vec::new();
+    ///
+    /// 只有"读文件失败"才是 `Err`；会话不存在（还没落盘 / 已被删）是"没有内容"，返回空表（D5）。
+    pub fn transcript(&self, session_id: &SessionId) -> Result<Vec<HistoryEntry>, AgentError> {
+        let path = match find_session_path(&self.sessions_dir, session_id.as_str()) {
+            Ok(Some(path)) => path,
+            Ok(None) => return Ok(Vec::new()),
+            Err(error) => return Err(AgentError::Transcript(error.to_string())),
         };
-        let Ok(items) = read_timed_items(&path) else {
-            return Vec::new();
-        };
+        let items = read_timed_items(&path)
+            .map_err(|error| AgentError::Transcript(error.to_string()))?;
 
         // A turn's model is written at its start, so every line it produced can say which model
         // the user's message went to — a conversation that switched models keeps them apart.
@@ -1150,7 +1204,7 @@ impl AgentChatService {
                 model_label.clone(),
             ));
         }
-        lines
+        Ok(lines)
     }
 
     /// Releases one conversation. Its stored history is left untouched, and so is every other
@@ -1386,7 +1440,11 @@ fn record_usage(
     let Some((info, breakdown)) = thread.usage_record() else {
         return Ok(());
     };
-    record_boundary(rollout, RolloutItem::TokenUsageRecord { info, breakdown }, notify)
+    record_boundary(
+        rollout,
+        RolloutItem::TokenUsageRecord { info, breakdown },
+        notify,
+    )
 }
 
 /// The marker the core leaves in the conversation when a turn is interrupted on purpose.
@@ -1457,16 +1515,15 @@ fn interrupted_turn_as_text(items: &[RolloutItem]) -> String {
                     shown.push(text);
                 }
             }
-            ResponseItem::FunctionCall { name, arguments, .. } => {
-                shown.push(format!("[tool] {name} {arguments}"))
-            }
+            ResponseItem::FunctionCall {
+                name, arguments, ..
+            } => shown.push(format!("[tool] {name} {arguments}")),
             ResponseItem::FunctionCallOutput { output, .. } => shown.push(format!(
                 "[tool result] {}",
                 output.text_content().unwrap_or_default()
             )),
-            ResponseItem::Message { .. }
-            | ResponseItem::Reasoning { .. }
-            | ResponseItem::Other => {}
+            ResponseItem::Message { .. } | ResponseItem::Reasoning { .. } | ResponseItem::Other => {
+            }
         }
     }
     shown.join("\n\n")
@@ -1612,13 +1669,55 @@ fn record_turn(
     Ok(())
 }
 
-/// Drives one operation of the async core to completion.
-fn block_on<F: Future>(operation: F) -> Result<F::Output, AgentError> {
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .map_err(|error| AgentError::Runtime(error.to_string()))?;
-    Ok(runtime.block_on(operation))
+/// Drives one operation of the async core to completion on the service's **shared** runtime.
+///
+/// 见 [`AgentChatService::tokio_runtime`]：以前每次调用新建 runtime，而 HTTP 客户端跨轮复用，
+/// 连接池因此每轮重建。`probe` / `list_models` 那两个一次性入口仍各建各的 —— 它们每次调用都用
+/// 新的客户端，不存在"跨 runtime 复用连接池"的问题。
+impl AgentChatService {
+    /// 在**本服务共用的** runtime 上把一段异步工作跑完。
+    ///
+    /// 先把 `Arc` 抄一份再放锁：`block_on` 可能跑一整个回合，攥着锁就等于让所有会话排队。
+    fn block_on<F: Future>(&self, operation: F) -> Result<F::Output, AgentError> {
+        let runtime = self
+            .tokio_runtime
+            .lock()
+            .ok()
+            .and_then(|slot| slot.clone())
+            .ok_or_else(|| {
+                AgentError::Runtime("the shared tokio runtime could not be created".to_string())
+            })?;
+        Ok(runtime.block_on(operation))
+    }
+
+    /// 交还本服务持有的资源：每条会话脱离（HTTP 客户端与连接池随之释放）、存储监听清空、runtime
+    /// 交还。
+    ///
+    /// 这是给**生命周期边界**用的（测试，以及将来一个进程里跑多个 handle 的场景）：Android 上
+    /// handle 是进程级单例，进程结束即回收，所以生产路径不调用它也不泄漏。**幂等**：重复调用无副作用。
+    ///
+    /// 在途调用各自持有一份 runtime 的 `Arc`，所以关闭不会把脚下抽走 —— 真正关掉发生在最后一个
+    /// `Arc` 落下的那一刻。
+    ///
+    /// 调用之后本服务**只读可用**（`conversations` / `transcript` 走文件系统），要跑回合的调用会以
+    /// [`AgentError::Runtime`] 明确报错。
+    pub fn shutdown(&self) {
+        // 先把 id 收出来再逐个脱离：`end_conversation` 自己要拿 `sessions` 的锁，持锁调用会死锁。
+        let attached: Vec<String> = self
+            .sessions
+            .lock()
+            .map(|sessions| sessions.keys().cloned().collect())
+            .unwrap_or_default();
+        for session_id in attached {
+            self.end_conversation(&session_id);
+        }
+        if let Ok(mut listener) = self.store_listener.lock() {
+            *listener = None;
+        }
+        if let Ok(mut runtime) = self.tokio_runtime.lock() {
+            *runtime = None;
+        }
+    }
 }
 
 /// Hands the session's clock to the tool that asks for one.

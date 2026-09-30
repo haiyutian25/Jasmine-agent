@@ -19,12 +19,7 @@ android {
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11) } }
 
 dependencies {
-  // Chat transcript persistence. `implementation`, not `api`: Room entities and
-  // DAOs stay behind the repository boundary, so no consumer needs to see them.
-  // Room itself is a direct dependency because this module touches RoomDatabase
-  // (to obtain the DAO) and the Room-annotated entity types.
-
-  implementation(libs.androidx.room.runtime)
+  // 会话转写由 Rust 核心的 rollout 自己落盘（每会话一个 JSONL），本模块不再持有任何数据库。
   implementation(project(":core:network"))
 
   implementation(libs.kotlinx.coroutines.core)

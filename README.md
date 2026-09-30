@@ -1,4 +1,4 @@
-﻿# Jasmine
+# Jasmine
 
 A production-grade ultra-minimalist application with live CSS variable token theming. Built entirely with Jetpack Compose (no XML layouts), structured as a multi-module MVVM project.
 
@@ -9,11 +9,11 @@ jasmine/
 ├── app/                        # App main: single Activity + navigation assembly + theme
 ├── core/
 │   ├── agent/                  # Rust-core bindings (UniFFI): AgentChat / ConversationStore / ProviderProbe facades
-│   ├── data/                   # Data layer (Hilt): UserPreferencesRepository, CustomFontRepository, ProviderRepository
-│   ├── database/               # Room: chat transcript (conversations + messages, v5)
+│   ├── data/                   # Data layer (Hilt): user preferences, custom fonts, model providers (Preferences DataStore)
+│   ├── markdown/               # Incremental Markdown engine (native) + Compose block renderer
 │   ├── navigation/             # Navigation 3 infrastructure (AppNavigator)
 │   ├── network/                # Retrofit / OkHttp (Hilt-provided, placeholder service)
-│   └── ui/                     # Design tokens, JasmineTheme, shared utilities
+│   └── ui/                     # Design tokens, JasmineTheme, BaseViewModel / EffectRunner base
 ├── feature/
 │   ├── provider/
 │   │   ├── api/                # Provider nav contract (ProviderNavKey)
@@ -42,7 +42,6 @@ jasmine/
 | Navigation 3 | 1.1.7 |
 | Hilt | 2.60.1 |
 | Lifecycle | 2.11.0 |
-| Room | 2.7.0 |
 | minSdk / targetSdk | 26 / 37 |
 | JDK | 21 (required by Robolectric SDK 36) |
 
@@ -68,16 +67,20 @@ jasmine/
 
 ```bash
 gradle :app:testDebugUnitTest                # app-level Robolectric + Roborazzi
-gradle :core:database:testDebugUnitTest      # migration DDL vs Room's exported schema
-gradle :feature:main:impl:testDebugUnitTest  # chat state machine
+gradle :feature:main:impl:testDebugUnitTest  # chat state machine + the MVVM/UDF gate
+gradle :feature:provider:impl:testDebugUnitTest  # provider CRUD + optimistic-write rollback
+gradle :feature:settings:impl:testDebugUnitTest  # language page
 ```
 
 - Robolectric tests run against **SDK 36** (see `app/src/test/resources/robolectric.properties`), which requires Java 21.
 - `MainScreenshotTest` renders the home chat surface via Roborazzi (`app/src/test/screenshots/chat.png`). To (re)generate the golden image, run once with `-Proborazzi.test.record=true`.
-- `MigrationDdlTest` (`core:database`) pins the hand-written v4→v5 migration SQL to Room's
-  exported schema, so a schema drift fails the build instead of crashing on open.
-- Chat transcripts are persisted in Room (`conversations` + `messages`) and the most recent one
-  is restored on launch; the model selection lives in Preferences DataStore.
+- `MvvmUdfGateTest` (`feature:main:impl`) is a source-level guard for the UDF contract: a single state
+  mutation point, asynchronous results reflowing as `Internal` actions, shadow state written only from
+  synchronous handlers, the conversation projection being derived rather than hand-copied, and view
+  files staying free of platform calls.
+- Chat transcripts live in the Rust core's own rollout files (`files/sessions/<y>/<m>/<d>/rollout-*.jsonl`,
+  one append-only JSONL per conversation) and the most recent one is restored on launch; the model
+  selection lives in Preferences DataStore.
 
 ## Release Build
 

@@ -5,6 +5,7 @@ import androidx.annotation.StringRes
 import androidx.lifecycle.viewModelScope
 import com.lhzkml.jasmine.core.agent.AgentChat
 import com.lhzkml.jasmine.core.agent.ChatEvent
+import com.lhzkml.jasmine.core.agent.ChatFailureKind
 import com.lhzkml.jasmine.core.agent.ContextUsage
 import com.lhzkml.jasmine.core.agent.ConversationStore
 import com.lhzkml.jasmine.core.data.model.ChatRole
@@ -29,7 +30,9 @@ import com.lhzkml.jasmine.core.markdown.model.MarkdownInlineType
 import com.lhzkml.jasmine.core.markdown.model.MarkdownUpdate
 import com.lhzkml.jasmine.core.ui.base.BaseViewModel
 import com.lhzkml.jasmine.core.ui.base.EffectRunner
+import com.lhzkml.jasmine.core.ui.components.SidebarConversation
 import com.lhzkml.jasmine.feature.main.impl.R
+import com.lhzkml.jasmine.feature.main.impl.relativeTimeText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.Locale
 import java.util.UUID
@@ -48,6 +51,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -113,6 +117,11 @@ data class ChatMessage(
      * `durationMs`：时长是**数据**，不是界面自己算的）。
      */
     val thinkingMs: Long? = null,
+    /**
+     * 这一条是**失败**时的分型（来自核心的跨边界分型）：界面据它给一句"能怎么办"的提示，
+     * 而不是去猜错误文本。null = 不是失败，或这是一条从历史恢复出来的失败（核心不记分型）。
+     */
+    val failureKind: ChatFailureKind? = null,
 )
 
 /**
@@ -132,8 +141,7 @@ data class ChatToolActivity(
     /** 工具返回；null 表示还没有返回。 */
     val result: String? = null,
     /**
-     * 这次调用走到哪一步了 —— 照 ZCode 的 `chat.toolCall.status.*` 六态，状态是**数据**，
-     * 界面读它，不再靠"有没有结果"猜。
+     * 这次调用走到哪一步了 —— 状态是**数据**，界面读它，不再靠"有没有结果"猜。
      *
      * 恢复出来的历史只有"有没有结果"这一种信息，所以那条路径给默认值 [ChatToolStatus.COMPLETED]。
      */
@@ -144,18 +152,37 @@ data class ChatToolActivity(
 }
 
 /**
- * 一次工具调用走到哪一步了（照 ZCode 的 `chat.toolCall.status.*` 六态）。
+ * 一次工具调用走到哪一步了。
  *
- * 我们目前产生得出 [RUNNING]（调用已发出、结果还没回）与 [COMPLETED]（正常返回）；[FAILED] /
- * [STOPPED] 等失败与中断那两条路径接上后也用它（[PENDING] / [DENIED] 留给还没做的审批流程）。
+ * 四态都是**真的会出现**的：[RUNNING]（调用已发出、结果还没回）、[COMPLETED]（正常返回）、
+ * [FAILED]（回合失败时把还没回来的调用收口）、[STOPPED]（用户停止 / 平台打断）。
+ *
+ * 以前照搬的是 ZCode 的六态，多出来的 `PENDING` / `DENIED` 属于**审批流程**，而这个平台没有审批 ——
+ * 那两个值永远不会产生。留着它们会让"状态是数据"的读取端产生**虚假完备感**（枚举写着六种，实际
+ * 只会出现四种），所以删掉；真要做审批时再加回来 —— 那时是新增功能，不是补死值。
  */
 enum class ChatToolStatus {
-    PENDING,
     RUNNING,
     COMPLETED,
     FAILED,
-    DENIED,
     STOPPED,
+}
+
+/**
+ * 核心在一行转写里记的 `tool_status` → 本模块的状态。
+ *
+ * 核心目前只会写 `"completed"`（工具正常返回）与 `"stopped"`（回合被打断时把没回来的调用收口）；
+ * 空串表示那一行不是工具行，走不到这里。
+ *
+ * `"running"` / `"failed"` 是**实时**那条路径自己产生的，不经这张表；`"pending"` / `"denied"` 是
+ * 旧的审批语义（见 [ChatToolStatus]），只为兼容旧数据保留读法。认不出的取值一律按"已完成" ——
+ * 一行工具记录既然落了盘，它当时就是跑完了的。
+ */
+internal fun toolStatusOf(raw: String): ChatToolStatus = when (raw) {
+    "running", "pending" -> ChatToolStatus.RUNNING
+    "failed", "denied" -> ChatToolStatus.FAILED
+    "stopped" -> ChatToolStatus.STOPPED
+    else -> ChatToolStatus.COMPLETED
 }
 
 /**
@@ -229,6 +256,18 @@ data class ChatState(
 }
 
 /**
+ * 侧边栏（会话抽屉）要的那一片状态。
+ *
+ * 它是 [ChatState] 的**派生投影**：会话列表 → 抽屉要的形状（标题 + 时间小字 + 当前高亮）。
+ * 单独成型是因为抽屉与聊天面关心的东西不同 —— 抽屉只关心"有哪些会话、哪条是当前"，
+ * 而聊天面的状态每个流式分片都在变。分成两条流之后，一次分片不会连带抽屉一起重组。
+ */
+data class ChatSidebarState(
+    val conversations: List<SidebarConversation> = emptyList(),
+    val activeConversationId: String? = null,
+)
+
+/**
  * Actions sent from the UI to [ChatViewModel].
  */
 sealed interface ChatAction {
@@ -296,7 +335,12 @@ sealed interface ChatAction {
             val prompt: String,
             val options: List<String>,
         ) : Internal
-        data class TurnFailed(val turnId: String, val detail: String) : Internal
+        data class TurnFailed(
+            val turnId: String,
+            val detail: String,
+            /** 失败的**分型**（核心跨边界报的）；本地异常没有分型时为 [ChatFailureKind.UNKNOWN]。 */
+            val kind: ChatFailureKind = ChatFailureKind.UNKNOWN,
+        ) : Internal
         data class TurnCompleted(val turnId: String) : Internal
         data class TurnInterrupted(val turnId: String, val durationMs: Long) : Internal
         data class UsageReceived(val turnId: String, val usage: ContextUsage) : Internal
@@ -712,6 +756,31 @@ class ChatViewModel @Inject constructor(
     /** 当前显示的那条会话的键；还没发出第一条消息的新会话用 [ConversationChats.NEW_CONVERSATION]。 */
     private fun displayKey(): String = state.activeConversationId ?: ConversationChats.NEW_CONVERSATION
 
+    /**
+     * 抽屉要的那一片（P1-7）：会话列表 → 抽屉形状（标题 + 时间小字 + 当前高亮）。
+     *
+     * 投影原本写在 `MainScreen` 的组合函数里（还叠了个 `distinctUntilChanged` 自救）——
+     * 那是 UI 层持有业务投影，且同一份 `stateFlow` 被订阅两次。现在投影在 ViewModel 内算，
+     * 界面只收集。`distinctUntilChanged` 保留：流式分片只改 `conversation.messages`，
+     * 不碰 `conversations` / `activeConversationId`，派生值相等就被挡掉，抽屉不会跟着分片重组。
+     */
+    val sidebarState: StateFlow<ChatSidebarState> =
+        stateFlow
+            .map { chat ->
+                ChatSidebarState(
+                    conversations = chat.conversations.map { conversation ->
+                        SidebarConversation(
+                            id = conversation.id,
+                            title = conversation.title,
+                            subtitle = relativeTimeText(conversation.updatedAt).orEmpty(),
+                        )
+                    },
+                    activeConversationId = chat.activeConversationId,
+                )
+            }
+            .distinctUntilChanged()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, ChatSidebarState())
+
     /** 这条会话正在跑的那一轮；没在跑就是 null。 */
     private fun turnOfChat(key: String): Turn? =
         turns.values.firstOrNull { turn -> turn.chatKey == key }
@@ -820,6 +889,11 @@ class ChatViewModel @Inject constructor(
             .onEach(::sendAction)
             .launchIn(viewModelScope)
 
+        // 存储读失败（D5）：列表已保留上一次成功的快照，这里只把"这次没读到"提示一次。
+        conversationStore.readFailures
+            .onEach { sendEvent(ChatUiEvent.ShowToast(R.string.chat_store_read_failed)) }
+            .launchIn(viewModelScope)
+
         // The session store is not observable, so the list has to be read once here.
         // 这是一条**出站命令**：走 Effect（结果由 conversationsStateFlow 回灌，失败回流见 §3 第 13 条）。
         effects.send(ChatEffect.RefreshConversations)
@@ -922,7 +996,7 @@ class ChatViewModel @Inject constructor(
                 turnOf(action.turnId)?.let { turn ->
                     // 这一轮失败时还开着的工具卡标成「执行失败」（照 ZCode 的 failed 态）。
                     markOpenTools(turn, ChatToolStatus.FAILED)
-                    failTurn(turn, action.detail)
+                    failTurn(turn, action.detail, action.kind)
                 }
             is ChatAction.Internal.TurnCompleted ->
                 turnOf(action.turnId)?.let { turn -> finishTurn(turn) }
@@ -1395,12 +1469,13 @@ class ChatViewModel @Inject constructor(
     private suspend fun syncContextWindowAfterAttach(conversationId: String) {
         val pending = pendingContextWindow
         if (pending != null) {
-            // pending 这条本来就是"用户已经选过、界面也已经显示着"的值，所以补交走 Effect，
-            // 结果由 Applied 确认（失败则 Rejected 把它纠正回核心值）。
+            // pending 这条本来就是"用户已经选过、界面也已经显示着"的值，所以补交走 Effect。
+            // 这里**不**提前回 Applied：`performSetContextWindow` 成功时本来就返回
+            // `ContextWindowApplied`（Effect 的回执即确认），失败返回 `Rejected` 携核心权威值回退 ——
+            // 提前发会让"Applied"这个语义（写进核心成功）在确认之前就成立（P1-10）。
             effects.send(ChatEffect.SetContextWindow(conversationId, pending))
             // pending 的清除回 handler（等值守卫，D2）：本协程不写影子字段。
             sendAction(ChatAction.Internal.PendingContextWindowConsumed(pending))
-            sendAction(ChatAction.Internal.ContextWindowApplied(conversationId, pending))
             return
         }
         // 读回来的值以 action 回流；核心没记过（null）时 handler 不写，保持原值。
@@ -1734,7 +1809,7 @@ class ChatViewModel @Inject constructor(
                         ChatAction.Internal.ToolReturned(id, event.name, event.result)
                     is ChatEvent.UserPromptRequested ->
                         ChatAction.Internal.PromptRequested(id, event.prompt, event.options)
-                    is ChatEvent.Failed -> ChatAction.Internal.TurnFailed(id, event.detail)
+                    is ChatEvent.Failed -> ChatAction.Internal.TurnFailed(id, event.detail, event.kind)
                     ChatEvent.Completed -> ChatAction.Internal.TurnCompleted(id)
                     is ChatEvent.Aborted -> ChatAction.Internal.TurnInterrupted(id, event.durationMs)
                     is ChatEvent.Usage -> ChatAction.Internal.UsageReceived(id, event.usage)
@@ -2248,7 +2323,7 @@ class ChatViewModel @Inject constructor(
         if (isEmpty) turn.assistantIds.remove(targetId)
     }
 
-    private fun failTurn(turn: Turn, detail: String) {
+    private fun failTurn(turn: Turn, detail: String, kind: ChatFailureKind) {
         // A turn that already closed its segment on a tool call has nowhere to show
         // the failure, so open one rather than swallowing it.
         val targetId = turn.streamingMessageId ?: startAssistantSegment(turn)
@@ -2277,6 +2352,9 @@ class ChatViewModel @Inject constructor(
                             text = finalText.orEmpty(),
                             isStreaming = false,
                             isError = true,
+                            // 分型随消息一起留在内存里：界面据它给一句"能怎么办"的提示。历史（从核心读回的
+                            // 转写）没有这条信息 —— 核心不记它，所以恢复出来的失败消息不带分型。
+                            failureKind = kind,
                         )
                     }
                 },
@@ -2448,15 +2526,8 @@ private fun TranscriptMessage.toChatMessage(
             name = it.name,
             detail = it.detail,
             result = it.result,
-            // 状态从行数据里读（核心给的取值与 ZCode 一致），不从"有没有结果"反推。
-            status = when (toolStatus) {
-                "pending" -> ChatToolStatus.PENDING
-                "running" -> ChatToolStatus.RUNNING
-                "failed" -> ChatToolStatus.FAILED
-                "denied" -> ChatToolStatus.DENIED
-                "stopped" -> ChatToolStatus.STOPPED
-                else -> ChatToolStatus.COMPLETED
-            },
+            // 状态从行数据里读（核心给的取值见 `toolStatusOf`），不从"有没有结果"反推。
+            status = toolStatusOf(toolStatus),
         )
     },
     // Stored rows are plain text; parse them once so restored history renders as

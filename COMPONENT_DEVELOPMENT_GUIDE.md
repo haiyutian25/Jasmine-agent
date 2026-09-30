@@ -38,10 +38,11 @@ jasmine/
 │   ├── JasmineApplication   # @HiltAndroidApp 入口
 │   └── MainActivity              # @AndroidEntryPoint：hiltViewModel() + JasmineTheme + MainNavHost
 ├── core/
-│   ├── agent/                    # Rust 核心的 UniFFI 门面（Hilt 提供 ProviderProbe / ConversationStore / AgentChat）
+│   ├── agent/                    # Rust 核心的 UniFFI 门面（Hilt 提供 AgentHandle / ProviderProbe / ConversationStore / AgentChat）
 │   │   ├── AgentChat / ProviderProbe / ConversationStore   # 三个不泄漏核心类型的门面接口
 │   │   ├── RustAgentChat / RustProviderProbe / RustConversationStore / RustHosts  # 核心绑定实现
-│   │   └── di/AgentModule        # @Provides 装配
+│   │   ├── ConversationStore 订阅核心的「存储变更」推送 → 防抖后重读会话列表（不再轮询）
+│   │   └── di/AgentModule        # @Provides 装配（AgentHandle 单例、AgentChat 非单例）
 │   ├── data/                     # 数据层：仓库接口/实现 + Hilt 装配
 │   │   ├── model/UserPreferences             # 领域模型（themeId / typographyChoice / colorMode / fontScale / activeCustomFontId / activeProviderId / activeModelId）
 │   │   ├── datastore/UserPreferencesDataStore  # Preferences DataStore 读写（偏好唯一存储）
@@ -49,17 +50,15 @@ jasmine/
 │   │   ├── model/ProviderConfig          # 模型提供商配置（含 DeepSeek 预置 + ProviderApiType）
 │   │   ├── datastore/ProviderDataStore   # 提供商列表 JSON 整体存取（独立 DataStore 文件）
 │   │   ├── repository/ProviderRepository # 提供商增删改查（StateFlow 读 + 原子写）
-│   │   ├── model/ChatRole                # 消息作者枚举（持久化于 transcript，也用于历史重放）
-│   │   ├── model/Conversation            # 会话元数据 + TranscriptMessage 领域模型
-│   │   ├── repository/ChatHistoryRepository  # 对话记录读写（Room 支撑，实体不外泄）
+│   │   ├── repository/CustomFontRepository       # 自定义字体：扫描/导入/下载（Mutex 串行 + 内存快照）
+│   │   ├── repository/AppLanguageRepository      # 界面语言（AppCompat per-app locales 的唯一出口）
+│   │   ├── model/ChatRole                # 消息作者枚举（用于历史重放与渲染）
+│   │   ├── model/Conversation            # 会话元数据 + TranscriptMessage 领域模型（读自核心的 rollout）
+│   │   ├── model/AgentSettings / AgentOutputLanguage  # Agent 行为设置（回复语言的取值与规则结构）
 │   │   ├── datasource/FontRemoteDataSource       # 字体远端数据源（对接 core:network）
 │   │   ├── manager/dispatcher/DispatcherManager  # 可注入协程调度器
 │   │   └── di/DataModule                     # @Provides 装配
-│   ├── database/                 # Room：对话记录持久化（conversations + messages）
-│   │   ├── ConversationEntity / MessageEntity / ChatHistoryDao
-│   │   ├── ChatTranscriptSchema              # v5 建表语句单一来源（被测试钉在 Room 导出 schema 上）
-│   │   ├── AppDatabase                       # v5，exportSchema = true（schema 落在 core/database/schemas/）
-│   │   └── di/DatabaseModule                 # @Provides 数据库（含 1→5 迁移链）
+│   ├── markdown/                 # 增量 Markdown：native 引擎（ima incremark）+ Compose 块渲染
 │   ├── navigation/               # Navigation 3 封装
 │   │   └── AppNavigator                      # NavBackStack 包装（navigate/replace/goBack）
 │   ├── network/                  # Retrofit/OkHttp/kotlinx.serialization（Hilt 提供，baseUrl 占位）
@@ -67,7 +66,7 @@ jasmine/
 │       ├── theme/CssTokens       # CssVariables 模型、12 套预设、ThemeResolver（含 families 目录）
 │       ├── theme/Theme           # JasmineTheme + LocalCssVariables + M3 ColorScheme 映射
 │       ├── theme/Type            # AppTypography（Material3 Typography）+ LocalContentFontFamily
-│       └── base/                 # BaseViewModel（UDF 三要素）+ EventsEffect（生命周期感知事件消费）
+│       └── base/                 # BaseViewModel（UDF 三要素）+ EffectRunner（出站命令单消费者）+ EventsEffect（生命周期感知事件消费）
 └── feature/
     ├── main/                   # 应用外壳：启动页 + 对话主页 + 导航组装
     │   ├── api/                 # 导航契约：@Serializable MainNavKey（Splash / Main）
@@ -94,8 +93,7 @@ jasmine/
 app ──► feature:main:impl ──► feature:main:api
  │              │  │  │                    │
  │              │  │  ├► core:navigation ──┴► Navigation3 runtime/ui
- │              │  │  ├► core:data ──► core:database ──► Room（对话记录 conversations / messages）
- │              │  │  │            └─► core:network ──► Retrofit/OkHttp
+ │              │  │  ├► core:data ──► core:network ──► Retrofit/OkHttp
  │              │  │  ├► core:ui
  │              │  │  ├► feature:settings:impl ──► feature:settings:api
  │              │  │  │                        └──► core:ui / core:data
@@ -170,11 +168,10 @@ onTabSelected = { viewModel.trySendAction(MainAction.TabSelected(it)) }
 | 模块 | 注入内容 | 作用域 |
 | :--- | :--- | :--- |
 | `app` | `@HiltAndroidApp JasmineApplication`、`@AndroidEntryPoint MainActivity` | — |
-| `core:database` | `DatabaseModule`：`AppDatabase`（Room.databaseBuilder，`jasmine.db`，v5，含 1→5 迁移链；`ChatHistoryDao` 暴露对话记录读写） | Singleton |
 | `core:network` | `NetworkModule`：`OkHttpClient`（debug BASIC 日志 / release 静默）、`Retrofit`（kotlinx.serialization 转换器）、`@BaseUrl`、`FontDownloadApi`（独立 Retrofit 实例，长超时裸流下载） | Singleton |
-| `core:data` | `DataModule`：`@Provides` `DispatcherManager`、`UserPreferencesRepository`、`ProviderRepository`、`ChatHistoryRepository`；`CustomFontRepository`（`@Singleton` 构造注入） | Singleton |
-| `core:agent` | `AgentModule`：`@Provides` `ProviderProbe`（注入共享 `OkHttpClient` + `DispatcherManager`）与 `AgentChat` | Singleton |
-| `feature:main:impl` | `@HiltViewModel MainViewModel` / `ChatViewModel`、@Singleton `CustomFontRepository`、@Singleton `CustomFontFamilyCache` | ViewModel / Singleton |
+| `core:data` | `DataModule`：`@Provides` `DispatcherManager`、`UserPreferencesRepository`、`AppLanguageRepository`、`ProviderRepository`；`CustomFontRepository`（`@Singleton` 构造注入） | Singleton |
+| `core:agent` | `AgentModule`：`@Singleton` `AgentHandle`（进程内唯一的核心句柄，同时承载会话存储变更推送）、`ProviderProbe`（`RustProviderProbe`）、`ConversationStore`（`RustConversationStore`）；`AgentChat`（`RustAgentChat`，**刻意非单例**：每条会话一个薄门面，隔离靠核心的按会话槽） | Singleton / 非单例 |
+| `feature:main:impl` | `@HiltViewModel MainViewModel` / `ChatViewModel` / `UsageStatsViewModel`、`@Singleton CustomFontFamilyCache` | ViewModel / Singleton |
 | `feature:provider:impl` | `@HiltViewModel ProviderViewModel`（注入 `ProviderRepository` + `ProviderProbe`） | ViewModel |
 
 `MainActivity` 中通过 `hiltViewModel()`（`androidx.hilt.lifecycle.viewmodel.compose` 包）获取 VM，`JasmineTheme(cssVars = currentTheme)` 包裹 `MainNavHost`。
@@ -452,8 +449,10 @@ Main → SettingsMenu（设置菜单列表）→ AppearanceSettings（外观设�
 | `ExampleUnitTest` | 2+2 | 模板级 |
 | `ExampleRobolectricTest` | 读取 `app_name` 资源 | Robolectric |
 | `MainScreenshotTest` | Roborazzi 渲染首页 | 验证首页 UI 可组合渲染 |
-| `MigrationDdlTest`（`core:database`） | 把 v5 建表语句钉在 Room 导出的 schema 上（双向比对，忽略空白） | 纯 JVM 单测，比对 SQL 文本 |
+| `MvvmUdfGateTest`（`feature:main:impl`） | 源码级 UDF 门禁：单一状态写入点、异步结果经 `Internal` action 回流、影子状态只由同步 handler 写、会话投影必须派生、View 层不碰平台 | 纯文本比对，非运行期断言 |
 | `ChatViewModelTest`（`feature:main:impl`） | 对话状态机：发送 / 流式追加 / 失败 / 回合结束 / 首条消息建会话并落库 / 恢复并重放 / 切换与删除会话 / 失败回复不重放 | 用假仓库与假 `AgentChat` 替换，不触网 |
+| `ProviderViewModelRollbackTest`（`feature:provider:impl`） | 乐观写的失败回滚：删除按原位插回、保存恢复快照并重开草稿、迟到的失败不顶掉新草稿 | 假仓库注入失败 |
+| `LanguageViewModelTest`（`feature:settings:impl`） | 语言页：首屏值经 action 落地、选择即应用、配置换掉回到平台权威值 | 假 `AppLanguageRepository` |
 
 - Robolectric 基线 **SDK 36**（`app/src/test/resources/robolectric.properties`），**要求 JDK 21**（SDK 36 沙盒硬性要求；SDK 37 需 Robolectric 4.17-beta，暂不采用）。
 - 截图基准图生成：`gradle :app:testDebugUnitTest -Proborazzi.test.record=true`。
@@ -461,11 +460,12 @@ Main → SettingsMenu（设置菜单列表）→ AppearanceSettings（外观设�
 ### 12.2 构建验证命令
 
 ```
-gradle :app:compileDebugKotlin                # 全模块编译 + KSP（Room/Hilt）
+gradle :app:compileDebugKotlin                # 全模块编译 + KSP（Hilt）
 gradle :app:assembleDebug                     # 完整打包（需根目录 debug.keystore）
 gradle :app:testDebugUnitTest                 # app 单元测试 + 截图测试
-gradle :core:database:testDebugUnitTest       # 迁移 DDL 与 Room 导出 schema 的一致性
-gradle :feature:main:impl:testDebugUnitTest   # 对话状态机
+gradle :feature:main:impl:testDebugUnitTest   # 对话状态机 + UDF 门禁
+gradle :feature:provider:impl:testDebugUnitTest  # 供应商 CRUD + 回滚
+gradle :feature:settings:impl:testDebugUnitTest  # 语言页
 ```
 
 ---
@@ -489,7 +489,7 @@ gradle :feature:main:impl:testDebugUnitTest   # 对话状态机
 | 打字机 | 起始 350ms，逐字 28ms（末句 42ms），行间 400ms，收尾 850ms | SplashScreen |
 | 光标 / 光环 / 自转环 | 480ms / 1800ms / 12000ms | SplashScreen |
 | 偏好存储 | Preferences DataStore（`user_preferences`：主题 / 排版 / 明暗 / 字号 / 自定义字体 / **activeProviderId / activeModelId**） | core:data |
-| 结构化数据库 | `jasmine.db` v5（`conversations` / `messages`，含 1→5 迁移链） | core:database |
+| 会话落盘 | 每会话一个**只追加 JSONL**（`files/sessions/<年>/<月>/<日>/rollout-*.jsonl`，首行是会话元信息与标题/provider/model） | rust/rollout（经 `core:agent` 的 `ConversationStore`） |
 | 字体下载源 | GitHub Releases 直链 + SHA-256 校验 | feature:main:impl/fonts |
 
 ---
@@ -498,12 +498,12 @@ gradle :feature:main:impl:testDebugUnitTest   # 对话状态机
 
 4. **`tools[].type` 的坑（已修，有回归测试）**：`openAiJson` 关闭了 `encodeDefaults`，因此**带默认值的必填字段不会被序列化**。原先 `ChatTool.type` 的默认值恰是 `"function"`，导致带工具的请求会漏掉 `type` 而被供应商拒绝；现改为必填无默认值（Responses 的 `parameters` / `strict` 同理）。
 7. **API Key 存在设备上**：`ProviderConfig.apiKey` 存于 Preferences DataStore 并由设备直连供应商。官方 Android 指南明确不建议在客户端内嵌密钥（建议自建后端或 Firebase AI Logic）。当前定位是"用户自备密钥的个人工具"，若要上架发布需改为代理方案。
-8. **Room 已投入使用，但迁移从未被真正执行过**：v5 引入 `conversations` / `messages`，并删掉了无任何读者的 legacy `user_preferences` 表（其 `UserPreferencesEntity` 一并移除）。`core:data` 对 `core:database` 的依赖也从 `api` 收紧为 `implementation`——Room 实体与 DAO 不再外泄（`core:data` 因此需要直接依赖 `room-runtime`）。**缺口**：迁移 DDL 只被 `MigrationDdlTest` 在文本层面钉在 Room 导出 schema 上，尚未接入 Room 官方的 `MigrationTestHelper`（需 Robolectric + `room-testing`），所以"迁移跑在真实 SQLite 上并让 Room 校验通过"这一步没有自动化覆盖。schema 已导出到 `core/database/schemas/`，具备接入条件。
+8. **会话落盘已整体迁到 Rust 核心的 rollout（Room 下线）**：演进路径是「偏好表 Room→DataStore」→「显式聊天记录 Room v5（`conversations` / `messages`）」→「**会话整体迁到 `rust/rollout`**，每会话一个只追加 JSONL，首行是会话元信息」。`core:database` 模块、Room 依赖与 schema 导出均已删除（设备上 `databases/` 目录不存在）。**取舍**：JSONL 只追加、无索引、无查询语言 —— 列表靠扫目录 + 读每个文件「最后一行时间戳」得到 `updatedAt`（见 `rust/rollout/src/list.rs`），转写靠整文件顺序读。会话数量级上去以后需要引入索引或分片，这是当前实现已知的伸缩边界。
 9. **家族文案为可选本地化**：设置页族名经 `SettingsScreen.paletteNameRes` 按家族 key 查本地化资源；未配置的新家族自动回退到该家族自身的 `displayName`（英文），不会错标为其它家族；需要本地化时补一条字符串资源即可。（描述副标题已整体移除，`CssVariables` 不再携带 `description` 字段。）
-10. **截图基准默认不校验**：`app/src/test/screenshots/chat.png` 已提交（渲染的是带样例对话的对话界面，而非空表面）。默认 `testDebugUnitTest` 下 Roborazzi 未激活任何模式（record/verify/compare 均未开），`captureRoboImage` 空转通过、不做校验——CI 绿灯对 UI 回归没有保护。重新生成基准用 `gradle :app:testDebugUnitTest -Proborazzi.test.record=true`（**PowerShell 下 `-P` 参数会被吞掉，需加引号：`'-Proborazzi.test.record=true'`**），CI 校验用 `-Proborazzi.test.verify=true`。真正有断言价值的是 `core:agent` / `core:database` / `feature:main:impl` 的纯逻辑单测。
+10. **截图基准默认不校验**：`app/src/test/screenshots/chat.png` 已提交（渲染的是带样例对话的对话界面，而非空表面）。默认 `testDebugUnitTest` 下 Roborazzi 未激活任何模式（record/verify/compare 均未开），`captureRoboImage` 空转通过、不做校验——CI 绿灯对 UI 回归没有保护。重新生成基准用 `gradle :app:testDebugUnitTest -Proborazzi.test.record=true`（**PowerShell 下 `-P` 参数会被吞掉，需加引号：`'-Proborazzi.test.record=true'`**），CI 校验用 `-Proborazzi.test.verify=true`。真正有断言价值的是 `core:agent` / `feature:main:impl` / `feature:provider:impl` 的纯逻辑单测。
 13. **签名与打包环境**：release 的密钥库解析顺序为 `KEYSTORE_PATH`（环境变量，CI / 显式覆盖优先）→ `${rootDir}/my-upload-key.jks`；别名固定为 `upload`，密码来自 `STORE_PASSWORD` / `KEY_PASSWORD`。工作区已放置一枚**测试用**密钥库 `my-upload-key.jks`（`CN=Jasmine Test Release`，git-ignored），可用于安装测试但**不能用于发布**（Play 拒绝 debug 级/测试身份，且换密钥必须先卸载）。
     **排查要点**：构建**不会回显**实际使用的密钥库，签名对不对只能用 `apksigner verify --print-certs` 验证。本机就曾因为持久化的 `KEYSTORE_PATH` 指向另一目录的 debug 密钥库，导致 release 包被签成 `CN=Android Debug` —— 而 `assembleDebug` 固定读 `${rootDir}/debug.keystore`（与 release 的解析链不同），所以"release 能签、debug 反而不能"完全可能。
 
 ---
 
-> 本文档已按当前源码逐项核验（核验日期：2026-09-23），覆盖多模块化重构后的全部演进：偏好存储 Room→DataStore 迁移、序列化 Moshi→kotlinx.serialization、自定义字体系统、设置流程从 ViewModel 状态机迁移至 Navigation 3 回退栈、主题家族目录单源化（`ThemeResolver.families`）、侧栏/底栏手势体系、设置流独立为 `feature:settings:{api,impl}` 模块（共用组件 `Button` / `Slider` 下沉到 `core:ui`），以及**`core:agent` 改为 Rust 核心的 UniFFI 门面（会话、模型调用、工具都在核心侧）**。后续修改组件参数时，请同步更新第 13 节速查表。
+> 本文档已按当前源码逐项核验（核验日期：2026-10-01），覆盖多模块化重构后的全部演进：偏好存储 Room→DataStore 迁移、**会话落盘 Room→`rust/rollout` 迁移（`core:database` 整体下线）**、序列化 Moshi→kotlinx.serialization、自定义字体系统、设置流程从 ViewModel 状态机迁移至 Navigation 3 回退栈、主题家族目录单源化（`ThemeResolver.families`）、侧栏/底栏手势体系、设置流独立为 `feature:settings:{api,impl}` 模块（共用组件 `Button` / `Slider` 下沉到 `core:ui`）、**`core:agent` 改为 Rust 核心的 UniFFI 门面（会话、模型调用、工具都在核心侧）**，以及 UDF 加固（出站命令统一走 `EffectRunner`、会话投影改为派生、源码级门禁 `MvvmUdfGateTest`）。后续修改组件参数时，请同步更新第 13 节速查表。

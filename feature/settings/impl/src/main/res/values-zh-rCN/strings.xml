@@ -20,9 +20,6 @@
     <string name="settings_palette_shadcn_name">Shadcn 锌灰</string>
     <string name="settings_palette_notion_name">Notion 暖调</string>
     <string name="settings_palette_braun_name">Braun 迪特·拉姆斯</string>
-    <string name="settings_typography_editorial_title">编辑衬线体</string>
-    <string name="settings_typography_sans_title">现代无衬线体</string>
-    <string name="settings_typography_mono_title">技术等宽体</string>
     <string name="settings_section_custom_fonts">自定义字体</string>
     <string name="settings_section_font_library">字体库</string>
     <string name="settings_custom_fonts_upload">上传字体</string>
@@ -32,9 +29,6 @@
     <string name="settings_font_delete_cd">删除字体</string>
     <string name="settings_font_badge_uploaded">已上传</string>
     <string name="settings_font_size_label">字体大小</string>
-    <string name="font_label_serif">衬线体</string>
-    <string name="font_label_sans">无衬线体</string>
-    <string name="font_label_mono">等宽体</string>
     <string name="language_title">语言</string>
     <string name="language_section">显示语言</string>
     <string name="language_follow_system">跟随系统</string>

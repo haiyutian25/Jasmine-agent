@@ -6,7 +6,9 @@ import com.lhzkml.jasmine.core.data.model.Conversation
 import com.lhzkml.jasmine.core.data.model.TranscriptMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -67,6 +69,8 @@ class UsageStatsViewModelTest {
 
 private class FakeUsageStore : ConversationStore {
     override val conversationsStateFlow = MutableStateFlow<List<Conversation>>(emptyList())
+    /** 用例里没有读失败。 */
+    override val readFailures: Flow<String> = emptyFlow()
 
     /** 让用例模拟"扫不出来"。 */
     var failure: Exception? = null

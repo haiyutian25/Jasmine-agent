@@ -42,7 +42,7 @@ jasmine_model_provider_info::uniffi_reexport_scaffolding!();
 use std::sync::Arc;
 
 use jasmine_core::host::Clock;
-use jasmine_core::session::{AgentChatService, AgentError, ChatSink};
+use jasmine_core::session::{AgentChatService, AgentError, ChatSink, SessionError};
 use jasmine_model_provider::ResolvedProvider;
 use jasmine_model_provider_info::ModelConfig;
 use jasmine_model_provider_info::{ModelProviderInfo, WireApi};
@@ -238,14 +238,45 @@ impl ChatSink for ListenerSink {
 /// 方法名与 Android 侧现有的会话接口保持一致（`startConversation` / `send` /
 /// `respondToPrompts` / `endConversation`）—— 这样界面层的改动只在于"实现换了一个"，
 /// 调用点不用重写。
-/// 跨边界的失败：只带一句可显示的原因（HTTP 状态、服务端错误文本、调用顺序错误…）。
+/// 跨边界的失败：**分型** + 一句可显示的原因。
 ///
-/// 跨语言传递完整的错误类型需要两边同步维护一套枚举，而平台真正需要的只是一句能显示的
-/// 话；需要区分时按原因文本判断即可。
+/// 分型不是装饰：界面要据它决定给用户的说法与"重试有没有意义"（网络问题 vs 这条会话在核心侧
+/// 已经没有了 vs 本地会话文件坏了），以前只能去匹配那句中文/英文文本 —— 文案一改就 silently 失效。
+/// 每个变体都带 `detail`（HTTP 状态、服务端错误文本、调用顺序错误…），界面直接显示它。
 #[derive(Debug, thiserror::Error, uniffi::Error)]
 pub enum AgentFailure {
+    /// 调用到来时这条会话没有附着（调用顺序错），或它已经被释放 / 删除。
     #[error("{detail}")]
-    Failed { detail: String },
+    NoSession { detail: String },
+    /// 网络 / 传输层失败（连不上、超时、TLS、服务端报错…）—— 重试有意义。
+    #[error("{detail}")]
+    Transport { detail: String },
+    /// 本地会话文件读写失败（损坏、权限、磁盘…）—— 重试通常没用。
+    #[error("{detail}")]
+    Transcript { detail: String },
+    /// 核心内部状态或运行时问题（互斥量中毒、runtime 起不来、调用时序不对…）。
+    #[error("{detail}")]
+    Internal { detail: String },
+}
+
+impl From<AgentError> for AgentFailure {
+    fn from(error: AgentError) -> Self {
+        let detail = error.detail();
+        match error {
+            AgentError::NoSession => Self::NoSession { detail },
+            // 传输层的两类：建客户端失败，与请求/解析失败（都在网络那一侧）。
+            AgentError::Transport(_) | AgentError::Session(SessionError::Api(_)) => {
+                Self::Transport { detail }
+            }
+            AgentError::Transcript(_) => Self::Transcript { detail },
+            // 中毒 / runtime / 调用时序：都不是网络与文件的问题。
+            AgentError::Poisoned
+            | AgentError::Runtime(_)
+            | AgentError::Session(SessionError::NoPromptWaiting | SessionError::TurnAborted) => {
+                Self::Internal { detail }
+            }
+        }
+    }
 }
 
 #[derive(uniffi::Object)]
@@ -315,9 +346,7 @@ impl AgentHandle {
                     app_language: settings.app_language,
                 },
             )
-            .map_err(|error| AgentFailure::Failed {
-                detail: error.detail(),
-            })
+            .map_err(AgentFailure::from)
     }
 
     /// 建会话：平台的"新建对话"调它，标题/provider/model 由平台给。
@@ -330,18 +359,14 @@ impl AgentHandle {
     ) -> Result<(), AgentFailure> {
         self.inner
             .create_conversation(&SessionId::new(session_id), &provider_id, &model_id, &title)
-            .map_err(|error| AgentFailure::Failed {
-                detail: error.detail(),
-            })
+            .map_err(AgentFailure::from)
     }
 
     /// 删会话：连同它的会话文件一起删掉。
     pub fn delete_conversation(&self, session_id: String) -> Result<(), AgentFailure> {
         self.inner
             .delete_conversation(&SessionId::new(session_id))
-            .map_err(|error| AgentFailure::Failed {
-                detail: error.detail(),
-            })
+            .map_err(AgentFailure::from)
     }
 
     /// 某条会话的上下文里当前有多少条消息。
@@ -370,9 +395,7 @@ impl AgentHandle {
     ) -> Result<Option<u64>, AgentFailure> {
         self.inner
             .conversation_context_window(&SessionId::new(session_id))
-            .map_err(|error| AgentFailure::Failed {
-                detail: error.detail(),
-            })
+            .map_err(AgentFailure::from)
     }
 
     /// 某条会话上次报的用量（累计 + 最近一次 + 窗口，以及那轮请求的构成）；没记录过就为 `None`。
@@ -386,9 +409,7 @@ impl AgentHandle {
         self.inner
             .conversation_usage(&SessionId::new(session_id))
             .map(|usage| usage.map(|(info, breakdown)| ContextUsageSnapshot { info, breakdown }))
-            .map_err(|error| AgentFailure::Failed {
-                detail: error.detail(),
-            })
+            .map_err(AgentFailure::from)
     }
 
     /// 整个 App **本月**的用量：累计 token、当前/最长连续天数、逐日用量、按模型的花销。
@@ -399,9 +420,7 @@ impl AgentHandle {
     pub fn usage_stats(&self) -> Result<AppUsageStats, AgentFailure> {
         self.inner
             .usage_stats()
-            .map_err(|error| AgentFailure::Failed {
-                detail: error.detail(),
-            })
+            .map_err(AgentFailure::from)
     }
 
     /// 设定当前会话的上下文窗口，落进它的会话文件。
@@ -417,9 +436,7 @@ impl AgentHandle {
         let mut sink = ListenerSink { listener };
         self.inner
             .set_context_window(&session_id, tokens, &mut sink)
-            .map_err(|error| AgentFailure::Failed {
-                detail: error.detail(),
-            })
+            .map_err(AgentFailure::from)
     }
 
     /// 某条会话的推理档位（空串 = 未设置）；它没附着时为 `None`。
@@ -437,54 +454,64 @@ impl AgentHandle {
     ) -> Result<Option<String>, AgentFailure> {
         self.inner
             .conversation_reasoning_effort(&SessionId::new(session_id))
-            .map_err(|error| AgentFailure::Failed {
-                detail: error.detail(),
-            })
+            .map_err(AgentFailure::from)
     }
 
     /// 改这个会话的推理档位，并把这次改动**追加**进它的文件（历史一条不删）。
-    pub fn set_reasoning_effort(&self, session_id: String, value: String) -> Result<(), AgentFailure> {
+    pub fn set_reasoning_effort(
+        &self,
+        session_id: String,
+        value: String,
+    ) -> Result<(), AgentFailure> {
         self.inner
             .set_reasoning_effort(&session_id, &value)
-            .map_err(|error| AgentFailure::Failed {
-                detail: error.detail(),
-            })
+            .map_err(AgentFailure::from)
     }
 
     /// 平台侧栏要的会话列表（最新的在前）。
-    pub fn conversations(&self) -> Vec<ConversationSummary> {
+    ///
+    /// 读不出来是 `Err`（D5），不是空表：平台据此保留上一次成功的列表，而不是把界面清空。
+    pub fn conversations(&self) -> Result<Vec<ConversationSummary>, AgentFailure> {
         self.inner
             .conversations()
-            .into_iter()
-            .map(|summary| ConversationSummary {
-                session_id: summary.session_id,
-                title: summary.title,
-                provider_id: summary.provider_id,
-                model_id: summary.model_id,
-                updated_at: summary.updated_at,
+            .map(|summaries| {
+                summaries
+                    .into_iter()
+                    .map(|summary| ConversationSummary {
+                        session_id: summary.session_id,
+                        title: summary.title,
+                        provider_id: summary.provider_id,
+                        model_id: summary.model_id,
+                        updated_at: summary.updated_at,
+                    })
+                    .collect()
             })
-            .collect()
+            .map_err(AgentFailure::from)
     }
 
-    /// 某个会话的转写（按发生顺序）。
-    pub fn transcript(&self, session_id: String) -> Vec<HistoryEntry> {
+    /// 某个会话的转写（按发生顺序）。读不出来是 `Err`（D5）；会话不存在是空表。
+    pub fn transcript(&self, session_id: String) -> Result<Vec<HistoryEntry>, AgentFailure> {
         self.inner
             .transcript(&SessionId::new(session_id))
-            .into_iter()
-            .map(|entry| HistoryEntry {
-                role: entry.role,
-                text: entry.text,
-                tool_call_id: entry.tool_call_id,
-                stopped_after_ms: entry.stopped_after_ms,
-                recorded_at: entry.recorded_at,
-                model_label: entry.model_label,
-                tool_name: entry.tool_name,
-                tool_detail: entry.tool_detail,
-                tool_result: entry.tool_result,
-                tool_status: entry.tool_status,
-                thinking: entry.thinking,
+            .map(|entries| {
+                entries
+                    .into_iter()
+                    .map(|entry| HistoryEntry {
+                        role: entry.role,
+                        text: entry.text,
+                        tool_call_id: entry.tool_call_id,
+                        stopped_after_ms: entry.stopped_after_ms,
+                        recorded_at: entry.recorded_at,
+                        model_label: entry.model_label,
+                        tool_name: entry.tool_name,
+                        tool_detail: entry.tool_detail,
+                        tool_result: entry.tool_result,
+                        tool_status: entry.tool_status,
+                        thinking: entry.thinking,
+                    })
+                    .collect()
             })
-            .collect()
+            .map_err(AgentFailure::from)
     }
 
     /// 往**这一条**会话发一轮并流式回调事件。
@@ -499,9 +526,7 @@ impl AgentHandle {
         let mut sink = ListenerSink { listener };
         self.inner
             .send(&session_id, &text, &mut sink)
-            .map_err(|error| AgentFailure::Failed {
-                detail: error.detail(),
-            })
+            .map_err(AgentFailure::from)
     }
 
     /// 提交提问的答案（按提问顺序收齐后一起提交）。
@@ -514,18 +539,14 @@ impl AgentHandle {
         let mut sink = ListenerSink { listener };
         self.inner
             .respond_to_prompts(&session_id, &answers, &mut sink)
-            .map_err(|error| AgentFailure::Failed {
-                detail: error.detail(),
-            })
+            .map_err(AgentFailure::from)
     }
 
     /// 某个会话还没写完的回合（有值就说明可以继续）。答的是文件里的事实，不需要先附着。
     pub fn interrupted_turn(&self, session_id: String) -> Result<Option<String>, AgentFailure> {
         self.inner
             .interrupted_turn(&session_id)
-            .map_err(|error| AgentFailure::Failed {
-                detail: error.detail(),
-            })
+            .map_err(AgentFailure::from)
     }
 
     /// 继续被中断的那一回合：不加用户消息，在同一个回合里接着采样。
@@ -537,9 +558,7 @@ impl AgentHandle {
         let mut sink = ListenerSink { listener };
         self.inner
             .recover_turn(&session_id, &mut sink)
-            .map_err(|error| AgentFailure::Failed {
-                detail: error.detail(),
-            })
+            .map_err(AgentFailure::from)
     }
 
     /// 停掉**这条会话**正在跑的那一轮。不是硬中断：回合在下一个等待点收手，已经产出的条目照旧落盘，
@@ -547,9 +566,7 @@ impl AgentHandle {
     pub fn interrupt(&self, session_id: String) -> Result<(), AgentFailure> {
         self.inner
             .interrupt(&session_id)
-            .map_err(|error| AgentFailure::Failed {
-                detail: error.detail(),
-            })
+            .map_err(AgentFailure::from)
     }
 
     /// 把取消时留下的半段回复写回会话。
@@ -560,14 +577,26 @@ impl AgentHandle {
     ) -> Result<(), AgentFailure> {
         self.inner
             .persist_interrupted_reply(&session_id, &text)
-            .map_err(|error| AgentFailure::Failed {
-                detail: error.detail(),
-            })
+            .map_err(AgentFailure::from)
     }
 
     /// 释放**这一条**会话（历史不动，别的会话也不动）。
     pub fn end_conversation(&self, session_id: String) {
         self.inner.end_conversation(&session_id);
+    }
+
+    /// 交还这个 handle 持有的全部资源：所有会话脱离、存储监听清空、runtime 交还。
+    ///
+    /// 给**生命周期边界**用（测试，以及将来一个进程里多个 handle 的场景）。Android 上 handle 是
+    /// 进程级单例、进程结束即回收，所以生产路径不必须调用；**幂等**，重复调用无副作用。
+    ///
+    /// 名字不是 `close`：UniFFI 生成的 `AgentHandle` 已经带 `AutoCloseable.close()`（= 释放这个
+    /// Rust 对象本身），两者语义不同，重名会撞上。
+    ///
+    /// 调用之后这个 handle 只读可用（`conversations` / `transcript` 走文件系统），任何要跑回合的
+    /// 调用会以"runtime 起不来"明确报错 —— 这正是"资源已交还"的意思。
+    pub fn shutdown(&self) {
+        self.inner.shutdown();
     }
 }
 
@@ -581,8 +610,9 @@ pub fn probe(provider: ProviderInput, model_id: String) -> jasmine_protocol::Pro
 /// 各家响应形状的适配在核心（见 `model-provider-info` 的 `presets`）。
 #[uniffi::export]
 pub fn list_models(provider: ProviderInput) -> Result<Vec<String>, AgentFailure> {
+    // 这一步是纯网络往返（拉端点自己报的模型列表），所以失败归到传输那一类。
     jasmine_core::models::list_models(&provider.into_resolved())
-        .map_err(|detail| AgentFailure::Failed { detail })
+        .map_err(|detail| AgentFailure::Transport { detail })
 }
 
 /// 核心目录里的一个模型：认得它，界面就能把表单填好（名字、上下文容量、档位表）。

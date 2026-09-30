@@ -8,4 +8,22 @@
     <string name="sidebar_history_empty">暂无历史对话。</string>
     <string name="sidebar_cd_delete_conversation">删除对话</string>
     <string name="bottom_sheet_cd_close">关闭</string>
+
+    <!-- 排版选择的文案（随 AppTypographyChoice 从 feature:settings:impl 上移到 core:ui） -->
+    <string name="settings_typography_editorial_title">编辑衬线体</string>
+    <string name="settings_typography_sans_title">现代无衬线体</string>
+    <string name="settings_typography_mono_title">技术等宽体</string>
+    <string name="font_label_serif">衬线体</string>
+    <string name="font_label_sans">无衬线体</string>
+    <string name="font_label_mono">等宽体</string>
+
+    <!-- 推理档位的文案（随 ReasoningEffort 表上移到 core:ui：聊天输入行与供应商页共用一份） -->
+    <string name="reasoning_effort_unset">未设置</string>
+    <string name="reasoning_effort_none">关闭</string>
+    <string name="reasoning_effort_low">低</string>
+    <string name="reasoning_effort_medium">中</string>
+    <string name="reasoning_effort_high">高</string>
+    <string name="reasoning_effort_xhigh">极高</string>
+    <string name="reasoning_effort_max">最高</string>
+    <string name="reasoning_effort_ultra">极致</string>
 </resources>

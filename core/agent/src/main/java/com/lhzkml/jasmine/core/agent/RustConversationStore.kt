@@ -7,8 +7,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -39,6 +42,12 @@ class RustConversationStore(
     private val conversations = MutableStateFlow<List<Conversation>>(emptyList())
 
     /**
+     * 读存储失败的通道（D5）。`extraBufferCapacity = 1`：只保证"来得及投一条"，投不进去也不算错 ——
+     * 这是提示，不是数据。
+     */
+    private val failures = MutableSharedFlow<String>(extraBufferCapacity = 1)
+
+    /**
      * 核心推送的"存储变了"信号。`conflate` 让积压的信号合并成一个 —— 刷新是"读当前状态"，
      * 排在后面的那次读已经包含了前面所有的变化，中间那些重复刷新没有意义。
      */
@@ -66,6 +75,8 @@ class RustConversationStore(
     override val conversationsStateFlow: StateFlow<List<Conversation>> =
         conversations.asStateFlow()
 
+    override val readFailures: Flow<String> = failures.asSharedFlow()
+
     override suspend fun latestConversation(): Conversation? {
         val listed = read()
         return listed.firstOrNull()
@@ -73,7 +84,13 @@ class RustConversationStore(
 
     override suspend fun messagesOf(conversationId: String): List<TranscriptMessage> =
         withContext(Dispatchers.IO) {
-            handle.transcript(conversationId).map { entry ->
+            val entries = runCatching { handle.transcript(conversationId) }
+                .getOrElse { failure ->
+                    // 读不出来时给空表（调用方那侧本来就是"加载中 → 内容"），但要让它可见。
+                    failures.tryEmit(failure.message ?: failure.toString())
+                    return@withContext emptyList()
+                }
+            entries.map { entry ->
                 TranscriptMessage(
                     role = if (entry.role == Role.USER) ChatRole.USER else ChatRole.ASSISTANT,
                     text = entry.text,
@@ -128,20 +145,26 @@ class RustConversationStore(
     }
 
     private suspend fun read(): List<Conversation> {
-        val listed = withContext(Dispatchers.IO) {
-            handle.conversations().map { summary ->
-                Conversation(
-                    id = summary.sessionId,
-                    title = summary.title,
-                    providerId = summary.providerId,
-                    modelId = summary.modelId,
-                    createdAt = summary.updatedAt,
-                    updatedAt = summary.updatedAt,
-                )
-            }
-        }
-        conversations.value = listed
-        return listed
+        withContext(Dispatchers.IO) {
+            runCatching { handle.conversations() }
+        }.fold(
+            onSuccess = { summaries ->
+                conversations.value = summaries.map { summary ->
+                    Conversation(
+                        id = summary.sessionId,
+                        title = summary.title,
+                        providerId = summary.providerId,
+                        modelId = summary.modelId,
+                        createdAt = summary.updatedAt,
+                        updatedAt = summary.updatedAt,
+                    )
+                }
+            },
+            // 读失败**不清空**：目录一时读不出来不等于用户的历史没了。保留上一次成功的快照，
+            // 只把原因投出去（D5）。
+            onFailure = { failure -> failures.tryEmit(failure.message ?: failure.toString()) },
+        )
+        return conversations.value
     }
 
     private companion object {

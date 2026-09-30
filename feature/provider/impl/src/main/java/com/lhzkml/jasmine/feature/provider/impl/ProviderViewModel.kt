@@ -107,7 +107,16 @@ data class ProviderState(
      */
     val catalogFor: String? = null,
     val catalog: Map<String, CatalogModel> = emptyMap(),
-)
+) {
+    /**
+     * 这个页面现在能不能退出（回上一级）。
+     *
+     * 把"编辑态下返回键先关表单、不丢草稿"这条**业务规则**表达成状态：列表态（没有草稿）可以直接退，
+     * 编辑态要先关编辑器。界面只读它，不再自己拼条件（以前那条规则写在 NavHost 的 `onBack` 里，
+     * 系统返回键还不走它 —— 于是"编辑中按系统返回"会整页退出、草稿丢光）。
+     */
+    val canNavigateBack: Boolean get() = editor == null
+}
 
 /**
  * One-time events emitted by [ProviderViewModel]; consumed exactly once by the UI.

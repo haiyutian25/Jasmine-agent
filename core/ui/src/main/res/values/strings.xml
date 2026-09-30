@@ -8,4 +8,22 @@
     <string name="sidebar_history_empty">No conversations yet.</string>
     <string name="sidebar_cd_delete_conversation">Delete conversation</string>
     <string name="bottom_sheet_cd_close">Close</string>
+
+    <!-- 排版选择的文案（随 AppTypographyChoice 从 feature:settings:impl 上移到 core:ui） -->
+    <string name="settings_typography_editorial_title">Editorial Serif</string>
+    <string name="settings_typography_sans_title">Modern Sans</string>
+    <string name="settings_typography_mono_title">Technical Mono</string>
+    <string name="font_label_serif">Serif</string>
+    <string name="font_label_sans">Sans</string>
+    <string name="font_label_mono">Mono</string>
+
+    <!-- 推理档位的文案（随 ReasoningEffort 表上移到 core:ui：聊天输入行与供应商页共用一份） -->
+    <string name="reasoning_effort_unset">Not set</string>
+    <string name="reasoning_effort_none">Off</string>
+    <string name="reasoning_effort_low">Low</string>
+    <string name="reasoning_effort_medium">Medium</string>
+    <string name="reasoning_effort_high">High</string>
+    <string name="reasoning_effort_xhigh">Extra high</string>
+    <string name="reasoning_effort_max">Max</string>
+    <string name="reasoning_effort_ultra">Ultra</string>
 </resources>

@@ -52,17 +52,18 @@ fn an_id_that_could_point_outside_the_directory_is_refused() {
         "9f1c\n",
         "会话",
     ] {
-        assert!(
-            !is_usable_session_id(id),
-            "不该接受这样的 id：{id:?}"
-        );
+        assert!(!is_usable_session_id(id), "不该接受这样的 id：{id:?}");
         assert!(
             RolloutFileName::new(started(), id.to_string()).is_none(),
             "不该为这样的 id 生成文件名：{id:?}"
         );
     }
 
-    for id in ["9f1c", "9F1C-4d2b_9a0e", "8c31eb4a-2d5d-4fe1-ac62-1c42cbfb86f1"] {
+    for id in [
+        "9f1c",
+        "9F1C-4d2b_9a0e",
+        "8c31eb4a-2d5d-4fe1-ac62-1c42cbfb86f1",
+    ] {
         assert!(is_usable_session_id(id), "应当接受这样的 id：{id:?}");
     }
 }

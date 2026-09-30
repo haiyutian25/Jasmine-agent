@@ -186,8 +186,8 @@ class MvvmUdfGateTest {
      * 字体缓存 / 探测器）只允许出现在 suspend 函数或协程块里（异步路径）；同步函数里出现即违规。
      *
      * 白名单只剩三类例外：与附着严格有序、必须同步的**释放/拆毁**（`releaseConversation` /
-     * `onCleared`，注释见 ChatViewModel）；装配订阅的 `init`；登记在案的 P1 债
-     * （`customFontFamily` / `resolveContentFont` —— 内存缓存读，根治另案）。
+     * `onCleared`，注释见 ChatViewModel）；装配订阅的 `init`；以及**纯内存读**的字体解析
+     * （`resolveContentFont` / `resolveFontPreviews` —— 查内存快照，无 IO、无副作用）。
      */
     @Test
     fun `view model handlers do not touch boundaries synchronously`() {
@@ -468,8 +468,8 @@ class MvvmUdfGateTest {
             "init",
             "releaseConversation",
             "onCleared",
-            "customFontFamily",
             "resolveContentFont",
+            "resolveFontPreviews",
         )
 
         /**

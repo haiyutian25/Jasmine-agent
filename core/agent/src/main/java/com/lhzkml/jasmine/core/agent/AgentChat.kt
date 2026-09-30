@@ -5,6 +5,28 @@ import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import kotlinx.coroutines.flow.Flow
 
 /**
+ * 一次回合失败的**分型**（核心跨边界报的）。
+ *
+ * 它让界面不用去猜：以前只能匹配错误文本判断"是不是网络问题"，而那段文本是本地化的、随时会改。
+ */
+enum class ChatFailureKind {
+    /** 调用到来时这条会话没有附着，或它已经被释放 / 删除（调用顺序或生命周期问题）。 */
+    NO_SESSION,
+
+    /** 网络 / 传输层失败（建客户端失败、连不上、超时、服务端报错…）—— 重试有意义。 */
+    TRANSPORT,
+
+    /** 本地会话文件读写失败（损坏、权限、磁盘…）—— 重试通常没用。 */
+    TRANSCRIPT,
+
+    /** 核心内部状态或运行时问题（互斥量中毒、runtime 起不来、调用时序不对…）。 */
+    INTERNAL,
+
+    /** 核心只报了一句原因、没有分型（回合中途的失败事件目前如此，见 `ChatEvent::Failed`）。 */
+    UNKNOWN,
+}
+
+/**
  * One incremental piece of an assistant turn.
  *
  * A turn is a sequence: any amount of [Text] and [ToolCall]/[ToolResult] pairs, then
@@ -45,8 +67,16 @@ sealed interface ChatEvent {
         val options: List<String>,
     ) : ChatEvent
 
-    /** The turn failed; [detail] is the raw reason (HTTP status, provider error…). */
-    data class Failed(val detail: String) : ChatEvent
+    /**
+     * The turn failed; [detail] is the raw reason (HTTP status, provider error…).
+     *
+     * [kind] 是这次失败的**分型**（跨边界传来的）：界面据它决定说法与"重试有没有意义"，
+     * 而不是去匹配 [detail] 的文本 —— 文案一改，文本匹配就 silently 失效。
+     */
+    data class Failed(
+        val detail: String,
+        val kind: ChatFailureKind = ChatFailureKind.UNKNOWN,
+    ) : ChatEvent
 
     /** The turn finished normally. */
     data object Completed : ChatEvent

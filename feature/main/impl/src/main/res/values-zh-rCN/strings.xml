@@ -58,6 +58,11 @@
     <string name="chat_manage_providers">管理模型提供商</string>
     <string name="chat_input_hint">输入消息…</string>
     <string name="chat_action_failed">操作失败</string>
+    <string name="chat_store_read_failed">刚才没能读到你的会话记录，先显示上一次的列表。</string>
+    <!-- 失败分型给出的提示（见 ChatFailureKind）：告诉用户「能怎么办」，而不是让他猜错误文本。 -->
+    <string name="chat_failure_hint_transport">网络请求失败了，可以再发一次。</string>
+    <string name="chat_failure_hint_transcript">这个会话的本地文件读不出来，重试也没用。</string>
+    <string name="chat_failure_hint_no_session">这个会话在内核里已经不在了，把消息重新发一次。</string>
     <string name="chat_context_window_failed">上下文容量没能写入</string>
     <string name="chat_reasoning_effort_failed">推理档位没能写入</string>
     <string name="chat_usage_stats_failed">用量统计读取失败</string>
@@ -72,21 +77,13 @@
     <string name="chat_tool_status_running">执行中</string>
     <string name="chat_tool_status_done">已执行</string>
     <string name="chat_tool_status_failed">执行失败</string>
-    <string name="chat_tool_status_denied">已拒绝</string>
     <string name="chat_tool_status_stopped">已停止</string>
-    <string name="chat_tool_status_pending">等待中</string>
+    <!-- 展开区认不出载荷形状、按原文显示时的标记（见 toolCallFallsBackToRaw）。 -->
+    <string name="chat_tool_raw_hint">原文显示</string>
     <string name="chat_send_cd">发送消息</string>
 
-    <!-- 输入框里的「推理强度」控件；档位名与供应商页那五个一致（都取 codex 的 ReasoningEffort 表）。 -->
+    <!-- 输入框里的「推理强度」控件名；档位表（值 → 文案）在 core:ui 的 ReasoningEffort 里，两页共用。 -->
     <string name="chat_reasoning_effort">推理强度</string>
-    <string name="chat_reasoning_effort_unset">未设置</string>
-    <string name="chat_reasoning_effort_none">关闭</string>
-    <string name="chat_reasoning_effort_low">低</string>
-    <string name="chat_reasoning_effort_medium">中</string>
-    <string name="chat_reasoning_effort_high">高</string>
-    <string name="chat_reasoning_effort_xhigh">极高</string>
-    <string name="chat_reasoning_effort_max">最高</string>
-    <string name="chat_reasoning_effort_ultra">极致</string>
     <string name="chat_stop_cd">停止</string>
     <string name="chat_continue_cd">继续</string>
     <string name="chat_turn_stopped">你在 %1$d秒 后停止了</string>

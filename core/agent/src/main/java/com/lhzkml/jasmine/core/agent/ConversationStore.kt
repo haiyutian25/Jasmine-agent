@@ -2,6 +2,7 @@ package com.lhzkml.jasmine.core.agent
 
 import com.lhzkml.jasmine.core.data.model.Conversation
 import com.lhzkml.jasmine.core.data.model.TranscriptMessage
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -19,6 +20,15 @@ interface ConversationStore {
      * that after it changes anything, which is enough in one process.
      */
     val conversationsStateFlow: StateFlow<List<Conversation>>
+
+    /**
+     * 读存储失败的通知（D5）：核心的会话文件读不出来时，每次失败发一条（核心给的原因，供日志）。
+     *
+     * 有它之前，读失败被吞成空表 —— "目录坏了"和"还没有会话"在界面上长得一模一样，用户看到的
+     * 是自己的历史凭空消失。现在 [conversationsStateFlow] **保留上一次成功的快照**，失败只作为
+     * 提示出现。
+     */
+    val readFailures: Flow<String>
 
     /** The conversation to restore on launch, or null when none exists yet. */
     suspend fun latestConversation(): Conversation?
