@@ -16,8 +16,12 @@
 | └ Phase B | P1 边界渗漏 B1–B6 | ✅ 已完成 |
 | └ Phase C | `sendEvent` 同帧入队保序（C1） | ✅ 已完成 |
 | └ Phase D | Rust 边界与资源：D1 共享 runtime / D2 错误分型 / D3 事件背压 / D4 显式关闭 / D5 错误可观察 | ✅ 已完成 |
-| └ Phase E | E1 六态收敛 ✅ / E2 消除工具卡静默降级 ✅ / E3 文件拆分 | ⏳ 进行中（E3 待做） |
+| └ Phase E | E1 六态收敛 / E2 消除工具卡静默降级 / E3 文件拆分 | ✅ 已完成 |
 | └ 验证 | Kotlin 78 例 + Rust 54 例全绿；release APK 装机冒烟（D1/D3/D5 运行时行为） | ✅ 已完成，见 §7.1 / §7.2 |
+
+> **本方案已全部实施完毕。** 分期完成情况：A / B / C / D（D1–D5）/ E1 / E2 / E3 全部 ✅；
+> 未做项只有两处，且都在各自小节里写明了理由：D5 的**失败分支只由单测覆盖**（真机上制造目录不可读
+> 要破坏用户数据），以及 E3 **没有把状态所有权搬出 `ChatViewModel.kt`**（会让门禁 R8/R9/③ 同时失效）。
 
 P0 完成后的真机实证（5 条会话、中断→继续链路、重启恢复）已确认主干可靠，所以本期只在**主干之外的
 渗漏与遗留**上动手。
@@ -433,7 +437,7 @@ Kotlin 侧 `AgentChat`/`ConversationStore` 在对应作用域结束时调用；`
 - **新增单测**：`ChatViewModelTest.payload shapes the renderer cannot read are flagged as fallbacks`
   （DIFF/TODO/TERMINAL/PLAIN 四条路径各正反一例）。
 
-### E3 文件拆分（结构）
+### E3 文件拆分（结构） — ✅（落点与原计划不同，理由在下面）
 
 现状：`ChatViewModel.kt` 124KB、`ChatScreen.kt` 99KB、`ProviderScreen.kt` 50KB。
 
@@ -448,6 +452,34 @@ Kotlin 侧 `AgentChat`/`ConversationStore` 在对应作用域结束时调用；`
 - 门禁测试需要相应放宽路径（R8/R11 扫的是 `*ViewModel.kt`，拆分后新增文件仍以 `ViewModel.kt` 结尾或需显式列名）。
 
 **风险**：这是纯重构但体量大，必须每个文件拆完即跑全量单测；建议独立成一次提交。
+
+**实施记录（只搬代码、不搬状态所有权）**
+
+做法：**逐行多重集比对**驱动 —— 拆完把「新文件并集」与「拆分前的原文件」都规范化（去 package/import 行、
+去空行、去可见性修饰符、排序）后比对，差异必须为空。这把"机械重构"从"看着像没丢"变成"可证明没丢"。
+
+| 原文件 | 拆分后 | 结果 |
+|---|---|---|
+| `ChatScreen.kt` 2168 行 / 99KB | `ChatScreen.kt` 295（组装 + 滚动辅助）、`ChatTranscript.kt` 715、`ChatComposer.kt` 622、`ChatModelSheet.kt` 642 | 比对 **IDENTICAL**，两边各 1958 行非空非 import 行 |
+| `ChatViewModel.kt` 2572 行 / 131KB | `ChatViewModel.kt` 2012 / 103KB、`ChatModels.kt` 234（数据模型）、`ChatContract.kt` 277（Action/UI 事件/Effect）、`ChatRestore.kt` 71（恢复期的两个纯函数） | 比对 **IDENTICAL**，两边各 2330 行 |
+
+两次拆分中，唯一允许出现的改动都发生了且只发生了这些：需要跨文件访问的顶层声明由 `private` 改
+`internal`（`ChatScreen` 侧 7 个常量 + 9 个 Composable；`ChatViewModel` 侧只有 2 个函数），以及各文件
+的 `package` / `import`。所有 KDoc、参数顺序、默认值、格式一字未动。`ConversationChats` 本来就是独立文件。
+
+**刻意没做的事，以及为什么**
+1. **没有按原计划把 `ChatViewModel` 切成 `TurnRegistry` / `StreamPipeline` 两个"状态协作者"。**
+   那要搬的是**状态的所有权**（`turns` / `attachedKeys` / `Turn.commands` / `streamParseLoop`），而不是
+   代码位置。而 `MvvmUdfGateTest` 的护栏（R8 影子状态、R9 禁止手动投影、③ `streamParseLoop` 里不得贴块）
+   **只扫 `ChatViewModel.kt` 这一个文件** —— 把它们搬出去，等于把本次修复系列最核心的三条防线同时
+   扫不到的盲区。要让护栏不失效就得先把门禁改成"扫一组文件"，那是**另一件**要单独设计、单独验证的事，
+   收益却只是目录更好看。所以这一刀砍在这里：**模型、契约、纯助手搬出去（零风险、-21% 行数），
+   状态所有权留在原地（护栏视野内）**。
+2. **`ProviderScreen.kt`（50KB）没动**：它在本期没有任何改动，为拆分而拆分是不必要的风险。
+
+**验证**：拆分前后 `gradlew testDebugUnitTest` 全绿（78 例，含 `MvvmUdfGateTest` 10/10）；两次拆分各自
+跑过一遍全量单测；`git status` 确认只多了这 7 个新文件、没有多余改动。
+
 
 ## 7. 实施顺序与验证
 
