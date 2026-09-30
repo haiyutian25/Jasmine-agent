@@ -5,6 +5,7 @@ import com.lhzkml.jasmine.core.data.model.ProviderApiType
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -116,19 +117,21 @@ class RustAgentChat(
      * promises. The flow completes when the turn does: [ChatEvent.Completed], a failure, or a
      * prompt that stops the turn until [respondToPrompts] is called.
      *
-     * Cancelling the flow does not interrupt the core's turn: the Rust call is synchronous and
-     * runs to completion on its own thread, and the events it produces after that go nowhere.
-     * Interrupting a turn is not implemented yet.
+     * Cancelling the flow **stops the turn**: the collector going away — the user leaving the screen,
+     * the ViewModel being cleared, the conversation being swapped — interrupts the core, which stops
+     * sampling at its next await point and keeps what it had produced. Cancelling the coroutine alone
+     * would not: it is parked in a synchronous JNI call, so the turn would run to its end unnoticed,
+     * spending the provider's tokens for events nobody collects.
      */
-    private fun turn(run: (EventListener) -> Unit): Flow<ChatEvent> = coreEvents { listener ->
-        run(listener)
-    }
+    private fun turn(run: (EventListener) -> Unit): Flow<ChatEvent> =
+        coreEvents(stopsTheTurnWhenCancelled = true, run = run)
 
     /**
      * Runs one core call that reports events and then returns — setting the context window.
      *
      * Unlike [turn] this cannot wait for an end-of-turn event: the call is over once it returns, so
-     * the flow closes then, after everything the call emitted.
+     * the flow closes then, after everything the call emitted. There is no turn to stop either, so a
+     * cancelled collection just leaves it alone.
      */
     private fun once(run: (EventListener) -> Unit): Flow<ChatEvent> = coreEvents { listener ->
         run(listener)
@@ -149,8 +152,15 @@ class RustAgentChat(
      * The core's call runs on [Dispatchers.IO] and the flow ends when a terminal event closes the
      * channel ([ChatEvent.Completed]/a failure) or, for calls that just report and return, when the
      * call is over.
+     *
+     * [stopsTheTurnWhenCancelled] covers the case the channel cannot: the collector is cancelled
+     * (nobody is listening any more) while the core is still sampling. Cancelling this coroutine does
+     * not reach into the core's own thread, so it asks the core to stop instead — see [turn].
      */
-    private fun coreEvents(run: (EventListener) -> Unit): Flow<ChatEvent> = flow {
+    private fun coreEvents(
+        stopsTheTurnWhenCancelled: Boolean = false,
+        run: (EventListener) -> Unit,
+    ): Flow<ChatEvent> = flow {
         val events = Channel<ChatEvent>(capacity = Channel.UNLIMITED)
         val listener = object : EventListener {
             override fun onEvent(event: CoreChatEvent) {
@@ -169,12 +179,21 @@ class RustAgentChat(
             }
             events.close()
         }
+        var drained = false
         try {
             for (event in events) {
                 emit(event)
             }
+            drained = true
         } finally {
             events.close()
+            if (!drained && stopsTheTurnWhenCancelled) {
+                // 取消是"没人再收了"，不是"这一轮跑完了"：通报核心收手。它会在下一个等待点停住，
+                // 把已经产出的部分留下 —— 这也是 [ChatEvent.Aborted] 的来源。
+                withContext(NonCancellable + Dispatchers.IO) {
+                    runCatching { handle.interrupt() }
+                }
+            }
             worker.cancel()
         }
     }

@@ -115,7 +115,8 @@ fn snapshot_of(path: &Path) -> Option<crate::usage_archive::SessionUsageSnapshot
             | RolloutItem::ContextWindow { .. }
             | RolloutItem::ReasoningEffort { .. }
             | RolloutItem::TurnAborted { .. }
-            | RolloutItem::InterruptedReply { .. } => {}
+            | RolloutItem::InterruptedReply { .. }
+            | RolloutItem::InterruptedReasoning { .. } => {}
         }
     }
     snapshot.total = spent;

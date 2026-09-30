@@ -167,10 +167,47 @@ pub fn interrupted_turn(path: &Path) -> Option<String> {
             | RolloutItem::ContextWindow { .. }
             | RolloutItem::ReasoningEffort { .. }
             | RolloutItem::TokenUsageRecord { .. }
-            | RolloutItem::InterruptedReply { .. } => {}
+            | RolloutItem::InterruptedReply { .. }
+            | RolloutItem::InterruptedReasoning { .. } => {}
         }
     }
     None
+}
+
+/// Everything the turn still open at the end of the file put down, in the order it happened.
+///
+/// The stopped turn's own boundary sits *after* its items, so it is walked past; the walk stops at the
+/// boundary that opens this turn (or at the one that closed an earlier turn), because an earlier turn's
+/// content is not carried again — it was carried when it happened. Empty when no turn is open.
+///
+/// The last item of a stopped turn is its [`RolloutItem::InterruptedReply`], which is where the answer
+/// had got to.
+pub fn interrupted_turn_items(path: &Path) -> Vec<RolloutItem> {
+    let Ok(lines) = read_lines(path) else {
+        return Vec::new();
+    };
+    let mut items = Vec::new();
+    for line in lines.iter().rev() {
+        match &line.item {
+            // 中断那一轮的收尾写在它的内容之后，属于同一轮，继续往回走。
+            RolloutItem::TurnAborted { .. } => {}
+            // 走到这一轮的开头（或上一轮的收尾）就到头了：更早那一轮的内容不再带一次。
+            RolloutItem::TurnStarted { .. } => break,
+            RolloutItem::TurnComplete { .. } => return Vec::new(),
+            RolloutItem::ResponseItem(_) | RolloutItem::InterruptedReply { .. } => {
+                items.push(line.item.clone());
+            }
+            // 会话元信息、窗口、档位、用量这些不是这一轮"看得到的内容"；被停那一轮的思考另有自己
+            // 的记录（它只展示，不跟着新消息走）。
+            RolloutItem::SessionMeta(_)
+            | RolloutItem::ContextWindow { .. }
+            | RolloutItem::ReasoningEffort { .. }
+            | RolloutItem::TokenUsageRecord { .. }
+            | RolloutItem::InterruptedReasoning { .. } => {}
+        }
+    }
+    items.reverse();
+    items
 }
 
 fn read_lines(path: &Path) -> std::io::Result<Vec<RolloutLine>> {

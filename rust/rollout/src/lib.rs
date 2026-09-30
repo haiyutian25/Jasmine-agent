@@ -16,6 +16,7 @@ pub use list::context_window_tokens;
 pub use list::delete_session;
 pub use list::find_session_path;
 pub use list::interrupted_turn;
+pub use list::interrupted_turn_items;
 pub use list::list_sessions;
 pub use list::read_response_items;
 pub use list::read_session;

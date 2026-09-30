@@ -45,6 +45,9 @@ pub struct Turn<'a, T: HttpTransport> {
 struct SamplingRound {
     text: String,
     reasoning: Vec<ResponseItem>,
+    /// Thinking that only ever arrived as deltas. A settled item takes it over; a round cut off in the
+    /// middle keeps it, so the platform can show how far that thinking had got.
+    streamed_reasoning: String,
     tool_calls: Vec<ResponseItem>,
 }
 
@@ -86,6 +89,7 @@ pub async fn run_turn<T: HttpTransport>(
         // done belongs to it, and a round cut off in the middle never got that far. What it did
         // write is handed over instead, for the record the platform shows it from.
         if turn.cancellation.is_cancelled() {
+            turn.thread.note_interrupted_reasoning(&round.streamed_reasoning);
             turn.thread.note_interrupted_reply(&round.text);
             return Err(SessionError::TurnAborted);
         }
@@ -165,8 +169,13 @@ async fn drain_stream(
                 thread.note_invocation(response_id.clone());
             }
             ResponseEvent::OutputTextDelta(text) => round.text.push_str(text),
+            ResponseEvent::ReasoningContentDelta { delta, .. } => {
+                round.streamed_reasoning.push_str(delta);
+            }
             ResponseEvent::OutputItemDone(item @ ResponseItem::Reasoning { .. }) => {
                 round.reasoning.push(item.clone());
+                // 整块到了，增量这份就没有留下的必要（免得重启后看到两遍）。
+                round.streamed_reasoning.clear();
             }
             ResponseEvent::OutputItemDone(item @ ResponseItem::FunctionCall { .. }) => {
                 round.tool_calls.push(item.clone());

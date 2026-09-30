@@ -479,6 +479,21 @@ impl AgentChatService {
         let runtime = &self.runtime;
         let mut emit = |event: ChatEvent| sink.emit(event);
         let mut recorded = history.len();
+        // 暂停之后**没点继续、直接在输入框发了新内容**：上一轮"看得到的全部内容"走一条**上下文片段**
+        // （与 `<turn_aborted>` 同一种东西：模型看得见、转写里不出现在气泡里），排在用户这条消息前面。
+        // 点继续走 [Self::recover_turn]，不经过这里；什么都不发就什么都不带。
+        if *interrupted {
+            let shown = interrupted_turn_as_text(&jasmine_rollout::interrupted_turn_items(
+                rollout.rollout_path(),
+            ));
+            if let Some(fragment) = interrupted_turn_fragment(&shown) {
+                history.push(ResponseItem::Message {
+                    id: None,
+                    role: Role::User.as_str().to_string(),
+                    content: vec![ContentItem::InputText { text: fragment }],
+                });
+            }
+        }
         *cancellation = self.fresh_cancellation()?;
         let started = std::time::Instant::now();
         *turn_id = uuid::Uuid::new_v4().to_string();
@@ -509,10 +524,11 @@ impl AgentChatService {
             &mut emit,
         ));
         if matches!(outcome, Ok(Err(SessionError::TurnAborted))) {
-            // 文件的顺序就是界面上的顺序：这一轮已经有的条目（用户消息）先落，再落被停时已写出的
-            // 那半截正文，最后才是中断标记。
+            // 文件的顺序就是界面上的顺序：这一轮已经有的条目（用户消息）先落，再落被停时已经想到的
+            // 与已经写出来的部分 —— 两条都是展示记录，不进对话 —— 最后才是中断标记。
             record_turn(rollout, history, recorded)?;
             recorded = history.len();
+            record_interrupted_reasoning(rollout, thread, turn_id)?;
             record_interrupted_reply(rollout, thread, turn_id)?;
             history.push(interrupted_turn_marker());
         }
@@ -584,10 +600,11 @@ impl AgentChatService {
             &mut emit,
         ));
         if matches!(outcome, Ok(Err(SessionError::TurnAborted))) {
-            // 文件的顺序就是界面上的顺序：这一轮已经有的条目（用户消息）先落，再落被停时已写出的
-            // 那半截正文，最后才是中断标记。
+            // 文件的顺序就是界面上的顺序：这一轮已经有的条目（用户消息）先落，再落被停时已经想到的
+            // 与已经写出来的部分 —— 两条都是展示记录，不进对话 —— 最后才是中断标记。
             record_turn(rollout, history, recorded)?;
             recorded = history.len();
+            record_interrupted_reasoning(rollout, thread, turn_id)?;
             record_interrupted_reply(rollout, thread, turn_id)?;
             history.push(interrupted_turn_marker());
         }
@@ -676,10 +693,11 @@ impl AgentChatService {
             &mut emit,
         ));
         if matches!(outcome, Ok(Err(SessionError::TurnAborted))) {
-            // 文件的顺序就是界面上的顺序：这一轮已经有的条目（用户消息）先落，再落被停时已写出的
-            // 那半截正文，最后才是中断标记。
+            // 文件的顺序就是界面上的顺序：这一轮已经有的条目（用户消息）先落，再落被停时已经想到的
+            // 与已经写出来的部分 —— 两条都是展示记录，不进对话 —— 最后才是中断标记。
             record_turn(rollout, history, recorded)?;
             recorded = history.len();
+            record_interrupted_reasoning(rollout, thread, turn_id)?;
             record_interrupted_reply(rollout, thread, turn_id)?;
             history.push(interrupted_turn_marker());
         }
@@ -902,6 +920,27 @@ impl AgentChatService {
                 }
                 // 被停的那一轮写出来的正文：转写里就是普通一行，但它是展示记录，不是模型条目
                 // （见 `RolloutItem::InterruptedReply`）。
+                // 被停那一轮已经想到、还没写完的思考：转写里就是一行思考（与整块推理同一形状），
+                // 但它只是展示记录，不进对话（见 `RolloutItem::InterruptedReasoning`）。
+                RolloutItem::InterruptedReasoning { text, .. } => {
+                    if !text.trim().is_empty() {
+                        lines.push(HistoryEntry {
+                            role: Role::Model,
+                            text: String::new(),
+                            tool_call_id: None,
+                            stopped_after_ms: None,
+                            recorded_at: at,
+                            model_label: model_label.clone(),
+                            tool_name: None,
+                            tool_detail: None,
+                            tool_result: None,
+                            thinking: text.trim().to_string(),
+                            tool_status: String::new(),
+                        });
+                    }
+                }
+                // 被停的那一轮写出来的正文：转写里就是普通一行，但它是展示记录，不是模型条目
+                // （见 `RolloutItem::InterruptedReply`）。
                 RolloutItem::InterruptedReply { text, .. } => {
                     if !text.trim().is_empty() {
                         lines.push(HistoryEntry {
@@ -1043,8 +1082,11 @@ fn tool_line(
     }
 }
 
-/// The markers an injected contextual fragment carries: the interrupted-turn notice.
+/// The markers an injected contextual fragment carries: the interrupted-turn notice…
 const TURN_ABORTED_MARKERS: (&str, &str) = ("<turn_aborted>", "</turn_aborted>");
+
+/// …and the content of the stopped turn carried into the message that follows it.
+const INTERRUPTED_TURN_MARKERS: (&str, &str) = ("<interrupted_turn>", "</interrupted_turn>");
 
 /// Whether an item is a contextual fragment the core injected, rather than something that was said.
 ///
@@ -1052,8 +1094,11 @@ const TURN_ABORTED_MARKERS: (&str, &str) = ("<turn_aborted>", "</turn_aborted>")
 /// sees the notice and the platform does not show it as a message of its own.
 fn is_contextual_user_fragment(role: &str, text: &str) -> bool {
     role == Role::User.as_str()
-        && text.trim_start().starts_with(TURN_ABORTED_MARKERS.0)
-        && text.trim_end().ends_with(TURN_ABORTED_MARKERS.1)
+        && [TURN_ABORTED_MARKERS, INTERRUPTED_TURN_MARKERS]
+            .iter()
+            .any(|(open, close)| {
+                text.trim_start().starts_with(open) && text.trim_end().ends_with(close)
+            })
 }
 
 /// What the platform's transcript shows for one recorded item.
@@ -1062,15 +1107,7 @@ fn is_contextual_user_fragment(role: &str, text: &str) -> bool {
 fn transcript_entry(item: &ResponseItem) -> Option<HistoryEntry> {
     match item {
         ResponseItem::Message { role, content, .. } => {
-            let text = content
-                .iter()
-                .filter_map(|part| match part {
-                    ContentItem::InputText { text } | ContentItem::OutputText { text } => {
-                        Some(text.as_str())
-                    }
-                    ContentItem::InputImage { .. } | ContentItem::InputAudio { .. } => None,
-                })
-                .collect::<String>();
+            let text = text_of(content);
             // A contextual fragment is context the core injected, not something the conversation
             // said: the model sees it, the transcript does not.
             if text.is_empty() || is_contextual_user_fragment(role, &text) {
@@ -1191,11 +1228,110 @@ fn interrupted_turn_marker() -> ResponseItem {
     }
 }
 
+/// The fragment the stopped turn's content rides in, or `None` when there is nothing to carry.
+///
+/// It is a **contextual fragment**, the same kind of thing as the interrupted-turn notice: wrapped in
+/// the platform's own markers, so the model reads it as a user message while the transcript leaves it
+/// out. Nothing is invented — the content is what the turn had put on screen and it gets no role of its
+/// own — and it is a message of its own so the user's own words stay a clean message of their own.
+fn interrupted_turn_fragment(shown: &str) -> Option<String> {
+    (!shown.trim().is_empty()).then(|| {
+        format!(
+            "{}\n\
+             The previous turn was interrupted before it was finished. Everything it had put on \
+             screen by then, as plain text:\n\
+             {shown}\n\
+             {}",
+            INTERRUPTED_TURN_MARKERS.0, INTERRUPTED_TURN_MARKERS.1
+        )
+    })
+}
+
+/// Everything one stopped turn put on screen, as plain text, in the order it happened.
+///
+/// What the model said, the tools it called and what those tools returned — the turn's whole visible
+/// record, not just the half-written answer it stopped in the middle of. The user's own message is left
+/// out (it is already in the conversation, right in front of this one) and so is the thinking: it is
+/// the model's own working, not something it needs handed back.
+///
+/// Tool arguments and results go in whole — nothing is shortened on the way.
+fn interrupted_turn_as_text(items: &[RolloutItem]) -> String {
+    let mut shown = Vec::new();
+    for item in items {
+        let item = match item {
+            RolloutItem::ResponseItem(item) => item,
+            // 半截正文是那一轮的最后一件东西：写到一半，轮次就停在这儿。
+            RolloutItem::InterruptedReply { text, .. } => {
+                shown.push(text.clone());
+                continue;
+            }
+            _ => continue,
+        };
+        match item {
+            ResponseItem::Message { role, content, .. } if role == Role::Model.as_str() => {
+                let text = text_of(content);
+                if !text.trim().is_empty() {
+                    shown.push(text);
+                }
+            }
+            ResponseItem::FunctionCall { name, arguments, .. } => {
+                shown.push(format!("[tool] {name} {arguments}"))
+            }
+            ResponseItem::FunctionCallOutput { output, .. } => shown.push(format!(
+                "[tool result] {}",
+                output.text_content().unwrap_or_default()
+            )),
+            ResponseItem::Message { .. }
+            | ResponseItem::Reasoning { .. }
+            | ResponseItem::Other => {}
+        }
+    }
+    shown.join("\n\n")
+}
+
+/// The text one message item carries, images and audio left out.
+fn text_of(content: &[ContentItem]) -> String {
+    content
+        .iter()
+        .filter_map(|part| match part {
+            ContentItem::InputText { text } | ContentItem::OutputText { text } => {
+                Some(text.as_str())
+            }
+            ContentItem::InputImage { .. } | ContentItem::InputAudio { .. } => None,
+        })
+        .collect()
+}
+
+/// Records the thinking a stopped round had already streamed.
+///
+/// The same kind of record as [`record_interrupted_reply`] and for the same reason: thinking still
+/// streaming when the user stopped the turn was never settled, so the conversation does not have it —
+/// this is what keeps it on screen across a restart without inventing anything the model would see.
+fn record_interrupted_reasoning(
+    rollout: &mut RolloutRecorder,
+    thread: &mut ChatThread,
+    turn_id: &str,
+) -> Result<(), AgentError> {
+    match thread.take_interrupted_reasoning() {
+        Some(text) => record_boundary(
+            rollout,
+            RolloutItem::InterruptedReasoning {
+                turn_id: turn_id.to_string(),
+                text,
+            },
+        ),
+        None => Ok(()),
+    }
+}
+
 /// Records the part of an answer a stopped round had already written.
 ///
 /// A presentation record, not a model-visible one: the conversation is made of what the provider
-/// marked done, so this never reaches the model (`read_response_items` reads `ResponseItem` only),
-/// and the transcript shows it as the text the turn had reached.
+/// marked done, so nothing the provider sends next carries it (`read_response_items` reads
+/// `ResponseItem` only), and the transcript shows it as the text the turn had reached.
+///
+/// It is read back in exactly one case: the user writes something new instead of continuing, and
+/// [`carried_over_user_message`] folds it into that message as plain text.
 fn record_interrupted_reply(
     rollout: &mut RolloutRecorder,
     thread: &mut ChatThread,

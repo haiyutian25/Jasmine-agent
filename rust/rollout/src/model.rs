@@ -80,9 +80,24 @@ pub enum RolloutItem {
     ///
     /// A presentation record, not a model-visible one: the conversation is made of the items the
     /// provider marked done, and a round cut off in the middle never got that far. `read_response_items`
-    /// reads `ResponseItem` only, so the next request does not carry this, and the transcript shows it
-    /// as the text the turn had reached.
+    /// reads `ResponseItem` only, so the context a resumed conversation attaches to does not carry this,
+    /// and the transcript shows it as the text the turn had reached.
+    ///
+    /// The one way it reaches the model is the user writing something new instead of continuing the
+    /// stopped turn: the core then carries it inside that new user message, as plain text (see
+    /// `AgentChatService::send`). Continuing the turn does not — that round samples on from where it
+    /// was cut off, with the half text only on screen.
     InterruptedReply {
+        turn_id: String,
+        text: String,
+    },
+    /// The thinking a stopped turn had already streamed before it was stopped.
+    ///
+    /// The same kind of record as [`Self::InterruptedReply`], for the same reason: the conversation is
+    /// made of what the provider marked done, and thinking still streaming when the user stopped the
+    /// turn never got that far. Shown where the turn stopped, and never part of what the next request
+    /// carries.
+    InterruptedReasoning {
         turn_id: String,
         text: String,
     },

@@ -2,6 +2,9 @@
 
 use super::AgentChatService;
 use super::AgentError;
+use super::interrupted_turn_as_text;
+use super::interrupted_turn_fragment;
+use super::is_contextual_user_fragment;
 use super::interrupted_turn_marker;
 use super::transcript_entry;
 use crate::agent_settings::AgentSettings;
@@ -16,6 +19,8 @@ use jasmine_protocol::ChatEvent;
 use jasmine_protocol::SessionId;
 use jasmine_protocol::Role;
 use jasmine_protocol::models::ContentItem;
+use jasmine_protocol::models::FunctionCallOutputPayload;
+use jasmine_protocol::models::ReasoningItemContent;
 use jasmine_protocol::models::ResponseItem;
 use jasmine_rollout::RolloutItem;
 use jasmine_rollout::RolloutRecorder;
@@ -207,8 +212,10 @@ fn ending_the_conversation_detaches_it() {
     ));
 }
 
-/// 被停的那一轮写出来的正文落进文件、转写里当普通一行显示，但**不进模型上下文** ——
-/// 带工具表的思考模式请求要求每条 assistant 都带完整思考，半截内容进去就会被整轮拒 400。
+/// 被停的那一轮写出来的正文落进文件、转写里当普通一行显示，**不会被当成对话里的一条 assistant
+/// 消息** —— 带工具表的思考模式请求要求每条 assistant 都带完整思考，半截内容当成条目进去就会被
+/// 整轮拒 400。它只以"新消息里的一段普通文本"这个形态出现过（见
+/// [`a_new_message_carries_the_half_written_answer_of_a_stopped_turn`]）。
 #[test]
 fn a_stopped_reply_is_shown_but_stays_out_of_the_context() {
     let dir = sessions_dir("interrupted");
@@ -461,4 +468,140 @@ fn the_tool_list_reads_the_conversations_own_files() {
     assert_eq!(conversations.len(), 1);
     assert_eq!(conversations[0].title, "earlier");
     assert!(conversations[0].updated_at.starts_with("formatted("));
+}
+
+/// 暂停之后没点继续、直接在输入框发了新内容：那一轮看得到的全部内容走一段**上下文片段**，
+/// 排在用户这条消息前面 —— 模型看得见 ✓，转写不认它是一条自己的消息 ✓，所以界面上不会多出气泡 ✗。
+#[test]
+fn the_stopped_turns_content_travels_as_a_contextual_fragment() {
+    let fragment = interrupted_turn_fragment("# 示例\n\n下面是一段").expect("有内容就该有片段");
+
+    assert!(fragment.starts_with("<interrupted_turn>"));
+    assert!(fragment.ends_with("</interrupted_turn>"));
+    assert!(fragment.contains("# 示例\n\n下面是一段"));
+    assert!(
+        is_contextual_user_fragment(Role::User.as_str(), &fragment),
+        "片段要能被认出来，转写才不会把它显示成气泡"
+    );
+    assert!(
+        transcript_entry(&ResponseItem::Message {
+            id: None,
+            role: Role::User.as_str().to_string(),
+            content: vec![ContentItem::InputText {
+                text: fragment,
+            }],
+        })
+        .is_none(),
+        "上下文片段不上屏"
+    );
+}
+
+/// 被停那一轮已经想到、还没写完的思考：重启后看得见（转写里一行思考 ✓），但**不进对话** ✗
+/// —— 它只是展示记录，下一轮请求不会带上。
+#[test]
+fn the_thinking_a_stopped_turn_had_reached_is_shown_but_stays_out_of_the_context() {
+    let dir = sessions_dir("stopped-thinking");
+    let service = service(&dir);
+    attach(&service, "s1", "chat");
+    let path = find_session_path(&dir, "s1").expect("find").expect("path");
+    RolloutRecorder::open(path.clone())
+        .expect("open")
+        .record_items(&[RolloutItem::InterruptedReasoning {
+            turn_id: "t1".to_string(),
+            text: "先看时间，再回答".to_string(),
+        }])
+        .expect("record");
+
+    let entries = service.transcript(&SessionId::new("s1"));
+    assert!(
+        entries
+            .iter()
+            .any(|entry| entry.thinking == "先看时间，再回答" && entry.text.is_empty()),
+        "思考在转写里占一行"
+    );
+    assert!(
+        read_response_items(&path).expect("read").is_empty(),
+        "展示记录不是模型条目"
+    );
+}
+
+/// 没有内容可带（没暂停过，或那一轮什么都没做出来）：不生成任何片段，用户的消息就是原样那几个字。
+#[test]
+fn nothing_to_carry_makes_no_fragment() {
+    assert!(interrupted_turn_fragment("").is_none());
+    assert!(interrupted_turn_fragment("  \n ").is_none());
+}
+
+/// 带过去的是那一轮的**整份可见记录**：正文、工具调用的过程和结果（参数与结果原样 ✓ 不裁剪 ✗）、
+/// 写到一半的那一段，按发生的顺序排在普通文本里。思考不带 ✓；用户自己那条消息也不重复 ✓。
+#[test]
+fn a_carried_turn_lists_everything_it_had_shown_in_order() {
+    // 都比界面上显示的上限（200 字符）长：带过去的是原样，不裁剪。
+    let long_arguments = format!(r#"{{"command":"{}"}}"#, "x".repeat(400));
+    let long_result = "y".repeat(400);
+    let items = vec![
+        RolloutItem::ResponseItem(ResponseItem::Message {
+            id: None,
+            role: Role::User.as_str().to_string(),
+            content: vec![ContentItem::InputText {
+                text: "几点了".to_string(),
+            }],
+        }),
+        RolloutItem::ResponseItem(ResponseItem::Reasoning {
+            id: None,
+            summary: Vec::new(),
+            content: Some(vec![ReasoningItemContent::ReasoningText {
+                text: "先看时间".to_string(),
+            }]),
+            encrypted_content: None,
+        }),
+        RolloutItem::ResponseItem(ResponseItem::FunctionCall {
+            id: None,
+            name: "current_time".to_string(),
+            namespace: None,
+            arguments: long_arguments.clone(),
+            encrypted_function_args: None,
+            call_id: "c1".to_string(),
+        }),
+        RolloutItem::ResponseItem(ResponseItem::FunctionCallOutput {
+            id: None,
+            call_id: Some("c1".to_string()),
+            name: None,
+            namespace: None,
+            output: FunctionCallOutputPayload::from_text(long_result.clone()),
+        }),
+        RolloutItem::ResponseItem(ResponseItem::Message {
+            id: None,
+            role: Role::Model.as_str().to_string(),
+            content: vec![ContentItem::OutputText {
+                text: "现在是下午四点四十。".to_string(),
+            }],
+        }),
+        RolloutItem::InterruptedReasoning {
+            turn_id: "t1".to_string(),
+            text: "先看时间".to_string(),
+        },
+        RolloutItem::InterruptedReply {
+            turn_id: "t1".to_string(),
+            text: "下面是一段".to_string(),
+        },
+    ];
+
+    let shown = interrupted_turn_as_text(&items);
+
+    // 思考不带。
+    assert!(!shown.contains("[thinking]"), "思考不该跟着走");
+    assert!(!shown.contains("先看时间"));
+    // 工具的参数与结果原样带上：一点都没裁。
+    assert!(shown.contains(&long_arguments), "工具参数要完整");
+    assert!(shown.contains(&long_result), "工具结果要完整");
+    assert_eq!(
+        shown,
+        format!(
+            "[tool] current_time {long_arguments}\n\n\
+             [tool result] {long_result}\n\n\
+             现在是下午四点四十。\n\n\
+             下面是一段"
+        )
+    );
 }
