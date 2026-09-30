@@ -1,5 +1,7 @@
 package com.lhzkml.jasmine.feature.main.impl
 
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -15,15 +17,18 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.lhzkml.jasmine.core.ui.base.util.EventsEffect
 import com.lhzkml.jasmine.core.ui.components.ProductionTopNavBar
 import com.lhzkml.jasmine.core.ui.components.SidebarConversation
 import com.lhzkml.jasmine.core.ui.components.SidebarDrawer
 import com.lhzkml.jasmine.feature.main.impl.chat.ChatAction
 import com.lhzkml.jasmine.feature.main.impl.chat.ChatScreen
+import com.lhzkml.jasmine.feature.main.impl.chat.ChatUiEvent
 import com.lhzkml.jasmine.feature.main.impl.chat.ChatViewModel
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -83,6 +88,33 @@ fun MainScreen(
     // lastUpdateTime，每写入一条事件都会推进）。以前这里显示模型名，但列表里的模型名
     // 绝大多数都一样，看不出哪条是新聊的、哪条很久没动。
     val chatViewModel: ChatViewModel = hiltViewModel()
+
+    // 一次性效果（错误提示）：与主屏其他地方同一个做法 —— Toast + 资源文案，原始异常文本只进日志。
+    val chatEventContext = LocalContext.current
+    EventsEffect(viewModel = chatViewModel) { event ->
+        when (event) {
+            is ChatUiEvent.ShowToast -> Toast.makeText(
+                chatEventContext,
+                chatEventContext.getString(event.messageRes),
+                Toast.LENGTH_SHORT,
+            ).show()
+
+            is ChatUiEvent.ShowError -> {
+                if (event.detail.isNotEmpty()) {
+                    Log.w(
+                        "ChatUiEvent",
+                        chatEventContext.getString(event.messageRes) + " :: " + event.detail,
+                    )
+                }
+                Toast.makeText(
+                    chatEventContext,
+                    chatEventContext.getString(event.messageRes),
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+    }
+
     val sidebar by remember(chatViewModel) {
         chatViewModel.stateFlow
             .map { chatState ->

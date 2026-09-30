@@ -15,6 +15,8 @@
     <string name="font_imported_toast">字体已导入</string>
     <string name="font_import_failed_toast">字体导入失败</string>
     <string name="font_deleted_toast">字体已删除</string>
+    <string name="font_delete_failed_toast">字体删除失败</string>
+    <string name="setting_save_failed_toast">设置没能保存</string>
     <string name="font_download_complete_toast">字体下载完成</string>
     <string name="font_download_failed_toast">字体下载失败</string>
 
@@ -55,6 +57,11 @@
     <string name="chat_setup_action">选择模型</string>
     <string name="chat_manage_providers">管理模型提供商</string>
     <string name="chat_input_hint">输入消息…</string>
+    <string name="chat_action_failed">操作失败</string>
+    <string name="chat_context_window_failed">上下文容量没能写入</string>
+    <string name="chat_reasoning_effort_failed">推理档位没能写入</string>
+    <string name="chat_usage_stats_failed">用量统计读取失败</string>
+    <string name="chat_stopping_cd">正在停止</string>
     <string name="chat_reasoning_title">思考</string>
     <string name="chat_reasoning_thinking">正在思考</string>
     <string name="chat_reasoning_duration">思考 · 持续了 %1$d 秒</string>

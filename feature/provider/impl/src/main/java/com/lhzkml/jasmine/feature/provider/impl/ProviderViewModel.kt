@@ -325,8 +325,23 @@ class ProviderViewModel @Inject constructor(
         if (provider.isBuiltIn) return
         // Optimistic removal; the repository StateFlow echo is a no-op afterwards.
         updateState { copy(providers = providers.filterNot { it.id == action.id }) }
-        viewModelScope.launch { providerRepository.deleteProvider(action.id) }
+        launchWrite(R.string.provider_delete_failed_toast) {
+            providerRepository.deleteProvider(action.id)
+        }
         sendEvent(ProviderEvent.ShowToast(R.string.provider_deleted_toast))
+    }
+
+    /**
+     * 一条"出站写命令"：乐观写已经落状态，这里只负责把**失败**变成可见的提示
+     * （成功提示仍由调用点按原来那条时序发）。以前这些写入是 fire-and-forget，
+     * 落盘失败时界面什么都看不出来。
+     */
+    private fun launchWrite(@StringRes failureToast: Int, block: suspend () -> Unit) {
+        viewModelScope.launch {
+            runCatching { block() }.exceptionOrNull()?.let {
+                sendEvent(ProviderEvent.ShowToast(failureToast))
+            }
+        }
     }
 
     private fun handleSaveClicked() {
@@ -357,7 +372,9 @@ class ProviderViewModel @Inject constructor(
             }
             copy(providers = next, editor = null)
         }
-        viewModelScope.launch { providerRepository.upsertProvider(provider) }
+        launchWrite(R.string.provider_save_failed_toast) {
+            providerRepository.upsertProvider(provider)
+        }
         sendEvent(ProviderEvent.ShowToast(R.string.provider_saved_toast))
     }
 

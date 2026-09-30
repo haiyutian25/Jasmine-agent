@@ -14,6 +14,8 @@
     <string name="provider_delete_cd">删除供应商</string>
     <string name="provider_saved_toast">供应商已保存</string>
     <string name="provider_deleted_toast">供应商已删除</string>
+    <string name="provider_save_failed_toast">供应商没能保存</string>
+    <string name="provider_delete_failed_toast">供应商没能删除</string>
     <string name="provider_incomplete_toast">请填写完整信息</string>
     <string name="provider_models_label">模型</string>
     <string name="provider_fetch_models">获取模型列表</string>

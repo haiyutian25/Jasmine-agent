@@ -14,6 +14,8 @@
     <string name="provider_delete_cd">Delete provider</string>
     <string name="provider_saved_toast">Provider saved</string>
     <string name="provider_deleted_toast">Provider deleted</string>
+    <string name="provider_save_failed_toast">Could not save the provider</string>
+    <string name="provider_delete_failed_toast">Could not delete the provider</string>
     <string name="provider_incomplete_toast">Please complete all fields</string>
     <string name="provider_models_label">Models</string>
     <string name="provider_fetch_models">Fetch Model List</string>

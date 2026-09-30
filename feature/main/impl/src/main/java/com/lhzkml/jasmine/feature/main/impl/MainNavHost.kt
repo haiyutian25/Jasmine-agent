@@ -266,6 +266,18 @@ fun MainNavHost(
                     val usageViewModel: UsageStatsViewModel = hiltViewModel()
                     val usageState by usageViewModel.stateFlow.collectAsStateWithLifecycle()
 
+                    // 一次性效果（读统计失败）：本条目内消费，生命周期感知 —— 与主屏同一条做法。
+                    val usageEventContext = LocalContext.current
+                    EventsEffect(viewModel = usageViewModel) { event ->
+                        when (event) {
+                            UsageStatsEvent.ShowError -> Toast.makeText(
+                                usageEventContext,
+                                usageEventContext.getString(R.string.chat_usage_stats_failed),
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    }
+
                     SettingsPage(
                         currentTheme = state.theme,
                         title = stringResource(SettingsR.string.usage_stats_title),

@@ -5,9 +5,9 @@ import com.lhzkml.jasmine.core.agent.AppUsage
 import com.lhzkml.jasmine.core.agent.ConversationStore
 import com.lhzkml.jasmine.core.ui.base.BaseViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /**
  * 用量页的状态。
@@ -24,6 +24,22 @@ data class UsageStatsState(
 /** 用量页的意图。 */
 sealed interface UsageStatsAction {
     data object RefreshClicked : UsageStatsAction
+
+    /**
+     * 异步结果的回流口：真扫在协程里做，结果以这两条 action 回来，状态只在
+     * [UsageStatsViewModel.handleAction] 里同步改（R2）。
+     */
+    sealed interface Internal : UsageStatsAction {
+        data class Loaded(val usage: AppUsage) : Internal
+
+        /** [message] 是原始异常文本（排查用）；界面只显示资源文案。 */
+        data class LoadFailed(val message: String) : Internal
+    }
+}
+
+/** 用量页的一次性效果（失败提示）；由 `MainNavHost` 里那处 `EventsEffect` 消费。 */
+sealed interface UsageStatsEvent {
+    data object ShowError : UsageStatsEvent
 }
 
 /**
@@ -34,24 +50,45 @@ sealed interface UsageStatsAction {
 @HiltViewModel
 class UsageStatsViewModel @Inject constructor(
     private val conversationStore: ConversationStore,
-) : BaseViewModel<UsageStatsState, Unit, UsageStatsAction>(UsageStatsState()) {
+) : BaseViewModel<UsageStatsState, UsageStatsEvent, UsageStatsAction>(UsageStatsState()) {
 
     init {
-        load()
+        // 与 UI 同一条路：让"首屏统计"也走 action 通道，不在 init 里直接改状态。
+        trySendAction(UsageStatsAction.RefreshClicked)
     }
 
     override fun handleAction(action: UsageStatsAction) {
         when (action) {
-            UsageStatsAction.RefreshClicked -> load()
+            UsageStatsAction.RefreshClicked -> {
+                // "正在统计中"是**意图**：同步落。真扫在协程里做，结果以 action 回流。
+                updateState { copy(isLoading = true) }
+                viewModelScope.launch {
+                    val result = runCatching { conversationStore.usageStats() }
+                    sendAction(
+                        result.fold(
+                            onSuccess = { UsageStatsAction.Internal.Loaded(it) },
+                            onFailure = {
+                                UsageStatsAction.Internal.LoadFailed(
+                                    it.message ?: it::class.simpleName.orEmpty()
+                                )
+                            },
+                        )
+                    )
+                }
+            }
+            is UsageStatsAction.Internal.Loaded ->
+                updateState { copy(usage = action.usage, isLoading = false) }
+
+            is UsageStatsAction.Internal.LoadFailed -> {
+                // 读不出来就停在"不再加载"，并让界面知道（失败不再无声）。
+                updateState { copy(isLoading = false) }
+                sendEvent(UsageStatsEvent.ShowError)
+            }
         }
     }
 
-    /** 真扫一遍本月；结果回来才改状态，中途只把 [UsageStatsState.isLoading] 立起来。 */
-    private fun load() {
-        viewModelScope.launch {
-            mutableStateFlow.update { it.copy(isLoading = true) }
-            val usage = runCatching { conversationStore.usageStats() }.getOrDefault(AppUsage.Empty)
-            mutableStateFlow.update { it.copy(usage = usage, isLoading = false) }
-        }
+    /** Single mutation point of [mutableStateFlow]（与其它 ViewModel 同一个做法）。 */
+    private inline fun updateState(block: UsageStatsState.() -> UsageStatsState) {
+        mutableStateFlow.update(block)
     }
 }

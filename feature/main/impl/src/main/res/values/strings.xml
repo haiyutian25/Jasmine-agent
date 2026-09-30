@@ -15,6 +15,8 @@
     <string name="font_imported_toast">Font imported</string>
     <string name="font_import_failed_toast">Font import failed</string>
     <string name="font_deleted_toast">Font deleted</string>
+    <string name="font_delete_failed_toast">Could not delete the font</string>
+    <string name="setting_save_failed_toast">Could not save the setting</string>
     <string name="font_download_complete_toast">Font downloaded</string>
     <string name="font_download_failed_toast">Font download failed</string>
 
@@ -54,6 +56,11 @@
     <string name="chat_setup_action">Choose model</string>
     <string name="chat_manage_providers">Manage providers</string>
     <string name="chat_input_hint">Message…</string>
+    <string name="chat_action_failed">Something went wrong</string>
+    <string name="chat_context_window_failed">Could not update the context window</string>
+    <string name="chat_reasoning_effort_failed">Could not update the reasoning effort</string>
+    <string name="chat_usage_stats_failed">Could not read the usage statistics</string>
+    <string name="chat_stopping_cd">Stopping</string>
     <string name="chat_send_cd">Send message</string>
 
     <!-- 输入框里的「推理强度」控件；档位名与供应商页那五个一致（都取 codex 的 ReasoningEffort 表）。 -->

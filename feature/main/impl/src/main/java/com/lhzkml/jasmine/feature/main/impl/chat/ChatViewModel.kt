@@ -1,6 +1,7 @@
 package com.lhzkml.jasmine.feature.main.impl.chat
 
 import android.util.Log
+import androidx.annotation.StringRes
 import androidx.lifecycle.viewModelScope
 import com.lhzkml.jasmine.core.agent.AgentChat
 import com.lhzkml.jasmine.core.agent.ChatEvent
@@ -27,6 +28,7 @@ import com.lhzkml.jasmine.core.markdown.model.MarkdownInline
 import com.lhzkml.jasmine.core.markdown.model.MarkdownInlineType
 import com.lhzkml.jasmine.core.markdown.model.MarkdownUpdate
 import com.lhzkml.jasmine.core.ui.base.BaseViewModel
+import com.lhzkml.jasmine.feature.main.impl.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.Locale
 import java.util.UUID
@@ -34,12 +36,15 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -212,6 +217,14 @@ data class ChatState(
     val allowedEfforts: List<String> = emptyList(),
     /** Set while the agent is blocked on a question; see [ChatUserPrompt]. */
     val pendingPrompt: ChatUserPrompt? = null,
+    /**
+     * 已发出中断请求、**且回合尚未收尾**（见 [handleStopClicked]）。
+     *
+     * 语义只有两点会被清掉：回合真正收尾（[ChatAction.Internal.TurnCompleted] /
+     * [ChatAction.Internal.TurnInterrupted]），或中断命令失败（`EffectFailed(tag = "Interrupt")`）。
+     * 命令"送达核心"本身不清它 —— 否则界面会在核心真正停下之前显示回"可发送"。
+     */
+    val isInterruptRequested: Boolean = false,
 ) {
     val activeProvider: ProviderConfig?
         get() = providers.firstOrNull { it.id == activeProviderId }
@@ -283,7 +296,116 @@ sealed interface ChatAction {
         data object TurnCompleted : Internal
         data class TurnInterrupted(val durationMs: Long) : Internal
         data class UsageReceived(val usage: ContextUsage) : Internal
+
+        // ── 异步结果的回流口（修复方案 §2.3）：每一类异步工作都有自己的一条 action ──
+
+        /** 这条会话是不是有一个没写完的回合（读会话文件之后回流；见 [handleTranscriptRestored]）。 */
+        data class CanContinueResolved(
+            val conversationId: String,
+            val canContinue: Boolean,
+        ) : Internal
+
+        /** 打开/恢复一条会话时，它自己的窗口、用量、档位（见 [readConversationFacts]）。 */
+        data class ConversationFactsLoaded(val facts: ConversationFacts) : Internal
+
+        /** 一条会话的消息列表读回来了（守卫在 handler 里做）。 */
+        data class TranscriptLoaded(
+            val conversationId: String,
+            val messages: List<TranscriptMessage>,
+        ) : Internal
+
+        /** 上下文窗口写进核心成功。 */
+        data class ContextWindowApplied(val tokens: Long) : Internal
+
+        /** 上下文窗口写失败：带回核心的当前值，界面照它回退（null = 读不到，不写）。 */
+        data class ContextWindowRejected(val coreValue: Long?, val message: String) : Internal
+
+        /** 推理档位写进核心成功（[value] 是核心读回来的权威值）。 */
+        data class ReasoningEffortApplied(val value: String) : Internal
+
+        /** 推理档位写失败：带回核心的当前值（null = 读不到，不写）。 */
+        data class ReasoningEffortRejected(val coreValue: String?, val message: String) : Internal
+
+        /** 当前模型允许的档位（核心目录）读回来了。 */
+        data class AllowedEffortsLoaded(
+            val providerId: String,
+            val modelId: String,
+            val levels: List<String>,
+        ) : Internal
+
+        /** 附着会话之后，从核心读回来的档位。 */
+        data class ReasoningEffortSynced(val value: String) : Internal
+
+        /** 附着会话之后，从核心读回来的窗口；null = 核心没记过（保持原值不写）。 */
+        data class ContextWindowSynced(val value: Long?) : Internal
+
+        /** 会话行创建完成；[epoch] 与当前代次不符就丢弃（见 [conversationEpoch]）。 */
+        data class ConversationCreated(val epoch: Long, val id: String) : Internal
+
+        /**
+         * 一次解析结果（见 [deliverParsed]）。
+         *
+         * 贴完之后**必须** `ack.complete(Unit)`：worker 正挂在 [deliverParsed] 的 `ack.await()` 上等这一句，
+         * 漏了就永远等下去、回合 `join()` 不回来。
+         */
+        data class StreamParsed(
+            val targetId: String,
+            val update: MarkdownUpdate?,
+            val trailingBlock: MarkdownBlock?,
+            val ack: CompletableDeferred<Unit>,
+        ) : Internal
+
+        /** Effect 的失败兜底（没有乐观写入的命令走这条，见 [ChatEffect]）。 */
+        data class EffectFailed(val tag: String, val message: String) : Internal
     }
+}
+
+/**
+ * 一条会话自己的事实：打开它时从会话文件里读回来的三样。
+ *
+ * 纯数据 —— 读它的人（[ChatViewModel.readConversationFacts]）不碰 state，写 state 的是
+ * [ChatAction.Internal.ConversationFactsLoaded] 的 handler（R2：异步必回流）。
+ */
+data class ConversationFacts(
+    val conversationId: String,
+    /** 会话自己记的窗口；null = 从没记过（handler 按当前模型预设推一个）。 */
+    val window: Long?,
+    /** 上次核心报的用量；null = 还没答过。 */
+    val usage: ContextUsage?,
+    /** 会话最后一条档位记录；null = 没记过（照实显示未设置，不替它编一个）。 */
+    val effort: String?,
+)
+
+/**
+ * 这个 ViewModel 的一次性 UI 效果（即 `BaseViewModel` 的 `E`）。
+ *
+ * 名字**不能**叫 `ChatEvent`：`core:agent` 已经占用了那个名字，本文件在用（见文件头的 import 与
+ * [collectEvents] 里那 9 处 `ChatEvent.*`），同文件再声明一个会遮蔽那条 import。
+ */
+sealed interface ChatUiEvent {
+    data class ShowToast(@StringRes val messageRes: Int) : ChatUiEvent
+
+    /**
+     * 可读的错误提示：文案走字符串资源（EN/ZH 双语），原始异常文本只进 [detail]（日志与排查用）。
+     */
+    data class ShowError(@StringRes val messageRes: Int, val detail: String = "") : ChatUiEvent
+}
+
+/**
+ * 出站命令：唯一允许"绕过 action 通道去碰边界"的出口，但每条都带回执或失败回流。
+ *
+ * 命令不是状态 —— 由 EffectRunner（单消费者，见类的 init）执行；成功/失败一律以
+ * [ChatAction.Internal] 回流，状态仍然只在 `handleAction` 里改。
+ */
+sealed interface ChatEffect {
+    data class SetContextWindow(val tokens: Long) : ChatEffect
+    data class SetReasoningEffort(val value: String) : ChatEffect
+    data object Interrupt : ChatEffect
+    data class DeleteConversation(val id: String) : ChatEffect
+    data object RefreshConversations : ChatEffect
+
+    /** 失败兜底用的标签（日志 + [ChatAction.Internal.EffectFailed] 的 `tag`）。 */
+    fun tag(): String = javaClass.simpleName
 }
 
 /**
@@ -305,7 +427,7 @@ class ChatViewModel @Inject constructor(
     private val conversationStore: ConversationStore,
     private val agentChat: AgentChat,
     private val markdownParserFactory: MarkdownParserFactory,
-) : BaseViewModel<ChatState, Nothing, ChatAction>(initialState = ChatState()) {
+) : BaseViewModel<ChatState, ChatUiEvent, ChatAction>(initialState = ChatState()) {
 
     /** ADK session identity: the conversation + model it was built for. */
     private var sessionKey: String? = null
@@ -411,6 +533,27 @@ class ChatViewModel @Inject constructor(
 
     private var turnJob: Job? = null
 
+    /**
+     * "用户换掉了当前会话"的代次。
+     *
+     * [ensureConversation] 是异步的，创建期间用户可能已经点了新建会话或切了另一条 —— 那时这条
+     * [ChatAction.Internal.ConversationCreated] 必须被丢弃，否则一条已经被放弃的会话会"复活"成
+     * 当前会话。与 [sessionKey] 同类：实现细节，不进 State。
+     */
+    private var conversationEpoch: Long = 0L
+
+    /** 出站命令通道；由 init 里的 EffectRunner 单消费者执行（见 [ChatEffect]）。 */
+    private val effects = Channel<ChatEffect>(Channel.UNLIMITED)
+
+    /**
+     * 解析用的调度器。
+     *
+     * 生产是 [Dispatchers.Default]：FULL 模式每个分片都重解析整篇，放主线程会把主线程打满（见
+     * [turnCommands] 的注释）。单测把它换成测试调度器 —— 真线程会越过 `advanceUntilIdle()` 的栅栏，
+     * 让"贴块"落到用例之后，进而让同一套流程时快时慢。
+     */
+    internal var parseDispatcher: CoroutineDispatcher = Dispatchers.Default
+
     init {
         providerRepository
             .providersStateFlow
@@ -440,8 +583,26 @@ class ChatViewModel @Inject constructor(
             .launchIn(viewModelScope)
 
         // The session store is not observable, so the list has to be read once here.
-        viewModelScope.launch { runCatching { conversationStore.refresh() } }
+        // 这是一条**出站命令**：走 Effect（结果由 conversationsStateFlow 回灌，失败回流见 §3 第 13 条）。
+        effects.trySend(ChatEffect.RefreshConversations)
         viewModelScope.launch { restoreLatestConversation() }
+
+        // EffectRunner：单消费者；每条命令的结果/失败都以 Internal action 回流。
+        // 用与 action 通道同一套写法（`consumeAsFlow().collect`），让两边的消费语义完全一致。
+        viewModelScope.launch {
+            effects.consumeAsFlow().collect { effect ->
+                val followUp = try {
+                    performEffect(effect)
+                } catch (cancellation: CancellationException) {
+                    // 与 [runTurn] / [resumeTurn] 同一约定：取消必须重抛，
+                    // 不能被 runCatching 吞成一次"失败"。
+                    throw cancellation
+                } catch (error: Exception) {
+                    ChatAction.Internal.EffectFailed(effect.tag(), error.message.orEmpty())
+                }
+                followUp?.let { sendAction(it) }
+            }
+        }
         // 流式解析的 worker 不在这里起：它属于**每一轮**，见 startTurn。
     }
 
@@ -483,7 +644,21 @@ class ChatViewModel @Inject constructor(
                         )
                     }
                 }
-                viewModelScope.launch { refreshAllowedEfforts() }
+                // 允许的档位由核心目录决定：取数与发 action 在协程里，落状态在 handler（守卫按
+                // provider/model 身份比对，换过模型就丢弃）。
+                val provider = state.activeProvider
+                val modelId = state.activeModel?.modelId
+                if (provider != null && modelId != null) {
+                    viewModelScope.launch {
+                        sendAction(
+                            ChatAction.Internal.AllowedEffortsLoaded(
+                                providerId = provider.id,
+                                modelId = modelId,
+                                levels = readAllowedEfforts(provider.id, modelId),
+                            )
+                        )
+                    }
+                }
             }
             is ChatAction.Internal.LanguagePreferenceReceived ->
                 handleLanguagePreference(action.value)
@@ -495,9 +670,20 @@ class ChatViewModel @Inject constructor(
                     val unfinished = runCatching {
                         conversationStore.interruptedTurn(action.conversationId)
                     }.getOrNull()
-                    updateState { copy(canContinue = unfinished != null) }
-                    // 窗口同样从它的文件里读回来 —— 重启之后要显示的是这条会话自己的值。
-                    restoreConversationState(action.conversationId)
+                    // 只取数与发 action —— 状态由 handler 同步落（守卫也搬到了那里：过期会话的结论
+                    // 不会再写进状态，这是这一处原有的隐患）。
+                    sendAction(
+                        ChatAction.Internal.CanContinueResolved(
+                            conversationId = action.conversationId,
+                            canContinue = unfinished != null,
+                        )
+                    )
+                    // 窗口/用量/档位同样从它的文件里读回来 —— 重启之后要显示的是这条会话自己的值。
+                    sendAction(
+                        ChatAction.Internal.ConversationFactsLoaded(
+                            readConversationFacts(action.conversationId)
+                        )
+                    )
                 }
             }
             is ChatAction.Internal.ReplyChunk -> appendReplyChunk(action.text)
@@ -519,6 +705,81 @@ class ChatViewModel @Inject constructor(
             // 用量只是这一轮的附带信息：面板开着就刷新，消息不动。
             is ChatAction.Internal.UsageReceived -> updateState {
                 copy(contextUsage = action.usage)
+            }
+
+            // ── 异步结果的落点：读-判-写**全在这一帧里**（守卫按身份键丢弃过期结果）──
+
+            is ChatAction.Internal.CanContinueResolved -> {
+                if (state.activeConversationId != action.conversationId) return
+                updateState { copy(canContinue = action.canContinue) }
+            }
+            is ChatAction.Internal.ConversationFactsLoaded -> {
+                val facts = action.facts
+                if (state.activeConversationId != facts.conversationId) return
+                updateState {
+                    copy(
+                        contextWindow = facts.window ?: newConversationContextWindow(),
+                        contextUsage = facts.usage,
+                        reasoningEffort = facts.effort.orEmpty(),
+                    )
+                }
+            }
+            is ChatAction.Internal.TranscriptLoaded -> {
+                if (state.activeConversationId != action.conversationId) return
+                updateState {
+                    copy(
+                        messages = action.messages.map {
+                            it.toChatMessage(
+                                fallbackModelLabel = modelLabelOf(action.conversationId),
+                                parserFactory = markdownParserFactory,
+                            )
+                        },
+                    )
+                }
+            }
+            is ChatAction.Internal.ContextWindowApplied ->
+                updateState { copy(contextWindow = action.tokens) }
+            is ChatAction.Internal.ContextWindowRejected -> {
+                action.coreValue?.let { value -> updateState { copy(contextWindow = value) } }
+                sendEvent(ChatUiEvent.ShowError(R.string.chat_context_window_failed, action.message))
+            }
+            is ChatAction.Internal.ReasoningEffortApplied ->
+                updateState { copy(reasoningEffort = action.value) }
+            is ChatAction.Internal.ReasoningEffortRejected -> {
+                action.coreValue?.let { value -> updateState { copy(reasoningEffort = value) } }
+                sendEvent(ChatUiEvent.ShowError(R.string.chat_reasoning_effort_failed, action.message))
+            }
+            is ChatAction.Internal.AllowedEffortsLoaded -> {
+                val unchanged = state.activeProviderId == action.providerId &&
+                    state.activeModel?.modelId == action.modelId
+                if (!unchanged) return
+                updateState { copy(allowedEfforts = action.levels) }
+            }
+            is ChatAction.Internal.ReasoningEffortSynced ->
+                updateState { copy(reasoningEffort = action.value) }
+            is ChatAction.Internal.ContextWindowSynced -> {
+                // 核心没记过（null）就不写：保持今天 `?.let { … }` 的语义。
+                action.value?.let { value -> updateState { copy(contextWindow = value) } }
+            }
+            is ChatAction.Internal.ConversationCreated -> {
+                if (action.epoch != conversationEpoch) return
+                updateState { copy(activeConversationId = action.id) }
+            }
+            is ChatAction.Internal.StreamParsed -> {
+                if (state.messages.any { it.id == action.targetId }) {
+                    val startedAt = System.currentTimeMillis()
+                    action.update?.let { applyStreamBlocks(action.targetId, it) }
+                    action.trailingBlock?.let { appendBlock(action.targetId, it) }
+                    Log.d(CHAT_PARSE_TAG, "贴块 ${System.currentTimeMillis() - startedAt}ms")
+                }
+                // ⚠️ 无论贴没贴都要放行：worker 正挂在 ack 上，漏掉这一行回合就 join 不回来。
+                action.ack.complete(Unit)
+            }
+            is ChatAction.Internal.EffectFailed -> {
+                if (action.tag == ChatEffect.Interrupt::class.java.simpleName) {
+                    updateState { copy(isInterruptRequested = false) }
+                }
+                sendEvent(ChatUiEvent.ShowError(R.string.chat_action_failed, action.message))
             }
         }
     }
@@ -578,6 +839,75 @@ class ChatViewModel @Inject constructor(
 
     // endregion
 
+    // region Effects（出站命令：执行 + 回流）
+
+    /**
+     * 执行一条出站命令。**只做边界调用，不碰 state** —— 成功/失败都以 Internal action 返回，
+     * 再由 [handleAction] 同步落状态（这就是 R2：异步必回流）。
+     *
+     * 没有乐观写入的命令（中断 / 删除 / 刷新）故意让异常冒出去：交给 EffectRunner 兜底成
+     * [ChatAction.Internal.EffectFailed]。
+     */
+    private suspend fun performEffect(effect: ChatEffect): ChatAction.Internal? = when (effect) {
+        is ChatEffect.SetContextWindow -> performSetContextWindow(effect.tokens)
+        is ChatEffect.SetReasoningEffort -> performSetReasoningEffort(effect.value)
+        ChatEffect.Interrupt -> {
+            agentChat.interrupt()
+            null
+        }
+        is ChatEffect.DeleteConversation -> {
+            conversationStore.deleteConversation(effect.id)
+            null
+        }
+        ChatEffect.RefreshConversations -> {
+            conversationStore.refresh()
+            null
+        }
+    }
+
+    /**
+     * 写会话的上下文窗口。
+     *
+     * 成功 → [ChatAction.Internal.ContextWindowApplied]（核心随后还会经事件流报一次用量）；
+     * 失败 → [ChatAction.Internal.ContextWindowRejected]，带上核心的当前值供界面**回退**
+     * —— 界面上那个值是乐观写入的，不能让它停在没落地的数上。
+     */
+    private suspend fun performSetContextWindow(tokens: Long): ChatAction.Internal =
+        try {
+            collectEvents(agentChat.setContextWindow(tokens))
+            ChatAction.Internal.ContextWindowApplied(tokens)
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (error: Exception) {
+            ChatAction.Internal.ContextWindowRejected(
+                coreValue = runCatching { agentChat.contextWindow() }.getOrNull(),
+                message = error.message ?: error::class.simpleName.orEmpty(),
+            )
+        }
+
+    /**
+     * 写会话的推理档位。
+     *
+     * 成功 → [ChatAction.Internal.ReasoningEffortApplied]，值以**核心读回来的**为准（写失败时
+     * 界面不会显示一个没落地的档）；失败 → [ChatAction.Internal.ReasoningEffortRejected] 回退。
+     */
+    private suspend fun performSetReasoningEffort(value: String): ChatAction.Internal =
+        try {
+            agentChat.setReasoningEffort(value)
+            ChatAction.Internal.ReasoningEffortApplied(
+                runCatching { agentChat.reasoningEffort() }.getOrNull() ?: value,
+            )
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (error: Exception) {
+            ChatAction.Internal.ReasoningEffortRejected(
+                coreValue = runCatching { agentChat.reasoningEffort() }.getOrNull(),
+                message = error.message ?: error::class.simpleName.orEmpty(),
+            )
+        }
+
+    // endregion
+
     // region Action handlers
 
     private fun handleSendClicked() {
@@ -634,12 +964,16 @@ class ChatViewModel @Inject constructor(
      * 两边对不上。收尾交给这一回合自己的结束事件（Aborted / Completed → TurnCompleted）。
      */
     private fun handleStopClicked() {
+        // [turnJob] / [sessionKey] 这类**内部字段**允许在 handler 里读写：它们是实现细节，不进
+        // State，所以不违反"只有 handler 写状态"（State 仍然只经 [updateState] 改）。
         val running = turnJob ?: return
         if (!running.isActive) return
-
-        viewModelScope.launch {
-            runCatching { agentChat.interrupt() }
-        }
+        // 幂等：已经请求过了就不再发一遍。
+        if (state.isInterruptRequested) return
+        // 状态位 = "已请求中断、回合尚未收尾"：只有回合真正收尾、或命令失败才清。
+        updateState { copy(isInterruptRequested = true) }
+        // 命令走 Effect（这是唯一的旁路出口），失败由 EffectFailed 清位 + 提示。
+        effects.trySend(ChatEffect.Interrupt)
     }
 
     /**
@@ -688,6 +1022,8 @@ class ChatViewModel @Inject constructor(
         updateState {
             copy(
                 canContinue = true,
+                // 回合真正收尾了：中断请求的状态位在这里落下（见 [handleStopClicked]）。
+                isInterruptRequested = false,
                 messages = messages + ChatMessage(
                     id = UUID.randomUUID().toString(),
                     role = ChatRole.ASSISTANT,
@@ -712,14 +1048,16 @@ class ChatViewModel @Inject constructor(
      * 真正在用的值。
      */
     private suspend fun syncReasoningEffortAfterAttach() {
-        // 新对话还没附着时选的那个档位，在这里补交（核心会把它追加进会话文件）。
+        // 新对话还没附着时选的那个档位，在这里补交 —— 这是一条**出站命令**，走 Effect
+        // （它失败时由第 5 条的 Rejected 把界面纠正回核心值）。
         val pending = pendingReasoningEffort
         if (pending != null) {
             pendingReasoningEffort = null
-            runCatching { agentChat.setReasoningEffort(pending) }
+            effects.trySend(ChatEffect.SetReasoningEffort(pending))
         }
+        // 读回来的值以 action 回流，由 handler 同步写（本函数自己**不**碰 state）。
         agentChat.reasoningEffort()?.let { attached ->
-            updateState { copy(reasoningEffort = attached) }
+            sendAction(ChatAction.Internal.ReasoningEffortSynced(attached))
         }
     }
 
@@ -730,29 +1068,26 @@ class ChatViewModel @Inject constructor(
      * 只读一次目录、不落盘 —— 它决定聊天页那张档位面板列哪几档（对应 codex 的
      * `ModelInfo.supported_reasoning_levels`）。
      */
-    private suspend fun refreshAllowedEfforts() {
-        val provider = state.activeProvider ?: return
-        val modelId = state.activeModel?.modelId ?: return
+    private suspend fun readAllowedEfforts(providerId: String, modelId: String): List<String> =
         // 网关上的 id 带 `厂商/` 前缀与 `:变体` 后缀，按归一化后的键也能认出来（与核心同一条规则）。
-        val levels = runCatching { providerRepository.catalog(provider.id) }
+        runCatching { providerRepository.catalog(providerId) }
             .getOrDefault(emptyList())
             .findInCatalog(modelId)
             ?.levels
             .orEmpty()
-        updateState { copy(allowedEfforts = levels) }
-    }
 
     private suspend fun syncContextWindowAfterAttach() {
         val pending = pendingContextWindow
         if (pending != null) {
             pendingContextWindow = null
-            updateState { copy(contextWindow = pending) }
-            collectEvents(agentChat.setContextWindow(pending))
+            // pending 这条本来就是"用户已经选过、界面也已经显示着"的值，所以补交走 Effect，
+            // 结果由 Applied 确认（失败则 Rejected 把它纠正回核心值）。
+            effects.trySend(ChatEffect.SetContextWindow(pending))
+            sendAction(ChatAction.Internal.ContextWindowApplied(pending))
             return
         }
-        agentChat.contextWindow()?.let { attached ->
-            updateState { copy(contextWindow = attached) }
-        }
+        // 读回来的值以 action 回流；核心没记过（null）时 handler 不写，保持原值。
+        sendAction(ChatAction.Internal.ContextWindowSynced(agentChat.contextWindow()))
     }
 
     /**
@@ -762,12 +1097,15 @@ class ChatViewModel @Inject constructor(
      * —— 新会话的第一条消息还没发出去 —— 先记在界面上，等附着时一并写入。
      */
     private fun handleContextWindowSelected(tokens: Long) {
+        // 意图：界面立刻跟上（乐观写入；失败时由 Rejected 回退）。
         updateState { copy(contextWindow = tokens) }
         if (sessionKey == null) {
+            // 还没附着会话：先记下来，附着时补交（见 [syncContextWindowAfterAttach]）。
             pendingContextWindow = tokens
             return
         }
-        viewModelScope.launch { collectEvents(agentChat.setContextWindow(tokens)) }
+        // 写进会话文件是**出站命令**：走 Effect。成功 → Applied；失败 → Rejected（回退 + 提示）。
+        effects.trySend(ChatEffect.SetContextWindow(tokens))
     }
 
     /** 照 [runTurn] 的做法跑完这一轮，只是入口换成「续采样」。 */
@@ -805,6 +1143,8 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun handleNewConversation() {
+        // 换掉当前会话：代次 +1，让在途的"会话创建完成"作废（见 [conversationEpoch]）。
+        conversationEpoch++
         resetSession()
         updateState {
             copy(messages = emptyList(), isSending = false, activeConversationId = null)
@@ -836,12 +1176,9 @@ class ChatViewModel @Inject constructor(
             pendingReasoningEffort = action.value
             return
         }
-        viewModelScope.launch {
-            runCatching { agentChat.setReasoningEffort(action.value) }
-            // 以核心的值读回来：写失败时界面不会显示一个没落地的值。
-            val current = runCatching { agentChat.reasoningEffort() }.getOrNull()
-            if (current != null) updateState { copy(reasoningEffort = current) }
-        }
+        // 写进会话文件是**出站命令**：走 Effect。成功 → Applied（带核心读回的值）；
+        // 失败 → Rejected（回退到核心值 + 提示）—— 界面不会停在一个没落地的档上。
+        effects.trySend(ChatEffect.SetReasoningEffort(action.value))
     }
 
     private fun handleModelSelected(action: ChatAction.ModelSelected) {
@@ -875,8 +1212,20 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.updateActiveModel(action.providerId, action.modelId)
         }
-        // 面板列哪几档也跟着模型走（目录里有的模型用目录那份）。
-        viewModelScope.launch { refreshAllowedEfforts() }
+        // 面板列哪几档也跟着模型走（目录里有的模型用目录那份）：只读 + 回流。
+        val provider = state.activeProvider
+        val modelId = state.activeModel?.modelId
+        if (provider != null && modelId != null) {
+            viewModelScope.launch {
+                sendAction(
+                    ChatAction.Internal.AllowedEffortsLoaded(
+                        providerId = provider.id,
+                        modelId = modelId,
+                        levels = readAllowedEfforts(provider.id, modelId),
+                    )
+                )
+            }
+        }
     }
 
     private fun handleConversationSelected(action: ChatAction.ConversationSelected) {
@@ -884,6 +1233,8 @@ class ChatViewModel @Inject constructor(
         // 否则会把 ADK session 重建、转写重读一遍，白费一次。
         if (action.id == state.activeConversationId) return
 
+        // 换掉当前会话：代次 +1，让在途的"会话创建完成"作废（见 [conversationEpoch]）。
+        conversationEpoch++
         resetSession()
         updateState {
             copy(
@@ -895,46 +1246,39 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             val messages = runCatching { conversationStore.messagesOf(action.id) }
                 .getOrDefault(emptyList())
-            // Bail out if the selection moved on while the query ran.
-            if (state.activeConversationId != action.id) return@launch
-            updateState {
-                copy(
-                    messages = messages.map {
-                        it.toChatMessage(
-                            fallbackModelLabel = modelLabelOf(action.id),
-                            parserFactory = markdownParserFactory,
-                        )
-                    }
-                )
-            }
-            restoreConversationState(action.id)
+            // 守卫搬进 handler（"读-判-写"全在一帧里）：选中的会话中途又变了，这条就被丢弃。
+            sendAction(ChatAction.Internal.TranscriptLoaded(action.id, messages))
+            // 窗口/用量/档位：同一个 launch 里再发一条，各自带自己的守卫。
+            sendAction(
+                ChatAction.Internal.ConversationFactsLoaded(readConversationFacts(action.id))
+            )
         }
     }
 
     /**
-     * 打开一条会话时，把它自己的两样东西从文件里读回来：窗口，以及上次报的用量。
+     * 打开一条会话时，把它自己的三样东西从文件里读回来：窗口、上次报的用量、档位。
      *
      * 窗口必须用它的（否则设置那一栏显示的会和这条会话实际用的不是一回事）；用量只活在内存里
-     * 的话，进程重启后面板就空了 —— 文件里的那份是重启后唯一的来源。从没记过（会话还没附着过）
-     * 时，窗口按当前模型的预设推一个，那是它第一次附着时会定下的值。
+     * 的话，进程重启后面板就空了 —— 文件里的那份是重启后唯一的来源；档位是这条会话自己最后
+     * 一条记录，没记过就是未设置。
+     *
+     * **只读，不写 state**：结果由调用方以 [ChatAction.Internal.ConversationFactsLoaded] 回流，
+     * 由 handler 同步落状态（R2）。窗口从没记过（会话还没附着过）时由 handler 按当前模型预设推一个。
      */
-    private suspend fun restoreConversationState(conversationId: String) {
+    private suspend fun readConversationFacts(conversationId: String): ConversationFacts {
         val storedWindow = runCatching {
             agentChat.conversationContextWindow(conversationId)
         }.getOrNull()
         val storedUsage = runCatching { agentChat.conversationUsage(conversationId) }.getOrNull()
-        // 这条会话自己记的推理档位（最后一条为准）；没记过就是未设置，照实显示，不替它编一个。
         val storedEffort = runCatching {
             agentChat.conversationReasoningEffort(conversationId)
         }.getOrNull()
-        if (state.activeConversationId != conversationId) return
-        updateState {
-            copy(
-                contextWindow = storedWindow ?: newConversationContextWindow(),
-                contextUsage = storedUsage,
-                reasoningEffort = storedEffort.orEmpty(),
-            )
-        }
+        return ConversationFacts(
+            conversationId = conversationId,
+            window = storedWindow,
+            usage = storedUsage,
+            effort = storedEffort,
+        )
     }
 
     /** 还没有会话时界面上的窗口：当前模型预设，没填就按默认值。 */
@@ -944,10 +1288,12 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun handleConversationDeleted(action: ChatAction.ConversationDeleted) {
-        viewModelScope.launch {
-            runCatching { conversationStore.deleteConversation(action.id) }
-        }
+        // 出站命令走 Effect：失败经 EffectFailed → ChatUiEvent.ShowError 回流（§3 第 13 条）；
+        // 成功不需要回执 —— 列表由 conversationsStateFlow 回灌。
+        effects.trySend(ChatEffect.DeleteConversation(action.id))
         if (state.activeConversationId == action.id) {
+            // 删的正是当前会话：代次 +1，在途的会话创建结果作废。
+            conversationEpoch++
             resetSession()
             updateState {
                 copy(messages = emptyList(), isSending = false, activeConversationId = null)
@@ -1080,13 +1426,20 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    /** Creates the conversation row on the first send; [title] comes from that message. */
+    /**
+     * Creates the conversation row on the first send; [title] comes from that message.
+     *
+     * **不写 state**（第 9 条）：只创建并返回 id，回合自己用这个返回值往下走；把 id 写进状态
+     * 那一步以 [ChatAction.Internal.ConversationCreated] 回流，并带上发起时的 [conversationEpoch]
+     * ——创建期间用户换了会话，这条就被丢弃（否则一条已被放弃的会话会"复活"成当前会话）。
+     */
     private suspend fun ensureConversation(
         provider: ProviderConfig,
         model: ModelConfig,
         title: String,
     ): String? {
         state.activeConversationId?.let { return it }
+        val epoch = conversationEpoch
         val created = runCatching {
             conversationStore.createConversation(
                 providerId = provider.id,
@@ -1095,7 +1448,7 @@ class ChatViewModel @Inject constructor(
                 title = title.take(TITLE_MAX_LENGTH),
             )
         }.getOrNull() ?: return null
-        updateState { copy(activeConversationId = created.id) }
+        sendAction(ChatAction.Internal.ConversationCreated(epoch, created.id))
         return created.id
     }
 
@@ -1179,6 +1532,23 @@ class ChatViewModel @Inject constructor(
     }
 
     /**
+     * 投递一条解析结果，**等 handler 贴完才返回**。
+     *
+     * 这是这一轮唯一"把解析贴进状态"的入口：worker 自己不碰 state（R1），而握手让"在途结果恒为
+     * 1 条"——生产速度被消费速度钳住，于是今天靠"贴块发生在 worker 内"得到的隐含背压，改后由这里
+     * 提供；同时 `worker.join()` 重新等价于"这一轮不再碰状态"（[startTurn] 的承诺）。
+     */
+    private suspend fun deliverParsed(
+        targetId: String,
+        update: MarkdownUpdate?,
+        trailingBlock: MarkdownBlock?,
+    ) {
+        val ack = CompletableDeferred<Unit>()
+        sendAction(ChatAction.Internal.StreamParsed(targetId, update, trailingBlock, ack))
+        ack.await()
+    }
+
+    /**
      * 流式解析的后台工作协程：**只有它碰 native 解析器句柄**。
      *
      * 一个协程顺序处理所有命令，所以句柄永远不会被两个线程同时使用（native 侧不是线程安全的）；
@@ -1196,17 +1566,18 @@ class ChatViewModel @Inject constructor(
                         val request = pendingStreamParse.getAndSet(null) ?: break
                         val startedAt = System.currentTimeMillis()
                         // FULL: re-parse from scratch rather than appending the delta.
-                        val update = withContext(Dispatchers.Default) {
+                        val update = withContext(parseDispatcher) {
                             val active = parser ?: markdownParserFactory.create().also { parser = it }
                             active.reset()
                             active.append(request.text)
                         }
                         val parsedAt = System.currentTimeMillis()
-                        applyStreamBlocks(request.targetId, update)
+                        // 贴块不再由 worker 直接做（那会绕过 action 通道）：投递 + 等回执。
+                        // "贴块 Xms" 那条日志随之移进 handler（同一件事、同一线程，只是归属换位置）。
+                        deliverParsed(request.targetId, update, trailingBlock = null)
                         Log.d(
                             CHAT_PARSE_TAG,
-                            "解析 ${request.text.length} 字 耗时 ${parsedAt - startedAt}ms，" +
-                                "贴块 ${System.currentTimeMillis() - parsedAt}ms"
+                            "解析 ${request.text.length} 字 耗时 ${parsedAt - startedAt}ms"
                         )
                         // 节流：贴块 + 重组才是主线程上的成本，控制它的频率。
                         delay(STREAM_PARSE_MIN_INTERVAL_MS)
@@ -1221,28 +1592,28 @@ class ChatViewModel @Inject constructor(
                 is StreamCommand.Finalize -> {
                     // 排在前面的 Parse 已经把文本排空了，这里直接收尾。
                     val targetId = command.targetId
-                    val update = withContext(Dispatchers.Default) {
+                    val update = withContext(parseDispatcher) {
                         if (targetId == null) null else parser?.finalizeStream()
                     }
-                    if (targetId != null && update != null) applyStreamBlocks(targetId, update)
-                    // 收尾之后再追加尾块（失败原因），否则会被上面的截断吃掉。
-                    if (targetId != null && command.trailingBlock != null) {
-                        appendBlock(targetId, command.trailingBlock)
+                    // targetId == null（整轮只有工具调用、没有正文段）就没有东西要贴：只关句柄、
+                    // 不发 action。有目标时一次投递带上"先 update 后尾块"，顺序由 handler 保证。
+                    if (targetId != null) {
+                        deliverParsed(targetId, update, command.trailingBlock)
                     }
-                    withContext(Dispatchers.Default) {
+                    withContext(parseDispatcher) {
                         parser?.close()
                         parser = null
                     }
                 }
 
-                StreamCommand.Close -> withContext(Dispatchers.Default) {
+                StreamCommand.Close -> withContext(parseDispatcher) {
                     parser?.close()
                     parser = null
                 }
             }
         }
         // 通道关了（这一轮收尾）：把句柄放掉再结束。句柄只归这个协程，所以在它里面放。
-        withContext(Dispatchers.Default) {
+        withContext(parseDispatcher) {
             parser?.close()
             parser = null
         }
@@ -1516,6 +1887,8 @@ class ChatViewModel @Inject constructor(
         updateState {
             copy(
                 isSending = false,
+                // 回合真正收尾了：中断请求的状态位在这里落下（TurnCompleted 侧，见 [handleStopClicked]）。
+                isInterruptRequested = false,
                 messages = messages.map { message ->
                     if (message.id == targetId) message.copy(isStreaming = false) else message
                 },
@@ -1535,7 +1908,9 @@ class ChatViewModel @Inject constructor(
     private fun endTurn() {
         turnAssistantIds.clear()
         if (state.activeConversationId == null) return
-        viewModelScope.launch { runCatching { conversationStore.refresh() } }
+        // 出站命令走 Effect：成功不需要回流（列表由 conversationsStateFlow 回灌），
+        // 失败经 EffectFailed → ChatUiEvent.ShowError（§3 第 13 条）。
+        effects.trySend(ChatEffect.RefreshConversations)
     }
 
     /**
@@ -1581,7 +1956,13 @@ class ChatViewModel @Inject constructor(
         pendingContextWindow = null
         pendingReasoningEffort = null
         updateState {
-            copy(pendingPrompt = null, contextUsage = null, isContextPanelOpen = false)
+            copy(
+                pendingPrompt = null,
+                contextUsage = null,
+                isContextPanelOpen = false,
+                // 会话已经换掉/新建：中断请求随之作废（回合自己的收尾仍由它那条路做）。
+                isInterruptRequested = false,
+            )
         }
     }
 

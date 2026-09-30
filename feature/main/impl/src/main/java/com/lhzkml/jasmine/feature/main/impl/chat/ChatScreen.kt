@@ -1298,9 +1298,19 @@ private fun Composer(
                     if (state.isSending) {
                         Icon(
                             imageVector = LucideIcons.SquareFilled,
-                            contentDescription = stringResource(R.string.chat_stop_cd),
+                            // 已请求中断、回合还没收尾：方块降到 50%（ZCode 那套 `disabled:opacity-50`），
+                            // 无障碍文案也换一副 —— 这样 `isInterruptRequested` 有真实的消费者。
+                            contentDescription = stringResource(
+                                if (state.isInterruptRequested) {
+                                    R.string.chat_stopping_cd
+                                } else {
+                                    R.string.chat_stop_cd
+                                }
+                            ),
                             // 停止：黑底 + **白**方块（与发送那副面孔同一套反色，只是把箭头换成方块）。
-                            tint = currentTheme.primaryForeground,
+                            tint = currentTheme.primaryForeground.copy(
+                                alpha = if (state.isInterruptRequested) ChatSendDisabledAlpha else 1f,
+                            ),
                             modifier = Modifier.size(ChatSendIconSize)
                         )
                     } else if (resume) {

@@ -238,7 +238,9 @@ class MainViewModel @Inject constructor(
 
     private fun handleCustomFontSelected(action: MainAction.CustomFontSelected) {
         updateState { copy(activeCustomFontId = action.fontId) }
-        viewModelScope.launch { userPreferencesRepository.updateActiveCustomFont(action.fontId) }
+        launchWrite(R.string.setting_save_failed_toast) {
+            userPreferencesRepository.updateActiveCustomFont(action.fontId)
+        }
     }
 
     private fun handleFontDownloadClicked(action: MainAction.FontDownloadClicked) {
@@ -251,10 +253,14 @@ class MainViewModel @Inject constructor(
     private fun handleFontDeleteClicked(action: MainAction.FontDeleteClicked) {
         if (state.activeCustomFontId == action.fontId) {
             updateState { copy(activeCustomFontId = "") }
-            viewModelScope.launch { userPreferencesRepository.updateActiveCustomFont("") }
+            launchWrite(R.string.setting_save_failed_toast) {
+                userPreferencesRepository.updateActiveCustomFont("")
+            }
         }
         customFontFamilyCache.evict(action.fontId)
-        viewModelScope.launch { customFontRepository.deleteFont(action.fontId) }
+        launchWrite(R.string.font_delete_failed_toast) {
+            customFontRepository.deleteFont(action.fontId)
+        }
         sendEvent(MainEvent.ShowToast(R.string.font_deleted_toast))
     }
 
@@ -267,7 +273,9 @@ class MainViewModel @Inject constructor(
 
     private fun handleFontScaleSaved(action: MainAction.FontScaleSaved) {
         updateState { copy(fontScale = action.scale) }
-        viewModelScope.launch { userPreferencesRepository.updateFontScale(action.scale) }
+        launchWrite(R.string.setting_save_failed_toast) {
+            userPreferencesRepository.updateFontScale(action.scale)
+        }
         sendEvent(MainEvent.ShowToast(R.string.font_size_saved_toast))
     }
 
@@ -277,7 +285,23 @@ class MainViewModel @Inject constructor(
      */
     private fun handleAgentOutputLanguageSelected(action: MainAction.AgentOutputLanguageSelected) {
         updateState { copy(agentOutputLanguage = action.value) }
-        viewModelScope.launch { userPreferencesRepository.updateAgentOutputLanguage(action.value) }
+        launchWrite(R.string.setting_save_failed_toast) {
+            userPreferencesRepository.updateAgentOutputLanguage(action.value)
+        }
+    }
+
+    /**
+     * 一条"出站写命令"：乐观写已经落状态，这里只负责把**失败**变成可见的提示。
+     *
+     * 成功提示仍由调用点按原来那条时序发（有些入口压根没有成功提示）。以前这些写入是
+     * fire-and-forget，落盘失败时界面什么都看不出来。
+     */
+    private fun launchWrite(@StringRes failureToast: Int, block: suspend () -> Unit) {
+        viewModelScope.launch {
+            runCatching { block() }.exceptionOrNull()?.let {
+                sendEvent(MainEvent.ShowToast(failureToast))
+            }
+        }
     }
 
     // endregion
@@ -318,7 +342,9 @@ class MainViewModel @Inject constructor(
         val fontId = action.fontId
         if (fontId != null) {
             updateState { copy(activeCustomFontId = fontId) }
-            viewModelScope.launch { userPreferencesRepository.updateActiveCustomFont(fontId) }
+            launchWrite(R.string.setting_save_failed_toast) {
+                userPreferencesRepository.updateActiveCustomFont(fontId)
+            }
             sendEvent(MainEvent.ShowToast(R.string.font_imported_toast))
         } else {
             sendEvent(MainEvent.ShowToast(R.string.font_import_failed_toast))

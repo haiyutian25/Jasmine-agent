@@ -1,5 +1,6 @@
 package com.lhzkml.jasmine.feature.main.impl.chat
 
+import androidx.lifecycle.viewModelScope
 import com.lhzkml.jasmine.core.agent.AgentChat
 import com.lhzkml.jasmine.core.agent.AppUsage
 import com.lhzkml.jasmine.core.agent.ChatEvent
@@ -24,13 +25,20 @@ import com.lhzkml.jasmine.core.markdown.model.MarkdownBlockType
 import com.lhzkml.jasmine.core.markdown.model.MarkdownInline
 import com.lhzkml.jasmine.core.markdown.model.MarkdownInlineType
 import com.lhzkml.jasmine.core.markdown.model.MarkdownUpdate
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -62,6 +70,15 @@ class ChatViewModelTest {
     private lateinit var agentChat: FakeAgentChat
     private lateinit var markdownParserFactory: FakeMarkdownParserFactory
 
+    /**
+     * 最近一次 [createViewModel] 造出来的实例。
+     *
+     * [tearDown] 必须先取消它的作用域：EffectRunner 与回合协程都活在 `viewModelScope` 里，
+     * 不先结束它们就 `resetMain()`，就会重演本文件记录过的那类 bug
+     * （`Dispatchers.Main is used concurrently with setting it`）。
+     */
+    private var viewModel: ChatViewModel? = null
+
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
@@ -88,6 +105,16 @@ class ChatViewModelTest {
      */
     @After
     fun tearDown() {
+        // 先结束 EffectRunner / 回合协程，**并等它们真的结束**，再换 Main。
+        //
+        // 只 cancel 不够：解析 worker 里那段 `withContext(Dispatchers.Default)` 跑在真线程上，取消不会
+        // 打断它；它回到 Main 的那一刻如果本用例已经 `resetMain()`，就会报
+        // `Dispatchers.Main was accessed when the platform dispatcher was absent…`，并污染下一个用例。
+        viewModel?.viewModelScope?.cancel()
+        viewModel?.viewModelScope?.coroutineContext?.get(Job)?.let { job ->
+            runBlocking { withTimeoutOrNull(5_000) { job.join() } }
+        }
+        viewModel = null
         Dispatchers.resetMain()
     }
 
@@ -616,8 +643,14 @@ class ChatViewModelTest {
             advanceUntilIdle()
 
             val state = viewModel.stateFlow.value
+            assertEquals("中断命令应该送到核心一次", 1, agentChat.interruptCalls)
             // 半段留在界面上；它后面跟一行「你在 4秒 后停止了」的状态（那行没有正文）。
-            assertEquals(listOf("hi", "half a reply", ""), state.messages.map { it.text })
+            assertEquals(
+                "消息快照（text / stoppedAfterMs）= " +
+                    state.messages.map { it.text to it.stoppedAfterMs },
+                listOf("hi", "half a reply", ""),
+                state.messages.map { it.text },
+            )
             assertEquals(4_000L, state.messages.last().stoppedAfterMs)
             // composer 释放，不卡在停止态
             assertFalse(state.isSending)
@@ -661,13 +694,278 @@ class ChatViewModelTest {
             assertEquals(1, agentChat.conversationsEnded)
         }
 
+    // ── 严格 UDF（修复方案 v2）：异步结果只经 action 回流；过期结果按身份键丢弃 ──────────
+
+    /**
+     * 收集一次性事件（单消费者）。
+     *
+     * 必须挂在 [TestScope.backgroundScope] 上：`eventFlow` 的收集是**长命**的，挂在测试体自己的作用域里
+     * 会让 `runTest` 等它结束（`UncompletedCoroutinesError`）。
+     */
+    private fun TestScope.eventsOf(viewModel: ChatViewModel): MutableList<ChatUiEvent> {
+        val events = mutableListOf<ChatUiEvent>()
+        backgroundScope.launch { viewModel.eventFlow.collect { events += it } }
+        return events
+    }
+
+    @Test
+    fun `stale conversation facts are dropped`() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        val before = viewModel.stateFlow.value
+
+        viewModel.trySendAction(
+            ChatAction.Internal.ConversationFactsLoaded(
+                ConversationFacts(
+                    conversationId = "conv-elsewhere",
+                    window = 4096L,
+                    usage = null,
+                    effort = "high",
+                )
+            )
+        )
+        advanceUntilIdle()
+
+        // 这条会话不是当前打开的那条 → 一个字段都不许改（守卫在 handler 里，同步）。
+        val after = viewModel.stateFlow.value
+        assertEquals(before.contextWindow, after.contextWindow)
+        assertEquals(before.reasoningEffort, after.reasoningEffort)
+    }
+
+    @Test
+    fun `selecting a conversation loads its facts and transcript`() = runTest(testDispatcher) {
+        // 生产路径：打开另一条会话 → 消息、窗口、档位都从它的文件里读回来，再经 action 落状态。
+        conversationStore.seedConversation("conv-1", "older", emptyList())
+        conversationStore.seedConversation("conv-2", "newer", emptyList()) // latest
+        agentChat.conversationContextWindows["conv-2"] = 200_000L
+        agentChat.conversationContextWindows["conv-1"] = 777L
+        agentChat.sessionEffort = null
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        assertEquals("conv-2", viewModel.stateFlow.value.activeConversationId)
+
+        viewModel.trySendAction(ChatAction.ConversationSelected("conv-1"))
+        advanceUntilIdle()
+
+        val state = viewModel.stateFlow.value
+        assertEquals("conv-1", state.activeConversationId)
+        assertEquals(777L, state.contextWindow)
+    }
+
+    @Test
+    fun `allowed efforts from a model that is no longer active are dropped`() =
+        runTest(testDispatcher) {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.trySendAction(
+                ChatAction.Internal.AllowedEffortsLoaded(
+                    providerId = "someone-else",
+                    modelId = "other-model",
+                    levels = listOf("low"),
+                )
+            )
+            advanceUntilIdle()
+
+            assertTrue(viewModel.stateFlow.value.allowedEfforts.isEmpty())
+        }
+
+    @Test
+    fun `a rejected context window falls back to the core value and reports`() =
+        runTest(testDispatcher) {
+            val viewModel = createViewModel()
+            val events = eventsOf(viewModel)
+            advanceUntilIdle()
+
+            viewModel.trySendAction(ChatAction.Internal.ContextWindowRejected(1234L, "boom"))
+            advanceUntilIdle()
+
+            assertEquals(1234L, viewModel.stateFlow.value.contextWindow)
+            assertTrue(events.single() is ChatUiEvent.ShowError)
+        }
+
+    @Test
+    fun `stream parsed always acks even when the target message is gone`() =
+        runTest(testDispatcher) {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            val ack = CompletableDeferred<Unit>()
+
+            viewModel.trySendAction(ChatAction.Internal.StreamParsed("no-such-message", null, null, ack))
+            advanceUntilIdle()
+
+            // 不放行的话 worker 会永远挂在 ack 上、回合 join 不回来（见 ChatViewModel.deliverParsed）。
+            assertTrue(ack.isCompleted)
+        }
+
+    @Test
+    fun `conversation created from an older epoch is dropped`() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        // 先新建会话（代次 +1），再补一条"上一代"的创建结果 → 必须被丢弃。
+        viewModel.trySendAction(ChatAction.NewConversationClicked)
+        viewModel.trySendAction(ChatAction.Internal.ConversationCreated(epoch = 0L, id = "conv-stale"))
+        advanceUntilIdle()
+
+        assertNull(viewModel.stateFlow.value.activeConversationId)
+    }
+
+    @Test
+    fun `choosing a context window goes through an effect`() = runTest(testDispatcher) {
+        // 生产路径：会话已附着时改窗口 → 命令经 Effect 落到核心，回执经 action 落状态。
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        agentChat.nextEvents = listOf(ChatEvent.Text("hi"), ChatEvent.Completed)
+        viewModel.trySendAction(ChatAction.InputChanged("hi"))
+        viewModel.trySendAction(ChatAction.SendClicked)
+        advanceUntilIdle()
+
+        viewModel.trySendAction(ChatAction.ContextWindowSelected(4096L))
+        advanceUntilIdle()
+
+        assertEquals(listOf(4096L), agentChat.contextWindowsSet)
+        assertEquals(4096L, viewModel.stateFlow.value.contextWindow)
+    }
+
+    @Test
+    fun `deleting a conversation goes through an effect`() = runTest(testDispatcher) {
+        conversationStore.seedConversation("conv-1", "older", emptyList())
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.trySendAction(ChatAction.ConversationDeleted("conv-1"))
+        advanceUntilIdle()
+
+        assertEquals(listOf("conv-1"), conversationStore.deleted)
+    }
+
+    @Test
+    fun `a failed delete reports through the event channel`() = runTest(testDispatcher) {
+        conversationStore.deleteFailure = IllegalStateException("no")
+        val viewModel = createViewModel()
+        val events = eventsOf(viewModel)
+        advanceUntilIdle()
+
+        viewModel.trySendAction(ChatAction.ConversationDeleted("conv-x"))
+        advanceUntilIdle()
+
+        assertTrue(events.single() is ChatUiEvent.ShowError)
+    }
+
+    @Test
+    fun `stop flags the turn until it actually finishes`() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        agentChat.nextEvents = listOf(ChatEvent.Text("hi"))
+        agentChat.hangAfterEvents = true
+        viewModel.trySendAction(ChatAction.InputChanged("hi"))
+        viewModel.trySendAction(ChatAction.SendClicked)
+        advanceUntilIdle()
+        assertTrue(viewModel.stateFlow.value.isSending)
+
+        viewModel.trySendAction(ChatAction.StopClicked)
+        advanceUntilIdle()
+
+        // 核心收手（Aborted）→ 回合收尾：发送态与"正在停止"都落下，且能继续。
+        val state = viewModel.stateFlow.value
+        assertEquals("中断命令应该被送到核心一次", 1, agentChat.interruptCalls)
+        assertTrue(
+            "应该出现「你在 N 秒后停止了」那行（messages=${state.messages.map { it.text }}）",
+            state.messages.any { it.stoppedAfterMs != null },
+        )
+        assertTrue("核心应该记下这次中断", agentChat.interrupted)
+        assertFalse("回合结束就不该还在发送", state.isSending)
+        assertFalse("回合结束就该落下停止位", state.isInterruptRequested)
+        assertTrue("中断过的回合应该能继续", state.canContinue)
+        }
+
+    @Test
+    fun `the turn interrupted action settles the turn on its own`() = runTest(testDispatcher) {
+        // 探针：不经过核心事件，直接喂 TurnInterrupted —— 用来把"handler 的问题"和"事件路径的问题"分开。
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        agentChat.nextEvents = listOf(ChatEvent.Text("hi"))
+        agentChat.hangAfterEvents = true
+        viewModel.trySendAction(ChatAction.InputChanged("hi"))
+        viewModel.trySendAction(ChatAction.SendClicked)
+        advanceUntilIdle()
+        assertTrue("回合应该在跑", viewModel.stateFlow.value.isSending)
+
+        viewModel.trySendAction(ChatAction.Internal.TurnInterrupted(4_000L))
+        advanceUntilIdle()
+
+        val state = viewModel.stateFlow.value
+        assertFalse("TurnInterrupted 应该落下发送态", state.isSending)
+        assertTrue("TurnInterrupted 应该给「继续」", state.canContinue)
+    }
+
+    @Test
+    fun `an interrupt failure action clears the stopping flag and reports`() = runTest(testDispatcher) {
+        // 探针：真起一轮 → 停（命令会被拒）→ 再手工喂一条 EffectFailed(tag = "Interrupt")。
+        // 事件数告诉我们是"自动那条 EffectFailed 到了"（2）还是只到了手工这条（1）。
+        val viewModel = createViewModel()
+        val events = eventsOf(viewModel)
+        advanceUntilIdle()
+        agentChat.nextEvents = listOf(ChatEvent.Text("hi"))
+        agentChat.hangAfterEvents = true
+        agentChat.interruptFailure = IllegalStateException("auto")
+        viewModel.trySendAction(ChatAction.InputChanged("hi"))
+        viewModel.trySendAction(ChatAction.SendClicked)
+        advanceUntilIdle()
+
+        viewModel.trySendAction(ChatAction.StopClicked)
+        advanceUntilIdle()
+        val afterAuto = events.size
+        val flagAfterAuto = viewModel.stateFlow.value.isInterruptRequested
+
+        viewModel.trySendAction(ChatAction.Internal.EffectFailed("Interrupt", "manual"))
+        advanceUntilIdle()
+
+        assertEquals("自动的 EffectFailed 应该到了（1 条）", 1, afterAuto)
+        assertTrue("自动失败后状态位就该落下", !flagAfterAuto)
+        assertEquals("手工那条也应该到（共 2 条）", 2, events.size)
+        assertFalse("状态位不许粘住", viewModel.stateFlow.value.isInterruptRequested)
+    }
+
+
+    @Test
+    fun `a failed interrupt clears the stopping flag and reports`() = runTest(testDispatcher) {
+        val viewModel = createViewModel()
+        val events = eventsOf(viewModel)
+        advanceUntilIdle()
+        agentChat.nextEvents = listOf(ChatEvent.Text("hi"))
+        agentChat.hangAfterEvents = true
+        agentChat.interruptFailure = IllegalStateException("no")
+        viewModel.trySendAction(ChatAction.InputChanged("hi"))
+        viewModel.trySendAction(ChatAction.SendClicked)
+        advanceUntilIdle()
+
+        viewModel.trySendAction(ChatAction.StopClicked)
+        advanceUntilIdle()
+
+        // 顺序：先看事件与调用次数，最后看状态位 —— 失败时报出来的信息更精确。
+        assertEquals("中断命令应该被送到核心一次", 1, agentChat.interruptCalls)
+        assertEquals("应该正好报一次错", 1, events.size)
+        assertTrue("报的应该是错误事件", events.single() is ChatUiEvent.ShowError)
+        assertFalse(
+            "中断失败后状态位不许粘住",
+            viewModel.stateFlow.value.isInterruptRequested,
+        )
+    }
+
     private fun createViewModel() = ChatViewModel(
         providerRepository = providerRepository,
         userPreferencesRepository = preferencesRepository,
         conversationStore = conversationStore,
         agentChat = agentChat,
         markdownParserFactory = markdownParserFactory,
-    )
+    ).also {
+        // 解析别在真线程上跑：`withContext(Dispatchers.Default)` 会越过 `advanceUntilIdle()` 的栅栏，
+        // 把"贴块"拖到用例之后（本文件历史上正是被这类续体撞过 Main）。
+        it.parseDispatcher = testDispatcher
+        viewModel = it
+    }
 
     private companion object {
         const val MODEL_ID = "model-1"
@@ -836,7 +1134,11 @@ private class FakeConversationStore : ConversationStore {
         return conversation
     }
 
+    /** 让用例模拟"删除失败"（验证失败回流：EffectFailed → ChatUiEvent.ShowError）。 */
+    var deleteFailure: Exception? = null
+
     override suspend fun deleteConversation(id: String) {
+        deleteFailure?.let { throw it }
         deleted += id
         transcripts.remove(id)
         conversationsStateFlow.value = conversationsStateFlow.value.filterNot { it.id == id }
@@ -928,9 +1230,17 @@ private class FakeAgentChat : AgentChat {
     /** 中断是否送到了核心（现在是核心自己收手，平台不再补写半段）。 */
     var interrupted = false
 
+    /** 让用例模拟"中断命令失败"（验证失败回流 + 状态位不粘住）。 */
+    var interruptFailure: Exception? = null
+
+    /** 中断被调用了几次（幂等性用例看它）。 */
+    var interruptCalls = 0
+
     private val interruptSignal = kotlinx.coroutines.CompletableDeferred<Unit>()
 
     override suspend fun interrupt() {
+        interruptCalls++
+        interruptFailure?.let { throw it }
         interrupted = true
         interruptSignal.complete(Unit)
     }
