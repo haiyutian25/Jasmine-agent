@@ -72,11 +72,15 @@ sealed interface ChatEvent {
  *
  * Lifecycle is explicit — [startConversation] attaches to the session named by
  * [startConversation.sessionId], [send] appends to it, [endConversation] releases
- * the runner without erasing stored history. Switching provider or model
+ * that one without erasing stored history. Switching provider or model
  * therefore means starting a new conversation.
  *
- * Implementations are stateful and **not** thread-safe: one instance per
- * conversation owner (the ViewModel), and one in-flight [send] at a time.
+ * **Several conversations can be attached and running at once** (ZCode's per-topic runtime): every
+ * conversation-scoped call names its conversation, and a turn in one neither waits for nor stops a
+ * turn in another. What still serializes is two turns *inside one conversation* — that is the
+ * conversation's own business.
+ *
+ * Implementations may be called from several threads: one instance serves the whole app.
  */
 interface AgentChat {
     /**
@@ -101,14 +105,17 @@ interface AgentChat {
     )
 
     /**
-     * Appends [text] to the running conversation and streams the reply.
+     * Appends [text] to the conversation named by [sessionId] and streams the reply.
      *
      * Transport/provider failures arrive as [ChatEvent.Failed] rather than
      * throwing; only cancellation propagates.
      *
-     * @throws IllegalStateException when called before [startConversation].
+     * The turn occupies that one conversation: another conversation keeps running, and a second send
+     * into the same one waits for the turn already there.
+     *
+     * @throws IllegalStateException when that conversation is not attached.
      */
-    fun send(text: String): Flow<ChatEvent>
+    fun send(sessionId: String, text: String): Flow<ChatEvent>
 
     /**
      * Answers the pending [ChatEvent.UserPromptRequested]s and resumes the paused turn,
@@ -118,9 +125,9 @@ interface AgentChat {
      *   （实测模型会在一轮里并列调 `get_user_choice` 和 `adk_request_input`），界面会排队逐个
      *   问、把答案按顺序收齐后一起提交。少交一个，历史里就会留下「有 tool_call、没有
      *   tool_result」的残缺记录，之后每次请求都被服务端以 HTTP 400 拒掉、会话永久卡死。
-     * @throws IllegalStateException when no prompt is pending.
+     * @throws IllegalStateException when no prompt is pending in that conversation.
      */
-    fun respondToPrompts(answers: List<String>): Flow<ChatEvent>
+    fun respondToPrompts(sessionId: String, answers: List<String>): Flow<ChatEvent>
 
     /**
      * Persists the partial reply left behind when the caller cancelled a [send].
@@ -135,21 +142,21 @@ interface AgentChat {
      * No-op when [text] is blank or no conversation is attached.
      */
     /**
-     * Stops the turn that is running.
+     * Stops the turn that is running in [sessionId]. Other conversations' turns are left alone.
      *
      * The turn is not cut off mid-flight: the core notices at its next await point, keeps what it
      * had already produced (it is already in the transcript), and ends the flow with
      * [ChatEvent.Aborted].
      */
-    suspend fun interrupt()
+    suspend fun interrupt(sessionId: String)
 
     /**
-     * The window the attached conversation runs against, in tokens.
+     * The window the conversation named by [sessionId] runs against, in tokens.
      *
-     * `null` when no conversation is attached: nothing has been resolved yet, and the caller's own
+     * `null` when it is not attached: nothing has been resolved yet, and the caller's own
      * default stands in.
      */
-    suspend fun contextWindow(): Long?
+    suspend fun contextWindow(sessionId: String): Long?
 
     /**
      * The window one conversation recorded, in tokens, read straight from its file.
@@ -182,7 +189,7 @@ interface AgentChat {
      * 会话第一次附着时核心会从模型配置里抄一次，之后以会话自己的值为准 —— 所以这里读到的是"这次
      * 对话"的档位，而不是模型的默认。
      */
-    suspend fun reasoningEffort(): String?
+    suspend fun reasoningEffort(sessionId: String): String?
 
     /**
      * 某条会话自己记录的推理档位，直接从它的文件里读；没记录过为 null。
@@ -191,21 +198,28 @@ interface AgentChat {
      */
     suspend fun conversationReasoningEffort(sessionId: String): String?
 
-    /** 改当前会话的推理档位：核心会**追加**一条记录进会话文件，并让请求立刻用新值。 */
-    suspend fun setReasoningEffort(value: String)
+    /** 改 [sessionId] 那条会话的推理档位：核心会**追加**一条记录进会话文件，并让请求立刻用新值。 */
+    suspend fun setReasoningEffort(sessionId: String, value: String)
 
-    fun setContextWindow(tokens: Long): Flow<ChatEvent>
+    fun setContextWindow(sessionId: String, tokens: Long): Flow<ChatEvent>
 
     /**
-     * Continues the turn that was stopped.
+     * Continues the turn that was stopped in [sessionId].
      *
      * Nothing is added to the conversation: the core resumes sampling under the same turn, so the
      * model picks its answer up where it left off. A turn that finished is not resumed.
      */
-    fun continueTurn(): Flow<ChatEvent>
+    fun continueTurn(sessionId: String): Flow<ChatEvent>
 
-    suspend fun persistInterruptedReply(text: String)
+    suspend fun persistInterruptedReply(sessionId: String, text: String)
 
-    /** Releases the runner. Stored history is left untouched. */
-    fun endConversation()
+    /**
+     * Releases [sessionId]. Stored history is left untouched, and so is every other conversation.
+     *
+     * Answers straight away even while a turn is running: the turn owns that conversation until it
+     * ends, so the release is noted and dropped on the way out. Waiting would block the caller for
+     * as long as the reply takes — and the caller is the UI thread (switching or opening a conversation
+     * must not freeze on it).
+     */
+    fun endConversation(sessionId: String)
 }

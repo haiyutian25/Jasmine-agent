@@ -40,8 +40,8 @@ class RustAgentChat(
 
     private val handle = AgentHandle(sessionsDir, DeviceClock)
 
-    /** How many messages the core's context holds right now (diagnostics). */
-    fun contextLen(): Int = handle.contextLen().toInt()
+    /** How many messages one conversation's context holds right now (diagnostics). */
+    fun contextLen(sessionId: String): Int = handle.contextLen(sessionId).toInt()
 
     override suspend fun startConversation(
         sessionId: String,
@@ -64,20 +64,21 @@ class RustAgentChat(
         }
     }
 
-    override fun send(text: String): Flow<ChatEvent> =
-        turn { listener -> handle.send(text, listener) }
+    override fun send(sessionId: String, text: String): Flow<ChatEvent> =
+        turn(sessionId) { listener -> handle.send(sessionId, text, listener) }
 
-    override fun respondToPrompts(answers: List<String>): Flow<ChatEvent> =
-        turn { listener -> handle.respondToPrompts(answers, listener) }
+    override fun respondToPrompts(sessionId: String, answers: List<String>): Flow<ChatEvent> =
+        turn(sessionId) { listener -> handle.respondToPrompts(sessionId, answers, listener) }
 
-    override suspend fun interrupt() {
-        withContext(Dispatchers.IO) { handle.interrupt() }
+    override suspend fun interrupt(sessionId: String) {
+        withContext(Dispatchers.IO) { handle.interrupt(sessionId) }
     }
 
-    override fun continueTurn(): Flow<ChatEvent> = turn { listener -> handle.recoverTurn(listener) }
+    override fun continueTurn(sessionId: String): Flow<ChatEvent> =
+        turn(sessionId) { listener -> handle.recoverTurn(sessionId, listener) }
 
-    override suspend fun contextWindow(): Long? =
-        withContext(Dispatchers.IO) { handle.contextWindow() }
+    override suspend fun contextWindow(sessionId: String): Long? =
+        withContext(Dispatchers.IO) { handle.contextWindow(sessionId) }
 
     override suspend fun conversationContextWindow(sessionId: String): Long? =
         withContext(Dispatchers.IO) { handle.conversationContextWindow(sessionId)?.toLong() }
@@ -89,25 +90,25 @@ class RustAgentChat(
             }
         }
 
-    override suspend fun reasoningEffort(): String? =
-        withContext(Dispatchers.IO) { handle.reasoningEffort() }
+    override suspend fun reasoningEffort(sessionId: String): String? =
+        withContext(Dispatchers.IO) { handle.reasoningEffort(sessionId) }
 
     override suspend fun conversationReasoningEffort(sessionId: String): String? =
         withContext(Dispatchers.IO) { handle.conversationReasoningEffort(sessionId) }
 
-    override suspend fun setReasoningEffort(value: String) {
-        withContext(Dispatchers.IO) { handle.setReasoningEffort(value) }
+    override suspend fun setReasoningEffort(sessionId: String, value: String) {
+        withContext(Dispatchers.IO) { handle.setReasoningEffort(sessionId, value) }
     }
 
-    override fun setContextWindow(tokens: Long): Flow<ChatEvent> =
-        once { listener -> handle.setContextWindow(tokens.toULong(), listener) }
+    override fun setContextWindow(sessionId: String, tokens: Long): Flow<ChatEvent> =
+        once { listener -> handle.setContextWindow(sessionId, tokens.toULong(), listener) }
 
-    override suspend fun persistInterruptedReply(text: String) {
-        withContext(Dispatchers.IO) { handle.persistInterruptedReply(text) }
+    override suspend fun persistInterruptedReply(sessionId: String, text: String) {
+        withContext(Dispatchers.IO) { handle.persistInterruptedReply(sessionId, text) }
     }
 
-    override fun endConversation() {
-        handle.endConversation()
+    override fun endConversation(sessionId: String) {
+        handle.endConversation(sessionId)
     }
 
     /**
@@ -117,14 +118,17 @@ class RustAgentChat(
      * promises. The flow completes when the turn does: [ChatEvent.Completed], a failure, or a
      * prompt that stops the turn until [respondToPrompts] is called.
      *
-     * Cancelling the flow **stops the turn**: the collector going away — the user leaving the screen,
-     * the ViewModel being cleared, the conversation being swapped — interrupts the core, which stops
-     * sampling at its next await point and keeps what it had produced. Cancelling the coroutine alone
-     * would not: it is parked in a synchronous JNI call, so the turn would run to its end unnoticed,
-     * spending the provider's tokens for events nobody collects.
+     * Cancelling the flow **stops that conversation's turn**: the collector going away — the user
+     * leaving the screen, the ViewModel being cleared, the conversation being closed — interrupts the
+     * core, which stops sampling at its next await point and keeps what it had produced. Cancelling
+     * the coroutine alone would not: it is parked in a synchronous JNI call, so the turn would run to
+     * its end unnoticed, spending the provider's tokens for events nobody collects.
+     *
+     * Only that conversation is stopped: [sessionId] is what the interrupt is aimed at, and every
+     * other conversation's turn keeps running (see [AgentChat]).
      */
-    private fun turn(run: (EventListener) -> Unit): Flow<ChatEvent> =
-        coreEvents(stopsTheTurnWhenCancelled = true, run = run)
+    private fun turn(sessionId: String, run: (EventListener) -> Unit): Flow<ChatEvent> =
+        coreEvents(sessionId, stopsTheTurnWhenCancelled = true, run = run)
 
     /**
      * Runs one core call that reports events and then returns — setting the context window.
@@ -133,7 +137,7 @@ class RustAgentChat(
      * the flow closes then, after everything the call emitted. There is no turn to stop either, so a
      * cancelled collection just leaves it alone.
      */
-    private fun once(run: (EventListener) -> Unit): Flow<ChatEvent> = coreEvents { listener ->
+    private fun once(run: (EventListener) -> Unit): Flow<ChatEvent> = coreEvents(null) { listener ->
         run(listener)
     }
 
@@ -158,6 +162,7 @@ class RustAgentChat(
      * not reach into the core's own thread, so it asks the core to stop instead — see [turn].
      */
     private fun coreEvents(
+        sessionId: String?,
         stopsTheTurnWhenCancelled: Boolean = false,
         run: (EventListener) -> Unit,
     ): Flow<ChatEvent> = flow {
@@ -187,11 +192,11 @@ class RustAgentChat(
             drained = true
         } finally {
             events.close()
-            if (!drained && stopsTheTurnWhenCancelled) {
+            if (!drained && stopsTheTurnWhenCancelled && sessionId != null) {
                 // 取消是"没人再收了"，不是"这一轮跑完了"：通报核心收手。它会在下一个等待点停住，
-                // 把已经产出的部分留下 —— 这也是 [ChatEvent.Aborted] 的来源。
+                // 把已经产出的部分留下 —— 这也是 [ChatEvent.Aborted] 的来源。别的会话不受影响。
                 withContext(NonCancellable + Dispatchers.IO) {
-                    runCatching { handle.interrupt() }
+                    runCatching { handle.interrupt(sessionId) }
                 }
             }
             worker.cancel()

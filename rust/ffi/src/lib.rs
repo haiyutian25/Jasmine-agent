@@ -317,20 +317,20 @@ impl AgentHandle {
             })
     }
 
-    /// 上下文里当前有多少条消息。
+    /// 某条会话的上下文里当前有多少条消息。
     ///
     /// 给平台做诊断用（也可以在附着会话后自检"历史是否装载成功"）。
-    pub fn context_len(&self) -> u64 {
-        self.inner.context_len() as u64
+    pub fn context_len(&self, session_id: String) -> u64 {
+        self.inner.context_len(&session_id) as u64
     }
 
-    /// 当前会话的上下文窗口（token 数）。
+    /// 某条会话的上下文窗口（token 数）。
     ///
     /// 附着会话后读它，就能知道这个会话现在按多大的窗口算 —— 这个数在会话第一次附着时就定下
     /// 了（当时选的模型的上下文长度，没配则默认 200K），会话中途换模型不会变。还没附着会话时
     /// 没有可报的值。
-    pub fn context_window(&self) -> Option<i64> {
-        self.inner.context_window()
+    pub fn context_window(&self, session_id: String) -> Option<i64> {
+        self.inner.context_window(&session_id)
     }
 
     /// 某条会话自己记录的上下文窗口；没记录过就为 `None`。
@@ -383,20 +383,21 @@ impl AgentHandle {
     /// 回答才更新。
     pub fn set_context_window(
         &self,
+        session_id: String,
         tokens: u64,
         listener: Arc<dyn EventListener>,
     ) -> Result<(), AgentFailure> {
         let mut sink = ListenerSink { listener };
         self.inner
-            .set_context_window(tokens, &mut sink)
+            .set_context_window(&session_id, tokens, &mut sink)
             .map_err(|error| AgentFailure::Failed {
                 detail: error.detail(),
             })
     }
 
-    /// 当前会话的推理档位（空串 = 未设置）；没附着会话时为 `None`。
-    pub fn reasoning_effort(&self) -> Option<String> {
-        self.inner.reasoning_effort()
+    /// 某条会话的推理档位（空串 = 未设置）；它没附着时为 `None`。
+    pub fn reasoning_effort(&self, session_id: String) -> Option<String> {
+        self.inner.reasoning_effort(&session_id)
     }
 
     /// 某条会话自己记录的推理档位；没记录过就为 `None`。
@@ -415,9 +416,9 @@ impl AgentHandle {
     }
 
     /// 改这个会话的推理档位，并把这次改动**追加**进它的文件（历史一条不删）。
-    pub fn set_reasoning_effort(&self, value: String) -> Result<(), AgentFailure> {
+    pub fn set_reasoning_effort(&self, session_id: String, value: String) -> Result<(), AgentFailure> {
         self.inner
-            .set_reasoning_effort(&value)
+            .set_reasoning_effort(&session_id, &value)
             .map_err(|error| AgentFailure::Failed {
                 detail: error.detail(),
             })
@@ -459,11 +460,18 @@ impl AgentHandle {
             .collect()
     }
 
-    /// 发一轮并流式回调事件。
-    pub fn send(&self, text: String, listener: Arc<dyn EventListener>) -> Result<(), AgentFailure> {
+    /// 往**这一条**会话发一轮并流式回调事件。
+    ///
+    /// 一轮只占它自己那条会话：别的会话照常附着着、照常跑（见 `AgentChatService`）。
+    pub fn send(
+        &self,
+        session_id: String,
+        text: String,
+        listener: Arc<dyn EventListener>,
+    ) -> Result<(), AgentFailure> {
         let mut sink = ListenerSink { listener };
         self.inner
-            .send(&text, &mut sink)
+            .send(&session_id, &text, &mut sink)
             .map_err(|error| AgentFailure::Failed {
                 detail: error.detail(),
             })
@@ -472,12 +480,13 @@ impl AgentHandle {
     /// 提交提问的答案（按提问顺序收齐后一起提交）。
     pub fn respond_to_prompts(
         &self,
+        session_id: String,
         answers: Vec<String>,
         listener: Arc<dyn EventListener>,
     ) -> Result<(), AgentFailure> {
         let mut sink = ListenerSink { listener };
         self.inner
-            .respond_to_prompts(&answers, &mut sink)
+            .respond_to_prompts(&session_id, &answers, &mut sink)
             .map_err(|error| AgentFailure::Failed {
                 detail: error.detail(),
             })
@@ -493,37 +502,45 @@ impl AgentHandle {
     }
 
     /// 继续被中断的那一回合：不加用户消息，在同一个回合里接着采样。
-    pub fn recover_turn(&self, listener: Arc<dyn EventListener>) -> Result<(), AgentFailure> {
+    pub fn recover_turn(
+        &self,
+        session_id: String,
+        listener: Arc<dyn EventListener>,
+    ) -> Result<(), AgentFailure> {
         let mut sink = ListenerSink { listener };
         self.inner
-            .recover_turn(&mut sink)
+            .recover_turn(&session_id, &mut sink)
             .map_err(|error| AgentFailure::Failed {
                 detail: error.detail(),
             })
     }
 
-    /// 停掉正在跑的回合。不是硬中断：回合在下一个等待点收手，已经产出的条目照旧落盘，
-    /// 并以「被中断」收尾。
-    pub fn interrupt(&self) -> Result<(), AgentFailure> {
+    /// 停掉**这条会话**正在跑的那一轮。不是硬中断：回合在下一个等待点收手，已经产出的条目照旧落盘，
+    /// 并以「被中断」收尾。别的会话那一轮不受影响。
+    pub fn interrupt(&self, session_id: String) -> Result<(), AgentFailure> {
         self.inner
-            .interrupt()
+            .interrupt(&session_id)
             .map_err(|error| AgentFailure::Failed {
                 detail: error.detail(),
             })
     }
 
     /// 把取消时留下的半段回复写回会话。
-    pub fn persist_interrupted_reply(&self, text: String) -> Result<(), AgentFailure> {
+    pub fn persist_interrupted_reply(
+        &self,
+        session_id: String,
+        text: String,
+    ) -> Result<(), AgentFailure> {
         self.inner
-            .persist_interrupted_reply(&text)
+            .persist_interrupted_reply(&session_id, &text)
             .map_err(|error| AgentFailure::Failed {
                 detail: error.detail(),
             })
     }
 
-    /// 释放会话（历史不动）。
-    pub fn end_conversation(&self) {
-        self.inner.end_conversation();
+    /// 释放**这一条**会话（历史不动，别的会话也不动）。
+    pub fn end_conversation(&self, session_id: String) {
+        self.inner.end_conversation(&session_id);
     }
 }
 

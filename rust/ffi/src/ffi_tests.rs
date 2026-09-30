@@ -201,7 +201,9 @@ fn handle_reports_call_order_errors_as_text() {
     });
 
     // 未附着会话就发送：边界上应当给出一句可显示的原因
-    let error = handle.send("你好".to_string(), listener).unwrap_err();
+    let error = handle
+        .send("s1".to_string(), "你好".to_string(), listener)
+        .unwrap_err();
 
     assert!(error.to_string().contains("尚未附着会话"));
 }
@@ -212,7 +214,7 @@ fn a_new_session_starts_with_empty_context() {
 
     attach(&handle, "brand-new", "新对话");
 
-    assert_eq!(handle.context_len(), 0);
+    assert_eq!(handle.context_len("brand-new".to_string()), 0);
 }
 
 #[test]
@@ -221,15 +223,19 @@ fn what_a_conversation_said_crosses_the_boundary_on_attach() {
     let first = handle(&dir);
     attach(&first, "s1", "昨天的对话");
     first
-        .persist_interrupted_reply("上一次答的".to_string())
+        .persist_interrupted_reply("s1".to_string(), "上一次答的".to_string())
         .expect("persist");
-    first.end_conversation();
+    first.end_conversation("s1".to_string());
 
     let second = handle(&dir);
     attach(&second, "s1", "昨天的对话");
 
     // 跨进程留下的是转写（展示记录），不是模型上下文：被停的那一轮不进对话。
-    assert_eq!(second.context_len(), 0, "被停的那一轮不进模型上下文");
+    assert_eq!(
+        second.context_len("s1".to_string()),
+        0,
+        "被停的那一轮不进模型上下文"
+    );
     let transcript = second.transcript("s1".to_string());
     assert_eq!(transcript.len(), 1, "转写里仍然有那半句");
     assert_eq!(transcript[0].text, "上一次答的");
@@ -241,7 +247,7 @@ fn the_platform_list_and_transcript_come_from_the_core() {
     let handle = handle(&dir);
     attach(&handle, "s1", "列出你全部的工具");
     handle
-        .persist_interrupted_reply("半句话".to_string())
+        .persist_interrupted_reply("s1".to_string(), "半句话".to_string())
         .expect("persist");
 
     let conversations = handle.conversations();
@@ -261,12 +267,14 @@ fn the_platform_list_and_transcript_come_from_the_core() {
 fn start_then_end_detaches() {
     let handle = handle(&sessions_dir("detach"));
     attach(&handle, "s1", "新对话");
-    handle.end_conversation();
+    handle.end_conversation("s1".to_string());
     let listener = Arc::new(Collector {
         events: Mutex::new(Vec::new()),
     });
 
-    let error: AgentFailure = handle.send("你好".to_string(), listener).unwrap_err();
+    let error: AgentFailure = handle
+        .send("s1".to_string(), "你好".to_string(), listener)
+        .unwrap_err();
 
     assert!(error.to_string().contains("尚未附着会话"));
 }

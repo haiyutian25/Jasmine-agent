@@ -286,6 +286,11 @@ class MvvmUdfGateTest {
         /** 方案 §4.3 的同步助手白名单：这些函数由 `handleAction` 同步调用（或本身就是 handler）。 */
         val SynchronousHelpers = setOf(
             "handleAction",
+            // 每会话状态（照 ZCode 的 conversation projection）的唯一写入口：与 handleAction 同一条
+            // 规矩 —— 只由同步的 handler 调用，自己不做任何异步。
+            "updateChat",
+            "publishChat",
+            "releaseConversation",
             "resetSession",
             "handleTranscriptRestored",
             "handleSendClicked",

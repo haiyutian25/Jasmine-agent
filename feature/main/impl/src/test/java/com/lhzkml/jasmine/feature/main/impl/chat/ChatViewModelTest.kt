@@ -34,6 +34,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -102,7 +103,7 @@ class ChatViewModelTest {
      * 以前不行：流式解析的 worker 是随 ViewModel 起的长命协程，`withContext(Dispatchers.Default)`
      * 那一步可能在本用例结束后才回到 Main，于是这批续体在**下一个**用例的 `setUp` 上撞车
      * （`Dispatchers.Main is used concurrently with setting it`）。现在 worker 属于**这一轮**
-     * （见 `ChatViewModel.startTurn`：回合结束关通道、排空、join），不会有一条续体活过这一轮。
+     * （见 `ChatViewModel.launchTurn`：回合结束关通道、排空、join），不会有一条续体活过这一轮。
      */
     @After
     fun tearDown() {
@@ -607,6 +608,222 @@ class ChatViewModelTest {
             assertEquals(1, agentChat.conversationsEnded)
         }
 
+    /**
+     * 中途换会话：旧回合**照旧跑完**（它写的是自己那条会话的文件），但它的事件不能再往界面上落 ——
+     * 否则切过去之后，新会话里会冒出别人的工具卡和正文（工具卡 / 思考段找不到目标时会现造一条消息）。
+     */
+    @Test
+    fun `a turn left behind writes nothing into the conversation opened next`() =
+        runTest(testDispatcher) {
+            conversationStore.seedConversation(
+                "conv-a",
+                "A",
+                listOf(TranscriptMessage(ChatRole.USER, "from A")),
+            )
+            conversationStore.seedConversation(
+                "conv-b",
+                "B",
+                listOf(TranscriptMessage(ChatRole.USER, "from B")),
+            )
+            // 启动时恢复的是 A：这一轮要发在 A 上，然后才切到 B。
+            conversationStore.markLatest("conv-a")
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            assertEquals("conv-a", viewModel.stateFlow.value.activeConversationId)
+
+            agentChat.nextEvents = listOf(ChatEvent.Text("先说一句"))
+            agentChat.hangAfterEvents = true
+            agentChat.eventsAfterInterrupt = listOf(
+                ChatEvent.ToolCall("current_time", "—"),
+                ChatEvent.ToolResult("current_time", "2026-09-30 09:00"),
+                ChatEvent.Text("再说一句"),
+                ChatEvent.Reasoning("想想"),
+            )
+            viewModel.trySendAction(ChatAction.InputChanged("几点"))
+            viewModel.trySendAction(ChatAction.SendClicked)
+            advanceUntilIdle()
+            assertTrue(
+                "旧回合的正文应当落在自己那条会话上",
+                viewModel.stateFlow.value.messages.any { it.text.contains("先说一句") },
+            )
+
+            // 换到另一条会话，然后让旧回合把剩下的事件吐完。
+            viewModel.trySendAction(ChatAction.ConversationSelected("conv-b"))
+            advanceUntilIdle()
+            viewModel.trySendAction(ChatAction.StopClicked)
+            advanceUntilIdle()
+
+            val messages = viewModel.stateFlow.value.messages
+            assertEquals(listOf("from B"), messages.map { it.text })
+            assertTrue(
+                "新会话里不该出现旧回合的工具卡：" + messages.map { it.tool?.name },
+                messages.none { it.tool != null },
+            )
+            assertTrue(
+                "新会话里不该出现旧回合的思考：" + messages.map { it.thinking },
+                messages.none { it.thinking.isNotEmpty() },
+            )
+        }
+
+    /**
+     * 回复还在跑的时候新建对话、又马上切回原来那条：这条会话的转写必须照常显示（以前是整屏空白，
+     * 而且要离开再回来才恢复）。
+     */
+    @Test
+    fun `switching back to a conversation whose answer is still running shows its transcript`() =
+        runTest(testDispatcher) {
+            conversationStore.seedConversation(
+                "conv-a",
+                "A",
+                listOf(TranscriptMessage(ChatRole.USER, "from A")),
+            )
+            conversationStore.seedConversation(
+                "conv-b",
+                "B",
+                listOf(TranscriptMessage(ChatRole.USER, "from B")),
+            )
+            conversationStore.markLatest("conv-a")
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            agentChat.nextEvents = listOf(ChatEvent.Text("先说一句"))
+            agentChat.hangAfterEvents = true
+            viewModel.trySendAction(ChatAction.InputChanged("几点"))
+            viewModel.trySendAction(ChatAction.SendClicked)
+            advanceUntilIdle()
+
+            // 新建对话 → 立刻切回原来那条（它的回合还在跑）。
+            viewModel.trySendAction(ChatAction.NewConversationClicked)
+            advanceUntilIdle()
+            viewModel.trySendAction(ChatAction.ConversationSelected("conv-a"))
+            advanceUntilIdle()
+
+            val state = viewModel.stateFlow.value
+            assertEquals("conv-a", state.activeConversationId)
+            assertTrue(
+                "切回来应当看到这条会话的转写，实际是：" + state.messages.map { it.text },
+                state.messages.any { it.text == "from A" },
+            )
+        }
+
+    /**
+     * 两条会话**同时各跑各的**（照 ZCode 的多 topic 运行时）。
+     *
+     * A 回复到一半时切到 B、在 B 里发一条：B 不用等 A 那一轮跑完（核心那边一条会话一份附着），
+     * 两句回答各进各的会话；A 那一轮也不被顶掉、不被掐断（它的游标与解析 worker 跟着它自己）。
+     */
+    @Test
+    fun `two conversations run their own turns at the same time`() = runTest(testDispatcher) {
+        conversationStore.seedConversation(
+            "conv-a",
+            "A",
+            listOf(TranscriptMessage(ChatRole.USER, "from A")),
+        )
+        conversationStore.seedConversation(
+            "conv-b",
+            "B",
+            listOf(TranscriptMessage(ChatRole.USER, "from B")),
+        )
+        conversationStore.markLatest("conv-a")
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        // A：发一条，正文来一段之后挂住 —— 这一轮还在跑。
+        agentChat.nextEvents = listOf(ChatEvent.Text("A 讲到一半"))
+        agentChat.hangAfterEvents = true
+        viewModel.trySendAction(ChatAction.InputChanged("第一题"))
+        viewModel.trySendAction(ChatAction.SendClicked)
+        advanceUntilIdle()
+        assertTrue("A 那一轮应该在跑", viewModel.stateFlow.value.isSending)
+
+        // 切到 B，在 B 里发一条：它不等 A 那一轮。
+        viewModel.trySendAction(ChatAction.ConversationSelected("conv-b"))
+        advanceUntilIdle()
+        agentChat.nextEvents = listOf(ChatEvent.Text("B 的回答"), ChatEvent.Completed)
+        agentChat.hangAfterEvents = false
+        viewModel.trySendAction(ChatAction.InputChanged("第二题"))
+        viewModel.trySendAction(ChatAction.SendClicked)
+        advanceUntilIdle()
+
+        // 各附着各的、各发各的：两条消息没有挤到同一条会话上。
+        assertEquals(listOf("conv-a", "conv-b"), agentChat.sentSessions)
+        assertEquals(listOf("第一题", "第二题"), agentChat.sent)
+        assertEquals("两条会话各附着一次", 2, agentChat.conversationsStarted)
+
+        // B 上只有 B 那一轮，而且已经答完。
+        val b = viewModel.stateFlow.value
+        assertEquals(listOf("from B", "第二题", "B 的回答"), b.messages.map { it.text })
+        assertFalse("B 这一轮已经答完", b.isSending)
+
+        // A 那一轮还在跑，切回去看它的那一半。
+        viewModel.trySendAction(ChatAction.ConversationSelected("conv-a"))
+        advanceUntilIdle()
+        val a = viewModel.stateFlow.value
+        assertEquals(listOf("from A", "第一题", "A 讲到一半"), a.messages.map { it.text })
+        assertTrue("A 那一轮还在跑", a.isSending)
+    }
+
+    /**
+     * 切走之后这一轮**继续输出**的那一段，也要落进它自己那条会话（核心一直在正常输出、文件里也是
+     * 完整的，丢的只是显示）。
+     *
+     * 以前回合级的每一步读的都是"界面正显示的那条会话"的消息列表：切走之后读到的成了**别人的**，
+     * 于是正文只累到最新一个分片、解析结果整批被丢掉 —— 切回来永远停在切换那一刻，重启读文件才对上。
+     */
+    @Test
+    fun `a reply that keeps arriving after a switch stays in its own conversation`() =
+        runTest(testDispatcher) {
+            conversationStore.seedConversation(
+                "conv-a",
+                "A",
+                listOf(TranscriptMessage(ChatRole.USER, "from A")),
+            )
+            conversationStore.seedConversation(
+                "conv-b",
+                "B",
+                listOf(TranscriptMessage(ChatRole.USER, "from B")),
+            )
+            conversationStore.markLatest("conv-a")
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            agentChat.nextEvents = listOf(ChatEvent.Text("切换前"))
+            agentChat.hangAfterEvents = true
+            viewModel.trySendAction(ChatAction.InputChanged("写一段"))
+            viewModel.trySendAction(ChatAction.SendClicked)
+            advanceUntilIdle()
+
+            // 走开到另一条会话，原来那一轮继续在后台输出（没有中断、也没有结束）。
+            viewModel.trySendAction(ChatAction.ConversationSelected("conv-b"))
+            advanceUntilIdle()
+            agentChat.emitWhileHanging(ChatEvent.Text("，切换后"))
+            advanceUntilIdle()
+            agentChat.emitWhileHanging(ChatEvent.Reasoning("切换后的思考"))
+            advanceUntilIdle()
+
+            val shown = viewModel.stateFlow.value
+            assertTrue(
+                "界面上这条会话不该混进别人那一轮的输出：" + shown.messages.map { it.text },
+                shown.messages.none { it.text.contains("切换后") },
+            )
+            assertTrue(
+                "界面上这条会话不该混进别人那一轮的思考：" + shown.messages.map { it.thinking },
+                shown.messages.none { it.thinking.contains("切换后") },
+            )
+
+            // 切回来：切换之后才到的那一段必须在，正文是接上的。
+            viewModel.trySendAction(ChatAction.ConversationSelected("conv-a"))
+            advanceUntilIdle()
+            val reply = viewModel.stateFlow.value.messages.lastOrNull { it.role == ChatRole.ASSISTANT }
+            assertNotNull("切回来应当看到这条会话自己的回复", reply)
+            assertEquals("切换前，切换后", reply!!.text)
+            assertEquals("切换后的思考", reply.thinking)
+        }
+
     @Test
     fun `reselecting the current conversation rebuilds nothing`() = runTest(testDispatcher) {
         // 侧边栏里点当前这条路：抽屉由 UI 关，ViewModel 不该重建 session、
@@ -778,7 +995,13 @@ class ChatViewModelTest {
             val events = eventsOf(viewModel)
             advanceUntilIdle()
 
-            viewModel.trySendAction(ChatAction.Internal.ContextWindowRejected(1234L, "boom"))
+            viewModel.trySendAction(
+                ChatAction.Internal.ContextWindowRejected(
+                    ConversationChats.NEW_CONVERSATION,
+                    1234L,
+                    "boom",
+                )
+            )
             advanceUntilIdle()
 
             assertEquals(1234L, viewModel.stateFlow.value.contextWindow)
@@ -792,7 +1015,10 @@ class ChatViewModelTest {
             advanceUntilIdle()
             val ack = CompletableDeferred<Unit>()
 
-            viewModel.trySendAction(ChatAction.Internal.StreamParsed("no-such-message", null, null, ack))
+            // 轮次也是"查无此轮"：一条已经收尾（或根本不存在）的回合的贴块请求，ack 同样要放行。
+            viewModel.trySendAction(
+                ChatAction.Internal.StreamParsed("no-such-turn", "no-such-message", null, null, ack)
+            )
             advanceUntilIdle()
 
             // 不放行的话 worker 会永远挂在 ack 上、回合 join 不回来（见 ChatViewModel.deliverParsed）。
@@ -893,7 +1119,9 @@ class ChatViewModelTest {
         advanceUntilIdle()
         assertTrue("回合应该在跑", viewModel.stateFlow.value.isSending)
 
-        viewModel.trySendAction(ChatAction.Internal.TurnInterrupted(4_000L))
+        viewModel.trySendAction(
+            ChatAction.Internal.TurnInterrupted(viewModel.runningTurnIdForTest()!!, 4_000L)
+        )
         advanceUntilIdle()
 
         val state = viewModel.stateFlow.value
@@ -1170,16 +1398,37 @@ private class FakeAgentChat : AgentChat {
     /** 这个假核心的会话档位：测试直接给值。 */
     var sessionEffort: String? = null
 
-    override suspend fun reasoningEffort(): String? = sessionEffort
+    override suspend fun reasoningEffort(sessionId: String): String? = sessionEffort
 
     override suspend fun conversationReasoningEffort(sessionId: String): String? = sessionEffort
 
-    override suspend fun setReasoningEffort(value: String) {
+    override suspend fun setReasoningEffort(sessionId: String, value: String) {
         sessionEffort = value
     }
 
     /** 发完 [nextEvents] 后挂住，不发 Completed —— 模拟「回复还在进行中」。 */
     var hangAfterEvents = false
+
+    /**
+     * 挂住期间还要继续吐的事件：等中断信号到了先发这些，再发 Aborted。
+     *
+     * 用来模拟"用户切走了会话，核心那边这一轮还在跑"：切走之后才到的事件（工具调用 / 正文）以前会
+     * 落到**新**会话的界面上。
+     */
+    var eventsAfterInterrupt: List<ChatEvent> = emptyList()
+
+    /**
+     * 挂住期间推一条事件（推一条、吐一条）。
+     *
+     * 模拟"切走了会话，核心那边这一轮**还在正常输出**"：这一轮没有结束，也没有被中断，只是界面
+     * 在看别的会话 —— 那一段必须落进它自己那条会话。
+     */
+    fun emitWhileHanging(event: ChatEvent) {
+        hangWakeups.trySend(event)
+    }
+
+    /** 挂住期间的唤醒：一条要吐的事件，或一个"中断到了"的 null（只为把挂住的那一轮叫醒）。 */
+    private val hangWakeups = Channel<ChatEvent?>(Channel.UNLIMITED)
 
     override suspend fun startConversation(
         sessionId: String,
@@ -1194,21 +1443,34 @@ private class FakeAgentChat : AgentChat {
         this.settings = settings
     }
 
-    override fun send(text: String): Flow<ChatEvent> {
+    override fun send(sessionId: String, text: String): Flow<ChatEvent> {
         sent += text
+        sentSessions += sessionId
         return flow {
             nextEvents.forEach { emit(it) }
             // 挂住不回 Completed；核心被中断时以 Aborted 收尾（照 Rust 那边的事件契约）。
             if (hangAfterEvents) {
-                interruptSignal.await()
+                // 挂住期间被推来的事件照吐（见 [emitWhileHanging]），中断信号到了才进收尾。
+                while (!interruptSignal.isCompleted) {
+                    val next = hangWakeups.receive() ?: continue
+                    emit(next)
+                }
+                eventsAfterInterrupt.forEach { emit(it) }
                 emit(ChatEvent.Aborted(durationMs = 4_000))
             }
         }
     }
 
-    override fun endConversation() {
+    override fun endConversation(sessionId: String) {
         conversationsEnded++
+        ended += sessionId
     }
+
+    /** 每一轮发到哪条会话上（按顺序）；用来验"事件落进它自己那条"。 */
+    val sentSessions = mutableListOf<String>()
+
+    /** 释放过哪几条会话（按顺序）。 */
+    val ended = mutableListOf<String>()
 
     /** 核心那边会话的窗口；测试默认给核心的默认值。 */
     var contextWindow: Long = 200_000
@@ -1216,7 +1478,7 @@ private class FakeAgentChat : AgentChat {
     /** 界面设过的窗口，按顺序记下来。 */
     val contextWindowsSet = mutableListOf<Long>()
 
-    override suspend fun contextWindow(): Long = contextWindow
+    override suspend fun contextWindow(sessionId: String): Long = contextWindow
 
     /** 各会话自己记录的窗口；没有记录（或没设过）时为 null。 */
     val conversationContextWindows = mutableMapOf<String, Long>()
@@ -1230,7 +1492,7 @@ private class FakeAgentChat : AgentChat {
     override suspend fun conversationUsage(sessionId: String): ContextUsage? =
         conversationUsages[sessionId]
 
-    override fun setContextWindow(tokens: Long): Flow<ChatEvent> {
+    override fun setContextWindow(sessionId: String, tokens: Long): Flow<ChatEvent> {
         contextWindowsSet += tokens
         contextWindow = tokens
         return kotlinx.coroutines.flow.emptyFlow()
@@ -1247,24 +1509,32 @@ private class FakeAgentChat : AgentChat {
 
     private val interruptSignal = kotlinx.coroutines.CompletableDeferred<Unit>()
 
-    override suspend fun interrupt() {
+    override suspend fun interrupt(sessionId: String) {
         interruptCalls++
+        interruptedSessions += sessionId
         interruptFailure?.let { throw it }
         interrupted = true
         interruptSignal.complete(Unit)
+        // 把挂住的那一轮叫醒，让它走收尾（见 send 里那个循环）。
+        hangWakeups.trySend(null)
     }
 
-    override fun continueTurn(): Flow<ChatEvent> = kotlinx.coroutines.flow.emptyFlow()
+    /** 中断是冲着哪条会话去的（按顺序）。 */
+    val interruptedSessions = mutableListOf<String>()
 
-    override suspend fun persistInterruptedReply(text: String) {}
+    override fun continueTurn(sessionId: String): Flow<ChatEvent> =
+        kotlinx.coroutines.flow.emptyFlow()
+
+    override suspend fun persistInterruptedReply(sessionId: String, text: String) {}
 
     /** Events the resumed turn streams, once the user answers. */
     var nextPromptEvents: List<ChatEvent> = emptyList()
 
     val answered = mutableListOf<String>()
 
-    override fun respondToPrompts(answers: List<String>): Flow<ChatEvent> {
+    override fun respondToPrompts(sessionId: String, answers: List<String>): Flow<ChatEvent> {
         answered += answers
+        sentSessions += sessionId
         return nextPromptEvents.asFlow()
     }
 }

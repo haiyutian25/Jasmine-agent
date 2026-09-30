@@ -160,7 +160,7 @@ fn a_call_without_a_conversation_reports_it_as_text() {
     let service = service(&dir);
     let mut sink = Collector { events: Vec::new() };
 
-    let error = service.send("hello", &mut sink).unwrap_err();
+    let error = service.send("s1", "hello", &mut sink).unwrap_err();
 
     assert!(matches!(error, AgentError::NoSession));
     assert!(error.detail().contains("尚未附着会话"));
@@ -181,7 +181,7 @@ fn attaching_loads_the_context_the_conversation_already_has() {
 
     attach(&service, "known", "earlier");
 
-    assert_eq!(service.context_len(), 2);
+    assert_eq!(service.context_len("known"), 2);
 }
 
 #[test]
@@ -191,7 +191,7 @@ fn a_new_conversation_starts_from_an_empty_context() {
 
     attach(&service, "brand-new", "new chat");
 
-    assert_eq!(service.context_len(), 0);
+    assert_eq!(service.context_len("brand-new"), 0);
     let path = find_session_path(&dir, "brand-new")
         .expect("find")
         .expect("a conversation that was attached has a file");
@@ -203,11 +203,11 @@ fn ending_the_conversation_detaches_it() {
     let dir = sessions_dir("detach");
     let service = service(&dir);
     attach(&service, "s1", "chat");
-    service.end_conversation();
+    service.end_conversation("s1");
 
     let mut sink = Collector { events: Vec::new() };
     assert!(matches!(
-        service.send("hello", &mut sink).unwrap_err(),
+        service.send("s1", "hello", &mut sink).unwrap_err(),
         AgentError::NoSession
     ));
 }
@@ -223,11 +223,11 @@ fn a_stopped_reply_is_shown_but_stays_out_of_the_context() {
     attach(&service, "s1", "chat");
 
     service
-        .persist_interrupted_reply("half a sentence")
+        .persist_interrupted_reply("s1", "half a sentence")
         .expect("persist");
 
     // 模型上下文里没有它：下一轮请求不会带上。
-    assert_eq!(service.context_len(), 0);
+    assert_eq!(service.context_len("s1"), 0);
     let path = find_session_path(&dir, "s1").expect("find").expect("path");
     assert!(read_response_items(&path).expect("read").is_empty());
 
@@ -280,7 +280,7 @@ fn a_new_conversation_starts_from_the_catalogs_default_level() {
         )
         .expect("attach");
 
-    assert_eq!(service.reasoning_effort().as_deref(), Some("high"));
+    assert_eq!(service.reasoning_effort("s1").as_deref(), Some("high"));
 
     let path = find_session_path(&dir, "s1").expect("find").expect("path");
     let text = std::fs::read_to_string(&path).expect("read");
@@ -322,7 +322,7 @@ fn a_model_outside_the_catalog_starts_from_its_configured_default() {
         )
         .expect("attach");
 
-    assert_eq!(service.reasoning_effort().as_deref(), Some("low"));
+    assert_eq!(service.reasoning_effort("s1").as_deref(), Some("low"));
 }
 
 /// 会话里存过的档，**换到的模型不支持**时会被矫正掉：落到这个模型的目录起点档，并把实际用的值记进去。
@@ -334,8 +334,8 @@ fn a_stored_level_the_new_model_does_not_support_is_corrected() {
     let service = service(&dir);
     attach(&service, "s1", "chat");
     // DeepSeek 那四档里有 `max`：先把这条会话的档位改成它。
-    service.set_reasoning_effort("max").expect("set max");
-    assert_eq!(service.reasoning_effort().as_deref(), Some("max"));
+    service.set_reasoning_effort("s1", "max").expect("set max");
+    assert_eq!(service.reasoning_effort("s1").as_deref(), Some("max"));
 
     // 换成 OpenAI 的 `gpt-5.5`（目录里**没有** `max`）→ 矫正成它的起点档 `medium`。
     let model = ModelConfig {
@@ -353,7 +353,7 @@ fn a_stored_level_the_new_model_does_not_support_is_corrected() {
         )
         .expect("attach");
 
-    assert_eq!(service.reasoning_effort().as_deref(), Some("medium"));
+    assert_eq!(service.reasoning_effort("s1").as_deref(), Some("medium"));
 
     // 矫正不是"只在内存里改一下"：会话文件里留下这条记录，历史一条不删 ——
     // `high`（新建时目录给的起点档）→ `max`（用户改的）→ `medium`（换模型后矫正成的新模型起点档）。
@@ -379,12 +379,12 @@ fn changing_the_effort_appends_a_record_and_takes_effect() {
     let dir = sessions_dir("effort-changes");
     let service = service(&dir);
     attach(&service, "s1", "chat");
-    assert_eq!(service.reasoning_effort().as_deref(), Some("high"));
+    assert_eq!(service.reasoning_effort("s1").as_deref(), Some("high"));
 
-    service.set_reasoning_effort("low").expect("set low");
-    service.set_reasoning_effort("high").expect("set high");
+    service.set_reasoning_effort("s1", "low").expect("set low");
+    service.set_reasoning_effort("s1", "high").expect("set high");
 
-    assert_eq!(service.reasoning_effort().as_deref(), Some("high"));
+    assert_eq!(service.reasoning_effort("s1").as_deref(), Some("high"));
 
     let path = find_session_path(&dir, "s1").expect("find").expect("path");
     let text = std::fs::read_to_string(&path).expect("read");
@@ -406,7 +406,7 @@ fn changing_the_effort_appends_a_record_and_takes_effect() {
 
     // 改完之后再跑一轮：这一轮记的档位跟的是**会话**的值，不是模型配置里的（模型这里是空串）。
     let mut sink = Collector { events: Vec::new() };
-    let _ = service.send("hello", &mut sink);
+    let _ = service.send("s1", "hello", &mut sink);
     let text = std::fs::read_to_string(&path).expect("read");
     let turn_line = text
         .lines()
@@ -440,7 +440,7 @@ fn each_turn_records_the_reasoning_effort() {
         .expect("attach");
 
     let mut sink = Collector { events: Vec::new() };
-    let _ = service.send("hello", &mut sink);
+    let _ = service.send("s1", "hello", &mut sink);
 
     let path = find_session_path(&dir, "s1").expect("find").expect("path");
     let text = std::fs::read_to_string(&path).expect("read");
@@ -523,6 +523,74 @@ fn the_thinking_a_stopped_turn_had_reached_is_shown_but_stays_out_of_the_context
         read_response_items(&path).expect("read").is_empty(),
         "展示记录不是模型条目"
     );
+}
+
+/// 新建 / 切换对话时平台会释放会话 —— 它**不能等正在跑的那一轮**：平台是同步调用、而且发在界面
+/// 线程上，等下去就是整个界面卡住（回复多久就卡多久）。释放记为请求，回合结束自己放手。
+#[test]
+fn releasing_a_conversation_does_not_wait_for_a_running_turn() {
+    let dir = sessions_dir("detach-mid-turn");
+    let service = service(&dir);
+    attach(&service, "s1", "chat");
+
+    // 模拟"回合正在跑"：它整个回合都占着**这条会话自己的**槽。
+    let slot = service.attached_slot("s1").expect("slot");
+    let mut held = slot.lock().expect("lock");
+    let started = std::time::Instant::now();
+    service.end_conversation("s1");
+    assert!(
+        started.elapsed() < std::time::Duration::from_millis(200),
+        "释放不能等着回合跑完"
+    );
+    assert!(held.is_some(), "回合还在跑时，会话先留着（它自己要用）");
+
+    // 回合结束时由它自己放手。
+    service.release_if_detach_requested("s1", &slot, &mut held);
+    assert!(held.is_none(), "回合结束才真的放掉");
+    drop(held);
+    assert!(service.slot("s1").is_none(), "放掉之后这条会话不再附着");
+
+    // 再释放一次：这回没人占着，当场就清掉。
+    attach(&service, "s1", "chat");
+    service.end_conversation("s1");
+    assert!(service.slot("s1").is_none());
+}
+
+/// 一条会话在跑，**不挡别的会话**：另一条照常附着、照常收消息，而且释放它不会碰到前一条。
+///
+/// 这是"多会话并行"的核心 —— 以前只有一个附着位，切到另一条会话就得等前一条跑完（或者把它掐掉）。
+#[test]
+fn a_running_turn_does_not_hold_up_another_conversation() {
+    let dir = sessions_dir("parallel-attach");
+    let service = service(&dir);
+    attach(&service, "s1", "one");
+    attach(&service, "s2", "two");
+
+    // s1 的一轮正占着它自己的槽。
+    let slot = service.attached_slot("s1").expect("slot");
+    let held = slot.lock().expect("lock");
+
+    // s2 照样附着：不用等 s1 那一轮。
+    let started = std::time::Instant::now();
+    service
+        .start_conversation(
+            &SessionId::new("s2"),
+            provider(),
+            &model(),
+            "",
+            &AgentSettings::default(),
+        )
+        .expect("attach s2");
+    assert!(
+        started.elapsed() < std::time::Duration::from_millis(200),
+        "另一条会话的附着不能等 s1 那一轮"
+    );
+
+    // 释放 s2 也不会碰到 s1：s1 还附着着，槽还在。
+    service.end_conversation("s2");
+    assert!(service.slot("s2").is_none(), "s2 放掉了");
+    assert!(service.slot("s1").is_some(), "s1 不受影响");
+    drop(held);
 }
 
 /// 没有内容可带（没暂停过，或那一轮什么都没做出来）：不生成任何片段，用户的消息就是原样那几个字。

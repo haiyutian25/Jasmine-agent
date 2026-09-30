@@ -5,8 +5,11 @@
 //! model means starting a new conversation.
 //!
 //! The core underneath is async while the boundary is synchronous, so each call drives its
-//! operation on a runtime of its own. The service is stateful and holds the conversation while a
-//! call runs: one instance per conversation owner, one call at a time.
+//! operation on a runtime of its own. The service is stateful: it holds **every conversation the
+//! platform has attached at once**, one slot per conversation id, and each slot holds its own
+//! conversation while a call runs. So a turn in one conversation never waits for — and never stops —
+//! a turn running in another; two turns inside the *same* conversation still take turns, which is
+//! the conversation's own business.
 
 use crate::agent_settings::AgentSettings;
 use crate::client::ModelClient;
@@ -46,11 +49,14 @@ use jasmine_tools::ConversationSummary as ToolConversationSummary;
 use jasmine_tools::ConversationTitles;
 use jasmine_tools::CurrentTimeTool;
 use jasmine_tools::ListPastConversationsTool;
+use std::collections::HashMap;
 use std::future::Future;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::MutexGuard;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use tokio_util::sync::CancellationToken;
 
 /// Where the core pushes events on their way back to the platform.
@@ -150,15 +156,65 @@ struct Attached {
     reasoning_effort: String,
 }
 
+/// One attached conversation, with everything that belongs to it alone.
+///
+/// The service keeps one of these per conversation id, so the locks here protect **that conversation
+/// only**: what they serialize is two calls inside one conversation, never two conversations.
+struct SessionSlot {
+    /// What this conversation is attached to. A running turn holds this for its whole run.
+    attached: Mutex<Option<Attached>>,
+    /// The running turn's own token, kept outside [Self::attached] so [`AgentChatService::interrupt`]
+    /// can reach it while a turn holds that lock for its whole run.
+    cancellation: Mutex<CancellationToken>,
+    /// Set when the platform releases this conversation **while a turn is running**.
+    ///
+    /// That turn holds [Self::attached] for its whole run, so the release cannot take it there and
+    /// then — and waiting for it would block the platform for as long as the reply takes (it makes
+    /// this call synchronously). The request is noted instead, and the turn drops the attachment
+    /// itself on its way out (see [`AgentChatService::release_if_detach_requested`]).
+    detach_requested: AtomicBool,
+}
+
+impl SessionSlot {
+    fn new() -> Self {
+        Self {
+            attached: Mutex::new(None),
+            cancellation: Mutex::new(CancellationToken::new()),
+            detach_requested: AtomicBool::new(false),
+        }
+    }
+
+    fn lock(&self) -> Result<MutexGuard<'_, Option<Attached>>, AgentError> {
+        self.attached.lock().map_err(|_| AgentError::Poisoned)
+    }
+
+    /// Takes this conversation **if nobody has it**: a running turn holding it is not a reason to wait.
+    fn try_lock(&self) -> Option<MutexGuard<'_, Option<Attached>>> {
+        self.attached.try_lock().ok()
+    }
+
+    /// A token for the turn about to run, shared with [`AgentChatService::interrupt`].
+    ///
+    /// The clone and the turn's own handle share one state, so cancelling through the service
+    /// reaches the turn that is running.
+    fn fresh_cancellation(&self) -> Result<CancellationToken, AgentError> {
+        let token = CancellationToken::new();
+        *self.cancellation.lock().map_err(|_| AgentError::Poisoned)? = token.clone();
+        Ok(token)
+    }
+}
+
 /// One conversation, as the platform drives it.
+///
+/// It owns a slot for **every conversation it has attached** — ZCode's per-topic runtime: switching to
+/// another conversation neither waits for the turn running in this one nor stops it, and the window
+/// the platform is looking at is only a view of one of them.
 pub struct AgentChatService {
     sessions_dir: PathBuf,
     clock: Arc<dyn Clock>,
     runtime: ToolCallRuntime,
-    attached: Mutex<Option<Attached>>,
-    /// The running turn's own token, kept outside [Self::attached] so [Self::interrupt] can reach
-    /// it while a turn holds that lock for its whole run.
-    cancellation: Mutex<CancellationToken>,
+    /// Every attached conversation, keyed by its own id.
+    sessions: Mutex<HashMap<String, Arc<SessionSlot>>>,
 }
 
 impl AgentChatService {
@@ -179,8 +235,7 @@ impl AgentChatService {
             sessions_dir,
             clock,
             runtime: ToolCallRuntime::new(Arc::new(registry)),
-            attached: Mutex::new(None),
-            cancellation: Mutex::new(CancellationToken::new()),
+            sessions: Mutex::new(HashMap::new()),
         }
     }
 
@@ -303,7 +358,11 @@ impl AgentChatService {
             thread.note_usage_record(info, breakdown);
         }
 
-        *self.lock()? = Some(Attached {
+        // 挂到**这条会话自己的**槽上（不是"换掉当前那条"）：别的会话照样附着着，各跑各的回合。
+        let slot = self.slot_or_create(session_id.as_str())?;
+        // 它上一轮留下的释放请求到此为止。
+        slot.detach_requested.store(false, Ordering::SeqCst);
+        *slot.lock()? = Some(Attached {
             client,
             model: model.clone(),
             // 语言那部分由核心拼（界面只传值）：系统指令 = 平台给的人格 + 核心的输出语言规则。
@@ -320,16 +379,16 @@ impl AgentChatService {
         Ok(())
     }
 
-    /// The window the attached conversation runs against, in tokens.
+    /// The window one conversation runs against, in tokens.
     ///
-    /// Nothing is attached before the platform has attached a conversation, and nothing to report
-    /// either — the platform's own default applies until then.
-    pub fn context_window(&self) -> Option<i64> {
-        self.lock().ok().and_then(|attached| {
-            attached
-                .as_ref()
-                .map(|attached| attached.thread.context_window())
-        })
+    /// `None` when that conversation is not attached: nothing has been resolved for it yet, and the
+    /// platform's own default applies until then.
+    pub fn context_window(&self, session_id: &str) -> Option<i64> {
+        let slot = self.slot(session_id)?;
+        let attached = slot.lock().ok()?;
+        attached
+            .as_ref()
+            .map(|attached| attached.thread.context_window())
     }
 
     /// Sets the window the attached conversation runs against and records it in its file.
@@ -338,10 +397,12 @@ impl AgentChatService {
     /// and reported back straight away so the platform can redraw without waiting for a reply.
     pub fn set_context_window(
         &self,
+        session_id: &str,
         tokens: u64,
         sink: &mut dyn ChatSink,
     ) -> Result<(), AgentError> {
-        let mut guard = self.lock()?;
+        let slot = self.attached_slot(session_id)?;
+        let mut guard = slot.lock()?;
         let attached = guard.as_mut().ok_or(AgentError::NoSession)?;
         let Attached {
             thread,
@@ -358,21 +419,22 @@ impl AgentChatService {
         Ok(())
     }
 
-    /// 这个会话当前的推理档位；没有附着会话时 `None`。
-    pub fn reasoning_effort(&self) -> Option<String> {
-        self.lock().ok().and_then(|attached| {
-            attached
-                .as_ref()
-                .map(|attached| attached.reasoning_effort.clone())
-        })
+    /// 这个会话当前的推理档位；它没附着时 `None`。
+    pub fn reasoning_effort(&self, session_id: &str) -> Option<String> {
+        let slot = self.slot(session_id)?;
+        let attached = slot.lock().ok()?;
+        attached
+            .as_ref()
+            .map(|attached| attached.reasoning_effort.clone())
     }
 
     /// 改这个会话的推理档位，并把这次改动**追加**进它的文件。
     ///
     /// 追加而不是覆盖：每改一次多一条，所以「未设置 → 高 → 低」这样的历史完整留在文件里，一条都不删。
     /// 改完立刻生效 —— 请求侧从这一刻起用会话自己的值（不再看模型配置）。
-    pub fn set_reasoning_effort(&self, value: &str) -> Result<(), AgentError> {
-        let mut guard = self.lock()?;
+    pub fn set_reasoning_effort(&self, session_id: &str, value: &str) -> Result<(), AgentError> {
+        let slot = self.attached_slot(session_id)?;
+        let mut guard = slot.lock()?;
         let attached = guard.as_mut().ok_or(AgentError::NoSession)?;
         let Attached {
             client,
@@ -449,17 +511,29 @@ impl AgentChatService {
             .map_err(|error| AgentError::Transcript(error.to_string()))
     }
 
-    /// How many messages the conversation's context holds.
-    pub fn context_len(&self) -> usize {
-        self.lock()
-            .ok()
-            .and_then(|attached| attached.as_ref().map(|attached| attached.history.len()))
+    /// How many messages one conversation's context holds.
+    pub fn context_len(&self, session_id: &str) -> usize {
+        self.slot(session_id)
+            .and_then(|slot| {
+                slot.lock()
+                    .ok()
+                    .and_then(|attached| attached.as_ref().map(|attached| attached.history.len()))
+            })
             .unwrap_or(0)
     }
 
-    /// Appends the user's message and streams the reply.
-    pub fn send(&self, text: &str, sink: &mut dyn ChatSink) -> Result<(), AgentError> {
-        let mut guard = self.lock()?;
+    /// Appends the user's message to **this** conversation and streams the reply.
+    ///
+    /// The turn holds this conversation's slot for its whole run: other conversations keep running and
+    /// keep taking calls, and a second send into *this* one waits for the turn that is already here.
+    pub fn send(
+        &self,
+        session_id: &str,
+        text: &str,
+        sink: &mut dyn ChatSink,
+    ) -> Result<(), AgentError> {
+        let slot = self.attached_slot(session_id)?;
+        let mut guard = slot.lock()?;
         let attached = guard.as_mut().ok_or(AgentError::NoSession)?;
         let Attached {
             client,
@@ -494,7 +568,7 @@ impl AgentChatService {
                 });
             }
         }
-        *cancellation = self.fresh_cancellation()?;
+        *cancellation = slot.fresh_cancellation()?;
         let started = std::time::Instant::now();
         *turn_id = uuid::Uuid::new_v4().to_string();
         *interrupted = false;
@@ -534,23 +608,28 @@ impl AgentChatService {
         }
         record_turn(rollout, history, recorded)?;
         record_usage(rollout, thread)?;
-        finish_turn(
+        let finished = finish_turn(
             rollout,
             &mut emit,
             turn_id,
             interrupted,
             started.elapsed().as_millis() as u64,
             outcome?,
-        )
-    }
+        );
+        // 平台可能在回合中途请求过释放（新建 / 切换对话）：那一步不能等这一轮，由这里放手。
+        self.release_if_detach_requested(session_id, &slot, &mut guard);
+        finished
+            }
 
     /// Answers the prompts a turn stopped on and continues that turn.
     pub fn respond_to_prompts(
         &self,
+        session_id: &str,
         answers: &[String],
         sink: &mut dyn ChatSink,
     ) -> Result<(), AgentError> {
-        let mut guard = self.lock()?;
+        let slot = self.attached_slot(session_id)?;
+        let mut guard = slot.lock()?;
         let attached = guard.as_mut().ok_or(AgentError::NoSession)?;
         let Attached {
             client,
@@ -570,7 +649,7 @@ impl AgentChatService {
         let runtime = &self.runtime;
         let mut emit = |event: ChatEvent| sink.emit(event);
         let mut recorded = history.len();
-        *cancellation = self.fresh_cancellation()?;
+        *cancellation = slot.fresh_cancellation()?;
         let started = std::time::Instant::now();
         *turn_id = uuid::Uuid::new_v4().to_string();
         *interrupted = false;
@@ -610,15 +689,18 @@ impl AgentChatService {
         }
         record_turn(rollout, history, recorded)?;
         record_usage(rollout, thread)?;
-        finish_turn(
+        let finished = finish_turn(
             rollout,
             &mut emit,
             turn_id,
             interrupted,
             started.elapsed().as_millis() as u64,
             outcome?,
-        )
-    }
+        );
+        // 平台可能在回合中途请求过释放（新建 / 切换对话）：那一步不能等这一轮，由这里放手。
+        self.release_if_detach_requested(session_id, &slot, &mut guard);
+        finished
+            }
 
     /// One conversation's unfinished turn, if it has one.
     ///
@@ -637,8 +719,9 @@ impl AgentChatService {
     /// carries, which is what the platform's continue affordance asks for. What the model then does
     /// with the interrupted transcript — pick the answer up or write it again — is the model's own
     /// call. A turn that finished is not continued: the call does nothing.
-    pub fn recover_turn(&self, sink: &mut dyn ChatSink) -> Result<(), AgentError> {
-        let mut guard = self.lock()?;
+    pub fn recover_turn(&self, session_id: &str, sink: &mut dyn ChatSink) -> Result<(), AgentError> {
+        let slot = self.attached_slot(session_id)?;
+        let mut guard = slot.lock()?;
         let attached = guard.as_mut().ok_or(AgentError::NoSession)?;
         if !attached.interrupted {
             return Ok(());
@@ -662,7 +745,7 @@ impl AgentChatService {
         let runtime = &self.runtime;
         let mut emit = |event: ChatEvent| sink.emit(event);
         let mut recorded = history.len();
-        *cancellation = self.fresh_cancellation()?;
+        *cancellation = slot.fresh_cancellation()?;
         let started = std::time::Instant::now();
         *interrupted = false;
         // The id stays as it is: sampling restarts under the id the file already recorded for that
@@ -703,39 +786,35 @@ impl AgentChatService {
         }
         record_turn(rollout, history, recorded)?;
         record_usage(rollout, thread)?;
-        finish_turn(
+        let finished = finish_turn(
             rollout,
             &mut emit,
             turn_id,
             interrupted,
             started.elapsed().as_millis() as u64,
             outcome?,
-        )
-    }
+        );
+        // 平台可能在回合中途请求过释放（新建 / 切换对话）：那一步不能等这一轮，由这里放手。
+        self.release_if_detach_requested(session_id, &slot, &mut guard);
+        finished
+            }
 
-    /// Stops the turn that is running.
+    /// Stops the turn that is running **in this conversation**.
     ///
     /// Nothing is cut off mid-flight: the turn notices at its next await point and reports itself as
     /// aborted. What it had already streamed went to the platform; a stopped round does not join the
-    /// conversation.
-    pub fn interrupt(&self) -> Result<(), AgentError> {
-        let token = self
-            .cancellation
-            .lock()
-            .map_err(|_| AgentError::Poisoned)?
-            .clone();
+    /// conversation. Other conversations' turns are untouched.
+    ///
+    /// A conversation that is not attached (or whose turn has just ended) has nothing to stop, and
+    /// that is not an error: the platform's stop may arrive after the turn it was aimed at.
+    pub fn interrupt(&self, session_id: &str) -> Result<(), AgentError> {
+        let Some(slot) = self.slot(session_id) else {
+            return Ok(());
+        };
+        // Only the token's own lock, never the conversation's: the turn holds that one all the way.
+        let token = slot.cancellation.lock().map_err(|_| AgentError::Poisoned)?.clone();
         token.cancel();
         Ok(())
-    }
-
-    /// A token for the turn about to run, shared with [Self::interrupt].
-    ///
-    /// The clone and the turn's own handle share one state, so cancelling through the service
-    /// reaches the turn that is running.
-    fn fresh_cancellation(&self) -> Result<CancellationToken, AgentError> {
-        let token = CancellationToken::new();
-        *self.cancellation.lock().map_err(|_| AgentError::Poisoned)? = token.clone();
-        Ok(token)
     }
 
     /// Keeps the half-written reply a cancelled turn left behind.
@@ -743,12 +822,13 @@ impl AgentChatService {
     /// The platform owns the durable transcript, and this puts that text where the transcript reads
     /// it. It is not part of the conversation: only what the provider marked done is, so the next
     /// request does not carry it — the model sees that round's interrupted marker and nothing else.
-    pub fn persist_interrupted_reply(&self, text: &str) -> Result<(), AgentError> {
+    pub fn persist_interrupted_reply(&self, session_id: &str, text: &str) -> Result<(), AgentError> {
         if text.trim().is_empty() {
             return Ok(());
         }
 
-        let mut guard = self.lock()?;
+        let slot = self.attached_slot(session_id)?;
+        let mut guard = slot.lock()?;
         let attached = guard.as_mut().ok_or(AgentError::NoSession)?;
         record_boundary(
             &mut attached.rollout,
@@ -790,6 +870,8 @@ impl AgentChatService {
 
     /// Removes a conversation and its file.
     pub fn delete_conversation(&self, session_id: &SessionId) -> Result<(), AgentError> {
+        // 连附着一起放掉：文件都没了，留着这条会话的槽没有意义（回合跑着的话，由那一轮自己放手）。
+        self.end_conversation(session_id.as_str());
         delete_session(&self.sessions_dir, session_id.as_str())
             .map_err(|error| AgentError::Transcript(error.to_string()))
     }
@@ -1029,10 +1111,38 @@ impl AgentChatService {
         lines
     }
 
-    /// Releases the conversation. Its stored history is left untouched.
-    pub fn end_conversation(&self) {
-        if let Ok(mut attached) = self.lock() {
+    /// Releases one conversation. Its stored history is left untouched, and so is every other
+    /// conversation — including one whose turn is still running.
+    ///
+    /// Answers straight away even while a turn is running: that turn owns the slot until it ends, so
+    /// the release is noted and the turn drops it on its way out. Waiting here — as taking the lock
+    /// would — blocks the caller for as long as the reply takes, and the platform makes this call on
+    /// its UI thread (switching or opening a conversation would freeze on it).
+    pub fn end_conversation(&self, session_id: &str) {
+        let Some(slot) = self.slot(session_id) else {
+            return;
+        };
+        slot.detach_requested.store(true, Ordering::SeqCst);
+        if let Some(mut attached) = slot.try_lock() {
             *attached = None;
+            slot.detach_requested.store(false, Ordering::SeqCst);
+            self.forget(session_id);
+        }
+    }
+
+    /// Drops a conversation's slot when the platform asked for it while that turn was running.
+    ///
+    /// Called by the turn itself, still holding the slot's lock, so the slot is gone before anything
+    /// waiting on that lock (the next attach of the same conversation) can see it.
+    fn release_if_detach_requested(
+        &self,
+        session_id: &str,
+        slot: &SessionSlot,
+        attached: &mut MutexGuard<'_, Option<Attached>>,
+    ) {
+        if slot.detach_requested.swap(false, Ordering::SeqCst) {
+            **attached = None;
+            self.forget(session_id);
         }
     }
 
@@ -1041,8 +1151,35 @@ impl AgentChatService {
         Arc::clone(&self.clock)
     }
 
-    fn lock(&self) -> Result<MutexGuard<'_, Option<Attached>>, AgentError> {
-        self.attached.lock().map_err(|_| AgentError::Poisoned)
+    /// The slot of one conversation, if it is attached at all.
+    fn slot(&self, session_id: &str) -> Option<Arc<SessionSlot>> {
+        self.sessions
+            .lock()
+            .ok()
+            .and_then(|sessions| sessions.get(session_id).cloned())
+    }
+
+    /// The slot of one conversation, for calls that attach it first.
+    fn slot_or_create(&self, session_id: &str) -> Result<Arc<SessionSlot>, AgentError> {
+        let mut sessions = self.sessions.lock().map_err(|_| AgentError::Poisoned)?;
+        Ok(Arc::clone(
+            sessions
+                .entry(session_id.to_string())
+                .or_insert_with(|| Arc::new(SessionSlot::new())),
+        ))
+    }
+
+    /// The slot of one conversation; a call that needs it treats "not attached" as
+    /// [AgentError::NoSession].
+    fn attached_slot(&self, session_id: &str) -> Result<Arc<SessionSlot>, AgentError> {
+        self.slot(session_id).ok_or(AgentError::NoSession)
+    }
+
+    /// Drops a conversation's slot: it is not attached any more.
+    fn forget(&self, session_id: &str) {
+        if let Ok(mut sessions) = self.sessions.lock() {
+            sessions.remove(session_id);
+        }
     }
 }
 
