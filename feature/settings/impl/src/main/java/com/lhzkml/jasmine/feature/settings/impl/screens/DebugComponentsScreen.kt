@@ -41,6 +41,7 @@ import com.lhzkml.jasmine.core.widgets.switch.Switch
 import com.lhzkml.jasmine.core.widgets.switch.SwitchDefaults
 import com.lhzkml.jasmine.core.widgets.textfield.OutlinedTextField
 import com.lhzkml.jasmine.core.widgets.textfield.TextField
+import com.lhzkml.jasmine.feature.settings.api.SettingsDebugSearchBarVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugSidebarVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugTopAppBarVariant
 import com.lhzkml.jasmine.feature.settings.impl.R
@@ -67,6 +68,7 @@ fun DebugComponentsScreen(
     onOpenSidebar: (String) -> Unit,
     onOpenBottomBar: () -> Unit,
     onOpenSlider: () -> Unit,
+    onOpenSearchBar: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -134,6 +136,15 @@ fun DebugComponentsScreen(
         DebugSliderGroup(
             currentTheme = currentTheme,
             onOpen = onOpenSlider,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupSpacing))
+
+        // 搜索框：同样只是入口，4 个变体点进去是各自独立的页面。
+        DebugSearchBarGroup(
+            currentTheme = currentTheme,
+            onOpen = onOpenSearchBar,
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -459,6 +470,52 @@ private fun DebugTopAppBarEntry(
         TextButton(onClick = onClick) {
             Text(stringResource(R.string.debug_top_app_bar_open))
         }
+    }
+}
+
+/** 搜索框变体入口：4 个变体各是**独立**的页面（不套设置流那套顶栏）。 */
+@Composable
+private fun DebugSearchBarGroup(
+    currentTheme: CssVariables,
+    onOpen: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(currentTheme.card)
+            .border(1.dp, currentTheme.border, shape)
+    ) {
+        Text(
+            text = stringResource(R.string.debug_screen_section_search_bar),
+            fontSize = DebugTitleFontSize,
+            fontWeight = FontWeight.Medium,
+            color = currentTheme.mutedForeground,
+            modifier = Modifier.padding(
+                start = DebugRowPaddingHorizontal,
+                top = DebugRowPaddingHorizontal,
+                bottom = DebugRowPaddingVertical
+            )
+        )
+
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_search_bar_entry_search_bar),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugSearchBarVariant.SEARCH_BAR) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_search_bar_entry_expanded_full_screen),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugSearchBarVariant.EXPANDED_FULL_SCREEN) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_search_bar_entry_expanded_docked),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugSearchBarVariant.EXPANDED_DOCKED) }
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupBottomPadding))
     }
 }
 

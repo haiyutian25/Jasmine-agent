@@ -115,4 +115,15 @@
     <string name="debug_slider_range">Custom range 0-100</string>
     <string name="debug_slider_colors">Custom colors</string>
     <string name="debug_slider_disabled">Disabled</string>
+
+    <!-- Component-layer debug: search bars (the new state-based API). -->
+    <string name="debug_screen_section_search_bar">Search bars</string>
+    <string name="debug_search_bar_entry_search_bar">Search bar (collapsed)</string>
+    <string name="debug_search_bar_entry_expanded_full_screen">Expanded: full screen</string>
+    <string name="debug_search_bar_entry_expanded_docked">Expanded: docked</string>
+    <string name="debug_search_bar_hint">Tap the input field to expand; the two expanded variants start expanded.</string>
+    <string name="debug_search_bar_placeholder">Search</string>
+    <string name="debug_search_bar_suggestions">Suggestions</string>
+    <string name="debug_search_bar_body">Row %1$d</string>
+    <string name="debug_search_bar_content">Result %1$d</string>
 </resources>

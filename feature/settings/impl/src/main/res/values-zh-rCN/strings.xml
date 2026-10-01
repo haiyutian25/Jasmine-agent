@@ -115,4 +115,15 @@
     <string name="debug_slider_range">自定义范围 0–100</string>
     <string name="debug_slider_colors">自定义配色</string>
     <string name="debug_slider_disabled">禁用</string>
+
+    <!-- 组件层调试：搜索框（新版 state API） -->
+    <string name="debug_screen_section_search_bar">搜索框</string>
+    <string name="debug_search_bar_entry_search_bar">折叠态搜索栏</string>
+    <string name="debug_search_bar_entry_expanded_full_screen">展开态：全屏</string>
+    <string name="debug_search_bar_entry_expanded_docked">展开态：停靠</string>
+    <string name="debug_search_bar_hint">点输入框会展开；后两档进来就是展开状态。</string>
+    <string name="debug_search_bar_placeholder">搜索</string>
+    <string name="debug_search_bar_suggestions">搜索建议</string>
+    <string name="debug_search_bar_body">列表第 %1$d 行</string>
+    <string name="debug_search_bar_content">结果 %1$d</string>
 </resources>

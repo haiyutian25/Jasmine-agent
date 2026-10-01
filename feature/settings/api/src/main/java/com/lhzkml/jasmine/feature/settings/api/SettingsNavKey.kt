@@ -77,6 +77,15 @@ sealed interface SettingsNavKey : NavKey {
      */
     @Serializable
     data object DebugSlider : SettingsNavKey
+
+    /**
+     * **搜索框变体预览** 页：`variant` 取 [SettingsDebugSearchBarVariant] 里的常量。
+     *
+     * 与 [DebugTopAppBar] 同一套做法：页面自己就是组件层的独立试验场 —— 页内顶栏是我们的小号
+     * `TopAppBar`，被测的搜索框紧贴其下；展开态那两档进来就是展开状态。
+     */
+    @Serializable
+    data class DebugSearchBar(val variant: String) : SettingsNavKey
 }
 
 /** [SettingsNavKey.DebugSidebar] 的 `variant` 取值。 */
@@ -95,4 +104,16 @@ object SettingsDebugTopAppBarVariant {
 
     /** 小号顶部栏（标题居中）。 */
     const val CENTER_ALIGNED = "centerAligned"
+}
+
+/** [SettingsNavKey.DebugSearchBar] 的 `variant` 取值。 */
+object SettingsDebugSearchBarVariant {
+    /** 折叠态：基础搜索栏（`SearchBar(state, …)`），配全屏展开。 */
+    const val SEARCH_BAR = "searchBar"
+
+    /** 展开态：全屏（`ExpandedFullScreenSearchBar`，走 `BasicEdgeToEdgeDialog` + 预测返回）。 */
+    const val EXPANDED_FULL_SCREEN = "expandedFullScreen"
+
+    /** 展开态：停靠（`ExpandedDockedSearchBar`，走 `Popup`）。 */
+    const val EXPANDED_DOCKED = "expandedDocked"
 }
