@@ -312,7 +312,7 @@ val animatedBg by animateColorAsState(
 ```kotlin
 Column(modifier = modifier.fillMaxWidth().background(currentTheme.background).statusBarsPadding()) {
     Row(modifier = Modifier.fillMaxWidth().height(TopNavBarHeight).padding(horizontal = 10.dp)) {
-        // 仅侧边栏开关(28dp 点击区域 + 28dp 纯 Menu 图标，无底色/边框/按压水波纹，testTag = "top_nav_sidebar_btn")
+        // 仅侧边栏开关(共用的 Button 撑起 48dp 最小触摸区 + 28dp 纯 Menu 图标，无底色/边框/按压水波纹，testTag = "top_nav_sidebar_btn")
     }
     Box(Modifier.fillMaxWidth().height(TopNavDividerHeight).background(currentTheme.border)) // 1px 分割线
 }
