@@ -14,6 +14,10 @@ android {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
   }
+
+  // 纯 JVM 单测：目前只覆盖读路径的判定（`readStoredProviders`），用不到真 DataStore 与 Context，
+  // 但同文件里声明了 `android.*` 的顶层委托，所以让 android.* 桩方法返回默认值而不是抛。
+  testOptions { unitTests { isReturnDefaultValues = true } }
 }
 
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11) } }
@@ -33,4 +37,6 @@ dependencies {
 
   implementation(libs.hilt.android)
   ksp(libs.hilt.compiler)
+
+  testImplementation(libs.junit)
 }

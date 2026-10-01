@@ -514,7 +514,9 @@ fn the_thinking_a_stopped_turn_had_reached_is_shown_but_stays_out_of_the_context
         }])
         .expect("record");
 
-    let entries = service.transcript(&SessionId::new("s1")).expect("transcript");
+    let entries = service
+        .transcript(&SessionId::new("s1"))
+        .expect("transcript");
     assert!(
         entries
             .iter()
@@ -726,7 +728,9 @@ fn a_call_that_never_returned_is_shown_as_stopped_not_completed() {
         })])
         .expect("record");
 
-    let entries = service.transcript(&SessionId::new("s1")).expect("transcript");
+    let entries = service
+        .transcript(&SessionId::new("s1"))
+        .expect("transcript");
     let tool = entries
         .iter()
         .find(|entry| entry.tool_name.as_deref() == Some("current_time"))

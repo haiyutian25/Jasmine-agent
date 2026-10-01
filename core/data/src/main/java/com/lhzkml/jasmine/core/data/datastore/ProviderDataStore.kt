@@ -48,19 +48,12 @@ class ProviderDataStore @Inject constructor(
 
     /** Provider stream; a missing entry reads as the factory seed (see the class doc). */
     val providers: Flow<List<ProviderConfig>> = store.data.map { prefs ->
-        val raw = prefs[KEY_PROVIDERS]
-        if (raw.isNullOrBlank()) {
-            builtInProviders.list()
-        } else {
-            runCatching { json.decodeFromString<List<ProviderConfig>>(raw) }
-                .getOrElse { failure ->
-                    // 解码失败**要上报**（G1）：以前这里是静默换成出厂种子，而"存了但读不出来"与
-                    // "还没存过"在调用方看来完全一样 —— 界面显示出厂列表、用户一改就被 update 拒掉，
-                    // 他自己那份（含 API key）被"藏起来"，而且没有任何人知道。
-                    failures.tryEmit(failure.message ?: failure.toString())
-                    builtInProviders.list()
-                }
-        }
+        val read = readStoredProviders(prefs[KEY_PROVIDERS], json, builtInProviders::list)
+        // 解码失败**要上报**（G1）：以前这里是静默换成出厂种子，而"存了但读不出来"与"还没存过"
+        // 在调用方看来完全一样 —— 界面显示出厂列表、用户一改就被 update 拒掉，他自己那份
+        // （含 API key）被"藏起来"，而且没有任何人知道。
+        read.failure?.let { failures.tryEmit(it) }
+        read.providers
     }
 
     /**
@@ -98,6 +91,37 @@ class ProviderDataStore @Inject constructor(
     private companion object {
         val KEY_PROVIDERS = stringPreferencesKey("providers")
     }
+}
+
+/** [readStoredProviders] 的结果：这次读出来的列表 + 读失败的原因（成功时为 null）。 */
+internal data class ProviderRead(
+    val providers: List<ProviderConfig>,
+    val failure: String?,
+)
+
+/**
+ * 存下来的那段 JSON → 供应商列表（G6 为可测提出来的纯函数：读路径的真身要 `Context` 与真
+ * DataStore，而这条判定不依赖它们）。
+ *
+ * 三种输入要分得清清楚楚：
+ * - **没存过**（null / 空白）→ 出厂种子，**不上报** —— 这是"第一次启动"，不是坏数据；
+ * - **存过且能解码** → 用用户自己那份；
+ * - **存过但解不出来** → 给出厂种子让界面有东西显示，**同时把原因交出去**（G1）：用户那份
+ *   （含 API key）还在磁盘上，不说一声他会以为配置丢了、照着出厂清单重填一遍。
+ *
+ * [builtIn] 是个 lambda：出厂种子来自 Rust 那边（`built_in_providers`），只在真需要时才问它。
+ */
+internal fun readStoredProviders(
+    raw: String?,
+    json: Json,
+    builtIn: () -> List<ProviderConfig>,
+): ProviderRead {
+    if (raw.isNullOrBlank()) return ProviderRead(builtIn(), failure = null)
+    return runCatching { json.decodeFromString<List<ProviderConfig>>(raw) }
+        .fold(
+            onSuccess = { ProviderRead(it, failure = null) },
+            onFailure = { ProviderRead(builtIn(), failure = it.message ?: it.toString()) },
+        )
 }
 
 internal const val PROVIDER_PREFS_FILE_NAME = "model_providers"

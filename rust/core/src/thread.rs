@@ -257,7 +257,10 @@ impl ChatThread {
     /// 的残缺记录，之后每次请求都被服务端以 400 拒掉。
     ///
     /// `Some(vec![])`（数量都是 0）表示"确实没有待答"，与 `None`（数量对不上）是两回事。
-    pub fn take_prompt_answers(&mut self, answers: &[String]) -> Option<Vec<(PendingPrompt, String)>> {
+    pub fn take_prompt_answers(
+        &mut self,
+        answers: &[String],
+    ) -> Option<Vec<(PendingPrompt, String)>> {
         if answers.len() != self.pending_prompts.len() {
             return None;
         }
@@ -419,20 +422,22 @@ mod tests {
     fn answers_that_do_not_match_the_prompts_consume_nothing() {
         let mut thread = ChatThread::new();
         for id in ["c1", "c2"] {
-            thread.on_response_event(prompt_event(
-                crate::event_mapping::REQUEST_INPUT_TOOL,
-                id,
-            ));
+            thread.on_response_event(prompt_event(crate::event_mapping::REQUEST_INPUT_TOOL, id));
         }
         assert_eq!(thread.pending_prompts().count(), 2);
 
         // 空提交、少交、多交：都不许动状态。
-        assert!(thread.take_prompt_answers(&[]).is_none(), "空提交是数量不符");
-        assert_eq!(thread.pending_prompts().count(), 2, "空提交不能清掉待答提示");
         assert!(
-            thread
-                .take_prompt_answers(&["a".to_string()])
-                .is_none(),
+            thread.take_prompt_answers(&[]).is_none(),
+            "空提交是数量不符"
+        );
+        assert_eq!(
+            thread.pending_prompts().count(),
+            2,
+            "空提交不能清掉待答提示"
+        );
+        assert!(
+            thread.take_prompt_answers(&["a".to_string()]).is_none(),
             "少交一个是数量不符"
         );
         assert_eq!(thread.pending_prompts().count(), 2);

@@ -420,9 +420,7 @@ impl AgentHandle {
     /// **只算本月**：比本月 1 号早的记录不进统计，所以上个月的数字会自己消失（旧记录仍留在会话
     /// 文件里，那本来就是转写）。
     pub fn usage_stats(&self) -> Result<AppUsageStats, AgentFailure> {
-        self.inner
-            .usage_stats()
-            .map_err(AgentFailure::from)
+        self.inner.usage_stats().map_err(AgentFailure::from)
     }
 
     /// 设定当前会话的上下文窗口，落进它的会话文件。

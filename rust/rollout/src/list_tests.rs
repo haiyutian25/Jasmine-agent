@@ -4,6 +4,7 @@ use crate::RolloutItem;
 use crate::RolloutRecorder;
 use crate::SessionMeta;
 use crate::TurnAbortReason;
+use crate::delete_session;
 use crate::interrupted_turn_items;
 use crate::list_sessions;
 use crate::read_response_items;
@@ -179,6 +180,82 @@ fn the_stopped_turns_own_items_read_back_in_order() {
         .expect("record");
 
     assert!(interrupted_turn_items(&path).is_empty());
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// 坏一行**不许**带走整个文件：后面的行还是用户的记录（G6，对应 F6 的 `read_lines`）。
+#[test]
+fn a_corrupt_line_is_skipped_and_never_takes_the_file_down() {
+    use std::io::Write;
+
+    let dir = sessions_dir("corrupt-line");
+    let mut recorder = RolloutRecorder::create(&dir, &meta("s1", "first")).expect("create");
+    recorder
+        .record_items(&[RolloutItem::ResponseItem(message("user", "hello"))])
+        .expect("record");
+    let path = recorder.rollout_path().to_path_buf();
+
+    // 手动插一条截断的行：写了一半就断电、或磁盘上被谁改坏了。
+    {
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .expect("open");
+        writeln!(
+            file,
+            "{{\"timestamp\":\"2026-09-27T16:41:05+08:00\",\"type\":\"response_item\""
+        )
+        .expect("write");
+    }
+
+    let items = read_response_items(&path).expect("读坏了也不该整份失败");
+    assert_eq!(items.len(), 1, "坏的那行跳过，好的照读");
+    assert_eq!(items[0], message("user", "hello"));
+
+    // 列表同样：这条会话的元信息行是好的，它就该在列表里（`updated_at` 只认读得出来的行）。
+    let entries = list_sessions(&dir).expect("list");
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].meta.session_id, "s1");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// 整份文件都读不出来（连元信息都没有）时，跳过**这一条**，别的会话照常列出来。
+///
+/// 这是"文件坏了"与"历史全没了"的分界：列表要少一条并留痕，不能因为一条坏的就把整张表清空。
+#[test]
+fn a_session_whose_file_cannot_be_read_is_skipped_and_the_others_still_list() {
+    let dir = sessions_dir("corrupt-file");
+    let mut healthy = RolloutRecorder::create(&dir, &meta("s-healthy", "healthy")).expect("create");
+    healthy
+        .record_items(&[RolloutItem::ResponseItem(message("user", "hi"))])
+        .expect("record");
+    let broken = RolloutRecorder::create(&dir, &meta("s-broken", "broken")).expect("create");
+    std::fs::write(broken.rollout_path(), "not json at all\n").expect("write");
+
+    let entries = list_sessions(&dir).expect("list");
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].meta.session_id, "s-healthy");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// 删会话就是删它那一个文件；重复删是 no-op（平台可能重复发同一条指令）。
+#[test]
+fn deleting_a_session_removes_its_file_and_the_list_follows() {
+    let dir = sessions_dir("delete");
+    let mut recorder = RolloutRecorder::create(&dir, &meta("s1", "first")).expect("create");
+    recorder
+        .record_items(&[RolloutItem::ResponseItem(message("user", "hello"))])
+        .expect("record");
+    let path = recorder.rollout_path().to_path_buf();
+
+    delete_session(&dir, "s1").expect("delete");
+    assert!(!path.exists(), "文件应当被删掉");
+    assert!(list_sessions(&dir).expect("list").is_empty());
+
+    delete_session(&dir, "s1").expect("再删一次应当是 no-op");
 
     let _ = std::fs::remove_dir_all(&dir);
 }

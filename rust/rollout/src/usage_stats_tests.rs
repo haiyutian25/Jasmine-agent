@@ -310,7 +310,10 @@ fn a_corrupt_archive_line_is_skipped_and_repaired() {
 
     // 坏行不该让统计失败……
     let second = super::usage_stats(&dir).expect("坏行不该让统计失败");
-    assert_eq!(first.total_tokens, second.total_tokens, "坏行不影响别的会话");
+    assert_eq!(
+        first.total_tokens, second.total_tokens,
+        "坏行不影响别的会话"
+    );
     // ……而且它会被这次刷新修掉。
     let repaired = std::fs::read_to_string(&archive).expect("存档还在");
     assert!(

@@ -1086,8 +1086,8 @@ impl AgentChatService {
             Ok(None) => return Ok(Vec::new()),
             Err(error) => return Err(AgentError::Transcript(error.to_string())),
         };
-        let items = read_timed_items(&path)
-            .map_err(|error| AgentError::Transcript(error.to_string()))?;
+        let items =
+            read_timed_items(&path).map_err(|error| AgentError::Transcript(error.to_string()))?;
 
         // A turn's model is written at its start, so every line it produced can say which model
         // the user's message went to — a conversation that switched models keeps them apart.

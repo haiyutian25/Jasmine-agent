@@ -69,7 +69,7 @@ impl Tool for ListPastConversationsTool {
                         "The conversation list could not be read just now ({reason}). \
                          Tell the user it could not be read and to try again; do not claim the \
                          list is empty."
-                    ))
+                    ));
                 }
             };
             if conversations.is_empty() {

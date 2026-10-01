@@ -451,7 +451,7 @@ Main → SettingsMenu（设置菜单列表）→ AppearanceSettings（外观设�
 
 ## 11. 共享工具与测试体系
 
-### 11.1 测试栈（JVM 单测共 87 例）
+### 11.1 测试栈（JVM 单测共 120 例）
 
 | 测试 | 内容 | 说明 |
 | :--- | :--- | :--- |
@@ -459,15 +459,19 @@ Main → SettingsMenu（设置菜单列表）→ AppearanceSettings（外观设�
 | `MvvmUdfGateTest`（`feature:main:impl`，10 例） | 源码级 UDF 门禁：单一状态写入点、异步结果经 `Internal` action 回流、影子状态只由同步 handler 写、会话投影必须派生、View 层不碰平台 | 纯文本比对，非运行期断言 |
 | `ChatViewModelTest`（`feature:main:impl`，49 例） | 对话状态机：发送 / 流式追加 / 贴块握手 / 失败 / 中断与继续 / 开会话 / 恢复并重放 / 切换与回收（keep-warm）/ 乐观写的身份守卫回滚 | 假仓库 + 假 `AgentChat`，不触网 |
 | `UsageStatsViewModelTest`（`feature:main:impl`，2 例） | 用量页：按天聚合、空态 | 假仓库 |
+| `MainViewModelTest`（`app`，13 例） | 外壳：偏好回灌（侧栏是瞬态、不跟着回灌）、侧栏 toggle 不碰偏好、**六条乐观写的身份守卫回滚**与迟到失败不顶掉新选择、字体删除与下载的提示、主题派生 | Robolectric（要真 `Context`）+ 真字体仓库配假下载接口 |
 | `ProviderViewModelRollbackTest`（`feature:provider:impl`，3 例） | 乐观写的失败回滚：删除按原位插回、保存恢复快照并重开草稿、迟到的失败不顶掉新草稿 | 假仓库注入失败 |
 | `LanguageViewModelTest`（`feature:settings:impl`，3 例） | 语言页：首屏值经 action 落地、选择即应用、配置换掉回到平台权威值 | 假 `AppLanguageRepository` |
-| `BaseViewModelTest` / `EventsEffectTest` / `ReasoningEffortTest`（`core:ui`，3 / 1 / 6 例） | `EffectRunner` 出站 FIFO / 失败回流 / 取消透传 / 单消费者、销毁时关通道；事件在 RESUMED 之后才投递；推理档位只列目录声明的档 | 假协程调度器 / 假生命周期 |
+| `BaseViewModelTest` / `EffectRunnerTest` / `EventsEffectTest` / `ReasoningEffortTest`（`core:ui`，3 / 4 / 1 / 6 例） | 动作队列 FIFO、销毁时关通道；**出站命令单消费者 / 成败都回流 / 取消穿透不被当成失败 / 作用域取消后 send 是 no-op**；事件在 RESUMED 之后才投递；推理档位只列目录声明的档 | 假协程调度器 / 假生命周期 |
 | `EventSinkTest`（`core:agent`，4 例） | 事件汇：有界通道 + 文本合并、终态事件绝不丢、通道关闭后不抛 | |
 | `CoreEventFlowTest`（`core:agent`，3 例） | `coreEventFlow`：任何异常都收成一个终态失败，`finish()` 一定执行（含 5s 超时护栏） | |
+| `RustAgentChatMappingTest`（`core:agent`，8 例） | 跨边界两张表：九个核心事件逐个映射、回合终态判定（用量不是终态）、四型失败分型与"猜不出来就不猜"、用量与构成 | 不需要真的核心句柄 |
+| `RustConversationReadTest`（`core:agent`，4 例） | 会话列表**读失败保留上一次快照**、只把原因交出去；没有 message 的异常也要有原因 | 同上（判定已提成纯函数） |
+| `ProviderReadTest`（`core:data`，4 例） | 供应商配置读路径：没存过 / 存过能解 / 存过解不出来（要上报）/ 形状不对，四条分岔 | 纯 JVM |
 
 - Robolectric 基线 **SDK 36**（`app/src/test/resources/robolectric.properties`），**要求 JDK 21**（SDK 36 沙盒硬性要求；SDK 37 需 Robolectric 4.17-beta，暂不采用）。
 - 截图基准图生成：`gradle :app:testDebugUnitTest -Proborazzi.test.record=true`。
-- Rust 侧：`cargo test --workspace`（当前 **186 passed**）。
+- Rust 侧：`cargo test --workspace`（当前 **189 passed**）、`cargo clippy --workspace --all-targets` 无告警、`cargo fmt --check` 一致。
 
 ### 11.2 构建验证命令
 
@@ -477,7 +481,8 @@ gradle :app:assembleDebug                     # 完整打包（需根目录 debu
 gradle :app:testDebugUnitTest                 # 全部模块的 JVM 单测 + 截图测试
 gradle :feature:main:impl:testDebugUnitTest   # 对话状态机 + UDF 门禁
 gradle :core:ui:testDebugUnitTest             # BaseViewModel / EffectRunner / EventsEffect
-gradle :core:agent:testDebugUnitTest          # 事件汇与 coreEventFlow
+gradle :core:agent:testDebugUnitTest          # 事件汇、coreEventFlow、跨边界映射
+gradle :core:data:testDebugUnitTest           # 供应商配置读路径的判定
 gradle :feature:provider:impl:testDebugUnitTest  # 供应商 CRUD + 回滚
 gradle :feature:settings:impl:testDebugUnitTest  # 语言页
 ```

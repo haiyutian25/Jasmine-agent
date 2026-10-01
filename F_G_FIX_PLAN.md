@@ -524,7 +524,7 @@ is ChatAction.Internal.ActiveModelReceived -> {
 `SidebarEdgeZone` / `44dp` / `ImeAction.Send` / `取 Nothing`）在这三份文档里只剩"说明其不存在"的句子；
 其余常量（47dp / 295dp / 320ms / 280ms / 26dp / 30s / 60 字符）与源码逐个对上。
 
-### G6 补齐行为级测试空白
+### G6 补齐行为级测试空白 — ✅（两项如实顺延，见实施记录）
 
 **现状（证据）**：目前的行为级测试集中在 `ChatViewModelTest`(49)、`MvvmUdfGateTest`(10)、
 `UsageStatsViewModelTest`(2)、`ProviderViewModelRollbackTest`(3)、`LanguageViewModelTest`(3)、
@@ -556,6 +556,62 @@ is ChatAction.Internal.ActiveModelReceived -> {
 **Phase F 的每一条修完，必须同时补该条的回归测试**（见各条的"怎么验证"）。
 
 **怎么验证**：全量 `gradlew testDebugUnitTest` + `cargo test --workspace` 全绿，且新增用例数可数。
+
+**实施记录**
+
+按"① core/ui → ② core/agent → ③ MainViewModel → ④ core/data → ⑤ Rust"的顺序补完，共 **+33 例**
+（JVM 由 87 增到 **120**，Rust 由 186 增到 **189**），全量测试、`cargo fmt --check`、`cargo clippy`
+（0 告警）全绿。
+
+- **① `core/ui`（+4）**：`EffectRunnerTest` —— 命令**单消费者**（前一条没跑完，后一条不许开始）、
+  成败两条路都回流成 action、**取消穿透**（`CancellationException` 不许被兜成 `*Rejected`，那会在
+  ViewModel 已经销毁后回滚状态并弹一个红字）、作用域取消后 `send` 是 no-op。C1 当初承诺过这条验收
+  测试却没写，这次补上。`BaseViewModelTest` / `EventsEffectTest` 已由 F4/F5 落地，不重复。
+- **② `core/agent`（+12）**：
+  - `RustAgentChatMappingTest`(8)：九个核心事件逐个过映射表（漏一个 = 那类事件在界面上消失）、
+    回合终态真值表（**用量不是终态**、提问是终态）、`AgentFailure` 四型分型、本地
+    `IllegalStateException` 算 INTERNAL、认不出来的不猜、用量带构成、未配窗口保持 null。
+  - `RustConversationReadTest`(4)：会话列表**读失败保留上一次快照**、只把原因交出去、没有 message
+    的异常也要有一句能显示的原因（否则等于"读成功"，界面一声不吭）。
+  - 为可测做的两处**必要改动**（都保持行为不变）：`toChatEvent` / `toKind` / `endsTurn` 由 private
+    提到 internal；`read()` 里"一次读盘怎么落到状态上"提成纯函数 `applyConversationRead`（真身要真
+    `AgentHandle`，JVM 起不来，但判定不依赖句柄）。
+- **③ `MainViewModel`（+13，放在 `app` 模块）**：整类此前零测试。覆盖偏好回灌（**侧栏是会话瞬态位置、
+  不跟着回灌**）、侧栏 toggle 不碰偏好写口、**六条乐观写的身份守卫回滚**逐条 + 每条都出提示、
+  迟到的失败不顶掉新选择、排版引擎那条的双字段守卫、删当前字体立刻清空选择、删别的字体不动它、
+  删除失败要说、下载失败要说、下载/导入完成各有各的提示、主题派生（显式浅色不受系统深色影响 /
+  跟随系统才受影响）、正文字体回落排版引擎。
+  放在 `app` 是因为 `MainViewModel` 要真 `Context`（读系统深色模式），而 `app` 已经配好 Robolectric；
+  字体仓库用**真的**（`filesDir` 是 Robolectric 的临时目录），配一个抛异常的假 `FontDownloadApi`
+  走真实的下载失败路径。为此给 `app` 加了 `testImplementation(core:network, okhttp)`。
+- **④ `core/data`（+4）**：`ProviderReadTest` —— 读路径的三岔路口（没存过 → 出厂种子且**不报**；
+  存过能解 → 用用户那份；存过解不出 / 形状不对 → 出厂种子 **+ 上报原因**，G1 的行为级回归）。
+  同样把判定提成纯函数 `readStoredProviders`（真身要 `Context` + 真 DataStore），`core:data` 因此
+  第一次有了 `src/test`。
+- **⑤ Rust（+3）**：`rollout` 三条 —— 坏一行**不带走整个文件**（后面的行照读，列表也照列）、
+  整份文件读不出来时**只跳这一条**、`delete_session` 删得掉且重复删是 no-op。其余几项本来就已被
+  覆盖，逐条点名：并发/不排队 `a_running_turn_does_not_hold_up_another_conversation`、
+  读侧不阻塞 `reading_the_context_length_does_not_wait_for_a_running_turn`、中毒可清
+  `ending_a_poisoned_conversation_still_clears_it`、释放不被跳过 `a_failed_turn_still_releases_the_conversation`、
+  工具并行结果按调用顺序归位 `tools::parallel::answers_come_back_in_the_order_the_calls_were_asked`、
+  坏数据自愈 `usage_stats::a_corrupt_archive_line_is_skipped_and_repaired`、FFI 的调用时序错误
+  `handle_reports_call_order_errors_as_text`。
+
+**两项没做，如实记在这里**（都不是"忘了"）：
+1. **`core:markdown` 的 G2/G3 回归**：`IncrementalMarkdownDocument` 的解析器是 JNI 的（构造时就
+   `System.loadLibrary`），`MermaidRenderer` 要真 `WebView` 与 `Looper` —— 两者的行为级测试要仪器化
+   测试或真机，纯 JVM/Robolectric 下测到的是替身而不是被测物。G2/G3 的改动本身是"返回快照 /
+   加超时"这种读一眼就能确认的形式。
+2. **导航与返回键（`MainScreen` 抽屉拦返回、`MainNavHost` 的 `MainEvent.ShowToast` 格式化）**：
+   要 Compose UI 测试 + 一个真 `Activity`（`createAndroidComposeRule`），属于新引入的一类测试
+   基建（现有 `MainScreenshotTest` 只渲染、不断言交互）。本期先把零覆盖里**风险最高**的
+   `MainViewModel` 拿下了；这一条留在下一批，不假装做了。
+
+**顺带修的两处**（都在验证时撞见）：`cargo fmt --check` 此前**不一致** —— F1/F2/F6 那几批提交里
+有 6 个文件没过 fmt（`service.rs` / `service_tests.rs` / `thread.rs` / `lib.rs` / `usage_stats_tests.rs` /
+`list_past_conversations.rs`），而 MODULE_MAP 一直声称"fmt 一致"；已全部 fmt 并复核
+（`cargo fmt --check` 现在真的干净）。`core/ui/build.gradle.kts` 里还留着一条提到已删
+`BottomNavBar` 的陈旧注释，一并改掉。
 
 ---
 

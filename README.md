@@ -69,12 +69,13 @@ jasmine/
 gradle :app:testDebugUnitTest                    # app-level Robolectric + Roborazzi
 gradle :feature:main:impl:testDebugUnitTest      # chat state machine + the MVVM/UDF gate
 gradle :core:ui:testDebugUnitTest                # BaseViewModel / EffectRunner / EventsEffect
-gradle :core:agent:testDebugUnitTest             # event sink + coreEventFlow
+gradle :core:agent:testDebugUnitTest             # event sink, coreEventFlow, boundary mappings
+gradle :core:data:testDebugUnitTest              # provider-config read path
 gradle :feature:provider:impl:testDebugUnitTest  # provider CRUD + optimistic-write rollback
 gradle :feature:settings:impl:testDebugUnitTest  # language page
 ```
 
-`gradle testDebugUnitTest` runs all of the above (87 JVM tests). Rust: `cargo test --workspace` (186 tests).
+`gradle testDebugUnitTest` runs all of the above (120 JVM tests). Rust: `cargo test --workspace` (189 tests).
 
 - Robolectric tests run against **SDK 36** (see `app/src/test/resources/robolectric.properties`), which requires Java 21.
 - `MainScreenshotTest` renders the home chat surface via Roborazzi (`app/src/test/screenshots/chat.png`). To (re)generate the golden image, run once with `-Proborazzi.test.record=true`.
