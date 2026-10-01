@@ -10,12 +10,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,10 +32,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lhzkml.jasmine.core.ui.icons.LucideIcons
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.core.widgets.bottomsheet.ModalBottomSheet
 import com.lhzkml.jasmine.core.widgets.button.Button
 import com.lhzkml.jasmine.core.widgets.button.TextButton
+import com.lhzkml.jasmine.core.widgets.switch.Switch
+import com.lhzkml.jasmine.core.widgets.switch.SwitchDefaults
 import com.lhzkml.jasmine.core.widgets.textfield.OutlinedTextField
 import com.lhzkml.jasmine.core.widgets.textfield.TextField
 import com.lhzkml.jasmine.feature.settings.impl.R
@@ -87,6 +92,10 @@ fun DebugComponentsScreen(
         Spacer(modifier = Modifier.height(DebugGroupSpacing))
 
         DebugSheetGroup(currentTheme = currentTheme, modifier = Modifier.fillMaxWidth())
+
+        Spacer(modifier = Modifier.height(DebugGroupSpacing))
+
+        DebugSwitchGroup(currentTheme = currentTheme, modifier = Modifier.fillMaxWidth())
     }
 }
 
@@ -297,5 +306,63 @@ private fun DebugTextField(
             placeholder = { Text("Text") },
             singleLine = true
         )
+    }
+}
+
+/** 滑动开关：开 / 关 × 可用 / 禁用，外加一个带缩略图标的变体。 */
+@Composable
+private fun DebugSwitchGroup(
+    currentTheme: CssVariables,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    var onState by remember { mutableStateOf(true) }
+    var offState by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(currentTheme.card)
+            .border(1.dp, currentTheme.border, shape)
+    ) {
+        Text(
+            text = stringResource(R.string.debug_screen_section_switches),
+            fontSize = DebugTitleFontSize,
+            fontWeight = FontWeight.Medium,
+            color = currentTheme.mutedForeground,
+            modifier = Modifier.padding(
+                start = DebugRowPaddingHorizontal,
+                top = DebugRowPaddingHorizontal,
+                bottom = DebugRowPaddingVertical
+            )
+        )
+
+        DebugRow(label = "On", currentTheme = currentTheme) {
+            Switch(checked = onState, onCheckedChange = { onState = it })
+        }
+        DebugRow(label = "Off", currentTheme = currentTheme) {
+            Switch(checked = offState, onCheckedChange = { offState = it })
+        }
+        DebugRow(label = "Disabled on", currentTheme = currentTheme) {
+            Switch(checked = true, onCheckedChange = null, enabled = false)
+        }
+        DebugRow(label = "Disabled off", currentTheme = currentTheme) {
+            Switch(checked = false, onCheckedChange = null, enabled = false)
+        }
+        DebugRow(label = "With icon", currentTheme = currentTheme) {
+            Switch(
+                checked = onState,
+                onCheckedChange = { onState = it },
+                thumbContent = {
+                    Icon(
+                        imageVector = LucideIcons.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(SwitchDefaults.IconSize)
+                    )
+                }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(DebugGroupBottomPadding))
     }
 }

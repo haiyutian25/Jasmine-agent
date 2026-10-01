@@ -73,4 +73,5 @@
     <string name="debug_screen_section_text_fields">Text fields</string>
     <string name="debug_screen_section_sheets">Bottom sheets</string>
     <string name="debug_screen_sheet_open">Open</string>
+    <string name="debug_screen_section_switches">Switches</string>
 </resources>
