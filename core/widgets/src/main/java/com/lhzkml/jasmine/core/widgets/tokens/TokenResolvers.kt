@@ -41,54 +41,17 @@ import androidx.compose.ui.unit.Dp
 @Stable
 internal fun ColorScheme.fromToken(value: ColorSchemeKeyTokens): Color {
     return when (value) {
-        ColorSchemeKeyTokens.Background -> background
         ColorSchemeKeyTokens.Error -> error
-        ColorSchemeKeyTokens.ErrorContainer -> errorContainer
-        ColorSchemeKeyTokens.InverseOnSurface -> inverseOnSurface
-        ColorSchemeKeyTokens.InversePrimary -> inversePrimary
-        ColorSchemeKeyTokens.InverseSurface -> inverseSurface
-        ColorSchemeKeyTokens.OnBackground -> onBackground
-        ColorSchemeKeyTokens.OnError -> onError
-        ColorSchemeKeyTokens.OnErrorContainer -> onErrorContainer
         ColorSchemeKeyTokens.OnPrimary -> onPrimary
         ColorSchemeKeyTokens.OnPrimaryContainer -> onPrimaryContainer
-        ColorSchemeKeyTokens.OnSecondary -> onSecondary
-        ColorSchemeKeyTokens.OnSecondaryContainer -> onSecondaryContainer
         ColorSchemeKeyTokens.OnSurface -> onSurface
         ColorSchemeKeyTokens.OnSurfaceVariant -> onSurfaceVariant
-        ColorSchemeKeyTokens.SurfaceTint -> surfaceTint
-        ColorSchemeKeyTokens.OnTertiary -> onTertiary
-        ColorSchemeKeyTokens.OnTertiaryContainer -> onTertiaryContainer
         ColorSchemeKeyTokens.Outline -> outline
-        ColorSchemeKeyTokens.OutlineVariant -> outlineVariant
         ColorSchemeKeyTokens.Primary -> primary
-        ColorSchemeKeyTokens.PrimaryContainer -> primaryContainer
         ColorSchemeKeyTokens.Scrim -> scrim
-        ColorSchemeKeyTokens.Secondary -> secondary
-        ColorSchemeKeyTokens.SecondaryContainer -> secondaryContainer
         ColorSchemeKeyTokens.Surface -> surface
-        ColorSchemeKeyTokens.SurfaceVariant -> surfaceVariant
-        ColorSchemeKeyTokens.SurfaceBright -> surfaceBright
-        ColorSchemeKeyTokens.SurfaceContainer -> surfaceContainer
-        ColorSchemeKeyTokens.SurfaceContainerHigh -> surfaceContainerHigh
         ColorSchemeKeyTokens.SurfaceContainerHighest -> surfaceContainerHighest
         ColorSchemeKeyTokens.SurfaceContainerLow -> surfaceContainerLow
-        ColorSchemeKeyTokens.SurfaceContainerLowest -> surfaceContainerLowest
-        ColorSchemeKeyTokens.SurfaceDim -> surfaceDim
-        ColorSchemeKeyTokens.Tertiary -> tertiary
-        ColorSchemeKeyTokens.TertiaryContainer -> tertiaryContainer
-        ColorSchemeKeyTokens.PrimaryFixed -> primaryFixed
-        ColorSchemeKeyTokens.PrimaryFixedDim -> primaryFixedDim
-        ColorSchemeKeyTokens.OnPrimaryFixed -> onPrimaryFixed
-        ColorSchemeKeyTokens.OnPrimaryFixedVariant -> onPrimaryFixedVariant
-        ColorSchemeKeyTokens.SecondaryFixed -> secondaryFixed
-        ColorSchemeKeyTokens.SecondaryFixedDim -> secondaryFixedDim
-        ColorSchemeKeyTokens.OnSecondaryFixed -> onSecondaryFixed
-        ColorSchemeKeyTokens.OnSecondaryFixedVariant -> onSecondaryFixedVariant
-        ColorSchemeKeyTokens.TertiaryFixed -> tertiaryFixed
-        ColorSchemeKeyTokens.TertiaryFixedDim -> tertiaryFixedDim
-        ColorSchemeKeyTokens.OnTertiaryFixed -> onTertiaryFixed
-        ColorSchemeKeyTokens.OnTertiaryFixedVariant -> onTertiaryFixedVariant
     }
 }
 
@@ -137,21 +100,10 @@ internal fun CornerBasedShape.end(
  */
 internal fun Shapes.fromToken(value: ShapeKeyTokens): Shape {
     return when (value) {
-        ShapeKeyTokens.CornerExtraLarge -> extraLarge
-        ShapeKeyTokens.CornerExtraLargeIncreased -> ShapeTokens.CornerExtraLargeIncreased
-        ShapeKeyTokens.CornerExtraExtraLarge -> ShapeTokens.CornerExtraExtraLarge
         ShapeKeyTokens.CornerExtraLargeTop -> extraLarge.top()
         ShapeKeyTokens.CornerExtraSmall -> extraSmall
         ShapeKeyTokens.CornerExtraSmallTop -> extraSmall.top()
         ShapeKeyTokens.CornerFull -> CircleShape
-        ShapeKeyTokens.CornerLarge -> large
-        ShapeKeyTokens.CornerLargeIncreased -> ShapeTokens.CornerLargeIncreased
-        ShapeKeyTokens.CornerLargeEnd -> large.end()
-        ShapeKeyTokens.CornerLargeTop -> large.top()
-        ShapeKeyTokens.CornerMedium -> medium
-        ShapeKeyTokens.CornerNone -> RectangleShape
-        ShapeKeyTokens.CornerSmall -> small
-        ShapeKeyTokens.CornerLargeStart -> large.start()
     }
 }
 

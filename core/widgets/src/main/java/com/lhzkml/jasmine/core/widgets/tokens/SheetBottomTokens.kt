@@ -26,6 +26,4 @@ internal object SheetBottomTokens {
     val DockedDragHandleHeight = 4.0.dp
     val DockedDragHandleWidth = 32.0.dp
     val DockedModalContainerElevation = ElevationTokens.Level1
-    val DockedStandardContainerElevation = ElevationTokens.Level1
-    val FocusIndicatorColor = ColorSchemeKeyTokens.Secondary
 }
