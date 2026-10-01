@@ -48,4 +48,22 @@ sealed interface SettingsNavKey : NavKey {
      */
     @Serializable
     data object Debug : SettingsNavKey
+
+    /**
+     * **顶部栏变体预览** 页：`variant` 取 [SettingsDebugTopAppBarVariant] 里的常量。
+     *
+     * 这一页也是组件层的独立试验场：它自己的顶栏**就是被测的那个组件**，所以刻意不套设置流那套
+     * `SettingsPage` 顶栏，也不参与 app 现有的顶部导航。
+     */
+    @Serializable
+    data class DebugTopAppBar(val variant: String) : SettingsNavKey
+}
+
+/** [SettingsNavKey.DebugTopAppBar] 的 `variant` 取值。 */
+object SettingsDebugTopAppBarVariant {
+    /** 小号顶部栏（左对齐）。 */
+    const val SMALL = "small"
+
+    /** 小号顶部栏（标题居中）。 */
+    const val CENTER_ALIGNED = "centerAligned"
 }

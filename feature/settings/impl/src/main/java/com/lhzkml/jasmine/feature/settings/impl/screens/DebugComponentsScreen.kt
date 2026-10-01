@@ -41,6 +41,7 @@ import com.lhzkml.jasmine.core.widgets.switch.Switch
 import com.lhzkml.jasmine.core.widgets.switch.SwitchDefaults
 import com.lhzkml.jasmine.core.widgets.textfield.OutlinedTextField
 import com.lhzkml.jasmine.core.widgets.textfield.TextField
+import com.lhzkml.jasmine.feature.settings.api.SettingsDebugTopAppBarVariant
 import com.lhzkml.jasmine.feature.settings.impl.R
 
 /** Row label column width; padding and spacing inside a group card. */
@@ -61,6 +62,7 @@ private val DebugSubTitleTopPadding = 10.dp
 @Composable
 fun DebugComponentsScreen(
     currentTheme: CssVariables,
+    onOpenTopAppBar: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -96,6 +98,15 @@ fun DebugComponentsScreen(
         Spacer(modifier = Modifier.height(DebugGroupSpacing))
 
         DebugSwitchGroup(currentTheme = currentTheme, modifier = Modifier.fillMaxWidth())
+
+        Spacer(modifier = Modifier.height(DebugGroupSpacing))
+
+        // 顶部栏：这一组只是入口，点进去是各自独立的页面（页面自己的顶栏就是被测的组件）。
+        DebugTopAppBarGroup(
+            currentTheme = currentTheme,
+            onOpen = onOpenTopAppBar,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
@@ -364,5 +375,60 @@ private fun DebugSwitchGroup(
         }
 
         Spacer(modifier = Modifier.height(DebugGroupBottomPadding))
+    }
+}
+
+/** 顶部栏变体入口：点进去是各自**独立**的页面（不套设置流那套顶栏）。 */
+@Composable
+private fun DebugTopAppBarGroup(
+    currentTheme: CssVariables,
+    onOpen: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(currentTheme.card)
+            .border(1.dp, currentTheme.border, shape)
+    ) {
+        Text(
+            text = stringResource(R.string.debug_screen_section_top_app_bar),
+            fontSize = DebugTitleFontSize,
+            fontWeight = FontWeight.Medium,
+            color = currentTheme.mutedForeground,
+            modifier = Modifier.padding(
+                start = DebugRowPaddingHorizontal,
+                top = DebugRowPaddingHorizontal,
+                bottom = DebugRowPaddingVertical
+            )
+        )
+
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_top_app_bar_small),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugTopAppBarVariant.SMALL) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_top_app_bar_center_aligned),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugTopAppBarVariant.CENTER_ALIGNED) }
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupBottomPadding))
+    }
+}
+
+/** 一个顶部栏入口行：标签 + 右侧「打开」。 */
+@Composable
+private fun DebugTopAppBarEntry(
+    label: String,
+    currentTheme: CssVariables,
+    onClick: () -> Unit
+) {
+    DebugRow(label = label, currentTheme = currentTheme) {
+        TextButton(onClick = onClick) {
+            Text(stringResource(R.string.debug_top_app_bar_open))
+        }
     }
 }

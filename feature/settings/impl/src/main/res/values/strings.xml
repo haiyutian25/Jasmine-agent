@@ -74,4 +74,13 @@
     <string name="debug_screen_section_sheets">Bottom sheets</string>
     <string name="debug_screen_sheet_open">Open</string>
     <string name="debug_screen_section_switches">Switches</string>
+
+    <!-- Component-layer debug: top app bar variants, each on its own standalone page. -->
+    <string name="debug_screen_section_top_app_bar">Top app bar</string>
+    <string name="debug_top_app_bar_small">Small</string>
+    <string name="debug_top_app_bar_center_aligned">Small (centered)</string>
+    <string name="debug_top_app_bar_open">Open</string>
+    <string name="debug_top_app_bar_back">Back</string>
+    <string name="debug_top_app_bar_hint">Scroll the list: this bar runs on the widget\'s own scroll behavior. Nothing on this page touches the app\'s real top navigation.</string>
+    <string name="debug_top_app_bar_body">Row %1$d</string>
 </resources>

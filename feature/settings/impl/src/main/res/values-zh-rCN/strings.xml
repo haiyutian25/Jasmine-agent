@@ -74,4 +74,13 @@
     <string name="debug_screen_section_sheets">底部弹层</string>
     <string name="debug_screen_sheet_open">打开</string>
     <string name="debug_screen_section_switches">滑动开关</string>
+
+    <!-- 组件层调试：顶部导航栏变体，每个变体一个独立页面 -->
+    <string name="debug_screen_section_top_app_bar">顶部导航栏</string>
+    <string name="debug_top_app_bar_small">小号</string>
+    <string name="debug_top_app_bar_center_aligned">小号（居中）</string>
+    <string name="debug_top_app_bar_open">打开</string>
+    <string name="debug_top_app_bar_back">返回</string>
+    <string name="debug_top_app_bar_hint">往下滚列表：这一页的顶栏用的是组件自己的滚动行为，整页都不碰 app 现有的顶部导航。</string>
+    <string name="debug_top_app_bar_body">第 %1$d 行</string>
 </resources>
