@@ -1,4 +1,4 @@
-﻿plugins {
+plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.google.devtools.ksp)
@@ -94,6 +94,10 @@ dependencies {
   ksp(libs.hilt.compiler)
 
   testImplementation(project(":core:data"))
+  // MainViewModelTest 用假的下载接口驱动真实的字体仓库，需要 core:network 的 FontDownloadApi
+  // 与它返回的 okhttp ResponseBody。
+  testImplementation(project(":core:network"))
+  testImplementation(libs.okhttp)
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)

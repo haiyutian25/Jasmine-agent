@@ -250,8 +250,13 @@ internal fun ProviderConfig.toProviderInput(): ProviderInput = ProviderInput(
     },
 )
 
-/** One core event, as this module's consumers see it. */
-private fun CoreChatEvent.toChatEvent(): ChatEvent = when (this) {
+/**
+ * One core event, as this module's consumers see it.
+ *
+ * `internal`（而不是 private）只是为了**能测**：九个变体全靠它翻译，写错一个就是一类事件在界面
+ * 上消失。它只依赖生成绑定里的类型，不需要真的核心句柄。
+ */
+internal fun CoreChatEvent.toChatEvent(): ChatEvent = when (this) {
     is CoreChatEvent.Text -> ChatEvent.Text(v1)
     is CoreChatEvent.Reasoning -> ChatEvent.Reasoning(v1)
     is CoreChatEvent.ToolCall -> ChatEvent.ToolCall(name, arguments)
@@ -296,7 +301,7 @@ private fun CoreContextUsageSource.toContextUsageSource(): ContextUsageSource = 
  * 「回合中途的失败」走的是另一条路：核心的 `ChatEvent::Failed` 只带一句文本，所以那条路的分型是
  * [ChatFailureKind.UNKNOWN] —— 给事件也带上分型要改跨边界的事件协议，另行评估。
  */
-private fun Throwable.toKind(): ChatFailureKind = when (this) {
+internal fun Throwable.toKind(): ChatFailureKind = when (this) {
     is AgentFailure.NoSession -> ChatFailureKind.NO_SESSION
     is AgentFailure.Transport -> ChatFailureKind.TRANSPORT
     is AgentFailure.Transcript -> ChatFailureKind.TRANSCRIPT
@@ -306,7 +311,7 @@ private fun Throwable.toKind(): ChatFailureKind = when (this) {
 }
 
 /** Whether this event is the last one of its turn. */
-private fun ChatEvent.endsTurn(): Boolean = when (this) {
+internal fun ChatEvent.endsTurn(): Boolean = when (this) {
     // A prompt stops the turn: the interactive call has no result yet, and nothing more arrives
     // until the answers are submitted.
     ChatEvent.Completed,

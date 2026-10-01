@@ -20,6 +20,7 @@ import kotlinx.coroutines.withContext
 import java.util.UUID
 import uniffi.jasmine_ffi.AgentHandle
 import uniffi.jasmine_ffi.ConversationStoreListener
+import uniffi.jasmine_ffi.ConversationSummary
 import uniffi.jasmine_protocol.AppUsageStats as CoreAppUsageStats
 import uniffi.jasmine_protocol.Role
 
@@ -145,25 +146,10 @@ class RustConversationStore(
     }
 
     private suspend fun read(): List<Conversation> {
-        withContext(Dispatchers.IO) {
-            runCatching { handle.conversations() }
-        }.fold(
-            onSuccess = { summaries ->
-                conversations.value = summaries.map { summary ->
-                    Conversation(
-                        id = summary.sessionId,
-                        title = summary.title,
-                        providerId = summary.providerId,
-                        modelId = summary.modelId,
-                        createdAt = summary.updatedAt,
-                        updatedAt = summary.updatedAt,
-                    )
-                }
-            },
-            // 读失败**不清空**：目录一时读不出来不等于用户的历史没了。保留上一次成功的快照，
-            // 只把原因投出去（D5）。
-            onFailure = { failure -> failures.tryEmit(failure.message ?: failure.toString()) },
-        )
+        val result = withContext(Dispatchers.IO) { runCatching { handle.conversations() } }
+        val read = applyConversationRead(conversations.value, result)
+        conversations.value = read.conversations
+        read.failure?.let { failures.tryEmit(it) }
         return conversations.value
     }
 
@@ -177,6 +163,40 @@ class RustConversationStore(
         const val STORE_CHANGE_DEBOUNCE_MS = 300L
     }
 }
+
+/**
+ * 一次"读会话列表"的结果怎么落到状态上。
+ *
+ * 从 [RustConversationStore.read] 里提出来是为了**能测** —— 真实那条路要一个真的核心句柄，纯 JVM
+ * 单测起不来，而这里的不变量是**用户可见**的：**读失败不清空**。目录一时读不出来不等于用户的
+ * 历史没了；上一次成功的快照要留着，只把原因交出去（D5）。
+ *
+ * 返回的 [ConversationRead.failure] 为 null 表示这次读成功了。
+ */
+internal fun applyConversationRead(
+    previous: List<Conversation>,
+    result: Result<List<ConversationSummary>>,
+): ConversationRead = result.fold(
+    onSuccess = { summaries -> ConversationRead(summaries.map { it.toConversation() }, failure = null) },
+    onFailure = { failure -> ConversationRead(previous, failure.message ?: failure.toString()) },
+)
+
+/** [applyConversationRead] 的结果：新的快照 + 这次读失败的原因（成功时为 null）。 */
+internal data class ConversationRead(
+    val conversations: List<Conversation>,
+    val failure: String?,
+)
+
+/** 核心报的一条会话摘要，翻译成本模块的会话记录。 */
+internal fun ConversationSummary.toConversation(): Conversation = Conversation(
+    id = sessionId,
+    title = title,
+    providerId = providerId,
+    modelId = modelId,
+    // 核心只给"最后活动时间"；界面要的两个时间都用它（刚建出来的会话两者本来就相同）。
+    createdAt = updatedAt,
+    updatedAt = updatedAt,
+)
 
 /** 核心报的统计，翻译成本模块自己的形状。 */
 private fun CoreAppUsageStats.toAppUsage(): AppUsage = AppUsage(
