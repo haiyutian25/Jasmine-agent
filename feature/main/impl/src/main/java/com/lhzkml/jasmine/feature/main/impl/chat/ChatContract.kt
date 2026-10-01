@@ -56,8 +56,13 @@ sealed interface ChatAction {
         data class ConversationsReceived(val conversations: List<Conversation>) : Internal
         data class ActiveModelReceived(val providerId: String, val modelId: String) : Internal
 
-        /** 偏好里的"模型回复语言"（[com.lhzkml.jasmine.core.data.model.AgentOutputLanguage]）。 */
-        data class LanguagePreferenceReceived(val value: String) : Internal
+        /**
+         * 偏好里的"模型回复语言"（[com.lhzkml.jasmine.core.data.model.AgentOutputLanguage]）**变了**。
+         *
+         * 不带值：这条偏好只在真的变了时才发（上游已折叠重复），取值的真源是偏好仓库那条流；
+         * 界面不需要在这里再存一份。
+         */
+        data object LanguagePreferenceChanged : Internal
         /**
          * 启动时那条"最近改过"的会话回来了。消息**已经解析好**（正文要过 native，见
          * [restoreLatestConversation]）—— handler 只落状态，主线程不等几百次 JNI 往返。

@@ -154,9 +154,9 @@ class MvvmUdfGateTest {
      * handler 白名单里；suspend 函数与 launch/withContext/async 块里一律禁止。
      *
      * 覆盖对象是"不进 StateFlow 的行为状态"：`attachedKeys`、`conversationEpoch`、
-     * `pendingContextWindow` / `pendingReasoningEffort`、`languagePreference`、`chats`、
-     * `turns` 与 `Turn` 的可变字段。②⑥ 两条正则只认 `updateState`，看不见它们 ——
-     * 这条把那块灰色地带收进护栏。
+     * `pendingContextWindow` / `pendingReasoningEffort`、`pendingActiveModel`、
+     * `languagePreferenceSeen`、`chats`、`turns` 与 `Turn` 的可变字段。②⑥ 两条正则只认
+     * `updateState`，看不见它们 —— 这条把那块灰色地带收进护栏。
      */
     @Test
     fun `shadow state is written only from synchronous handlers`() {
@@ -186,8 +186,9 @@ class MvvmUdfGateTest {
      * 字体缓存 / 探测器）只允许出现在 suspend 函数或协程块里（异步路径）；同步函数里出现即违规。
      *
      * 白名单只剩三类例外：与附着严格有序、必须同步的**释放/拆毁**（`releaseConversation` /
-     * `onCleared`，注释见 ChatViewModel）；装配订阅的 `init`；以及**纯内存读**的字体解析
-     * （`resolveContentFont` / `resolveFontPreviews` —— 查内存快照，无 IO、无副作用）。
+     * `onCleared`，注释见 ChatViewModel）；装配订阅的 `init`；以及**纯内存读**
+     * （`resolveContentFont` / `resolveFontPreviews` 查字体内存快照；`agentSettings` 读偏好仓库
+     * 那条热 StateFlow 的 `.value`）—— 都是读内存里的现成值，无 IO、无副作用。
      */
     @Test
     fun `view model handlers do not touch boundaries synchronously`() {
@@ -448,7 +449,7 @@ class MvvmUdfGateTest {
                 """conversationEpoch\s*(?:\+\+|--)|conversationEpoch\s*=(?!=)|""" +
                 """pendingContextWindow\s*=(?!=)|pendingReasoningEffort\s*=(?!=)|""" +
                 """pendingActiveModel\s*=(?!=)|""" +
-                """languagePreference\s*=(?!=)|languagePreferenceSeen\s*=(?!=)|""" +
+                """languagePreferenceSeen\s*=(?!=)|""" +
                 """chats\.(?:update|drop|rekey)\s*\(|""" +
                 """turns\[[^\]]+\]\s*=(?!=)|turns\.(?:remove|clear|put)\b|""" +
                 """\.(?:chatKey|streamingMessageId|parsedLength|job)\s*=(?!=)|""" +
@@ -471,6 +472,7 @@ class MvvmUdfGateTest {
             "onCleared",
             "resolveContentFont",
             "resolveFontPreviews",
+            "agentSettings",
         )
 
         /**

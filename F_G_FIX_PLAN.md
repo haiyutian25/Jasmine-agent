@@ -653,7 +653,7 @@ is ChatAction.Internal.ActiveModelReceived -> {
 | 项 | 命令 | 结果 |
 |---|---|---|
 | 全量 JVM 单测 | `gradlew testDebugUnitTest` | ✅ 全绿（**120 例**，21 个测试文件） |
-| Rust 单测 | `cargo test --workspace` | ✅ 全绿（**189 例**；随 `Outbox` 删除 1 例后为 **188**，见文末复测） |
+| Rust 单测 | `cargo test --workspace` | ✅ 全绿（当时 **189 例**；`Outbox` 删除 −1、`Protocol` 的 `ProbeResult` 删除 −1、rollout 坏行自愈 +2，**现为 189**） |
 | Rust 静态检查 | `cargo fmt --check` / `cargo clippy --workspace --all-targets` | ✅ 一致 / 0 告警（F1–F6 遗留的 6 处 fmt 已在 G6 修掉） |
 | debug 构建 | `gradlew :app:assembleDebug` | ✅（含 cargo-ndk 四个 ABI 的 `.so` 与 UniFFI 生成） |
 | release 构建 | `gradlew :app:assembleRelease` | ✅（R8 minify + shrinkResources） |
@@ -687,7 +687,7 @@ is ChatAction.Internal.ActiveModelReceived -> {
 | **流式（本次回归点）** | 发一条消息后每 ~0.9s 截一张图，连截 8 张 | ✅ 回复**逐字长出来**：第 2 张还在「正在思考」的首段，第 4/6/8 张里同一段推理已明显变长、面板持续跟随 |
 | **流式（日志佐证）** | `adb logcat -s ChatScroll` | ✅ 同一轮内 `文本长=456 → 464 → 465 → 506 → … → 630`，全程 `streaming=true`，最后一次 `streaming=false`（收尾）；`已滚到末尾` 持续出现 |
 | 收尾 | 等这轮跑完 | ✅ 完整回复渲染（表格 / 代码块 / 脚注都在），发送键由「停止」回到「发送」，无 FATAL/ANR |
-| Rust 单测 | `cargo test --workspace` | ✅ 全绿（**188 例**，比原来少的那 1 例就是随 `Outbox` 删掉的语义测试） |
+| Rust 单测 | `cargo test --workspace` | ✅ 全绿（当时 **188 例** —— 比 189 少的那 1 例就是随 `Outbox` 删掉的语义测试；之后是 **189**） |
 
 ---
 

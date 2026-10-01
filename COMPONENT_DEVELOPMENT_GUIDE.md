@@ -474,7 +474,7 @@ Main → SettingsMenu（设置菜单列表）→ AppearanceSettings（外观设�
 
 - Robolectric 基线 **SDK 36**（`app/src/test/resources/robolectric.properties`），**要求 JDK 21**（SDK 36 沙盒硬性要求；SDK 37 需 Robolectric 4.17-beta，暂不采用）。
 - 截图基准图生成：`gradle :app:testDebugUnitTest -Proborazzi.test.record=true`。
-- Rust 侧：`cargo test --workspace`（当前 **188 passed**）、`cargo clippy --workspace --all-targets` 无告警、`cargo fmt --check` 一致。
+- Rust 侧：`cargo test --workspace`（当前 **189 passed**）、`cargo clippy --workspace --all-targets` 无告警、`cargo fmt --check` 一致。
 
 ### 11.2 构建验证命令
 

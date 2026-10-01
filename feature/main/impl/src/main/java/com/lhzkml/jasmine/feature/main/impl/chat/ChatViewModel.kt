@@ -102,23 +102,22 @@ class ChatViewModel @Inject constructor(
     private var pendingReasoningEffort: String? = null
 
     /**
-     * 模型回复语言的**取值**（见 [AgentOutputLanguage]）。
-     *
-     * 规则不在这里：那条输出语言规则由**核心**拼（`rust/core/src/agent_settings.rs`），这里只把这个值
-     * 连同界面语言一起传过去 —— 界面只给值，规则在核心。
-     */
-    private var languagePreference: String = UserPreferences.DEFAULT.agentOutputLanguage
-
-    /**
      * 正在落盘的那次模型选择（乐观值）。null = 没有在途的落盘。
      *
-     * 偏好那条流是**整份** `UserPreferences`：改主题、改字体、改字号都会让它重发一次，带上尚未落盘的
+     * 偏好那条流是**整份** [UserPreferences]：改主题、改字体、改字号都会让它重发一次，带上尚未落盘的
      * 旧 `activeModelId`。没有这个守卫的话，那条重发会把刚选的模型盖回旧值，等落盘完成再翻回来 ——
      * 界面上就是"选完闪一下"。
      */
     private var pendingActiveModel: Pair<String, String>? = null
 
-    /** 偏好里的语言设置**第一次读回来**不算"改了"，不用重挂会话。 */
+    /**
+     * 偏好流里的"模型回复语言"已经读到过了。
+     *
+     * **模型回复语言本身不在这里存**：真源只有偏好仓库那条流，用的时候现取（见 [agentSettings]）——
+     * 两个 ViewModel 各存一份同源值，迟早会分叉。这里只留一个"读到过没有"的标志，因为那条流的
+     * 第一帧是 `stateIn` 的初值 [UserPreferences.DEFAULT]、第二帧才是磁盘上真存的那份：
+     * 初值那帧不算"用户改了语言"，否则每次启动都会白重挂一次当前会话。
+     */
     private var languagePreferenceSeen = false
 
     /** 正在跑的每一轮，按这一轮自己的身份证存。 */
@@ -390,10 +389,17 @@ class ChatViewModel @Inject constructor(
                         preferences.activeModelId,
                     )
                 )
-                sendAction(
-                    ChatAction.Internal.LanguagePreferenceReceived(preferences.agentOutputLanguage)
-                )
             }
+            .launchIn(viewModelScope)
+
+        // 回复语言单独收一条：偏好那条流是**整份**的，改主题 / 字体 / 字号都会重发一次，
+        // 而只有语言真的变了才需要重挂会话 —— 这里先折叠掉重复，handler 就不必再拿一份旧值来比对
+        // （那份旧值正是"同一个偏好存两份"的来源）。
+        userPreferencesRepository
+            .preferencesStateFlow
+            .map { preferences -> preferences.agentOutputLanguage }
+            .distinctUntilChanged()
+            .onEach { sendAction(ChatAction.Internal.LanguagePreferenceChanged) }
             .launchIn(viewModelScope)
 
         conversationStore
@@ -467,8 +473,8 @@ class ChatViewModel @Inject constructor(
                     viewModelScope.launch { refreshAllowedEfforts(provider.id, modelId) }
                 }
             }
-            is ChatAction.Internal.LanguagePreferenceReceived ->
-                handleLanguagePreference(action.value)
+            is ChatAction.Internal.LanguagePreferenceChanged ->
+                handleLanguagePreference()
             is ChatAction.Internal.TranscriptRestored -> {
                 handleTranscriptRestored(action)
                 // 这条会话是不是有一个还没写完的回合，决定发送键要不要是「继续」。
@@ -1962,22 +1968,27 @@ class ChatViewModel @Inject constructor(
     /**
      * 模型回复语言变了：把当前会话**重挂**一次 —— 系统指令只在附着时交给核心，所以下一次发送就用上
      * 新的那句（历史在会话文件里，重挂会读回来）。重挂不掐正在跑的那一轮，见 [resetSession]。
+     *
+     * 走到这里时语言一定真的变了（上游 `distinctUntilChanged`），所以不必再比对旧值 —— 只需要
+     * 区分"第一次读回来"（偏好流的初值，不是用户改的）。
      */
-    private fun handleLanguagePreference(value: String) {
-        val isFirstRead = !languagePreferenceSeen
-        languagePreferenceSeen = true
-        if (value == languagePreference) return
-        languagePreference = value
-        if (!isFirstRead) state.activeConversationId?.let { id -> resetSession(id) }
+    private fun handleLanguagePreference() {
+        if (!languagePreferenceSeen) {
+            languagePreferenceSeen = true
+            return
+        }
+        state.activeConversationId?.let { id -> resetSession(id) }
     }
 
     /**
      * 交给核心的 Agent 设置：回复语言的**值** + 界面当前语言（"跟随应用语言"那档要用）。
      *
-     * 界面语言**每次附着时现取**，所以改了界面语言也会跟着走。
+     * 两个值都**每次附着时现取**，所以改了界面语言会跟着走，回复语言也不必在本 ViewModel 里
+     * 另存一份：真源只有偏好仓库那条流（见 [AgentOutputLanguage]）。规则也不在这里 —— 那条输出
+     * 语言规则由**核心**拼（`rust/core/src/agent_settings.rs`），界面只给值。
      */
     private fun agentSettings(): AgentSettings = AgentSettings(
-        outputLanguage = languagePreference,
+        outputLanguage = userPreferencesRepository.preferencesStateFlow.value.agentOutputLanguage,
         appLanguage = Locale.getDefault().toLanguageTag(),
     )
 
