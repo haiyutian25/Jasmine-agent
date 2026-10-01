@@ -5,7 +5,7 @@ plugins {
 
 android {
   namespace = "com.lhzkml.jasmine.core.markdown"
-  compileSdk { version = release(37) }
+  compileSdk { version = release(37) { minorApiLevel = 2 } }
   ndkVersion = "28.2.13676358"
 
   defaultConfig {

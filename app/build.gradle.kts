@@ -8,7 +8,7 @@ plugins {
 
 android {
   namespace = "com.lhzkml.jasmine"
-  compileSdk { version = release(37) }
+  compileSdk { version = release(37) { minorApiLevel = 2 } }
 
   defaultConfig {
     applicationId = "com.lhzkml.jasmine"

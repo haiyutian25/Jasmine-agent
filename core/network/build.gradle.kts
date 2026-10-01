@@ -6,7 +6,7 @@ plugins {
 
 android {
   namespace = "com.lhzkml.jasmine.core.network"
-  compileSdk { version = release(37) }
+  compileSdk { version = release(37) { minorApiLevel = 2 } }
 
   defaultConfig { minSdk = 26 }
 
