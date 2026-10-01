@@ -44,6 +44,8 @@ import androidx.compose.ui.unit.Dp
 internal fun ColorScheme.fromToken(value: ColorSchemeKeyTokens): Color {
     return when (value) {
         ColorSchemeKeyTokens.Error -> error
+        ColorSchemeKeyTokens.InverseOnSurface -> inverseOnSurface
+        ColorSchemeKeyTokens.InverseSurface -> inverseSurface
         ColorSchemeKeyTokens.OnPrimary -> onPrimary
         ColorSchemeKeyTokens.OnPrimaryContainer -> onPrimaryContainer
         ColorSchemeKeyTokens.OnSecondaryContainer -> onSecondaryContainer
