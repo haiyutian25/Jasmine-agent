@@ -507,6 +507,9 @@ Kotlin 侧 `AgentChat`/`ConversationStore` 在对应作用域结束时调用；`
 | `gradlew :app:assembleRelease` | ✅ BUILD SUCCESSFUL，`app-release.apk` 41,590,860 B，签名与已装包一致，`pm install -r -d` 覆盖安装成功 |
 | 真机冒烟（Redmi 6 Pro / sakura / Android 9，`106.55.13.206:6000`） | ✅ 见下 |
 
+> ⚠️ 上表里的 `106.55.13.206:6000` 是**当时**的隧道地址，那台服务器已过期。现在的地址与做法见
+> `.codebuddy/memory/MEMORY.md` 的「远程真机测试环境（FRP 隧道）」一节（2026-10-01 换成 `101.42.15.60:6000`）。
+
 #### 7.2 真机冒烟明细（2026-10-01）
 
 | 项 | 做法 | 结果 |

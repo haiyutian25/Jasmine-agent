@@ -642,7 +642,25 @@ is ChatAction.Internal.ActiveModelReceived -> {
 | Rust 静态检查 | `cargo fmt --check` / `cargo clippy --workspace --all-targets` | ✅ 一致 / 0 告警（F1–F6 遗留的 6 处 fmt 已在 G6 修掉） |
 | debug 构建 | `gradlew :app:assembleDebug` | ✅（含 cargo-ndk 四个 ABI 的 `.so` 与 UniFFI 生成） |
 | release 构建 | `gradlew :app:assembleRelease` | ✅（R8 minify + shrinkResources） |
-| 真机冒烟 | —— | ⏭️ **未做**：本机没有连设备。需要人工过一遍 F1（多轮中改档位不卡）、F3（失败后不再停在"正在生成"）、G4（切遍多会话后内存不涨）这三条"只有真机能看见"的路径 |
+| 真机冒烟 | Redmi 6 Pro / sakura / Android 9（`101.42.15.60:6000`） | ✅ 已做，见下 |
+
+**真机冒烟明细（2026-10-01，覆盖安装 APK 41,659,048 B，与设备 `base.apk` MD5 一致
+`4d55ed0ee8cfee1d4042d6a0621663d4`）**
+
+| 项 | 做法 | 结果 |
+|---|---|---|
+| 启动 / 恢复 | 覆盖安装后拉起 → `pidof` + logcat | ✅ `Displayed +676ms`，无 FATAL/ANR；上一次的长转写（表格、LaTeX、代码块、脚注）完整还原 |
+| **F1 读侧**（回合中不阻塞） | 一边流式生成，一边点开「上下文用量」面板 | ✅ 回合进行中点开即出，数据是活的（4198/100万 · 消息 89.1% / 系统提示词 6.2% / 系统工具 4.6%）；UI 无冻结 |
+| **F1 写侧**（回合中改档位） | 同一条回合还在跑时打开「推理强度」面板并选「低」 | ✅ 面板立刻打开、选中后输入区的档位立刻变「低」，而那一轮仍在流式输出 |
+| **F1 落盘证据** | 拉回会话文件看记录顺序 | ✅ 那一轮 `turn_started(reasoning_effort=high)` → 回合结束后 `turn_complete` → **`reasoning_effort(low)`**；下一轮 `turn_started(reasoning_effort=low)` —— 中途那次改动按"记请求、回合内生效"落地，UI 全程没卡 |
+| **F3 失败不再卡「正在生成」** | 把 DeepSeek 的 API 密钥改成非法值 → 发一条 | ✅ 出现失败气泡：「网络请求失败了，可以再发一次。」+ 原始原因（`http 401 Unauthorized … api key ****999 is invalid`）；输入区**回到可用态**（不是转圈/停止），进程无 ANR。文件侧：这一轮只写了 user 的 `response_item` + `token_usage_record`，**没有伪造模型回复** |
+| **G4 切遍多会话** | 冷启动后连切 6 条会话（每条都是长转写），逐次量 PSS | ⚠️ 部分：内存 91.5 MB → 102.2 MB（约 +1.8 MB/条），空闲 45s 后 98.9 MB。**没有无界增长**，但 PSS 看不出"条目被回收"这一下课——JVM 释放的对象不会立刻把页还给系统，应用侧也没有可读的计数器。回收规则本身由 `ChatViewModelTest` 的回归用例钉住 |
+| 收尾 | 用安装前备份的 `model_providers.preferences_pb` 还原密钥、重启验一轮 | ✅ 文件按原属主写回（555 B，`u0_a182`），应用正常起、无 401；屏幕仍是竖屏锁（`user_rotation=0`） |
+
+> 真机操作里踩到的几条（都已写进 `.codebuddy/memory/MEMORY.md` 的「远程真机测试环境」一节）：
+> `input tap` 打不到 Compose 的按钮（要点用 `input swipe x y x y 120`）；讯飞输入法会把注入的 ASCII
+> 字母吃成拼音（只有数字/符号能安全注入）；输入区在"键盘开/关"两种布局下分别是 y≈1325 / y≈2100，
+> 用 `dumpsys input_method` 的 `mInputShown` 判断。
 
 ---
 
