@@ -71,4 +71,6 @@
     <string name="debug_screen_section_disabled">禁用</string>
     <string name="debug_screen_section_buttons">按钮</string>
     <string name="debug_screen_section_text_fields">输入框</string>
+    <string name="debug_screen_section_sheets">底部弹层</string>
+    <string name="debug_screen_sheet_open">打开</string>
 </resources>

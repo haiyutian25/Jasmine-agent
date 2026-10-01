@@ -71,4 +71,6 @@
     <string name="debug_screen_section_disabled">Disabled</string>
     <string name="debug_screen_section_buttons">Buttons</string>
     <string name="debug_screen_section_text_fields">Text fields</string>
+    <string name="debug_screen_section_sheets">Bottom sheets</string>
+    <string name="debug_screen_sheet_open">Open</string>
 </resources>

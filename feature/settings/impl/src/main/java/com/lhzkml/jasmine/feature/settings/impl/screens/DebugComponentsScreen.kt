@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
+import com.lhzkml.jasmine.core.widgets.bottomsheet.ModalBottomSheet
 import com.lhzkml.jasmine.core.widgets.button.Button
 import com.lhzkml.jasmine.core.widgets.button.TextButton
 import com.lhzkml.jasmine.core.widgets.textfield.OutlinedTextField
@@ -80,6 +83,10 @@ fun DebugComponentsScreen(
             currentTheme = currentTheme,
             modifier = Modifier.fillMaxWidth()
         )
+
+        Spacer(modifier = Modifier.height(DebugGroupSpacing))
+
+        DebugSheetGroup(currentTheme = currentTheme, modifier = Modifier.fillMaxWidth())
     }
 }
 
@@ -133,6 +140,63 @@ private fun DebugStateGroup(
         }
 
         Spacer(modifier = Modifier.height(DebugGroupBottomPadding))
+    }
+}
+
+/** 底部弹层：点「打开」从底部弹出（带遮罩）。 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DebugSheetGroup(
+    currentTheme: CssVariables,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    var showSheet by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(currentTheme.card)
+            .border(1.dp, currentTheme.border, shape)
+    ) {
+        Text(
+            text = stringResource(R.string.debug_screen_section_sheets),
+            fontSize = DebugTitleFontSize,
+            fontWeight = FontWeight.Medium,
+            color = currentTheme.mutedForeground,
+            modifier = Modifier.padding(
+                start = DebugRowPaddingHorizontal,
+                top = DebugRowPaddingHorizontal,
+                bottom = DebugRowPaddingVertical
+            )
+        )
+
+        DebugRow(label = "Modal", currentTheme = currentTheme) {
+            Button(onClick = { showSheet = true }) {
+                Text(stringResource(R.string.debug_screen_sheet_open))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(DebugGroupBottomPadding))
+    }
+
+    if (showSheet) {
+        ModalBottomSheet(onDismissRequest = { showSheet = false }) {
+            Text(
+                text = "Modal bottom sheet",
+                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
+            )
+            Text(
+                text = "下拉、点遮罩、按返回键都能关",
+                fontSize = DebugTitleFontSize,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp)
+            )
+        }
     }
 }
 
