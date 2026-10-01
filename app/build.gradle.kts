@@ -86,7 +86,13 @@ dependencies {
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.appcompat)
   implementation(libs.androidx.compose.foundation)
+  implementation(libs.androidx.compose.material3)
   implementation(libs.androidx.compose.ui)
+
+  // A2UI 渲染器（agent 下发的声明式 UI JSON → 原生 Compose），当前只用于冒烟页 A2uiSmokeActivity。
+  implementation(libs.androidx.a2ui.compose.runtime)
+  implementation(libs.androidx.a2ui.compose.ui)
+  implementation(libs.androidx.compose.material3.a2ui)
 
   implementation(libs.hilt.android)
   implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
