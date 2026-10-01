@@ -44,8 +44,6 @@ import androidx.compose.ui.unit.Dp
 internal fun ColorScheme.fromToken(value: ColorSchemeKeyTokens): Color {
     return when (value) {
         ColorSchemeKeyTokens.Error -> error
-        ColorSchemeKeyTokens.InverseOnSurface -> inverseOnSurface
-        ColorSchemeKeyTokens.InverseSurface -> inverseSurface
         ColorSchemeKeyTokens.OnPrimary -> onPrimary
         ColorSchemeKeyTokens.OnPrimaryContainer -> onPrimaryContainer
         ColorSchemeKeyTokens.OnSecondaryContainer -> onSecondaryContainer
@@ -58,6 +56,7 @@ internal fun ColorScheme.fromToken(value: ColorSchemeKeyTokens): Color {
         ColorSchemeKeyTokens.SecondaryContainer -> secondaryContainer
         ColorSchemeKeyTokens.Surface -> surface
         ColorSchemeKeyTokens.SurfaceContainer -> surfaceContainer
+        ColorSchemeKeyTokens.SurfaceContainerHigh -> surfaceContainerHigh
         ColorSchemeKeyTokens.SurfaceContainerHighest -> surfaceContainerHighest
         ColorSchemeKeyTokens.SurfaceContainerLow -> surfaceContainerLow
     }
@@ -108,12 +107,12 @@ internal fun CornerBasedShape.end(
  */
 internal fun Shapes.fromToken(value: ShapeKeyTokens): Shape {
     return when (value) {
+        ShapeKeyTokens.CornerExtraLarge -> extraLarge
         ShapeKeyTokens.CornerExtraLargeTop -> extraLarge.top()
         ShapeKeyTokens.CornerExtraSmall -> extraSmall
         ShapeKeyTokens.CornerExtraSmallTop -> extraSmall.top()
         ShapeKeyTokens.CornerFull -> CircleShape
         ShapeKeyTokens.CornerLargeEnd -> large.end()
-        ShapeKeyTokens.CornerLargeTop -> large.top()
         ShapeKeyTokens.CornerNone -> RectangleShape
     }
 }
@@ -153,7 +152,6 @@ internal fun Typography.fromToken(value: TypographyKeyTokens): TextStyle {
         TypographyKeyTokens.LabelLarge -> labelLarge
         TypographyKeyTokens.LabelMedium -> labelMedium
         TypographyKeyTokens.TitleLarge -> titleLarge
-        TypographyKeyTokens.TitleSmall -> titleSmall
     }
 }
 

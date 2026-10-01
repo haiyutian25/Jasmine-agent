@@ -20,5 +20,8 @@ package com.lhzkml.jasmine.core.widgets.tokens
 import androidx.compose.animation.core.CubicBezierEasing
 
 internal object MotionTokens {
+    const val DurationShort2 = 100.0
+    const val DurationMedium3 = 350.0
+    const val DurationLong4 = 600.0
     val EasingEmphasizedAccelerateCubicBezier = CubicBezierEasing(0.3f, 0.0f, 0.8f, 0.15f)
 }
