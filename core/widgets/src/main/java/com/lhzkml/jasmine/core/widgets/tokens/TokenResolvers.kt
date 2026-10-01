@@ -27,11 +27,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.Typography
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 
 /**
@@ -50,6 +52,7 @@ internal fun ColorScheme.fromToken(value: ColorSchemeKeyTokens): Color {
         ColorSchemeKeyTokens.Primary -> primary
         ColorSchemeKeyTokens.Scrim -> scrim
         ColorSchemeKeyTokens.Surface -> surface
+        ColorSchemeKeyTokens.SurfaceContainer -> surfaceContainer
         ColorSchemeKeyTokens.SurfaceContainerHighest -> surfaceContainerHighest
         ColorSchemeKeyTokens.SurfaceContainerLow -> surfaceContainerLow
     }
@@ -104,6 +107,7 @@ internal fun Shapes.fromToken(value: ShapeKeyTokens): Shape {
         ShapeKeyTokens.CornerExtraSmall -> extraSmall
         ShapeKeyTokens.CornerExtraSmallTop -> extraSmall.top()
         ShapeKeyTokens.CornerFull -> CircleShape
+        ShapeKeyTokens.CornerNone -> RectangleShape
     }
 }
 
@@ -135,3 +139,18 @@ internal fun ColorScheme.applyTonalElevation(backgroundColor: Color, elevation: 
         backgroundColor
     }
 }
+
+/** Helper function for component typography tokens. */
+internal fun Typography.fromToken(value: TypographyKeyTokens): TextStyle {
+    return when (value) {
+        TypographyKeyTokens.LabelMedium -> labelMedium
+        TypographyKeyTokens.TitleLarge -> titleLarge
+    }
+}
+
+/**
+ * Converts a typography token key to the local typography provided by the theme The style is
+ * subscribed to [MaterialTheme] changes.
+ */
+internal val TypographyKeyTokens.value: TextStyle
+    @Composable @ReadOnlyComposable get() = MaterialTheme.typography.fromToken(this)

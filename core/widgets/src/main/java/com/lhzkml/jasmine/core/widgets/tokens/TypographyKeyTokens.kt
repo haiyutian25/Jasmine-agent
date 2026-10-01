@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 The Android Open Source Project
+ * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,14 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION 14_1_0），不再由上游生成，可直接改。
+// 本项目自有的设计令牌键（来源：AndroidX Material3 token VERSION v0_103），不再由上游生成，可直接改。
+// 只留本组件库真正用到的条目（顶部栏小号的标题/副标题字体）；上游那份的 15 个基础样式与 15 个
+// Emphasized 变体没有任何组件在用，已随裁剪删掉 —— 要加就照这里补一行，并在 TokenResolvers.kt
+// 的 Typography.fromToken 里补一条对应分支。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
-internal enum class ShapeKeyTokens {
-    CornerExtraLargeTop,
-    CornerExtraSmall,
-    CornerExtraSmallTop,
-    CornerFull,
-    CornerNone
+internal enum class TypographyKeyTokens {
+    LabelMedium,
+    TitleLarge
 }

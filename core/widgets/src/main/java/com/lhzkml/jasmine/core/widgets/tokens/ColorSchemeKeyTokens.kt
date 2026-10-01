@@ -27,6 +27,7 @@ internal enum class ColorSchemeKeyTokens {
     Primary,
     Scrim,
     Surface,
+    SurfaceContainer,
     SurfaceContainerHighest,
     SurfaceContainerLow
 }

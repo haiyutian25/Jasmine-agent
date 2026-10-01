@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 The Android Open Source Project
+ * Copyright 2024 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,14 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION 14_1_0），不再由上游生成，可直接改。
+
+// 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION 14_0_0），不再由上游生成，可直接改。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
-internal enum class ShapeKeyTokens {
-    CornerExtraLargeTop,
-    CornerExtraSmall,
-    CornerExtraSmallTop,
-    CornerFull,
-    CornerNone
+import androidx.compose.ui.unit.dp
+
+internal object AppBarSmallTokens {
+    val ContainerHeight = 64.0.dp
+    val SubtitleFont = TypographyKeyTokens.LabelMedium
+    val TitleFont = TypographyKeyTokens.TitleLarge
 }
