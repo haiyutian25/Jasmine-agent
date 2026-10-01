@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 // 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION v0_11_0），不再由上游生成，可直接改。
+// 只留本组件库真正用到的槽位（指示条尺寸与图标尺寸）；上游那份里的条目间距没有任何组件在用，
+// 已随裁剪删掉 —— 要加就照这里补一行。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
@@ -22,6 +24,5 @@ import androidx.compose.ui.unit.dp
 internal object NavigationBarVerticalItemTokens {
     val ActiveIndicatorHeight = 32.0.dp
     val ActiveIndicatorWidth = 56.0.dp
-    val ContainerBetweenSpace = 6.0.dp
     val IconSize = 24.0.dp
 }

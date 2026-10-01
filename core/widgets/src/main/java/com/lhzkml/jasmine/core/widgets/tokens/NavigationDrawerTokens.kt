@@ -14,45 +14,26 @@
  * limitations under the License.
  */
 // 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION v0_210），不再由上游生成，可直接改。
+// 只留本组件库真正用到的槽位（选中/未选中的图标与标签颜色、指示条的颜色尺寸形状、抽屉两种容器的
+// 颜色与高度）；上游那份里的 Focus/Hover/Pressed 三态、宽轨时代的 Headline/Badge/图标尺寸/宽度百分比等
+// 槽位没有任何组件在用，已随裁剪删掉 —— 要加就照这里补一行（若引用了 ColorScheme/Shape/Typography/
+// Elevation 的键，也要在 TokenResolvers.kt 里补对应分支）。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
 import androidx.compose.ui.unit.dp
 
 internal object NavigationDrawerTokens {
-    val ActiveFocusIconColor = ColorSchemeKeyTokens.OnSecondaryContainer
-    val ActiveFocusLabelTextColor = ColorSchemeKeyTokens.OnSecondaryContainer
-    val ActiveHoverIconColor = ColorSchemeKeyTokens.OnSecondaryContainer
-    val ActiveHoverLabelTextColor = ColorSchemeKeyTokens.OnSecondaryContainer
     val ActiveIconColor = ColorSchemeKeyTokens.OnSecondaryContainer
     val ActiveIndicatorColor = ColorSchemeKeyTokens.SecondaryContainer
     val ActiveIndicatorHeight = 56.0.dp
     val ActiveIndicatorShape = ShapeKeyTokens.CornerFull
-    val ActiveIndicatorWidth = 336.0.dp
     val ActiveLabelTextColor = ColorSchemeKeyTokens.OnSecondaryContainer
-    val ActivePressedIconColor = ColorSchemeKeyTokens.OnSecondaryContainer
-    val ActivePressedLabelTextColor = ColorSchemeKeyTokens.OnSecondaryContainer
-    val BottomContainerShape = ShapeKeyTokens.CornerLargeTop
-    val ContainerHeightPercent = 100.0f
     val ContainerShape = ShapeKeyTokens.CornerLargeEnd
     val ContainerWidth = 360.0.dp
-    val FocusIndicatorColor = ColorSchemeKeyTokens.Secondary
-    val HeadlineColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val HeadlineFont = TypographyKeyTokens.TitleSmall
-    val IconSize = 24.0.dp
-    val InactiveFocusIconColor = ColorSchemeKeyTokens.OnSurface
-    val InactiveFocusLabelTextColor = ColorSchemeKeyTokens.OnSurface
-    val InactiveHoverIconColor = ColorSchemeKeyTokens.OnSurface
-    val InactiveHoverLabelTextColor = ColorSchemeKeyTokens.OnSurface
     val InactiveIconColor = ColorSchemeKeyTokens.OnSurfaceVariant
     val InactiveLabelTextColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val InactivePressedIconColor = ColorSchemeKeyTokens.OnSurface
-    val InactivePressedLabelTextColor = ColorSchemeKeyTokens.OnSurface
-    val LabelTextFont = TypographyKeyTokens.LabelLarge
-    val LargeBadgeLabelColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val LargeBadgeLabelFont = TypographyKeyTokens.LabelLarge
     val ModalContainerColor = ColorSchemeKeyTokens.SurfaceContainerLow
-    val ModalContainerElevation = ElevationTokens.Level1
     val StandardContainerColor = ColorSchemeKeyTokens.Surface
     val StandardContainerElevation = ElevationTokens.Level0
 }

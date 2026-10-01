@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 // 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION v0_11_0），不再由上游生成，可直接改。
+// 只留本组件库真正用到的槽位（底栏容器色、条目三种颜色、指示条形状、高版高度与标签字体）；
+// 上游那份里的容器高度/高度阴影/条目间距/底栏形状等槽位没有任何组件在用，已随裁剪删掉。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
@@ -21,18 +23,12 @@ import androidx.compose.ui.unit.dp
 
 internal object NavigationBarTokens {
     val ContainerColor = ColorSchemeKeyTokens.SurfaceContainer
-    val ContainerElevation = ElevationTokens.Level2
-    val ContainerHeight = 64.0.dp
     val ItemActiveIconColor = ColorSchemeKeyTokens.OnSecondaryContainer
     val ItemActiveIndicatorColor = ColorSchemeKeyTokens.SecondaryContainer
-    val ItemActiveIndicatorIconLabelSpace = 4.0.dp
     val ItemActiveIndicatorShape = ShapeKeyTokens.CornerFull
     val ItemActiveLabelTextColor = ColorSchemeKeyTokens.Secondary
-    val ItemBetweenSpace = 0.0.dp
     val ItemInactiveIconColor = ColorSchemeKeyTokens.OnSurfaceVariant
     val ItemInactiveLabelTextColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val NavShape = ShapeKeyTokens.CornerNone
-    // TODO: Update this file to include the following missing tokens:
     val TallContainerHeight = 80.0.dp
     val LabelTextFont = TypographyKeyTokens.LabelMedium
 }

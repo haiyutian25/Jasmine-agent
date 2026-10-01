@@ -15,24 +15,17 @@
  */
 
 // 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION 14_0_0），不再由上游生成，可直接改。
+// 只留本组件库真正用到的槽位（顶部栏几个角色的颜色）；上游那份里的 AvatarSize / IconSize / 各种
+// 间距 / 容器高度与形状等槽位没有任何组件在用，已随裁剪删掉 —— 要加就照这里补一行（若引用了
+// ColorScheme/Shape/Typography/Elevation 的键，也要在 TokenResolvers.kt 里补对应分支）。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
-import androidx.compose.ui.unit.dp
-
 internal object AppBarTokens {
-    val AvatarSize = 32.0.dp
     val ContainerColor = ColorSchemeKeyTokens.Surface
-    val ContainerElevation = ElevationTokens.Level0
-    val ContainerShape = ShapeKeyTokens.CornerNone
-    val IconButtonSpace = 0.0.dp
-    val IconSize = 24.0.dp
     val LeadingIconColor = ColorSchemeKeyTokens.OnSurface
-    val LeadingSpace = 4.0.dp
     val OnScrollContainerColor = ColorSchemeKeyTokens.SurfaceContainer
-    val OnScrollContainerElevation = ElevationTokens.Level2
     val SubtitleColor = ColorSchemeKeyTokens.OnSurfaceVariant
     val TitleColor = ColorSchemeKeyTokens.OnSurface
     val TrailingIconColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val TrailingSpace = 4.0.dp
 }
