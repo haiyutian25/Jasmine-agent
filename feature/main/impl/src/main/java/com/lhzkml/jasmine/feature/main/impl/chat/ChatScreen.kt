@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,6 +27,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lhzkml.jasmine.core.data.model.ChatRole
+import com.lhzkml.jasmine.core.markdown.ui.clearMermaidCache
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.feature.main.impl.relativeTimeText
 import kotlinx.coroutines.NonCancellable
@@ -84,6 +86,13 @@ fun ChatScreen(
     currentTheme: CssVariables,
     modifier: Modifier = Modifier,
 ) {
+    // 图表位图只活在「当前这条会话」里：切会话、离开聊天页、退出界面时都丢掉。
+    // 键就是会话 id —— 它一变，这个 effect 先 dispose（清掉上一条会话渲出来的图）再重新挂上；
+    // 这一屏自己被移出组合（返回 / 退出）时同样走到 onDispose。
+    DisposableEffect(state.activeConversationId) {
+        onDispose { clearMermaidCache() }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()

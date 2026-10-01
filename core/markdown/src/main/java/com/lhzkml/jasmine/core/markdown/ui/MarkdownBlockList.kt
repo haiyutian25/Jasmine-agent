@@ -515,9 +515,9 @@ private fun CodeText(block: MarkdownBlock, currentTheme: CssVariables, bodyFontS
  * 这样反而顺带解决了两个问题：
  *
  * - 流式过程中源码还在增长，而默认页就是代码，所以不会去建一张只画了半张的图；
- * - 渲染只在用户点开「图片」时发生，且全程复用 [MermaidRenderer] 里**唯一**的那个离屏
- *   WebView —— 存活数量不随 mermaid 块的数量增长（这正是之前一次创建 7 个 WebView
- *   把渲染进程压垮的原因）。
+ * - 渲染只在用户点开「图片」时发生，且**一次只开一个引擎、渲完就关**（见 [MermaidRenderer]）
+ *   —— 引擎的存活数量既不随 mermaid 块的数量增长（这正是之前一次创建 7 个 WebView 把渲染
+ *   进程压垮的原因），也不会在没人看图的时候继续占着。
  */
 @Composable
 private fun MermaidOrCodeBlock(

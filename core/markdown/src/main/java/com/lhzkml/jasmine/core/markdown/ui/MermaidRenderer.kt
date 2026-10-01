@@ -34,7 +34,7 @@ import kotlin.coroutines.resume
 private const val PAGE_READY_TIMEOUT_MS = 5_000L
 
 /**
- * mermaid 离屏渲染器 —— **全进程只持有一个 WebView**，且它从不显示。
+ * mermaid 离屏渲染器 —— 引擎**按需开、渲完即关**，且它从不显示。
  *
  * ## 为什么不把 WebView 放进界面
  *
@@ -44,6 +44,17 @@ private const val PAGE_READY_TIMEOUT_MS = 5_000L
  * 建销。ima 的聊天侧干脆把渲染放到服务端，本地只显示一张图片 —— 这里用「本地离屏渲染」
  * 复刻同样的产物形态：**交给界面的是一张 Bitmap**，WebView 只是生成它的工具。
  *
+ * ## 引擎的生命周期：一次渲染一个
+ *
+ * 渲染是"一阵一阵"的：用户点开某张图的「图片」页 → 渲出一张位图 → 之后要么接着聊、要么切走。
+ * 所以引擎**不跨渲染复用** —— 开、渲、关全在一次 [render] 里走完（`try/finally`，成功、失败、
+ * 超时、被取消都一样关上）。代价是每张图要重新建 WebView、重新加载宿主页（页面在 assets 里，
+ * 百来毫秒）；换来的是进程里**不会**一直躺着一套 Chromium（渲染线程 / JS 堆 / 已解析的页面）——
+ * 否则用户只是扫过一眼流程图，整个进程就得替它扛到最后。
+ *
+ * 同一时刻只有一个引擎在跑（[mutex] 串行化）：mermaid 的渲染会改动页面里的 DOM、不可重入；
+ * 排队顺带也把"同时开两套 Chromium"挡在外面。
+ *
  * ## 像素怎么取
  *
  * 不用 `WebView.draw()` —— 未挂进窗口的 Chromium WebView 不保证产出帧，`draw()` 常拿到
@@ -51,11 +62,12 @@ private const val PAGE_READY_TIMEOUT_MS = 5_000L
  * 把 PNG 以 data URL 回传，Kotlin 侧解码。整条链路不依赖 WebView 自身被绘制，
  * 所以这个 WebView **永远不需要挂进任何窗口**。
  *
- * ## 并发与缓存
+ * ## 缓存：只在当前这条会话里值钱
  *
- * mermaid 的渲染会改动页面里的 DOM，不可重入 —— 用 [mutex] 串行化，一次只渲一张。
- * 结果按 `主题|缩放|源码` 缓存在 [cache]（字节计量的 LRU），所以「代码 ↔ 图片」
- * 反复切换不会重复渲染 —— 对应 ima 的 `FencedCodeCache`。
+ * 渲出来的位图按 `主题|缩放|源码` 缓存在 [cache]（字节计量的 LRU），所以「代码 ↔ 图片」来回切换
+ * 不会重复渲染 —— 对应 ima 的 `FencedCodeCache`。但这份缓存的**寿命是当前这条会话**：切会话、
+ * 离开聊天页、退出界面时由宿主调 [clearMermaidCache] 丢掉（位图只在这一屏有意义的那段时间里
+ * 值钱；连"看过的图"一起攥着，等于把上一屏的内存带进下一屏）。
  */
 internal object MermaidRenderer {
 
@@ -98,21 +110,48 @@ internal object MermaidRenderer {
         }
     }
 
-    /** 内存吃紧时由宿主调用。 */
-    fun trim() {
+    /** 丢掉渲出来的位图（切会话 / 离开聊天页时由 [clearMermaidCache] 调）。 */
+    fun clearCache() {
         cache.evictAll()
     }
 
+    /**
+     * 开引擎 → 渲一张 → 关引擎。
+     *
+     * 引擎不跨渲染复用（见类注释）：出口只有一个 [destroyWebView]，所以"渲完就关"不靠调用方记得做
+     * —— 成功、失败、超时（G2 那条）、被取消，都会走到它。
+     */
     private suspend fun renderOnMain(
         appContext: Context,
         source: String,
         isDark: Boolean,
         scale: Float,
     ): MermaidBitmap? {
-        val web = webView ?: createWebView(appContext).also { webView = it }
-        val raw = awaitRender(web, source, isDark, scale) ?: return null
-        val bitmap = decodeDataUrl(raw.dataUrl) ?: return null
-        return MermaidBitmap(bitmap, raw.naturalWidth, raw.naturalHeight)
+        val web = createWebView(appContext).also { webView = it }
+        try {
+            val raw = awaitRender(web, source, isDark, scale) ?: return null
+            val bitmap = decodeDataUrl(raw.dataUrl) ?: return null
+            return MermaidBitmap(bitmap, raw.naturalWidth, raw.naturalHeight)
+        } finally {
+            destroyWebView()
+        }
+    }
+
+    /**
+     * 关掉这一个引擎，并把它留下的状态一起清干净。
+     *
+     * 只在主线程、且握着 [mutex] 时调用 —— 也就是"这次渲染已经结束"的时候。
+     */
+    private fun destroyWebView() {
+        val web = webView ?: return
+        webView = null
+        pageReady = false
+        // 桥回调是 `main.post` 进来的，可能排在这次渲染之后才醒：这两个一并清掉，
+        // 它们醒来时 `pending ?: return` 直接返回，不会去碰一个已经销毁的页面。
+        pending = null
+        queued = null
+        web.destroy()
+        Log.d(TAG, "渲染引擎已关闭（渲完即关）")
     }
 
     /**
@@ -154,7 +193,7 @@ internal object MermaidRenderer {
     }
 
     private fun createWebView(appContext: Context): WebView {
-        Log.d(TAG, "创建离屏 WebView")
+        Log.d(TAG, "开渲染引擎")
         return WebView(appContext).apply {
             setBackgroundColor(android.graphics.Color.TRANSPARENT)
             settings.configure()
@@ -214,6 +253,17 @@ internal object MermaidRenderer {
         Log.w(TAG, "base64 解码失败", e)
         null
     }
+}
+
+/**
+ * 丢掉已经渲出来的图表位图。
+ *
+ * 缓存的寿命是**当前这条会话**：宿主在切会话、离开聊天页、退出界面时调它。引擎本身不需要这里管
+ * —— 它在每次渲染结束时就已经关掉了（见 [MermaidRenderer]）；这一步只是不让"看过的图"跟着进下
+ * 一条会话、或者留在一个已经离开的界面背后。
+ */
+fun clearMermaidCache() {
+    MermaidRenderer.clearCache()
 }
 
 /** 缓存上限取可用堆的 1/8，与 Android 上 `LruCache` 的常规取法一致。 */
