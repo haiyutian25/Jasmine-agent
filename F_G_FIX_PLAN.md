@@ -406,7 +406,8 @@ is ChatAction.Internal.ActiveModelReceived -> {
   那把锁保护的是"全进程唯一的那个 WebView + 它的 `pending`/`queued`"，渲染本来就是与它的顺序交互；
   缩锁只会把并发放进来（同一时刻两条 `evaluateJavascript` 打同一个 WebView）。造成**永久**排队的根因是
   等待**无上界**，超时把它解掉了。
-- **未做方案里那条验证**：要真 `WebView`（纯 JVM / Robolectric 都起不了）—— 归入 G6。
+- **未做方案里那条验证**：要真 `WebView`（纯 JVM / Robolectric 都起不了）—— 归入 G6；后来**仍未做**
+  （见 G6 实施记录：mermaid 超时只能在仪器化测试 / 真机上验）。
 
 ### G3 `IncrementalMarkdownDocument.blocks` 的别名 — ✅
 
@@ -423,8 +424,10 @@ is ChatAction.Internal.ActiveModelReceived -> {
 
 **实施记录**：`val blocks: List<MarkdownBlock> get() = _blocks.toList()`（对外只给**快照**）。
 `append` / `finalizeStream` 仍返回内部那份（它们是"本次追加的结果"，调用方立刻取用；而且"就地改"正是
-它们与 `blocks` 的约定）。**未做方案里那条验证**：`IncrementalMarkdownDocument` 的解析器是 JNI 的
-（构造时就 `System.loadLibrary`），纯 JVM 单测加载不了 `.so` —— 归入 G6（需设备/仪器化测试）。
+它们与 `blocks` 的约定）。**方案里那条验证**（取一次 `blocks`、再 `append`、断言先前那份没变）**仍未做**：
+`IncrementalMarkdownDocument` 的解析器是 JNI 的（构造时就 `System.loadLibrary`），纯 JVM 单测加载
+不了 `.so`，只能在设备/仪器化测试里做。不过这一族里**活在调用链上的两个纯函数**后来补上了断言
+（`IncrementalBlocksTest` 6 例，见 G6 实施记录）。
 
 ### G4 `chats` 里"只被打开过"的会话条目不回收 — ✅
 
@@ -599,15 +602,25 @@ is ChatAction.Internal.ActiveModelReceived -> {
   坏数据自愈 `usage_stats::a_corrupt_archive_line_is_skipped_and_repaired`、FFI 的调用时序错误
   `handle_reports_call_order_errors_as_text`。
 
-**两项没做，如实记在这里**（都不是"忘了"）：
-1. **`core:markdown` 的 G2/G3 回归**：`IncrementalMarkdownDocument` 的解析器是 JNI 的（构造时就
-   `System.loadLibrary`），`MermaidRenderer` 要真 `WebView` 与 `Looper` —— 两者的行为级测试要仪器化
-   测试或真机，纯 JVM/Robolectric 下测到的是替身而不是被测物。G2/G3 的改动本身是"返回快照 /
-   加超时"这种读一眼就能确认的形式。
-2. **导航与返回键（`MainScreen` 抽屉拦返回、`MainNavHost` 的 `MainEvent.ShowToast` 格式化）**：
-   要 Compose UI 测试 + 一个真 `Activity`（`createAndroidComposeRule`），属于新引入的一类测试
-   基建（现有 `MainScreenshotTest` 只渲染、不断言交互）。本期先把零覆盖里**风险最高**的
-   `MainViewModel` 拿下了；这一条留在下一批，不假装做了。
+**当初顺延的两项，后来各补上了一半**（补的部分在 `d040aab` 那批里）：
+1. **`core:markdown` 的 G2/G3 回归** —— 顺延的理由是 `IncrementalMarkdownDocument` 的解析器是 JNI 的
+   （构造时就 `System.loadLibrary`）、`MermaidRenderer` 要真 `WebView` 与 `Looper`。
+   **已补**：那一族里**真正活在调用链上的两个纯函数**可以在 JVM 里钉住 —— 新增
+   `IncrementalBlocksTest`（6 例）：`IncrementalMarkdownParser.apply` 就地改（`ChatRestore` 的恢复
+   路径在用）、`IncrementalMarkdownDocument.applied` **不改入参**（`ChatViewModel` 每片流式在用）、
+   三分支（空增量原样返回 / 纯追加 / 中间截断重建）、以及"两条路径对同一增量结果必须一致"。
+   **仍缺**：`blocks` getter 给的是不是快照（要构造实例 → 要 `System.loadLibrary`）与 G2 的
+   mermaid 超时 —— 这两个只能在仪器化测试 / 真机上做。
+   （顺带更正一处：`IncrementalMarkdownDocument` 的**实例**在生产代码里根本没人构造，只用伴生
+   `applied` —— 所以给它注入 `MarkdownParser` 换可测性是白改，试过后已回退。）
+2. **导航与返回键（`MainScreen` 抽屉拦返回、`MainNavHost` 的 `MainEvent.ShowToast` 格式化）** ——
+   顺延的理由是"要 Compose UI 测试 + 一个真 `Activity`（`createAndroidComposeRule`），属于新引入的
+   一类测试基建"。**基建已经建起来了**：`ProviderScreenBackTest`（2 例，Robolectric +
+   `createAndroidComposeRule<ComponentActivity>()`）钉住"编辑态按系统返回 → `CancelClicked`、
+   列表态不拦"，配套 `ProviderBackRuleTest`（5 例）钉住 `canNavigateBack`（= 编辑态已关）这条规则
+   在三个编辑入口上都成立。
+   **仍缺**：当初点名的那两个（抽屉拦返回、`ShowToast` 格式化）还没断言 —— 现在有了这套基建，
+   补起来没有了障碍，但本期没做，不假装做了。
 
 **顺带修的两处**（都在验证时撞见）：`cargo fmt --check` 此前**不一致** —— F1/F2/F6 那几批提交里
 有 6 个文件没过 fmt（`service.rs` / `service_tests.rs` / `thread.rs` / `lib.rs` / `usage_stats_tests.rs` /
