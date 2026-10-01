@@ -40,6 +40,7 @@ import com.lhzkml.jasmine.feature.settings.impl.LanguageViewModel
 import com.lhzkml.jasmine.feature.settings.impl.R as SettingsR
 import com.lhzkml.jasmine.feature.settings.impl.screens.BehaviourAndPermissionsScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugComponentsScreen
+import com.lhzkml.jasmine.feature.settings.impl.screens.DebugBottomBarScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugSidebarScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugTopAppBarScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.FontScreen
@@ -328,6 +329,7 @@ fun MainNavHost(
                             onOpenSidebar = {
                                 navigator.navigate(SettingsNavKey.DebugSidebar(it))
                             },
+                            onOpenBottomBar = { navigator.navigate(SettingsNavKey.DebugBottomBar) },
                             modifier = contentModifier,
                         )
                     }
@@ -345,6 +347,13 @@ fun MainNavHost(
                 entry<SettingsNavKey.DebugSidebar> { key ->
                     DebugSidebarScreen(
                         variant = key.variant,
+                        currentTheme = state.theme,
+                        onBack = { navigator.goBack() },
+                    )
+                }
+                // 底部导航栏预览：同样是不套 SettingsPage 的独立页面。
+                entry<SettingsNavKey.DebugBottomBar> {
+                    DebugBottomBarScreen(
                         currentTheme = state.theme,
                         onBack = { navigator.goBack() },
                     )

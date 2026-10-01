@@ -65,6 +65,7 @@ fun DebugComponentsScreen(
     currentTheme: CssVariables,
     onOpenTopAppBar: (String) -> Unit,
     onOpenSidebar: (String) -> Unit,
+    onOpenBottomBar: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -116,6 +117,14 @@ fun DebugComponentsScreen(
         DebugSidebarGroup(
             currentTheme = currentTheme,
             onOpen = onOpenSidebar,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupSpacing))
+
+        DebugBottomBarGroup(
+            currentTheme = currentTheme,
+            onOpen = onOpenBottomBar,
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -479,6 +488,41 @@ private fun DebugSidebarGroup(
             label = stringResource(R.string.debug_sidebar_permanent_drawer),
             currentTheme = currentTheme,
             onClick = { onOpen(SettingsDebugSidebarVariant.PERMANENT_DRAWER) }
+        )
+        Spacer(modifier = Modifier.height(DebugGroupBottomPadding))
+    }
+}
+
+/** 底部导航栏入口：标准底栏一个变体，占一整页。 */
+@Composable
+private fun DebugBottomBarGroup(
+    currentTheme: CssVariables,
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(currentTheme.card)
+            .border(1.dp, currentTheme.border, shape)
+    ) {
+        Text(
+            text = stringResource(R.string.debug_screen_section_bottom_bar),
+            fontSize = DebugTitleFontSize,
+            fontWeight = FontWeight.Medium,
+            color = currentTheme.mutedForeground,
+            modifier = Modifier.padding(
+                start = DebugRowPaddingHorizontal,
+                top = DebugRowPaddingHorizontal,
+                bottom = DebugRowPaddingVertical
+            )
+        )
+
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_bottom_bar_entry),
+            currentTheme = currentTheme,
+            onClick = onOpen
         )
         Spacer(modifier = Modifier.height(DebugGroupBottomPadding))
     }

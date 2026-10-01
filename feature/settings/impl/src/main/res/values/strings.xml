@@ -94,4 +94,15 @@
     <string name="debug_sidebar_item_one">Item one</string>
     <string name="debug_sidebar_item_two">Item two</string>
     <string name="debug_sidebar_item_three">Item three</string>
+
+    <!-- Component-layer debug: the standard bottom navigation bar. -->
+    <string name="debug_screen_section_bottom_bar">Bottom navigation</string>
+    <string name="debug_bottom_bar_entry">Standard bar</string>
+    <string name="debug_bottom_bar_hint">The bar is pinned to the bottom. Tap an item to change the selection; the button above switches between 3 and 5 items.</string>
+    <string name="debug_bottom_bar_switch">Switch to %1$d items</string>
+    <string name="debug_bottom_bar_item_one">Item one</string>
+    <string name="debug_bottom_bar_item_two">Item two</string>
+    <string name="debug_bottom_bar_item_three">Item three</string>
+    <string name="debug_bottom_bar_item_four">Item four</string>
+    <string name="debug_bottom_bar_item_five">Item five</string>
 </resources>

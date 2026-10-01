@@ -65,6 +65,12 @@ sealed interface SettingsNavKey : NavKey {
      */
     @Serializable
     data class DebugSidebar(val variant: String) : SettingsNavKey
+
+    /**
+     * **底部导航栏预览** 页：组件层（`core:widgets`）标准底栏的独立试验场，同样不套设置流那套顶栏。
+     */
+    @Serializable
+    data object DebugBottomBar : SettingsNavKey
 }
 
 /** [SettingsNavKey.DebugSidebar] 的 `variant` 取值。 */

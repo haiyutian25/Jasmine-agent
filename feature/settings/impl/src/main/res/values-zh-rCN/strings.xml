@@ -94,4 +94,15 @@
     <string name="debug_sidebar_item_one">第一项</string>
     <string name="debug_sidebar_item_two">第二项</string>
     <string name="debug_sidebar_item_three">第三项</string>
+
+    <!-- 组件层调试：标准底部导航栏 -->
+    <string name="debug_screen_section_bottom_bar">底部导航栏</string>
+    <string name="debug_bottom_bar_entry">标准底栏</string>
+    <string name="debug_bottom_bar_hint">底栏固定在底部。点条目可以切换选中态；上面的按钮在 3 项 / 5 项之间切换。</string>
+    <string name="debug_bottom_bar_switch">切换为 %1$d 项</string>
+    <string name="debug_bottom_bar_item_one">第一项</string>
+    <string name="debug_bottom_bar_item_two">第二项</string>
+    <string name="debug_bottom_bar_item_three">第三项</string>
+    <string name="debug_bottom_bar_item_four">第四项</string>
+    <string name="debug_bottom_bar_item_five">第五项</string>
 </resources>
