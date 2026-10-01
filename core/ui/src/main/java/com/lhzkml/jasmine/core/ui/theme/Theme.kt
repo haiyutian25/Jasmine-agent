@@ -24,6 +24,10 @@ fun JasmineTheme(
             onPrimaryContainer = cssVars.accentForeground,
             secondary = cssVars.mutedForeground,
             onSecondary = cssVars.foreground,
+            // 侧边栏（core:widgets 的抽屉）选中态的指示条取的就是 secondaryContainer，
+            // 不映射它会回落到 M3 基线的紫调。
+            secondaryContainer = cssVars.subtleSurface,
+            onSecondaryContainer = cssVars.mutedForeground,
             background = cssVars.background,
             onBackground = cssVars.foreground,
             surface = cssVars.card,
@@ -70,6 +74,9 @@ fun JasmineTheme(
             onPrimaryContainer = cssVars.accentForeground,
             secondary = cssVars.mutedForeground,
             onSecondary = cssVars.foreground,
+            // 同 dark：抽屉选中态指示条用的是 secondaryContainer。
+            secondaryContainer = cssVars.subtleSurface,
+            onSecondaryContainer = cssVars.mutedForeground,
             background = cssVars.background,
             onBackground = cssVars.foreground,
             surface = cssVars.card,
