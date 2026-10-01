@@ -633,6 +633,17 @@ is ChatAction.Internal.ActiveModelReceived -> {
 
 建议提交粒度：F1 / F2+F3 / F4+F5 / F6 / F7+F8 / G1–G4 / G5 / G6 —— 每批一个提交，各自带测试。
 
+**验证记录（2026-10-01，本机）**
+
+| 项 | 命令 | 结果 |
+|---|---|---|
+| 全量 JVM 单测 | `gradlew testDebugUnitTest` | ✅ 全绿（**120 例**，21 个测试文件） |
+| Rust 单测 | `cargo test --workspace` | ✅ 全绿（**189 例**） |
+| Rust 静态检查 | `cargo fmt --check` / `cargo clippy --workspace --all-targets` | ✅ 一致 / 0 告警（F1–F6 遗留的 6 处 fmt 已在 G6 修掉） |
+| debug 构建 | `gradlew :app:assembleDebug` | ✅（含 cargo-ndk 四个 ABI 的 `.so` 与 UniFFI 生成） |
+| release 构建 | `gradlew :app:assembleRelease` | ✅（R8 minify + shrinkResources） |
+| 真机冒烟 | —— | ⏭️ **未做**：本机没有连设备。需要人工过一遍 F1（多轮中改档位不卡）、F3（失败后不再停在"正在生成"）、G4（切遍多会话后内存不涨）这三条"只有真机能看见"的路径 |
+
 ---
 
 ## 4. 明确不做
