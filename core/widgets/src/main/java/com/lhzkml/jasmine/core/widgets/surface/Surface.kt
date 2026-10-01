@@ -25,11 +25,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.Interaction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.LocalAbsoluteTonalElevation
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.contentColorFor
 import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.NonRestartableComposable
@@ -225,6 +227,80 @@ fun Surface(
                     )
                     .clickable(
                         interactionSource = interactionSource,
+                        enabled = enabled,
+                        onClick = onClick,
+                    )
+                    .childSemantics(),
+            propagateMinConstraints = true,
+        ) {
+            content()
+        }
+    }
+}
+
+/**
+ * Material surface is the central metaphor in material design. Each surface exists at a given
+ * elevation, which influences how that piece of surface visually relates to other surfaces and how
+ * that surface is modified by tonal variance.
+ *
+ * This version of Surface is responsible for selecting its state as well as everything else a
+ * regular Surface does; it is what the navigation drawer items are built on.
+ *
+ * @param selected whether or not this Surface is selected
+ * @param onClick callback to be called when the surface is clicked
+ * @param modifier Modifier to be applied to the layout corresponding to the surface
+ * @param enabled Controls the enabled state of the surface. When `false`, this surface will not be
+ *   clickable
+ * @param shape Defines the surface's shape as well its shadow. A shadow is only displayed if the
+ *   [tonalElevation] is greater than zero.
+ * @param color The background color. Use [Color.Transparent] to have no color.
+ * @param contentColor The preferred content color provided by this Surface to its children.
+ * @param tonalElevation When [color] is [ColorScheme.surface], a higher the elevation will result
+ *   in a darker color in light theme and lighter color in dark theme.
+ * @param shadowElevation The size of the shadow below the surface.
+ * @param border Optional border to draw on top of the surface
+ * @param interactionSource an optional hoisted [MutableInteractionSource] for observing and
+ *   emitting [Interaction]s for this surface.
+ * @param content The content to be displayed on this Surface
+ */
+@Composable
+@NonRestartableComposable
+fun Surface(
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: Shape = RectangleShape,
+    color: Color = MaterialTheme.colorScheme.surface,
+    contentColor: Color = contentColorFor(color),
+    tonalElevation: Dp = 0.dp,
+    shadowElevation: Dp = 0.dp,
+    border: BorderStroke? = null,
+    interactionSource: MutableInteractionSource? = null,
+    content: @Composable () -> Unit,
+) {
+    @Suppress("NAME_SHADOWING")
+    val interactionSource = interactionSource ?: remember { MutableInteractionSource() }
+    val absoluteElevation = LocalAbsoluteTonalElevation.current + tonalElevation
+    CompositionLocalProvider(
+        LocalContentColor provides contentColor,
+        LocalAbsoluteTonalElevation provides absoluteElevation,
+    ) {
+        Box(
+            modifier =
+                modifier
+                    .minimumInteractiveComponentSize()
+                    .surface(
+                        shape = shape,
+                        backgroundColor =
+                            surfaceColorAtElevation(color = color, elevation = absoluteElevation),
+                        border = border,
+                        shadowElevation = with(LocalDensity.current) { shadowElevation.toPx() },
+                    )
+                    .selectable(
+                        selected = selected,
+                        interactionSource = interactionSource,
+                        indication = ripple(),
                         enabled = enabled,
                         onClick = onClick,
                     )

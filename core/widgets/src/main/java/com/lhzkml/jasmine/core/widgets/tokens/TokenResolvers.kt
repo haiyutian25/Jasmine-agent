@@ -46,11 +46,14 @@ internal fun ColorScheme.fromToken(value: ColorSchemeKeyTokens): Color {
         ColorSchemeKeyTokens.Error -> error
         ColorSchemeKeyTokens.OnPrimary -> onPrimary
         ColorSchemeKeyTokens.OnPrimaryContainer -> onPrimaryContainer
+        ColorSchemeKeyTokens.OnSecondaryContainer -> onSecondaryContainer
         ColorSchemeKeyTokens.OnSurface -> onSurface
         ColorSchemeKeyTokens.OnSurfaceVariant -> onSurfaceVariant
         ColorSchemeKeyTokens.Outline -> outline
         ColorSchemeKeyTokens.Primary -> primary
         ColorSchemeKeyTokens.Scrim -> scrim
+        ColorSchemeKeyTokens.Secondary -> secondary
+        ColorSchemeKeyTokens.SecondaryContainer -> secondaryContainer
         ColorSchemeKeyTokens.Surface -> surface
         ColorSchemeKeyTokens.SurfaceContainer -> surfaceContainer
         ColorSchemeKeyTokens.SurfaceContainerHighest -> surfaceContainerHighest
@@ -107,6 +110,8 @@ internal fun Shapes.fromToken(value: ShapeKeyTokens): Shape {
         ShapeKeyTokens.CornerExtraSmall -> extraSmall
         ShapeKeyTokens.CornerExtraSmallTop -> extraSmall.top()
         ShapeKeyTokens.CornerFull -> CircleShape
+        ShapeKeyTokens.CornerLargeEnd -> large.end()
+        ShapeKeyTokens.CornerLargeTop -> large.top()
         ShapeKeyTokens.CornerNone -> RectangleShape
     }
 }
@@ -143,8 +148,10 @@ internal fun ColorScheme.applyTonalElevation(backgroundColor: Color, elevation: 
 /** Helper function for component typography tokens. */
 internal fun Typography.fromToken(value: TypographyKeyTokens): TextStyle {
     return when (value) {
+        TypographyKeyTokens.LabelLarge -> labelLarge
         TypographyKeyTokens.LabelMedium -> labelMedium
         TypographyKeyTokens.TitleLarge -> titleLarge
+        TypographyKeyTokens.TitleSmall -> titleSmall
     }
 }
 
