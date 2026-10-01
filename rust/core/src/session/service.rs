@@ -49,8 +49,6 @@ use jasmine_tools::ConversationSummary as ToolConversationSummary;
 use jasmine_tools::ConversationTitles;
 use jasmine_tools::CurrentTimeTool;
 use jasmine_tools::ListPastConversationsTool;
-use std::cell::Cell;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::future::Future;
 use std::path::PathBuf;
@@ -63,6 +61,12 @@ use std::sync::atomic::Ordering;
 use tokio_util::sync::CancellationToken;
 
 /// Where the core pushes events on their way back to the platform.
+///
+/// Events go out **the moment they are produced** — right here, from inside the running turn.
+/// Interface streaming (text arriving word by word) is that and nothing else: collecting them and
+/// handing them over when the turn ends would render the reply in one piece. So `emit` must not
+/// block for long, and a reader of the conversation's own state must not wait on the turn's lock
+/// (`AgentChatService::context_len` reads with `try_lock` for exactly this reason).
 pub trait ChatSink {
     fn emit(&mut self, event: ChatEvent);
 }
@@ -225,46 +229,6 @@ impl SessionSlot {
             Ok(guard) => Some(guard),
             Err(TryLockError::Poisoned(poisoned)) => Some(poisoned.into_inner()),
             Err(TryLockError::WouldBlock) => None,
-        }
-    }
-}
-
-/// 一轮在**持锁期间**攒下、等锁放掉之后再交给平台的东西。
-///
-/// 以前事件与"存储变了"是在持有会话槽锁、并且身处 `block_on` 的 runtime 上下文里**同步**调给平台的。
-/// 那有三个后果，每一个都只要平台那侧顺手做一个调用就会踩到：
-/// ① 回调里查一次会话（`context_len` 这类）就是同线程非重入死锁 —— `std::sync::Mutex` 不可重入；
-/// ② 回调里再调任何 `block_on` 方法，Tokio 直接 panic（"Cannot start a runtime from within a runtime"）；
-/// ③ 回调里抛异常（uniffi 会把 Kotlin 异常转成 Rust panic）会在持锁时展开，把这条会话的锁**永久中毒**。
-///
-/// 攒下来、出锁之后再发，三个问题一起消失：发的时候锁已经放掉、`block_on` 也已经返回。
-/// 顺序也保住了 —— 事件按产生顺序出去，`turn_complete` 一定排在它前面那些增量之后。
-#[derive(Default)]
-struct Outbox {
-    events: RefCell<Vec<ChatEvent>>,
-    store_changed: Cell<bool>,
-}
-
-impl Outbox {
-    fn event(&self, event: ChatEvent) {
-        self.events.borrow_mut().push(event);
-    }
-
-    /// 存储变更只记"有没有"，不记次数：它是**信号**不是数据，平台侧本来就自己防抖
-    /// （见 `RustConversationStore` 的 debounce），重复通知没有意义。
-    fn store_changed(&self) {
-        self.store_changed.set(true);
-    }
-
-    /// 交给平台。事件在前、"存储变了"在后 —— 平台收到信号会立刻回读列表，那时这一轮的落盘已经完成。
-    ///
-    /// 发过就清空（`drain` + `replace(false)`）：重复 flush 不会把同一批东西再发一遍。
-    fn flush(&self, sink: &mut dyn ChatSink, notify: impl Fn()) {
-        for event in self.events.borrow_mut().drain(..) {
-            sink.emit(event);
-        }
-        if self.store_changed.replace(false) {
-            notify();
         }
     }
 }
@@ -520,8 +484,6 @@ impl AgentChatService {
     ) -> Result<(), AgentError> {
         let slot = self.attached_slot(session_id)?;
         let mut guard = slot.lock()?;
-        // 与回合那三条同一套：持锁期间只攒，出锁之后才交给平台（F1b）。
-        let outbox = Outbox::default();
         let result = (|| -> Result<(), AgentError> {
             let attached = guard.as_mut().ok_or(AgentError::NoSession)?;
             let Attached {
@@ -531,17 +493,16 @@ impl AgentChatService {
                 ..
             } = attached;
             record_boundary(rollout, RolloutItem::ContextWindow { tokens }, &|| {
-                outbox.store_changed()
+                self.notify_store_changed()
             })?;
             *context_window_tokens = tokens;
             thread.note_context_window(to_tokens(tokens));
             if let Some(event) = thread.usage_event() {
-                outbox.event(event);
+                sink.emit(event);
             }
             Ok(())
         })();
         drop(guard);
-        outbox.flush(sink, || self.notify_store_changed());
         result
     }
 
@@ -664,11 +625,10 @@ impl AgentChatService {
     ) -> Result<(), AgentError> {
         let slot = self.attached_slot(session_id)?;
         let mut guard = slot.lock()?;
-        // 这一轮要发给平台的东西先攒着（F1b，见 `Outbox`）。
-        let outbox = Outbox::default();
 
-        // 整块在**持锁期间**跑，只往 `outbox` 里攒、不碰平台。`?` 只从这一块出去 —— 于是下面的收尾
-        // （放锁 / 释放 / 把攒下的东西交给平台）无论成功失败都会执行（F1a）。
+        // 整块在**持锁期间**跑，事件**产生即发**（见 `ChatSink` 的说明：实时渲染靠这个，一轮
+        // 攒到最后再发就等于没有流式）。`?` 只从这一块出去 —— 于是下面那一步收尾
+        // （放锁 / 释放）无论成功失败都会执行（F1a）。
         let result = (|| -> Result<(), AgentError> {
             let attached = guard.as_mut().ok_or(AgentError::NoSession)?;
             let Attached {
@@ -687,7 +647,7 @@ impl AgentChatService {
             let instruction = instruction_option(instruction);
             let registry = self.runtime.registry();
             let runtime = &self.runtime;
-            let mut emit = |event: ChatEvent| outbox.event(event);
+            let mut emit = |event: ChatEvent| sink.emit(event);
             let mut recorded = history.len();
             // 暂停之后**没点继续、直接在输入框发了新内容**：上一轮"看得到的全部内容"走一条**上下文片段**
             // （与 `<turn_aborted>` 同一种东西：模型看得见、转写里不出现在气泡里），排在用户这条消息前面。
@@ -717,7 +677,7 @@ impl AgentChatService {
                     // 就是"这一轮实际用的档位"。
                     reasoning_effort: reasoning_effort.clone(),
                 },
-                &|| outbox.store_changed(),
+                &|| self.notify_store_changed(),
             )?;
 
             let outcome = self.block_on(send_text(
@@ -737,14 +697,18 @@ impl AgentChatService {
             if matches!(outcome, Ok(Err(SessionError::TurnAborted))) {
                 // 文件的顺序就是界面上的顺序：这一轮已经有的条目（用户消息）先落，再落被停时已经想到的
                 // 与已经写出来的部分 —— 两条都是展示记录，不进对话 —— 最后才是中断标记。
-                record_turn(rollout, history, recorded, &|| outbox.store_changed())?;
+                record_turn(rollout, history, recorded, &|| self.notify_store_changed())?;
                 recorded = history.len();
-                record_interrupted_reasoning(rollout, thread, turn_id, &|| outbox.store_changed())?;
-                record_interrupted_reply(rollout, thread, turn_id, &|| outbox.store_changed())?;
+                record_interrupted_reasoning(rollout, thread, turn_id, &|| {
+                    self.notify_store_changed()
+                })?;
+                record_interrupted_reply(rollout, thread, turn_id, &|| {
+                    self.notify_store_changed()
+                })?;
                 history.push(interrupted_turn_marker());
             }
-            record_turn(rollout, history, recorded, &|| outbox.store_changed())?;
-            record_usage(rollout, thread, &|| outbox.store_changed())?;
+            record_turn(rollout, history, recorded, &|| self.notify_store_changed())?;
+            record_usage(rollout, thread, &|| self.notify_store_changed())?;
             // 收尾（写 turn_complete / turn_aborted、报终态）的结果就是这一轮的返回值：
             // 前面已经不再有"释放"这一步要用它，所以直接作为块的值交出去。
             finish_turn(
@@ -754,16 +718,14 @@ impl AgentChatService {
                 interrupted,
                 started.elapsed().as_millis() as u64,
                 outcome?,
-                &|| outbox.store_changed(),
+                &|| self.notify_store_changed(),
             )
         })();
 
         // 平台可能在回合中途请求过释放（新建 / 切换对话）：那一步不能等这一轮，但必须**还持着锁**做
         // （见 `release_if_detach_requested`），而且不能被上面的失败跳过。
         self.release_if_detach_requested(session_id, &slot, &mut guard);
-        // 锁放掉、`block_on` 也已经返回，这之后才把攒下的事件交给平台（F1b）。
         drop(guard);
-        outbox.flush(sink, || self.notify_store_changed());
         result
     }
 
@@ -776,9 +738,7 @@ impl AgentChatService {
     ) -> Result<(), AgentError> {
         let slot = self.attached_slot(session_id)?;
         let mut guard = slot.lock()?;
-        // 与 `send` 同一套：持锁期间只攒，出锁之后才交给平台（F1b），收尾则失败也要走（F1a）。
-        let outbox = Outbox::default();
-
+        // 与 `send` 同一套：事件产生即发（实时渲染），收尾（放锁 / 释放）失败也要走（F1a）。
         let result = (|| -> Result<(), AgentError> {
             let attached = guard.as_mut().ok_or(AgentError::NoSession)?;
             let Attached {
@@ -797,7 +757,7 @@ impl AgentChatService {
             let instruction = instruction_option(instruction);
             let registry = self.runtime.registry();
             let runtime = &self.runtime;
-            let mut emit = |event: ChatEvent| outbox.event(event);
+            let mut emit = |event: ChatEvent| sink.emit(event);
             let mut recorded = history.len();
             *cancellation = slot.fresh_cancellation()?;
             let started = std::time::Instant::now();
@@ -812,7 +772,7 @@ impl AgentChatService {
                     // 就是"这一轮实际用的档位"。
                     reasoning_effort: reasoning_effort.clone(),
                 },
-                &|| outbox.store_changed(),
+                &|| self.notify_store_changed(),
             )?;
 
             let outcome = self.block_on(continue_turn(
@@ -832,14 +792,18 @@ impl AgentChatService {
             if matches!(outcome, Ok(Err(SessionError::TurnAborted))) {
                 // 文件的顺序就是界面上的顺序：这一轮已经有的条目（用户消息）先落，再落被停时已经想到的
                 // 与已经写出来的部分 —— 两条都是展示记录，不进对话 —— 最后才是中断标记。
-                record_turn(rollout, history, recorded, &|| outbox.store_changed())?;
+                record_turn(rollout, history, recorded, &|| self.notify_store_changed())?;
                 recorded = history.len();
-                record_interrupted_reasoning(rollout, thread, turn_id, &|| outbox.store_changed())?;
-                record_interrupted_reply(rollout, thread, turn_id, &|| outbox.store_changed())?;
+                record_interrupted_reasoning(rollout, thread, turn_id, &|| {
+                    self.notify_store_changed()
+                })?;
+                record_interrupted_reply(rollout, thread, turn_id, &|| {
+                    self.notify_store_changed()
+                })?;
                 history.push(interrupted_turn_marker());
             }
-            record_turn(rollout, history, recorded, &|| outbox.store_changed())?;
-            record_usage(rollout, thread, &|| outbox.store_changed())?;
+            record_turn(rollout, history, recorded, &|| self.notify_store_changed())?;
+            record_usage(rollout, thread, &|| self.notify_store_changed())?;
             finish_turn(
                 rollout,
                 &mut emit,
@@ -847,14 +811,13 @@ impl AgentChatService {
                 interrupted,
                 started.elapsed().as_millis() as u64,
                 outcome?,
-                &|| outbox.store_changed(),
+                &|| self.notify_store_changed(),
             )
         })();
 
         // 平台可能在回合中途请求过释放（新建 / 切换对话）：那一步不能等这一轮，由这里放手。
         self.release_if_detach_requested(session_id, &slot, &mut guard);
         drop(guard);
-        outbox.flush(sink, || self.notify_store_changed());
         result
     }
 
@@ -882,9 +845,7 @@ impl AgentChatService {
     ) -> Result<(), AgentError> {
         let slot = self.attached_slot(session_id)?;
         let mut guard = slot.lock()?;
-        // 与 `send` 同一套：持锁期间只攒，出锁之后才交给平台（F1b），收尾则失败也要走（F1a）。
-        let outbox = Outbox::default();
-
+        // 与 `send` 同一套：事件产生即发（实时渲染），收尾（放锁 / 释放）失败也要走（F1a）。
         let result = (|| -> Result<(), AgentError> {
             let attached = guard.as_mut().ok_or(AgentError::NoSession)?;
             if !attached.interrupted {
@@ -907,7 +868,7 @@ impl AgentChatService {
             let instruction = instruction_option(instruction);
             let registry = self.runtime.registry();
             let runtime = &self.runtime;
-            let mut emit = |event: ChatEvent| outbox.event(event);
+            let mut emit = |event: ChatEvent| sink.emit(event);
             let mut recorded = history.len();
             *cancellation = slot.fresh_cancellation()?;
             let started = std::time::Instant::now();
@@ -924,7 +885,7 @@ impl AgentChatService {
                     // 就是"这一轮实际用的档位"。
                     reasoning_effort: reasoning_effort.clone(),
                 },
-                &|| outbox.store_changed(),
+                &|| self.notify_store_changed(),
             )?;
 
             let outcome = self.block_on(crate::session::run_turn(
@@ -943,14 +904,18 @@ impl AgentChatService {
             if matches!(outcome, Ok(Err(SessionError::TurnAborted))) {
                 // 文件的顺序就是界面上的顺序：这一轮已经有的条目（用户消息）先落，再落被停时已经想到的
                 // 与已经写出来的部分 —— 两条都是展示记录，不进对话 —— 最后才是中断标记。
-                record_turn(rollout, history, recorded, &|| outbox.store_changed())?;
+                record_turn(rollout, history, recorded, &|| self.notify_store_changed())?;
                 recorded = history.len();
-                record_interrupted_reasoning(rollout, thread, turn_id, &|| outbox.store_changed())?;
-                record_interrupted_reply(rollout, thread, turn_id, &|| outbox.store_changed())?;
+                record_interrupted_reasoning(rollout, thread, turn_id, &|| {
+                    self.notify_store_changed()
+                })?;
+                record_interrupted_reply(rollout, thread, turn_id, &|| {
+                    self.notify_store_changed()
+                })?;
                 history.push(interrupted_turn_marker());
             }
-            record_turn(rollout, history, recorded, &|| outbox.store_changed())?;
-            record_usage(rollout, thread, &|| outbox.store_changed())?;
+            record_turn(rollout, history, recorded, &|| self.notify_store_changed())?;
+            record_usage(rollout, thread, &|| self.notify_store_changed())?;
             finish_turn(
                 rollout,
                 &mut emit,
@@ -958,14 +923,13 @@ impl AgentChatService {
                 interrupted,
                 started.elapsed().as_millis() as u64,
                 outcome?,
-                &|| outbox.store_changed(),
+                &|| self.notify_store_changed(),
             )
         })();
 
         // 平台可能在回合中途请求过释放（新建 / 切换对话）：那一步不能等这一轮，由这里放手。
         self.release_if_detach_requested(session_id, &slot, &mut guard);
         drop(guard);
-        outbox.flush(sink, || self.notify_store_changed());
         result
     }
 

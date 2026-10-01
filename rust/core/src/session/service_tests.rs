@@ -787,26 +787,3 @@ fn ending_a_poisoned_conversation_still_clears_it() {
         "中毒不是「正忙」：释放必须照样把它清掉"
     );
 }
-
-/// `Outbox` 的语义（F1b）：事件按顺序攒着、信号只记一次、flush 一次就够。
-///
-/// 它是"回调搬出持锁范围"的承载物 —— 攒错了就等于事件丢了或重复发。
-#[test]
-fn the_outbox_holds_events_until_flushed_and_collapses_the_signal() {
-    let outbox = super::Outbox::default();
-    outbox.event(ChatEvent::Text("一段".to_string()));
-    outbox.store_changed();
-    outbox.store_changed();
-
-    let mut sink = Collector { events: Vec::new() };
-    let notifications = std::cell::Cell::new(0);
-    outbox.flush(&mut sink, || notifications.set(notifications.get() + 1));
-
-    assert_eq!(sink.events.len(), 1, "事件原样出去");
-    assert_eq!(notifications.get(), 1, "重复的存储信号合成一次");
-
-    // 再 flush 一次不该重发：通道式的语义是"发过就没了"。
-    outbox.flush(&mut sink, || notifications.set(notifications.get() + 1));
-    assert_eq!(sink.events.len(), 1);
-    assert_eq!(notifications.get(), 1);
-}

@@ -71,10 +71,11 @@
 - **F1a 收尾无条件执行**：把回合本身与收尾拆开 —— 先算出 `outcome`（不再用 `?` 提前返回），
   在**统一的一处**做 `release_if_detach_requested` + `record_*`，成功失败都走同一条收尾。
   落盘失败仍要把错误返回给调用方，但释放不能被它跳过。
-- **F1b 回调移出持锁范围**：回合期间改为"把要回调的事件先收进本地队列，离开锁作用域之后再发"；
-  或等价的显式两层结构（`{ 持锁跑 } → { 出锁回调 }`）。
-  附带把"回调里不得再入 `AgentHandle`"写成接口 KDoc，并在 `block_on` 里对重入做检测：
-  发现当前线程已在 runtime 内 → 返回 `AgentError::Runtime`，而不是 panic。
+- ~~**F1b 回调移出持锁范围**：回合期间改为"把要回调的事件先收进本地队列，离开锁作用域之后再发"。~~
+  **这一条形同废止**：事件攒到"回合结束"才发，等于整条回复一次性出现 —— 流式（实时渲染）
+  正是靠"产生即发"。所以事件保持**在回合内、持锁时**就 `sink.emit`；把"回调里不得再入
+  `AgentHandle`"（不得再取这把锁、不得再调 `block_on` 方法）写成 `ChatSink` 的 KDoc 契约，
+  由平台侧遵守。读侧不受影响（`context_len` 已 `try_lock`，永不排队）。
 - **F1c 读侧统一 `try_lock`**：`context_len` / `context_window` / `reasoning_effort` 拿不到锁就返回
   "未知"（`None` / `0`），绝不阻塞；`start_conversation` / `set_context_window` /
   `set_reasoning_effort` 采用与 `end_conversation` 相同的"记请求、回合内生效"或 `try_lock` + 明确错误。
@@ -88,15 +89,16 @@
 
 **实施记录**
 
-- **F1b（回调搬出持锁范围）**：新增 `Outbox` —— 回合整段只往它里面攒事件与"存储变了"信号，
-  `drop(guard)` 之后才 `flush` 给平台。这一条**同时解掉三个问题**：回调跑的时候锁已经放掉
-  （不再有同线程非重入死锁）、`block_on` 也已经返回（不再有嵌套 runtime panic）、
-  回调抛异常不再穿过 `MutexGuard`（不再有中毒）。事件顺序不变（通道式攒取，先事件后信号）；
-  存储信号**合并成一条**（它本来就是信号，平台侧自己防抖）。
-  **行为变化**：`TurnStarted` 那次"存储变了"以前在中途发、现在随整轮一起在末尾发 —— 平台侧
-  只会晚一点刷新列表，语义不变。已写进 `Outbox` 的文档注释。
+- **F1b（回调搬出持锁范围）—— 实现错了，已彻底删除**：当时新增了一个 `Outbox`，回合整段只往
+  它里面攒事件与"存储变了"信号，`drop(guard)` 之后才 `flush` 给平台。它确实解掉了三个理论风险
+  （同线程非重入死锁 / 嵌套 runtime panic / 异常展开中毒），**但代价是流式没了**：真机上发一条
+  消息，回复**整段一次性出现**，而不是逐字长出来 —— 攒到"回合结束"才交出去，等于把流式变成了
+  轮询。产品要求是"事件产生即发、实时渲染"，所以 `Outbox` 整个删掉，恢复
+  `let mut emit = |event: ChatEvent| sink.emit(event);` 与 `&|| self.notify_store_changed()`，
+  三个风险改由 `ChatSink` 的 KDoc **契约**约束平台侧（回调里不得再入 `AgentHandle`）。
+  `Cell` / `RefCell` 两个只服务于 `Outbox` 的 import 一并去掉。
 - **F1a（收尾不被跳过）**：`send` / `respond_to_prompts` / `recover_turn` 的回合体各自放进一个
-  立即调用的闭包，`?` 只从闭包出去 —— `release_if_detach_requested` 与 `flush` 落在闭包之后，
+  立即调用的闭包，`?` 只从闭包出去 —— `release_if_detach_requested` 落在闭包之后，
   成功失败都执行。
 - **F1c 有一处对方案的更正**：原方案说 `context_window` / `set_context_window` /
   `set_reasoning_effort` 也在界面线程上阻塞。**复核后这条不成立** —— 它们在 `RustAgentChat`
@@ -107,8 +109,8 @@
 - **F1d**：`SessionSlot::try_lock_recovering` —— 中毒的锁也拿得下来（`TryLockError::Poisoned`
   取回内层数据），`end_conversation` 用它。读侧仍按"读不到"降级，在 `context_len` 的注释里
   写明这是有意取舍（它只用于诊断，不值得把返回值改成 `Result` 并一路改到 FFI）。
-- **新增 4 条 Rust 测试**：失败回合仍释放（F1a）、读长度不排队（F1c）、中毒会话可释放（F1d）、
-  `Outbox` 的事件/信号语义（F1b）。
+- **新增 3 条 Rust 测试**：失败回合仍释放（F1a）、读长度不排队（F1c）、中毒会话可释放（F1d）。
+  （原第 4 条 `Outbox` 的事件/信号语义随 `Outbox` 一起删除 —— 它测的机制已经不存在了。）
 
 ### F2 `take_prompt_answers` 先校验再消费（**状态损坏**） — ✅
 
@@ -638,7 +640,7 @@ is ChatAction.Internal.ActiveModelReceived -> {
 | 项 | 命令 | 结果 |
 |---|---|---|
 | 全量 JVM 单测 | `gradlew testDebugUnitTest` | ✅ 全绿（**120 例**，21 个测试文件） |
-| Rust 单测 | `cargo test --workspace` | ✅ 全绿（**189 例**） |
+| Rust 单测 | `cargo test --workspace` | ✅ 全绿（**189 例**；随 `Outbox` 删除 1 例后为 **188**，见文末复测） |
 | Rust 静态检查 | `cargo fmt --check` / `cargo clippy --workspace --all-targets` | ✅ 一致 / 0 告警（F1–F6 遗留的 6 处 fmt 已在 G6 修掉） |
 | debug 构建 | `gradlew :app:assembleDebug` | ✅（含 cargo-ndk 四个 ABI 的 `.so` 与 UniFFI 生成） |
 | release 构建 | `gradlew :app:assembleRelease` | ✅（R8 minify + shrinkResources） |
@@ -661,6 +663,18 @@ is ChatAction.Internal.ActiveModelReceived -> {
 > `input tap` 打不到 Compose 的按钮（要点用 `input swipe x y x y 120`）；讯飞输入法会把注入的 ASCII
 > 字母吃成拼音（只有数字/符号能安全注入）；输入区在"键盘开/关"两种布局下分别是 y≈1325 / y≈2100，
 > 用 `dumpsys input_method` 的 `mInputShown` 判断。
+
+**F1b 回归修复后的复测（2026-10-01）**
+
+`Outbox` 删掉、恢复"事件产生即发"之后重新出包（release APK，与设备 `base.apk` MD5 一致
+`87981515a1a55bed0af2d84bae9c707b`）装机复测：
+
+| 项 | 做法 | 结果 |
+|---|---|---|
+| **流式（本次回归点）** | 发一条消息后每 ~0.9s 截一张图，连截 8 张 | ✅ 回复**逐字长出来**：第 2 张还在「正在思考」的首段，第 4/6/8 张里同一段推理已明显变长、面板持续跟随 |
+| **流式（日志佐证）** | `adb logcat -s ChatScroll` | ✅ 同一轮内 `文本长=456 → 464 → 465 → 506 → … → 630`，全程 `streaming=true`，最后一次 `streaming=false`（收尾）；`已滚到末尾` 持续出现 |
+| 收尾 | 等这轮跑完 | ✅ 完整回复渲染（表格 / 代码块 / 脚注都在），发送键由「停止」回到「发送」，无 FATAL/ANR |
+| Rust 单测 | `cargo test --workspace` | ✅ 全绿（**188 例**，比原来少的那 1 例就是随 `Outbox` 删掉的语义测试） |
 
 ---
 
