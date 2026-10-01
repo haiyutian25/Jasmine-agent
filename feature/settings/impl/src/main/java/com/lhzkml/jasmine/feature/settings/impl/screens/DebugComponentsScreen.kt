@@ -66,6 +66,7 @@ fun DebugComponentsScreen(
     onOpenTopAppBar: (String) -> Unit,
     onOpenSidebar: (String) -> Unit,
     onOpenBottomBar: () -> Unit,
+    onOpenSlider: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -125,6 +126,14 @@ fun DebugComponentsScreen(
         DebugBottomBarGroup(
             currentTheme = currentTheme,
             onOpen = onOpenBottomBar,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupSpacing))
+
+        DebugSliderGroup(
+            currentTheme = currentTheme,
+            onOpen = onOpenSlider,
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -521,6 +530,41 @@ private fun DebugBottomBarGroup(
 
         DebugTopAppBarEntry(
             label = stringResource(R.string.debug_bottom_bar_entry),
+            currentTheme = currentTheme,
+            onClick = onOpen
+        )
+        Spacer(modifier = Modifier.height(DebugGroupBottomPadding))
+    }
+}
+
+/** 滑块入口：标准（单值）滑块一个变体，占一整页。 */
+@Composable
+private fun DebugSliderGroup(
+    currentTheme: CssVariables,
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(currentTheme.card)
+            .border(1.dp, currentTheme.border, shape)
+    ) {
+        Text(
+            text = stringResource(R.string.debug_screen_section_slider),
+            fontSize = DebugTitleFontSize,
+            fontWeight = FontWeight.Medium,
+            color = currentTheme.mutedForeground,
+            modifier = Modifier.padding(
+                start = DebugRowPaddingHorizontal,
+                top = DebugRowPaddingHorizontal,
+                bottom = DebugRowPaddingVertical
+            )
+        )
+
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_slider_entry),
             currentTheme = currentTheme,
             onClick = onOpen
         )

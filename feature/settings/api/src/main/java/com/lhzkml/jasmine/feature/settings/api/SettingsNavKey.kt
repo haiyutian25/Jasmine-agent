@@ -71,6 +71,12 @@ sealed interface SettingsNavKey : NavKey {
      */
     @Serializable
     data object DebugBottomBar : SettingsNavKey
+
+    /**
+     * **滑块预览** 页：组件层（`core:widgets`）标准滑块（单值）的独立试验场。
+     */
+    @Serializable
+    data object DebugSlider : SettingsNavKey
 }
 
 /** [SettingsNavKey.DebugSidebar] 的 `variant` 取值。 */

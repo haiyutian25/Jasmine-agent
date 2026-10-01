@@ -42,6 +42,7 @@ import com.lhzkml.jasmine.feature.settings.impl.screens.BehaviourAndPermissionsS
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugComponentsScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugBottomBarScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugSidebarScreen
+import com.lhzkml.jasmine.feature.settings.impl.screens.DebugSliderScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugTopAppBarScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.FontScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.FontSizeScreen
@@ -330,6 +331,7 @@ fun MainNavHost(
                                 navigator.navigate(SettingsNavKey.DebugSidebar(it))
                             },
                             onOpenBottomBar = { navigator.navigate(SettingsNavKey.DebugBottomBar) },
+                            onOpenSlider = { navigator.navigate(SettingsNavKey.DebugSlider) },
                             modifier = contentModifier,
                         )
                     }
@@ -354,6 +356,13 @@ fun MainNavHost(
                 // 底部导航栏预览：同样是不套 SettingsPage 的独立页面。
                 entry<SettingsNavKey.DebugBottomBar> {
                     DebugBottomBarScreen(
+                        currentTheme = state.theme,
+                        onBack = { navigator.goBack() },
+                    )
+                }
+                // 滑块预览：同样是不套 SettingsPage 的独立页面。
+                entry<SettingsNavKey.DebugSlider> {
+                    DebugSliderScreen(
                         currentTheme = state.theme,
                         onBack = { navigator.goBack() },
                     )

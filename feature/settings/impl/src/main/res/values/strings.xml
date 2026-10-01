@@ -105,4 +105,14 @@
     <string name="debug_bottom_bar_item_three">Item three</string>
     <string name="debug_bottom_bar_item_four">Item four</string>
     <string name="debug_bottom_bar_item_five">Item five</string>
+
+    <!-- Component-layer debug: the standard single-value slider. -->
+    <string name="debug_screen_section_slider">Sliders</string>
+    <string name="debug_slider_entry">Standard slider</string>
+    <string name="debug_slider_hint">Drag (or use the arrow keys) to change the value. The stepped one shows tick marks; the last one is disabled.</string>
+    <string name="debug_slider_continuous">Continuous</string>
+    <string name="debug_slider_steps">Stepped (4 stops)</string>
+    <string name="debug_slider_range">Custom range 0-100</string>
+    <string name="debug_slider_colors">Custom colors</string>
+    <string name="debug_slider_disabled">Disabled</string>
 </resources>

@@ -105,4 +105,14 @@
     <string name="debug_bottom_bar_item_three">第三项</string>
     <string name="debug_bottom_bar_item_four">第四项</string>
     <string name="debug_bottom_bar_item_five">第五项</string>
+
+    <!-- 组件层调试：标准（单值）滑块 -->
+    <string name="debug_screen_section_slider">滑块</string>
+    <string name="debug_slider_entry">标准滑块</string>
+    <string name="debug_slider_hint">拖动（或者用键盘方向键）都能改值。离散那档会显示刻度点，最后一个禁用了。</string>
+    <string name="debug_slider_continuous">连续</string>
+    <string name="debug_slider_steps">离散（4 档）</string>
+    <string name="debug_slider_range">自定义范围 0–100</string>
+    <string name="debug_slider_colors">自定义配色</string>
+    <string name="debug_slider_disabled">禁用</string>
 </resources>
