@@ -7,7 +7,7 @@
     <string name="settings_section_palettes">CURATED DESIGN PALETTES</string>
     <string name="settings_section_typography">TYPOGRAPHY ENGINE</string>
     <string name="settings_section_font_size">FONT SIZE</string>
-    <string name="settings_font_size_entry_subtitle">Adjust global text size</string>
+    <string name="settings_font_size_entry_subtitle">Scales on top of the system text size</string>
     <string name="font_size_preview_label">PREVIEW</string>
     <string name="font_size_preview_text">The quick brown fox jumps over the lazy dog. This is sample text for previewing the font size.</string>
     <string name="font_size_save">Save</string>

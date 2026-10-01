@@ -1,4 +1,4 @@
-﻿package com.lhzkml.jasmine
+package com.lhzkml.jasmine
 
 import android.os.Bundle
 import androidx.activity.SystemBarStyle
@@ -76,10 +76,17 @@ class MainActivity : AppCompatActivity() {
             // Broadcast the resolved content font (system engine or an installed
             // custom font) and font scale to the whole tree. fontScale multiplies
             // every .sp text size app-wide.
+            //
+            // 系统无障碍字号与设置页的字号滑块是**相乘**关系：前者是用户在系统里设的
+            // 无障碍偏好，不该被应用吞掉；后者是应用内的额外缩放（100% = 跟随系统）。
+            // `baseDensity` 取的是应用树之外的系统密度，所以它的 fontScale 就是系统值。
             val baseDensity = LocalDensity.current
             CompositionLocalProvider(
                 LocalContentFontFamily provides state.activeContentFont,
-                LocalDensity provides Density(density = baseDensity.density, fontScale = state.fontScale)
+                LocalDensity provides Density(
+                    density = baseDensity.density,
+                    fontScale = baseDensity.fontScale * state.fontScale
+                )
             ) {
                 JasmineTheme(cssVars = state.theme) {
                     MainNavHost(viewModel = viewModel, state = state)

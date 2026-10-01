@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -68,9 +69,16 @@ fun FontSizeScreen(
     // Local draft driven by the slider; committed only on Save.
     var draftScale by remember { mutableStateOf(fontScale) }
     val baseDensity = LocalDensity.current
+    // 本页拿到的是「系统 × 应用内」（见 MainActivity）。这一页只改**应用内**那一半，
+    // 所以每次都重新读系统值再乘上 entry/draft —— 否则预览会漏掉系统无障碍字号，
+    // 显示得比真实内容小。
+    val systemFontScale = LocalConfiguration.current.fontScale
 
     CompositionLocalProvider(
-        LocalDensity provides Density(density = baseDensity.density, fontScale = entryScale)
+        LocalDensity provides Density(
+            density = baseDensity.density,
+            fontScale = systemFontScale * entryScale
+        )
     ) {
         Column(
             modifier = modifier
@@ -103,7 +111,10 @@ fun FontSizeScreen(
             ) {
                 // Only this box re-scales with the draft value.
                 CompositionLocalProvider(
-                    LocalDensity provides Density(density = baseDensity.density, fontScale = draftScale)
+                    LocalDensity provides Density(
+                        density = baseDensity.density,
+                        fontScale = systemFontScale * draftScale
+                    )
                 ) {
                     Text(
                         text = stringResource(R.string.font_size_preview_text),

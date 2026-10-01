@@ -7,7 +7,7 @@
     <string name="settings_section_palettes">精选设计调色板</string>
     <string name="settings_section_typography">字体引擎</string>
     <string name="settings_section_font_size">字体大小</string>
-    <string name="settings_font_size_entry_subtitle">调节全局文字大小</string>
+    <string name="settings_font_size_entry_subtitle">在系统字号基础上调节</string>
     <string name="font_size_preview_label">预览</string>
     <string name="font_size_preview_text">海内存知己，天涯若比邻。这是一段用于预览字体大小的示例文字。</string>
     <string name="font_size_save">保存</string>
