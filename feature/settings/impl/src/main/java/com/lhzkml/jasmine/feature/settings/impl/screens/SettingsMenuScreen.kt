@@ -57,7 +57,8 @@ private val MenuRowTitleFontSize = 14.sp
  * Entries: "Appearance & Themes" -> appearance page, "Font" -> font page,
  * "Language" -> language page (the app's own UI language), "Behaviour & permissions" ->
  * the model-side controls (reply language, tool permissions, approvals…),
- * "Model Providers" -> provider feature.
+ * "Model Providers" -> provider feature, "Usage" -> usage statistics, and last (its own
+ * group) "Debug" -> the component-layer playground, which touches no product state.
  */
 @Composable
 fun SettingsMenuScreen(
@@ -68,6 +69,7 @@ fun SettingsMenuScreen(
     onOpenBehaviourAndPermissions: () -> Unit,
     onOpenProviders: () -> Unit,
     onOpenUsageStats: () -> Unit,
+    onOpenDebug: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -142,6 +144,20 @@ fun SettingsMenuScreen(
                 onClick = onOpenUsageStats,
                 currentTheme = currentTheme,
                 testTag = "settings_menu_usage_entry"
+            )
+        }
+
+        // 调试自己一组、且排最后：它只是组件层（core:widgets）的试验场，跟外观、语言、
+        // 提供商都不相关，也不参与任何业务链路。
+        Spacer(modifier = Modifier.height(MenuGroupSpacing))
+
+        SettingsGroupCard(currentTheme = currentTheme, modifier = Modifier.fillMaxWidth()) {
+            SettingsMenuRow(
+                icon = LucideIcons.Terminal,
+                title = stringResource(R.string.settings_menu_debug_title),
+                onClick = onOpenDebug,
+                currentTheme = currentTheme,
+                testTag = "settings_menu_debug_entry"
             )
         }
     }

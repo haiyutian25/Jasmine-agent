@@ -41,4 +41,11 @@ sealed interface SettingsNavKey : NavKey {
      */
     @Serializable
     data object BehaviourAndPermissions : SettingsNavKey
+
+    /**
+     * **调试** 页：组件层（`core:widgets`）的独立试验场，只用来在真机上预览自建按钮的真实效果，
+     * 不读任何业务状态、也不改任何东西。
+     */
+    @Serializable
+    data object Debug : SettingsNavKey
 }

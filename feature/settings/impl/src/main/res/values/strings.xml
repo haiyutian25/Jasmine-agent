@@ -64,4 +64,11 @@
     <string name="agent_language_simplified_chinese">简体中文</string>
     <string name="agent_language_traditional_chinese">繁體中文</string>
     <string name="agent_language_hint">Takes effect on your next message: the session re-attaches and keeps its history.</string>
+
+    <!-- Component-layer debug page (core:widgets); not part of any product flow. -->
+    <string name="settings_menu_debug_title">Debug</string>
+    <string name="debug_screen_section_enabled">Enabled</string>
+    <string name="debug_screen_section_disabled">Disabled</string>
+    <string name="debug_screen_section_buttons">Buttons</string>
+    <string name="debug_screen_section_text_fields">Text fields</string>
 </resources>

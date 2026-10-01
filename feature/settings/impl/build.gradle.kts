@@ -27,6 +27,8 @@ dependencies {
   api(project(":feature:settings:api"))
   implementation(project(":core:ui"))
   implementation(project(":core:data"))
+  // 只给调试页预览自建组件层（按钮等）用；别的地方一行都不碰它。
+  implementation(project(":core:widgets"))
   // 用量页要显示核心读出来的统计（`AppUsage`），页面本身是静态的。
   implementation(project(":core:agent"))
 

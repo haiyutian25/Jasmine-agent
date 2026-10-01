@@ -39,6 +39,7 @@ import com.lhzkml.jasmine.feature.settings.api.SettingsNavKey
 import com.lhzkml.jasmine.feature.settings.impl.LanguageViewModel
 import com.lhzkml.jasmine.feature.settings.impl.R as SettingsR
 import com.lhzkml.jasmine.feature.settings.impl.screens.BehaviourAndPermissionsScreen
+import com.lhzkml.jasmine.feature.settings.impl.screens.DebugComponentsScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.FontScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.FontSizeScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.LanguageScreen
@@ -132,6 +133,7 @@ fun MainNavHost(
                             },
                             onOpenProviders = { navigator.navigate(ProviderNavKey.ProviderList) },
                             onOpenUsageStats = { navigator.navigate(SettingsNavKey.UsageStats) },
+                            onOpenDebug = { navigator.navigate(SettingsNavKey.Debug) },
                             modifier = contentModifier,
                         )
                     }
@@ -304,6 +306,19 @@ fun MainNavHost(
                             onRefresh = {
                                 usageViewModel.trySendAction(UsageStatsAction.RefreshClicked)
                             },
+                            currentTheme = state.theme,
+                            modifier = contentModifier,
+                        )
+                    }
+                }
+                // 组件层调试页：独立试验场，除主题外不接任何状态，也不改任何东西。
+                entry<SettingsNavKey.Debug> {
+                    SettingsPage(
+                        currentTheme = state.theme,
+                        title = stringResource(SettingsR.string.settings_menu_debug_title),
+                        onBack = { navigator.goBack() },
+                    ) { contentModifier ->
+                        DebugComponentsScreen(
                             currentTheme = state.theme,
                             modifier = contentModifier,
                         )

@@ -64,4 +64,11 @@
     <string name="agent_language_simplified_chinese">简体中文</string>
     <string name="agent_language_traditional_chinese">繁體中文</string>
     <string name="agent_language_hint">改完在下一次发送消息时生效（当前会话会重新附着，历史不丢）。</string>
+
+    <!-- 组件层调试页（core:widgets），不参与任何业务链路 -->
+    <string name="settings_menu_debug_title">调试</string>
+    <string name="debug_screen_section_enabled">可用</string>
+    <string name="debug_screen_section_disabled">禁用</string>
+    <string name="debug_screen_section_buttons">按钮</string>
+    <string name="debug_screen_section_text_fields">输入框</string>
 </resources>
