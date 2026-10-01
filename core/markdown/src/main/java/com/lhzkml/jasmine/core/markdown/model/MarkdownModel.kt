@@ -102,7 +102,7 @@ enum class MarkdownInlineType(val code: Int) {
 /**
  * 一个已解析的块。
  *
- * [id] 是**稳定标识**：同一个源码块在连续多次 [com.lhzkml.jasmine.core.markdown.IncrementalMarkdownEngine.append]
+ * [id] 是**稳定标识**：同一个源码块在连续多次 [com.lhzkml.jasmine.core.markdown.IncrementalMarkdownDocument.append]
  * 中保持同一个 id，UI 可以据此复用节点、只对变化的块做动画。
  * id 由「块在源码中的起始偏移 + 类型」派生，因此块内容增长不会换 id。
  *
@@ -193,7 +193,7 @@ enum class MarkdownCellAlignment(val code: Int) {
  * - [blocks]：从 [index] 起重新产出的块（可能包含正在增长的未闭合尾块）。
  * - [advanced] / [newlyCompletedCount]：**不参与** apply()，只供 UI 动画/统计。
  *
- * 与前一次结果的合成规则见 [com.lhzkml.jasmine.core.markdown.IncrementalMarkdownEngine.apply]。
+ * 与前一次结果的合成规则见 [com.lhzkml.jasmine.core.markdown.IncrementalMarkdownParser.apply]。
  */
 data class MarkdownUpdate(
     val index: Int,

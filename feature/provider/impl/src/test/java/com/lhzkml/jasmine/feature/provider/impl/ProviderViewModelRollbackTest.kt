@@ -143,7 +143,7 @@ class ProviderViewModelRollbackTest {
 }
 
 /** 只做该用例关心的事：发一份列表、按需让落盘失败或挂起。 */
-private class FakeProviderRepository : ProviderRepository {
+internal class FakeProviderRepository : ProviderRepository {
     /** 测试直接往里塞初始列表；成功落盘也写这里（回灌同真实仓库）。 */
     val providers = MutableStateFlow<List<ProviderConfig>>(emptyList())
 
@@ -172,7 +172,7 @@ private class FakeProviderRepository : ProviderRepository {
     override suspend fun catalog(providerId: String): List<CatalogModel> = emptyList()
 }
 
-private object FakeProviderProbe : ProviderProbe {
+internal object FakeProviderProbe : ProviderProbe {
     override suspend fun probe(provider: ProviderConfig, modelId: String): ProbeResult =
         ProbeResult.Failure("not used")
 }

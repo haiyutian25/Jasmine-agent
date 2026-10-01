@@ -451,7 +451,7 @@ Main → SettingsMenu（设置菜单列表）→ AppearanceSettings（外观设�
 
 ## 11. 共享工具与测试体系
 
-### 11.1 测试栈（JVM 单测共 120 例）
+### 11.1 测试栈（JVM 单测共 133 例）
 
 | 测试 | 内容 | 说明 |
 | :--- | :--- | :--- |
@@ -468,10 +468,13 @@ Main → SettingsMenu（设置菜单列表）→ AppearanceSettings（外观设�
 | `RustAgentChatMappingTest`（`core:agent`，8 例） | 跨边界两张表：九个核心事件逐个映射、回合终态判定（用量不是终态）、四型失败分型与"猜不出来就不猜"、用量与构成 | 不需要真的核心句柄 |
 | `RustConversationReadTest`（`core:agent`，4 例） | 会话列表**读失败保留上一次快照**、只把原因交出去；没有 message 的异常也要有原因 | 同上（判定已提成纯函数） |
 | `ProviderReadTest`（`core:data`，4 例） | 供应商配置读路径：没存过 / 存过能解 / 存过解不出来（要上报）/ 形状不对，四条分岔 | 纯 JVM |
+| `IncrementalBlocksTest`（`core:markdown`，6 例） | 增量解析：`IncrementalMarkdownParser.apply` 就地改（恢复重放用）、`IncrementalMarkdownDocument.applied` 不改入参（流式追加用）、三分支更新、两条路径结果一致 | 该模块唯一的测试源集，纯 JVM |
+| `ProviderBackRuleTest`（`feature:provider:impl`，5 例） | `canNavigateBack`（= 编辑态已关）对三个编辑入口都成立、一层一层关、取消/保存后复位 | 假仓库 + 假探针 |
+| `ProviderScreenBackTest`（`app`，2 例） | 编辑态按系统返回 → `CancelClicked`；列表态不拦 | Robolectric + Compose 测试规则 |
 
 - Robolectric 基线 **SDK 36**（`app/src/test/resources/robolectric.properties`），**要求 JDK 21**（SDK 36 沙盒硬性要求；SDK 37 需 Robolectric 4.17-beta，暂不采用）。
 - 截图基准图生成：`gradle :app:testDebugUnitTest -Proborazzi.test.record=true`。
-- Rust 侧：`cargo test --workspace`（当前 **189 passed**）、`cargo clippy --workspace --all-targets` 无告警、`cargo fmt --check` 一致。
+- Rust 侧：`cargo test --workspace`（当前 **188 passed**）、`cargo clippy --workspace --all-targets` 无告警、`cargo fmt --check` 一致。
 
 ### 11.2 构建验证命令
 

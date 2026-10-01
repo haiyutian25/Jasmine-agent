@@ -98,6 +98,9 @@ dependencies {
   // 与它返回的 okhttp ResponseBody。
   testImplementation(project(":core:network"))
   testImplementation(libs.okhttp)
+  // ProviderScreenBackTest 要直接组合 ProviderScreen（它由 feature:main:impl 以 implementation 引入，
+  // 不在 app 测试的编译类路径上）。
+  testImplementation(project(":feature:provider:impl"))
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)

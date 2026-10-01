@@ -73,9 +73,11 @@ gradle :core:agent:testDebugUnitTest             # event sink, coreEventFlow, bo
 gradle :core:data:testDebugUnitTest              # provider-config read path
 gradle :feature:provider:impl:testDebugUnitTest  # provider CRUD + optimistic-write rollback
 gradle :feature:settings:impl:testDebugUnitTest  # language page
+gradle :core:markdown:testDebugUnitTest          # incremental parsing / streaming document
+gradle :app:testDebugUnitTest                    # shell, view models, screenshot, back handling
 ```
 
-`gradle testDebugUnitTest` runs all of the above (120 JVM tests). Rust: `cargo test --workspace` (189 tests).
+`gradle testDebugUnitTest` runs all of the above (133 JVM tests). Rust: `cargo test --workspace` (188 tests).
 
 - Robolectric tests run against **SDK 36** (see `app/src/test/resources/robolectric.properties`), which requires Java 21.
 - `MainScreenshotTest` renders the home chat surface via Roborazzi (`app/src/test/screenshots/chat.png`). To (re)generate the golden image, run once with `-Proborazzi.test.record=true`.
