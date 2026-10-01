@@ -41,6 +41,7 @@ import com.lhzkml.jasmine.core.widgets.switch.Switch
 import com.lhzkml.jasmine.core.widgets.switch.SwitchDefaults
 import com.lhzkml.jasmine.core.widgets.textfield.OutlinedTextField
 import com.lhzkml.jasmine.core.widgets.textfield.TextField
+import com.lhzkml.jasmine.feature.settings.api.SettingsDebugSidebarVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugTopAppBarVariant
 import com.lhzkml.jasmine.feature.settings.impl.R
 
@@ -63,6 +64,7 @@ private val DebugSubTitleTopPadding = 10.dp
 fun DebugComponentsScreen(
     currentTheme: CssVariables,
     onOpenTopAppBar: (String) -> Unit,
+    onOpenSidebar: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -105,6 +107,15 @@ fun DebugComponentsScreen(
         DebugTopAppBarGroup(
             currentTheme = currentTheme,
             onOpen = onOpenTopAppBar,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupSpacing))
+
+        // 侧边栏：同样只是入口，点进去是各自独立的页面。
+        DebugSidebarGroup(
+            currentTheme = currentTheme,
+            onOpen = onOpenSidebar,
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -430,5 +441,45 @@ private fun DebugTopAppBarEntry(
         TextButton(onClick = onClick) {
             Text(stringResource(R.string.debug_top_app_bar_open))
         }
+    }
+}
+
+/** 侧边栏变体入口：6 种形态，各自一个独立页面。 */
+@Composable
+private fun DebugSidebarGroup(
+    currentTheme: CssVariables,
+    onOpen: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(currentTheme.card)
+            .border(1.dp, currentTheme.border, shape)
+    ) {
+        Text(
+            text = stringResource(R.string.debug_screen_section_sidebar),
+            fontSize = DebugTitleFontSize,
+            fontWeight = FontWeight.Medium,
+            color = currentTheme.mutedForeground,
+            modifier = Modifier.padding(
+                start = DebugRowPaddingHorizontal,
+                top = DebugRowPaddingHorizontal,
+                bottom = DebugRowPaddingVertical
+            )
+        )
+
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_sidebar_dismissible_drawer),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugSidebarVariant.DISMISSIBLE_DRAWER) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_sidebar_permanent_drawer),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugSidebarVariant.PERMANENT_DRAWER) }
+        )
+        Spacer(modifier = Modifier.height(DebugGroupBottomPadding))
     }
 }

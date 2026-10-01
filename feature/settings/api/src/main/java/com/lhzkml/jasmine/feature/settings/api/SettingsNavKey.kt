@@ -57,6 +57,23 @@ sealed interface SettingsNavKey : NavKey {
      */
     @Serializable
     data class DebugTopAppBar(val variant: String) : SettingsNavKey
+
+    /**
+     * **侧边栏变体预览** 页：`variant` 取 [SettingsDebugSidebarVariant] 里的常量。
+     *
+     * 与 [DebugTopAppBar] 同一套做法：页面自己的顶栏就是组件本身，不套设置流那套顶栏。
+     */
+    @Serializable
+    data class DebugSidebar(val variant: String) : SettingsNavKey
+}
+
+/** [SettingsNavKey.DebugSidebar] 的 `variant` 取值。 */
+object SettingsDebugSidebarVariant {
+    /** 可推开抽屉（内容被挤开）。 */
+    const val DISMISSIBLE_DRAWER = "dismissibleDrawer"
+
+    /** 常驻抽屉（大屏）。 */
+    const val PERMANENT_DRAWER = "permanentDrawer"
 }
 
 /** [SettingsNavKey.DebugTopAppBar] 的 `variant` 取值。 */

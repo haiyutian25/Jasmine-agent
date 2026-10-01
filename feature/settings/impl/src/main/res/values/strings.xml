@@ -83,4 +83,15 @@
     <string name="debug_top_app_bar_back">Back</string>
     <string name="debug_top_app_bar_hint">Scroll the list: this bar runs on the widget\'s own scroll behavior. Nothing on this page touches the app\'s real top navigation.</string>
     <string name="debug_top_app_bar_body">Row %1$d</string>
+
+    <!-- Component-layer debug: sidebar variants, each on its own standalone page. -->
+    <string name="debug_screen_section_sidebar">Sidebar</string>
+    <string name="debug_sidebar_dismissible_drawer">Dismissible drawer</string>
+    <string name="debug_sidebar_permanent_drawer">Permanent drawer</string>
+    <string name="debug_sidebar_open">Open sidebar</string>
+    <string name="debug_sidebar_drawer_headline">Navigation</string>
+    <string name="debug_sidebar_hint">Tap the menu icon in the top bar to open or close the sidebar. This page is standalone and never touches the app\'s own top navigation.</string>
+    <string name="debug_sidebar_item_one">Item one</string>
+    <string name="debug_sidebar_item_two">Item two</string>
+    <string name="debug_sidebar_item_three">Item three</string>
 </resources>

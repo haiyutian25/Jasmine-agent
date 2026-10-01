@@ -40,6 +40,7 @@ import com.lhzkml.jasmine.feature.settings.impl.LanguageViewModel
 import com.lhzkml.jasmine.feature.settings.impl.R as SettingsR
 import com.lhzkml.jasmine.feature.settings.impl.screens.BehaviourAndPermissionsScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugComponentsScreen
+import com.lhzkml.jasmine.feature.settings.impl.screens.DebugSidebarScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugTopAppBarScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.FontScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.FontSizeScreen
@@ -324,6 +325,9 @@ fun MainNavHost(
                             onOpenTopAppBar = {
                                 navigator.navigate(SettingsNavKey.DebugTopAppBar(it))
                             },
+                            onOpenSidebar = {
+                                navigator.navigate(SettingsNavKey.DebugSidebar(it))
+                            },
                             modifier = contentModifier,
                         )
                     }
@@ -332,6 +336,14 @@ fun MainNavHost(
                 // 所以这里刻意不套 SettingsPage（那是设置流自己的顶栏）。
                 entry<SettingsNavKey.DebugTopAppBar> { key ->
                     DebugTopAppBarScreen(
+                        variant = key.variant,
+                        currentTheme = state.theme,
+                        onBack = { navigator.goBack() },
+                    )
+                }
+                // 侧边栏变体预览：同样是不套 SettingsPage 的独立页面。
+                entry<SettingsNavKey.DebugSidebar> { key ->
+                    DebugSidebarScreen(
                         variant = key.variant,
                         currentTheme = state.theme,
                         onBack = { navigator.goBack() },

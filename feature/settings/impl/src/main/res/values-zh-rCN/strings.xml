@@ -83,4 +83,15 @@
     <string name="debug_top_app_bar_back">返回</string>
     <string name="debug_top_app_bar_hint">往下滚列表：这一页的顶栏用的是组件自己的滚动行为，整页都不碰 app 现有的顶部导航。</string>
     <string name="debug_top_app_bar_body">第 %1$d 行</string>
+
+    <!-- 组件层调试：侧边栏变体，每个变体一个独立页面 -->
+    <string name="debug_screen_section_sidebar">侧边栏</string>
+    <string name="debug_sidebar_dismissible_drawer">可推开抽屉</string>
+    <string name="debug_sidebar_permanent_drawer">常驻抽屉</string>
+    <string name="debug_sidebar_open">打开侧边栏</string>
+    <string name="debug_sidebar_drawer_headline">导航</string>
+    <string name="debug_sidebar_hint">点顶栏上的菜单图标可以开合侧边栏。这一页是独立的，完全不碰 app 现有的顶部导航。</string>
+    <string name="debug_sidebar_item_one">第一项</string>
+    <string name="debug_sidebar_item_two">第二项</string>
+    <string name="debug_sidebar_item_three">第三项</string>
 </resources>
