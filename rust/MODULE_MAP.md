@@ -42,7 +42,7 @@
 
 ### 1.1 跨语言绑定（UniFFI）
 
-- 版本 **0.32.2**；`jasmine-ffi` 的导出面用 proc-macro 注解（`#[uniffi::export]` / `#[derive(uniffi::Object)]` / `#[uniffi::export(with_foreign)]`）。**不另写一套镜像类型**：跨边界类型（`ChatEvent` / `Role` / `ProbeResult` / `WireApi`）的注解长在 `jasmine-protocol` / `jasmine-model-provider-info` 自己的类型上，这两个 crate 各带一个可选的 `uniffi` 特性（默认关）；cdylib 侧用 `uniffi_reexport_scaffolding!()` 把它们的脚手架带进产物。
+- 版本 **0.32.2**；`jasmine-ffi` 的导出面用 proc-macro 注解（`#[uniffi::export]` / `#[derive(uniffi::Object)]` / `#[uniffi::export(with_foreign)]`）。**不另写一套镜像类型**：跨边界类型（`ChatEvent` / `Role` / `WireApi`）的注解长在 `jasmine-protocol` / `jasmine-model-provider-info` 自己的类型上，这两个 crate 各带一个可选的 `uniffi` 特性（默认关）；cdylib 侧用 `uniffi_reexport_scaffolding!()` 把它们的脚手架带进产物。
 - 生成 Kotlin：
 
   ```text
@@ -67,7 +67,7 @@
   （有界通道 + 文本合并，终态事件绝不丢）、`AgentHandle` 显式关闭（方法名 `shutdown` —— 生成物已带
   `AutoCloseable.close()`，同名会冲突）。
 
-验证现状（2026-10-01）：workspace members = api / client / core / ffi / http-client / model-provider / model-provider-info / protocol / rollout / tools / utils/{string,output-truncation}；`cargo test --workspace` **188 passed**、`cargo fmt --check` 一致、`cargo check --workspace` 0 error。`[workspace.dependencies]` 已从 202 项精简到**成员真正引用的 32 项**（其余 170 项在被删前只存在于清单里，从未进过依赖图 —— `Cargo.lock` 里查不到它们）。
+验证现状（2026-10-01）：workspace members = api / client / core / ffi / http-client / model-provider / model-provider-info / protocol / rollout / tools / utils/{string,output-truncation}；`cargo test --workspace` **189 passed**、`cargo fmt --check` 一致、`cargo check --workspace` 0 error。`[workspace.dependencies]` 已从 202 项精简到**成员真正引用的 32 项**（其余 170 项在被删前只存在于清单里，从未进过依赖图 —— `Cargo.lock` 里查不到它们）。
 
 ---
 

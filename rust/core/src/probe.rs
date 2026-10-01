@@ -12,36 +12,22 @@ use jasmine_http_client::HttpClientBuilder;
 use jasmine_model_provider::ApiClient;
 use jasmine_model_provider::ResolvedProvider;
 use jasmine_model_provider::create_api_client;
-use jasmine_protocol::ProbeResult;
 use jasmine_protocol::models::ContentItem;
 use jasmine_protocol::models::ResponseItem;
 use jasmine_protocol::probe::EMPTY_REPLY_DETAIL;
 use jasmine_protocol::probe::PROBE_PROMPT;
 
-/// Sends one minimal request and reports whether a usable answer came back.
+/// Sends one minimal request and returns the reply the endpoint gave.
 ///
-/// Transport and provider failures come back as [`ProbeResult::Failure`] rather than as an
-/// error: the caller shows the reason verbatim and has nothing to do with a typed error.
-pub fn probe(provider: &ResolvedProvider, model_id: &str) -> ProbeResult {
-    let runtime = match tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-    {
-        Ok(runtime) => runtime,
-        Err(error) => {
-            return ProbeResult::Failure {
-                detail: error.to_string(),
-            };
-        }
-    };
-
-    match runtime.block_on(ask(provider, model_id)) {
-        Ok(reply) if reply.trim().is_empty() => ProbeResult::Failure {
-            detail: EMPTY_REPLY_DETAIL.to_string(),
-        },
-        Ok(reply) => ProbeResult::Success { reply },
-        Err(detail) => ProbeResult::Failure { detail },
+/// 与 [`crate::models::list_models`] 同一种形状：失败只回一句能显示的原因（HTTP 状态、传输错误、
+/// 供应商原话），由边界把它归到"这一次往返"那一类。**答了但没带内容**（[`EMPTY_REPLY_DETAIL`]）
+/// 也算失败 —— 那同样值得重试一次。
+pub fn probe(provider: &ResolvedProvider, model_id: &str) -> Result<String, String> {
+    let reply = crate::runtime::shared()?.block_on(ask(provider, model_id))?;
+    if reply.trim().is_empty() {
+        return Err(EMPTY_REPLY_DETAIL.to_string());
     }
+    Ok(reply)
 }
 
 /// One minimal round trip; the error is already the string the caller shows.

@@ -305,7 +305,7 @@ impl AgentHandle {
             .set_store_listener(Arc::new(StoreListenerAdapter { listener }));
     }
 
-    /// 附着会话。失败原因是给界面看的字符串（跨边界不做错误类型学）。
+    /// 附着会话。失败是 [`AgentFailure`]（分型 + 一句可显示的原因），界面据此决定"重试有没有意义"。
     ///
     /// [instruction] 是平台给的**人格**；[settings] 是 Agent 行为设置（回复语言那类）——
     /// 系统指令由**核心**拼（人格 + 语言规则），界面只传值。
@@ -600,10 +600,14 @@ impl AgentHandle {
     }
 }
 
-/// 探测：这条配置能不能答话。
+/// 探测：这条配置能不能答话。答得出来就是模型那句话。
+///
+/// 与 [`list_models`] 同一种形状：失败是**分型**错误 + 一句可显示的原因，而不是另立一个结果枚举。
+/// 这一步是纯网络往返（问端点一句最便宜的话），所以失败归到传输那一类 —— 重试有意义。
 #[uniffi::export]
-pub fn probe(provider: ProviderInput, model_id: String) -> jasmine_protocol::ProbeResult {
+pub fn probe(provider: ProviderInput, model_id: String) -> Result<String, AgentFailure> {
     jasmine_core::probe::probe(&provider.into_resolved(), &model_id)
+        .map_err(|detail| AgentFailure::Transport { detail })
 }
 
 /// 列出这家端点提供的模型（`GET {base_url}/v1/models`）。界面那边的"拉取模型"走这里 ——
@@ -677,15 +681,6 @@ pub fn built_in_providers() -> Vec<ProviderInput> {
                 .collect(),
         })
         .collect()
-}
-
-/// [`AgentError`] 在边界上的呈现方式：只给一句原因，不带类型。
-///
-/// 跨语言传递错误类型需要两边同步维护一套枚举，而界面真正需要的只是一句能显示的话；
-/// 需要区分时再按原因文本判断即可。
-#[allow(dead_code)]
-fn error_text(error: AgentError) -> String {
-    error.detail()
 }
 
 #[cfg(test)]

@@ -310,6 +310,21 @@ internal fun Throwable.toKind(): ChatFailureKind = when (this) {
     else -> ChatFailureKind.UNKNOWN
 }
 
+/**
+ * 跨边界失败里那句"能显示的原因"。
+ *
+ * 四个变体各带一个 `detail`，但生成出来的基类上没有这个属性（只有 `message`，内容是
+ * `detail=...` 这种调试形状），所以要在这里逐个取出来。分型问"该说什么、重试有没有意义"，
+ * 这一句就是直接给用户看的那半句。
+ */
+internal val AgentFailure.detail: String
+    get() = when (val failure = this) {
+        is AgentFailure.NoSession -> failure.detail
+        is AgentFailure.Transport -> failure.detail
+        is AgentFailure.Transcript -> failure.detail
+        is AgentFailure.Internal -> failure.detail
+    }
+
 /** Whether this event is the last one of its turn. */
 internal fun ChatEvent.endsTurn(): Boolean = when (this) {
     // A prompt stops the turn: the interactive call has no result yet, and nothing more arrives

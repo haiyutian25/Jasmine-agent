@@ -215,25 +215,74 @@ pub fn interrupted_turn_items(path: &Path) -> Vec<RolloutItem> {
 
 fn read_lines(path: &Path) -> std::io::Result<Vec<RolloutLine>> {
     let file = File::open(path)?;
-    let reader = BufReader::new(file);
+    let mut reader = BufReader::new(file);
     let mut lines = Vec::new();
-    for (index, line) in reader.lines().enumerate() {
-        let line = line?;
-        if line.trim().is_empty() {
+    // 最后一个读得出来的行在文件里的结束偏移（字节，含行尾）。截尾巴就截到这里。
+    let mut good_end: u64 = 0;
+    let mut offset: u64 = 0;
+    // 见过坏行之后又见到能读的行 ⇒ 坏行在文件中间。那种不能靠截尾巴修（会把后面的好行一起切掉）。
+    let mut corrupt_seen = false;
+    let mut corrupt_is_only_tail = true;
+    let mut raw = String::new();
+    loop {
+        raw.clear();
+        let read = reader.read_line(&mut raw)?;
+        if read == 0 {
+            break;
+        }
+        offset += read as u64;
+        let text = raw.trim_end_matches(['\n', '\r']);
+        if text.trim().is_empty() {
+            good_end = offset;
             continue;
         }
-        match serde_json::from_str::<RolloutLine>(&line) {
-            Ok(parsed) => lines.push(parsed),
+        match serde_json::from_str::<RolloutLine>(text) {
+            Ok(parsed) => {
+                lines.push(parsed);
+                if corrupt_seen {
+                    corrupt_is_only_tail = false;
+                }
+                good_end = offset;
+            }
             // 坏一行**不扔整个文件**（后面的行还是用户的记录），但要留痕：否则转写会悄悄少几行，
             // 而"读坏了"与"本来就没有"在外面看不出区别。
-            Err(error) => tracing::warn!(
-                "跳过 {} 里读不出来的一行（第 {} 行）：{error}",
-                path.display(),
-                index + 1,
-            ),
+            Err(error) => {
+                corrupt_seen = true;
+                tracing::warn!(
+                    "跳过 {} 里读不出来的一行（第 {} 字节处）：{error}",
+                    path.display(),
+                    offset,
+                );
+            }
         }
     }
+    // 尾巴坏了（典型成因：写一半被杀掉）就把它截掉 —— 文件重新变成"每行都读得出来"，
+    // 否则这条坏尾巴会在之后每一次读里重复出现，永远修不好。
+    if corrupt_seen && corrupt_is_only_tail && !lines.is_empty() {
+        truncate_to(path, good_end);
+    }
     Ok(lines)
+}
+
+/// 把文件截到 `good_end`（保留它之前的所有内容）。
+///
+/// 用 `set_len` 而不是重写整个文件：正在追加的 `RolloutRecorder` 握的还是这个 inode，
+/// 换成新文件会让它后面的写入落进一个已经没人看得见的旧 inode。
+///
+/// 修不动只记一句警告、不上抛 —— 读转写不该因为"修不好"而失败。
+fn truncate_to(path: &Path, good_end: u64) {
+    if let Err(error) = fs::OpenOptions::new()
+        .write(true)
+        .open(path)
+        .and_then(|file| file.set_len(good_end))
+    {
+        tracing::warn!("修不掉 {} 的坏尾巴：{error}", path.display());
+    } else {
+        tracing::warn!(
+            "{} 末尾有写坏的一行，已截到 {good_end} 字节",
+            path.display()
+        );
+    }
 }
 
 #[cfg(test)]

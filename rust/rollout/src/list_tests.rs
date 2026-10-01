@@ -221,6 +221,83 @@ fn a_corrupt_line_is_skipped_and_never_takes_the_file_down() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// 尾巴上那条没写完的行会被**截掉**：否则它会在之后每一次读里重复出现，永远修不好。
+///
+/// 成因就是"写到一半进程被杀"——末尾那行没有换行、JSON 也不完整。截到最后一个完整行的行尾，
+/// 文件就重新变成"每行都读得出来"。用 `set_len`，不动 inode（正在追加的 recorder 还握着它）。
+#[test]
+fn a_corrupt_tail_is_truncated_so_it_stops_coming_back() {
+    use std::io::Write;
+
+    let dir = sessions_dir("corrupt-tail-repair");
+    let mut recorder = RolloutRecorder::create(&dir, &meta("s1", "first")).expect("create");
+    recorder
+        .record_items(&[RolloutItem::ResponseItem(message("user", "hello"))])
+        .expect("record");
+    let path = recorder.rollout_path().to_path_buf();
+
+    {
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .expect("open");
+        // 注意：**没有换行**，正是"写一半被杀"留下的形状。
+        write!(
+            file,
+            "{{\"timestamp\":\"2026-09-27T16:41:05+08:00\",\"type\":\"response_item\""
+        )
+        .expect("write");
+    }
+
+    let items = read_response_items(&path).expect("read");
+    assert_eq!(items.len(), 1, "坏尾巴跳过，好的照读");
+
+    let repaired = std::fs::read_to_string(&path).expect("file");
+    assert_eq!(
+        repaired.lines().count(),
+        2,
+        "坏尾巴应当被截掉，只剩元信息 + 那条消息：{repaired:?}"
+    );
+    assert!(
+        repaired.ends_with('\n'),
+        "截在最后一个完整行的行尾：{repaired:?}"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// 坏行在**中间**（后面还有读得出来的行）时不截：那说明文件被外部改过，
+/// 按"截到最后一行好的"去修会把后面那些用户记录一起切掉。
+#[test]
+fn a_corrupt_line_in_the_middle_is_left_alone() {
+    let dir = sessions_dir("corrupt-middle");
+    let mut recorder = RolloutRecorder::create(&dir, &meta("s1", "first")).expect("create");
+    recorder
+        .record_items(&[
+            RolloutItem::ResponseItem(message("user", "hello")),
+            RolloutItem::ResponseItem(message("assistant", "hi")),
+        ])
+        .expect("record");
+    let path = recorder.rollout_path().to_path_buf();
+
+    // 文件本来是 [元信息, 用户, 回复]，在第 3 行插一条坏的：坏行后面还有好行。
+    let text = std::fs::read_to_string(&path).expect("file");
+    let mut lines: Vec<String> = text.lines().map(str::to_string).collect();
+    lines.insert(2, "{ this is not json }".to_string());
+    std::fs::write(&path, lines.join("\n") + "\n").expect("write");
+
+    let items = read_response_items(&path).expect("read");
+    assert_eq!(items.len(), 2, "坏行跳过，它前面和后面的都照读");
+
+    let after = std::fs::read_to_string(&path).expect("file");
+    assert!(
+        after.contains("this is not json"),
+        "中间的坏行不截（截了会带走它后面的记录）：{after:?}"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// 整份文件都读不出来（连元信息都没有）时，跳过**这一条**，别的会话照常列出来。
 ///
 /// 这是"文件坏了"与"历史全没了"的分界：列表要少一条并留痕，不能因为一条坏的就把整张表清空。

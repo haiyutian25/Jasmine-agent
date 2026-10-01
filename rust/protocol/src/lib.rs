@@ -16,7 +16,6 @@ mod response_usage;
 mod tool_name;
 
 pub use chat_event::ChatEvent;
-pub use probe::ProbeResult;
 pub use response_item_id::ResponseItemId;
 pub use response_usage::ResponseUsageMetadata;
 pub use role::Role;
