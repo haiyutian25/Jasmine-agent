@@ -456,7 +456,7 @@ is ChatAction.Internal.ActiveModelReceived -> {
 - ⚠️ 写这个用例时必须知道的事：`advanceUntilIdle()` **不是**"推进一点点"，它会把 30 秒的计时器一并跑完。
   第一步排查时正是踩了这个 —— 第一版用例在"还显示着 c1"的那一帧把计时器跑掉了，于是后面怎么等都等不到回收。
 
-### G5 文档与现状全面对齐
+### G5 文档与现状全面对齐 — ✅
 
 **现状（证据）**：复核发现文档里有大量**已被删除或从未存在**的结构，举例：
 - `COMPONENT_DEVELOPMENT_GUIDE.md`：`:357`/`:481` 的 `BottomNavBar` / `ProductionBottomNavBar` /
@@ -484,11 +484,52 @@ is ChatAction.Internal.ActiveModelReceived -> {
 **怎么验证**：把 GUIDE / README / MODULE_MAP 里每一条技术断言与代码逐条核对；
 可核对的（符号是否存在、常量值）用 grep 抽查。
 
+**实施记录**
+
+三份"描述当前系统"的文档逐条回源码核对并改写（核对日期 2026-10-01）：
+
+- **`COMPONENT_DEVELOPMENT_GUIDE.md`**
+  - **第 8 节"底部导航栏 (BottomNavBar)"整节删除**（`BottomNavBar.kt` / `ProductionBottomNavBar` /
+    `NavigationTab` / `nav_tab_chat` 全都不存在），目录与后文小节号 9–14 顺次前移为 8–13，
+    交叉引用（"第 13 节速查表"、"见 11.2"、TOC 锚点）同步改掉。
+  - `MainAction.TabSelected` → 实际 action（`SidebarOpened/Closed/Toggled`、`ThemeSelected` 等）；
+    "标签页 / currentTab / CANVAS 单标签"这类说法一律去掉。
+  - `ChatViewModel` 的 Event：`Nothing` → `ChatUiEvent`（`ShowToast` / `ShowError`）。
+  - 对话界面一章按现状重写：没有 `ChatHeader`（那行 48dp 已整体删除）、没有"未就绪态整屏引导页"
+    （未就绪时照常渲染，发送被 `handleSendClicked` 静默忽略）、第 10.3 节的"落库 / SQLite / 外键级联 /
+    历史面板 BottomSheet"整段换成事实：**本项目没有数据库**，转写由核心写 rollout 只追加 JSONL，
+    历史列表在侧边栏（标题 + 最后一条消息时间），删除走核心 `delete_conversation`。
+  - `familyOf` 的"去 `-light`/`-dark` 后缀回退" → 实际只在 `families` 里精确匹配；
+    "屏幕左缘 32dp 边缘滑出（`SidebarEdgeZone`）" → `SidebarEdgeZoneFraction = 2f/3f`（按比例）。
+  - 速查表：删掉"底栏分页滑动"与"对话头部行高"两行；发送键 44dp → **26dp**（图标 14dp）；
+    输入框 `ImeAction.Send` → **`ImeAction.Default`（回车换行）**；补上 `KEEP_WARM_MS = 30s`。
+- **`README.md`**：`MainViewModel` 的 "tab" 去掉（并说明单顶层界面、没有底栏）；
+  "Hilt wires the **database**" → 无数据库模块（转写在核心 rollout、配置在 DataStore）；
+  Testing 一节补 `core:ui` / `core:agent` 两条命令与总例数。
+- **`rust/MODULE_MAP.md`**：`:64` 与 §6.2 的 D1–D5"未做/待办"改成**已完成**（保留原文动机 + 落点）；
+  补 `jasmine-client` crate 一行（原来整表漏了它）；`codex-api/src/sse/` → jasmine 自己的
+  `api/src/sse/`（`chat_completions.rs` / `responses.rs`）；`JasmineTools.kt` 与三个 `*Wire.kt` /
+  `OpenAiChatWire.kt` 标注"旧引擎（已删）"（§0 的读法规则要求这么标，原表漏标）；
+  `cargo test --workspace` 例数 176 → **186**；`AgentHandle` 方法表补 `shutdown`。
+- **`P0_UDF_FIX_PLAN.md`**：不改写历史，只在开头加一段"读法"：本文是已完成计划的存档，
+  行号与例数都是**制定当时**的快照（"44 个 `ChatViewModelTest` 用例"当时确实是 44，现在是 49）；
+  要了解当前系统请读 GUIDE / README / MODULE_MAP。
+- 顺带修**一处代码注释**（不是文档文件，但同属"断言与代码相反"）：`ChatScreen.kt` 的 KDoc 写
+  "没有可用模型时转写被整屏换成引导页"——实际没有这个界面，已改为"照常渲染，发送被忽略"。
+
+**没有改的**：`MODULE_MAP.md` 里 `codex_thread.rs` 一类**参照实现**的文件名（对照表另一栏，
+不是本仓库路径）；`P1_P2_FIX_PLAN.md` / `P0_UDF_FIX_PLAN.md` 正文里的历史快照（按方案要求不改写历史）。
+
+**怎么验证**：`grep -n` 抽查已删符号（`BottomNavBar` / `TabSelected` / `ChatHeaderHeight` /
+`SidebarEdgeZone` / `44dp` / `ImeAction.Send` / `取 Nothing`）在这三份文档里只剩"说明其不存在"的句子；
+其余常量（47dp / 295dp / 320ms / 280ms / 26dp / 30s / 60 字符）与源码逐个对上。
+
 ### G6 补齐行为级测试空白
 
-**现状（证据）**：目前的行为级测试集中在 `ChatViewModelTest`(47)、`MvvmUdfGateTest`(10)、
+**现状（证据）**：目前的行为级测试集中在 `ChatViewModelTest`(49)、`MvvmUdfGateTest`(10)、
 `UsageStatsViewModelTest`(2)、`ProviderViewModelRollbackTest`(3)、`LanguageViewModelTest`(3)、
-`EventSinkTest`(4)、`ReasoningEffortTest`(6)、app 侧 3 例。**完全没有被运行时断言覆盖的**：
+`EventSinkTest`(4)、`CoreEventFlowTest`(3)、`ReasoningEffortTest`(6)、`BaseViewModelTest`(3)、
+`EventsEffectTest`(1)、app 侧 3 例（共 87 例 JVM 单测）。**完全没有被运行时断言覆盖的**：
 - `MainViewModel`（整类零测试）：6 条偏好写的身份守卫回滚、字体删除清 `activeCustomFontId`、
   下载/导入完成与失败的 toast、派生 `resolveFontPreviews` / `resolveContentFont`；
 - 导航与返回键（`MainNavHost` / `MainScreen`）：抽屉拦截返回、

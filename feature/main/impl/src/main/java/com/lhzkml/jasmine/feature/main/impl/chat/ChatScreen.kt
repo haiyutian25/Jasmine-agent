@@ -64,11 +64,14 @@ private val ChatTitleFontSize = 16.sp
 internal val ChatSendButtonSize = 26.dp
 
 /**
- * Chat surface: the home tab. Renders a transcript plus a composer, driven
- * entirely by [ChatState] — every intent leaves through [onAction].
+ * Chat surface: the single top-level screen (there is no bottom navigation bar).
+ * Renders a transcript plus a composer, driven entirely by [ChatState] — every
+ * intent leaves through [onAction].
  *
- * When no usable model is selected the transcript is replaced by a setup
- * prompt, because a chat without an endpoint is a dead end.
+ * There is no separate "not ready" screen: when no usable model is selected the
+ * surface renders as usual and the send is simply ignored (see
+ * `ChatViewModel.handleSendClicked` — it returns early without a provider, a
+ * model, or an API key).
  *
  * 顶部原来有一行（当前模型 / 历史对话图标 / 新建对话）。它已整体删除：历史对话与
  * 新建对话都搬进了侧边栏（见 `AppSidebarContent`），当前模型在输入区左下角已有

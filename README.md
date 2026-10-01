@@ -27,10 +27,10 @@ jasmine/
 └── gradle/libs.versions.toml   # Version catalog
 ```
 
-- **MVVM**: `MainViewModel` owns all feature state (theme, typography, fonts, tab, sidebar) as `StateFlow`s; user preferences (theme, color mode, typography, font scale, active custom font, active provider/model) are persisted through Preferences DataStore via the data layer. Navigation chrome state (tab/sidebar) is session-transient and deliberately not persisted; the settings flow lives on the Navigation 3 back stack and is restored by the navigation library.
+- **MVVM**: `MainViewModel` owns all shell state (theme, typography, fonts, sidebar) as `StateFlow`s; user preferences (theme, color mode, typography, font scale, active custom font, active provider/model) are persisted through Preferences DataStore via the data layer. The sidebar state is session-transient and deliberately not persisted; the settings flow lives on the Navigation 3 back stack and is restored by the navigation library. There is no bottom navigation bar — the app has a single top-level surface (see `MainScreen`).
 - **Navigation 3**: destinations are declared as a serializable `NavKey` contract in `feature:main:api`; the app main assembles them through `NavDisplay` + `entryProvider`.
 - **Agent**: `core:agent` is a thin facade over the Rust core (UniFFI bindings) — `AgentChat` runs the turn loop, both OpenAI wire protocols and the built-in tools; `ConversationStore` reads the core's own session files; `ProviderProbe` checks connectivity. The core's types never leak out of the module.
-- **DI**: Hilt 2.x wires the database, network, data, agent and ViewModel layers.
+- **DI**: Hilt 2.x wires the network, data, agent and ViewModel layers. (There is no database module: chat transcripts live in the Rust core's rollout files, provider/preferences in DataStore.)
 
 ## Tech Stack
 
@@ -66,11 +66,15 @@ jasmine/
 ## Testing
 
 ```bash
-gradle :app:testDebugUnitTest                # app-level Robolectric + Roborazzi
-gradle :feature:main:impl:testDebugUnitTest  # chat state machine + the MVVM/UDF gate
+gradle :app:testDebugUnitTest                    # app-level Robolectric + Roborazzi
+gradle :feature:main:impl:testDebugUnitTest      # chat state machine + the MVVM/UDF gate
+gradle :core:ui:testDebugUnitTest                # BaseViewModel / EffectRunner / EventsEffect
+gradle :core:agent:testDebugUnitTest             # event sink + coreEventFlow
 gradle :feature:provider:impl:testDebugUnitTest  # provider CRUD + optimistic-write rollback
 gradle :feature:settings:impl:testDebugUnitTest  # language page
 ```
+
+`gradle testDebugUnitTest` runs all of the above (87 JVM tests). Rust: `cargo test --workspace` (186 tests).
 
 - Robolectric tests run against **SDK 36** (see `app/src/test/resources/robolectric.properties`), which requires Java 21.
 - `MainScreenshotTest` renders the home chat surface via Roborazzi (`app/src/test/screenshots/chat.png`). To (re)generate the golden image, run once with `-Proborazzi.test.record=true`.

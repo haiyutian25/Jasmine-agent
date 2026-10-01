@@ -31,13 +31,14 @@
 | `jasmine-utils-output-truncation` | `utils/output-truncation` | 输出长度收口（按字节/token 截断） | `core:agent` 的展示截断 | ✅ 已实现 |
 | `jasmine-protocol` | `protocol/` | 跨边界类型：会话事件、角色、会话 id、探测结果 | `AgentChat.kt` 的事件 + `ProviderProbe.kt` | ✅ 已实现 |
 | `jasmine-http-client` | `http-client/` | 客户端构建、重试节流、端点拼接与错误文本 | 传输层（`RustAgentChat` 走的唯一 HTTP 出口） | ✅ 已实现并接线（reqwest + rustls，`default-features = false`） |
+| `jasmine-client` | `client/` | 端点配置与请求构造（`Provider` / `RetryConfig`）、重试策略与退避执行、请求遥测 | 传输层之上的一薄层公共设施（Kotlin 侧无对应） | ✅ 已实现 |
 | `jasmine-model-provider-info` | `model-provider-info/` | provider 静态元信息、wire 协议、内置预设 + 模型目录（含推理档支持度） | `ProviderConfig` / `ModelConfig`（去掉密钥） | ✅ 已实现 |
 | `jasmine-model-provider` | `model-provider/` | 凭据注入、模型列表端点 | `ProviderConfig.apiKey` + `RustModelList` | ✅ 已实现 |
 | `jasmine-api` | `api/` | 两套协议报文 + SSE 解析 | 传输/报文（Rust 侧自持，Kotlin 无对应） | ✅ 已实现（Chat Completions 与 Responses 两套端点都在真机跑通） |
 | `jasmine-tools` | `tools/` | 工具契约（`Tool`/`ToolError`/`ToolFuture`）+ 工具词汇表（声明、json schema、结果）+ jasmine 自带工具 | 工具声明与执行（Rust 侧自持） | ✅ 已实现 |
 | `jasmine-rollout` | `rollout/` | 会话落盘：每会话一个只追加 JSONL（首行是会话元信息），另附读取与发现 | `ConversationStore.kt` / `RustConversationStore.kt` | ✅ 已实现并接线（见 §2.6） |
 | `jasmine-core` | `core/` | 会话门面（`AgentChatService`）、轮次主循环、模型客户端、上下文、工具注册表、宿主边界、探测 | `AgentChat.kt` / `ProviderProbe.kt` 的实现位 | ✅ 已实现并接线（Rust 化之前的 Kotlin 引擎已整体删除） |
-| `jasmine-ffi` | `ffi/` | 跨语言边界（Android 无对应，必须新增）：`AgentHandle`（附着 / 发送 / 回答提问 / 继续 / 中断 / 结束 + `create_conversation` / `delete_conversation` / `conversations` / `transcript` / 窗口与档位读写 / `usage_stats`）/ `EventListener`（回合事件）/ `ConversationStoreListener`（存储变更）/ `HostClock`（`now` + `format`）+ 适配器 + `probe` / `list_models` / `provider_catalog` / `built_in_providers` | `AgentChat.kt` / `ConversationStore.kt` / `ProviderProbe.kt` 的实现位 | ✅ 已接 UniFFI 0.32.2（注解 + 生成 Kotlin，见 §1.1）；Android 侧构建接线与 Kotlin 适配已完成 |
+| `jasmine-ffi` | `ffi/` | 跨语言边界（Android 无对应，必须新增）：`AgentHandle`（附着 / 发送 / 回答提问 / 继续 / 中断 / 结束 + `create_conversation` / `delete_conversation` / `conversations` / `transcript` / 窗口与档位读写 / `usage_stats` / `shutdown`）/ `EventListener`（回合事件）/ `ConversationStoreListener`（存储变更）/ `HostClock`（`now` + `format`）+ 适配器 + `probe` / `list_models` / `provider_catalog` / `built_in_providers` | `AgentChat.kt` / `ConversationStore.kt` / `ProviderProbe.kt` 的实现位 | ✅ 已接 UniFFI 0.32.2（注解 + 生成 Kotlin，见 §1.1）；Android 侧构建接线与 Kotlin 适配已完成 |
 
 ### 1.1 跨语言绑定（UniFFI）
 
@@ -61,9 +62,12 @@
   - 实测：`:core:agent:compileDebugKotlin`、`:app:compileDebugKotlin`（Hilt 整图校验）、`:app:assembleDebug` 均 BUILD SUCCESSFUL；APK 里 `lib/{arm64-v8a,armeabi-v7a,x86,x86_64}/libjasmine_ffi.so` 与 JNA 的 `libjnidispatch.so` 都在。
 - **中断已实现并真机验证**：`AgentHandle::interrupt` → 核心在下一个 await 点收手、把已经产出的条目落盘、以 `Aborted` 收尾；Flow 被取消时也会通报核心。真机留证：`interrupted_reasoning` / `interrupted_reply` / `<turn_aborted>` 用户片段 / `turn_aborted{duration_ms}` 四件齐备；继续时把 `<interrupted_turn>` 片段拼回用户消息，模型从断点接上。
 - **真机实测已做**：多轮对话、两套 wire、并行工具调用与结果回填、思考流、用量落盘、重启恢复都验证过（会话文件在 `files/sessions/<年>/<月>/<日>/rollout-*.jsonl`）。
-- 仍未做：错误分型穿 FFI、共享 tokio runtime、事件背压、`AgentHandle` 显式 close —— 见 `P1_P2_FIX_PLAN.md` §5（Phase D）。
+- **原先列在这里的四项"仍未做"已全部做完**（`P1_P2_FIX_PLAN.md` Phase D）：共享 tokio runtime（连接池不再每轮重建）、
+  错误分型穿 FFI（`AgentFailure` 四变体：`NoSession` / `Transport` / `Transcript` / `Internal`）、事件背压
+  （有界通道 + 文本合并，终态事件绝不丢）、`AgentHandle` 显式关闭（方法名 `shutdown` —— 生成物已带
+  `AutoCloseable.close()`，同名会冲突）。
 
-验证现状（2026-10-01）：workspace members = api / client / core / ffi / http-client / model-provider / model-provider-info / protocol / rollout / tools / utils/{string,output-truncation}；`cargo test --workspace` **176 passed**、`cargo fmt --check` 一致、`cargo check --workspace` 0 error。`[workspace.dependencies]` 已从 202 项精简到**成员真正引用的 32 项**（其余 170 项在被删前只存在于清单里，从未进过依赖图 —— `Cargo.lock` 里查不到它们）。
+验证现状（2026-10-01）：workspace members = api / client / core / ffi / http-client / model-provider / model-provider-info / protocol / rollout / tools / utils/{string,output-truncation}；`cargo test --workspace` **186 passed**、`cargo fmt --check` 一致、`cargo check --workspace` 0 error。`[workspace.dependencies]` 已从 202 项精简到**成员真正引用的 32 项**（其余 170 项在被删前只存在于清单里，从未进过依赖图 —— `Cargo.lock` 里查不到它们）。
 
 ---
 
@@ -88,13 +92,13 @@
 | 两套 wire 协议选择 | `OpenAiModelFactory.kt`（35 行） | `model-provider-info` 的 `WireApi` | ✅ |
 | Chat Completions 报文 | ——（Kotlin 侧已无对应实现） | `jasmine-api` 的 `endpoint/chat_completions.rs` + `sse/chat_completions.rs` | ✅ 已实现并真机跑通（含 `reasoning_content` 解析与逐轮回传） |
 | Responses 报文 | —— | `jasmine-api` 的 `endpoint/responses.rs` + `sse/responses.rs` | ✅ 已实现并真机跑通 |
-| SSE 流式解析 | 三个 `*Wire.kt` 的流式部分 | `codex-api/src/sse/` | ✅ 已实现 |
-| 请求重试与节流 | `OpenAiWire.kt` 的重试部分 | `http-client/src/retry_after.rs` | ✅ 已实现 |
+| SSE 流式解析 | 旧引擎三个 `*Wire.kt` 的流式部分（**已删**） | `api/src/sse/`（两套协议各一个：`chat_completions.rs` / `responses.rs`） | ✅ 已实现 |
+| 请求重试与节流 | 旧引擎的 `OpenAiWire.kt` 的重试部分（**已删**） | `http-client/src/retry_after.rs` + `client/src/retry.rs` | ✅ 已实现 |
 | 凭据注入 | `ProviderConfig.apiKey` → 请求头 | `model-provider/src/auth.rs` | ✅ 已实现 |
 | provider 静态表与内置预设 | `ProviderConfig.DEFAULTS` / `DEEPSEEK` | `model-provider-info` 的 `built_in_model_providers` | ✅ 已实现 |
 | 模型列表拉取（"获取模型"按钮） | `ProviderModelDataSource.kt`（~70 行） | `model-provider/src/models_endpoint.rs` | ✅ 已实现（`fetch_model_ids`，兼容 OpenAI `{data:[{id}]}` 与 DeepSeek `{models:[{id\|model_name}]}`；base_url 已以 `/v1` 结尾时不重叠加） |
 | 模型输入模态（文本/图片/音频） | 无（当前只走文字） | `protocol` 的 `InputModality` + `core/src/context_manager/normalize.rs` 的两个剥离 pass | ✅ 已实现（能力落在 `ModelConfig.input_modalities`，默认文本+图片） |
-| **token 用量解析** | `OpenAiChatWire.kt:95` / `OpenAiResponsesWire.kt:130` → `UsageMetadata` | 两套 wire 的 `sse/*.rs` → `ResponseEvent::Completed.token_usage` → `ChatThread::token_usage_info()` → `ChatEvent::Usage` | ✅ 已实现（见 §3.1；每轮回答后交给界面） |
+| **token 用量解析** | 旧引擎的 `OpenAiChatWire.kt:95` / `OpenAiResponsesWire.kt:130` → `UsageMetadata`（**均已删**） | 两套 wire 的 `sse/*.rs` → `ResponseEvent::Completed.token_usage` → `ChatThread::token_usage_info()` → `ChatEvent::Usage` | ✅ 已实现（见 §3.1；每轮回答后交给界面） |
 | 连通性探测 | `ProviderProbe.kt` + `旧 Kotlin 探测（已删）`（107 行） | **参照无对应** | ✅ 自主实现（已登记，见 §4） |
 | 模型选择与当前模型 | `ChatAction.ModelSelected` + `UserPreferences` | `models-manager` + `config` | 留平台（选择与持久化在 UI 侧） |
 
@@ -102,9 +106,9 @@
 
 | 能力 | Android 位置 | 参照实现的位置 | 骨架状态 |
 |---|---|---|---|
-| 工具声明（名称/描述/参数 schema） | `JasmineTools.kt` 的 `@Tool` 注解 | `tools/src/tool_spec.rs`、`tool_definition.rs`、`json_schema.rs` | ✅ 已实现 |
+| 工具声明（名称/描述/参数 schema） | 旧引擎的 `JasmineTools.kt` 的 `@Tool` 注解（**已删**） | `tools/src/tool_spec.rs`、`tool_definition.rs`、`json_schema.rs` | ✅ 已实现 |
 | 工具注册与按名分发 | 旧引擎 的注解处理器生成 | `core/src/tools/registry.rs` + `spec_plan.rs` | ✅ 已实现 |
-| 内置工具实现 | `JasmineTools.currentTime` / `listPastConversations` | 参照在 `core/src/tools/handlers/`；这里落在 `tools/src/current_time.rs`、`tools/src/list_past_conversations.rs` | ✅ 已实现（有意挪到 tools 侧：契约也在那里，依赖保持单向 `core → tools`） |
+| 内置工具实现 | 旧引擎的 `JasmineTools.currentTime` / `listPastConversations`（**已删**） | 参照在 `core/src/tools/handlers/`；这里落在 `tools/src/current_time.rs`、`tools/src/list_past_conversations.rs` | ✅ 已实现（有意挪到 tools 侧：契约也在那里，依赖保持单向 `core → tools`） |
 | 工具结果长度收口 | 展示层截断 | `utils/output-truncation/src/lib.rs` | ✅ 已实现 |
 | **并行工具调用** | 无（Kotlin 侧已无对应） | `core/src/tools/parallel.rs`（`ToolCallRuntime`） | ✅ 已实现：一轮里的多个调用**并发执行**、结果按调用顺序归位；请求侧两套 wire 仍写死 `parallel_tool_calls: false`（不指望服务端听话，见 §3.2） |
 | 工具执行编排（审批 → 沙箱 → 升级重试） | 无（工具是纯函数） | `core/src/tools/orchestrator.rs` + `sandboxing/` | 不迁（见 §4） |
@@ -158,7 +162,7 @@
 
 ### 3.1 token 用量解析与传递
 
-- **Android 确实在做**：`OpenAiChatWire.kt:95`、`OpenAiResponsesWire.kt:130` 都解析 `usage`，
+- **Android 确实在做**（旧引擎，均已删）：`OpenAiChatWire.kt:95`、`OpenAiResponsesWire.kt:130` 都解析 `usage`，
   并通过 `to旧引擎Usage()` 转成 旧引擎的 `UsageMetadata`（`旧 Kotlin 模型适配（已删）:257`、
   `OpenAiResponsesWire.kt:216`）。测试里也有 `{"input_tokens":10,"output_tokens":4,"total_tokens":14}` 的样例。
 - **参照实现的对应位置**：`protocol/src/response_usage.rs`（`ResponseUsage` 类型），
@@ -246,12 +250,16 @@
 3. **§3.3 token 预算**：`contextLength` 落成会话起始窗口（写进会话文件、冻结），`maxOutputLength` 走模型配置逐轮上线；两者都不进 `model-provider-info`。
 4. **构建与实现顺序**：都已落地（见 §1.1），并已真机验证。
 
-### 6.2 当前待办（下一批，见 `P1_P2_FIX_PLAN.md` §5）
+### 6.2 已完成的上一批（原文里的"待办"）
 
-| 项 | 内容 |
-|---|---|
-| D1 | 共享 tokio runtime：`block_on` 每次新建 runtime，而 `reqwest::Client` 跨轮复用 —— 连接池的 keep-alive 实际每轮重建 |
-| D2 | 错误分型穿 FFI：`AgentError`（NoSession / Transport / Poisoned / Transcript）现在塌缩成单变体 `AgentFailure::Failed{detail}`，界面只能匹配文本 |
-| D3 | 事件背压：`RustAgentChat` 的 `Channel.UNLIMITED`（改为有界 + 文本合并，终态事件绝不丢） |
-| D4 | `AgentHandle` 显式 close（目前靠 GC 触发 UniFFI 析构） |
-| D5 | `conversations()` / `transcript()` 把 IO 错误吞成空列表 —— 改成返回 `Result`，让"存储坏了"可见 |
+这一批（`P1_P2_FIX_PLAN.md` Phase D）**已全部做完并真机验证**，这里保留原文只为说明当初为什么要做：
+
+| 项 | 内容 | 落点 |
+|---|---|---|
+| D1 | 共享 tokio runtime（原先 `block_on` 每次新建 runtime，而 `reqwest::Client` 跨轮复用 —— 连接池的 keep-alive 实际每轮重建） | ✅ `service.rs` 持有唯一的 multi-thread runtime，`close`/`shutdown` 时释放 |
+| D2 | 错误分型穿 FFI（原先塌缩成单变体 `AgentFailure::Failed{detail}`，界面只能匹配文本） | ✅ `AgentFailure` = `NoSession` / `Transport` / `Transcript` / `Internal` 四变体；Kotlin 侧映射成 `ChatFailureKind` |
+| D3 | 事件背压（原先 `Channel.UNLIMITED`） | ✅ 有界 `EVENT_CHANNEL_CAPACITY` + 相邻文本合并，终态事件绝不丢（`EventSinkTest`） |
+| D4 | `AgentHandle` 显式关闭（原先靠 GC 触发 UniFFI 析构） | ✅ `AgentHandle.shutdown()`（不叫 `close`：生成物已带 `AutoCloseable.close()`，同名会冲突） |
+| D5 | `conversations()` / `transcript()` 把 IO 错误吞成空列表 | ✅ 都返回 `Result`（经 `AgentFailure`），"存储坏了"看得见；`core/data` 的读路径另有 `readFailures` 上报 |
+
+**当前待办：无。** 后续新发现的问题记在 `F_G_FIX_PLAN.md`（Phase F / G）。

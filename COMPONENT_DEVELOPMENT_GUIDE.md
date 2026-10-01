@@ -2,7 +2,10 @@
 
 > 本文档详细剖析项目的多模块工程结构、MVVM 状态管理、Navigation 3 导航、Hilt 依赖注入，以及所有 UI 组件、多主题切换、推拽式侧边栏、打字机启动页的开发原理、核心实现与调参指南。
 >
-> **本版本已按当前源码逐项核验（核验日期：2026-09-23）**，所有参数、路径与功能描述均与当前源码一致。
+> **本版本已按当前源码逐项核验（核验日期：2026-10-01）**，所有参数、路径与功能描述均与当前源码一致。
+>
+> 核验方式是"每条技术断言回源码对一遍"：符号是否存在、常量值、界面结构、测试文件清单。
+> **本文档描述的是当前系统**；如果发现哪一条与代码不符，请按代码改正本文档（而不是反过来）。
 
 ---
 
@@ -14,13 +17,12 @@
 5. [设计令牌系统（core:ui）](#5-设计令牌系统coreui)
 6. [顶部导航栏 (TopNavBar) 与高度调控](#6-顶部导航栏-topnavbar-与高度调控)
 7. [推拽式侧边栏 (Push Canvas Sidebar) 动画架构](#7-推拽式侧边栏-push-canvas-sidebar-动画架构)
-8. [底部导航栏 (BottomNavBar)](#8-底部导航栏-bottomnavbar)
-9. [启动页打字机引擎 (SplashScreen)](#9-启动页打字机引擎-splashscreen)
-10. [对话界面 (ChatScreen)](#10-对话界面-chatscreen)
-11. [设置流程](#11-设置流程)
-12. [共享工具与测试体系](#12-共享工具与测试体系)
-13. [核心组件参数速查](#13-核心组件参数速查)
-14. [已知局限与工程问题](#14-已知局限与工程问题)
+8. [启动页打字机引擎 (SplashScreen)](#8-启动页打字机引擎-splashscreen)
+9. [对话界面 (ChatScreen)](#9-对话界面-chatscreen)
+10. [设置流程](#10-设置流程)
+11. [共享工具与测试体系](#11-共享工具与测试体系)
+12. [核心组件参数速查](#12-核心组件参数速查)
+13. [已知局限与工程问题](#13-已知局限与工程问题)
 
 ---
 
@@ -71,11 +73,14 @@ jasmine/
     ├── main/                   # 应用外壳：启动页 + 对话主页 + 导航组装
     │   ├── api/                 # 导航契约：@Serializable MainNavKey（Splash / Main）
     │   └── impl/                # UI + ViewModel
-    │       ├── MainViewModel           # @HiltViewModel，外壳状态唯一源（主题 / 字体 / 标签 / 侧栏）
+    │       ├── MainViewModel           # @HiltViewModel，外壳状态唯一源（主题 / 字体 / 侧栏）
     │       ├── MainNavHost             # NavDisplay + entryProvider（含设置流目的地）；全局托管 Toast 事件
-    │       ├── MainScreen              # 推拽侧边栏 + 单标签（CHAT）Scaffold
+    │       ├── MainScreen              # 推拽侧边栏 + 对话界面（没有底部导航栏）
     │       ├── chat/ChatViewModel      # @HiltViewModel，对话状态机（消息 / 输入 / 流式追加 / 模型选择）
-    │       ├── chat/ChatScreen         # 对话界面（消息列表 + 输入框 + 模型选择 BottomSheet）
+    │       ├── chat/ChatScreen         # 对话界面外壳（消息列表 + 输入区 + 两个面板）
+    │       ├── chat/ChatTranscript / ChatComposer / ChatModelSheet / ConversationChats
+    │       │                           # 分别是转写渲染、输入区、模型与上下文面板、每会话状态表
+    │       ├── chat/ChatModels / ChatContract / ChatRestore   # 状态与契约类型、启动恢复
     │       ├── fonts/                  # CustomFontFamilyCache（FontFamily 内存缓存，主线程零磁盘 IO）
     │       └── screens/SplashScreen    # chrome 组件已统一下沉 core/ui/components/
     ├── settings/                # 设置流
@@ -116,10 +121,12 @@ app ──► feature:main:impl ──► feature:main:api
 `@HiltViewModel` 注入 `UserPreferencesRepository`、`CustomFontRepository`、`CustomFontFamilyCache` 与 `@ApplicationContext`，继承 `core:ui` 的
 `BaseViewModel<MainState, MainEvent, MainAction>`，以 UDF 三要素对外：
 
-- **State**：单一不可变 `MainState`（`stateFlow`），聚合主题/排版/字体（含自定义字体列表与下载进度）/标签页/侧栏等全部状态；
-  `theme` 与 `activeContentFont` 为派生字段，每次更新自动重算。设置流的页面位置**不在**此状态内——它由 Navigation 3 回退栈承载（见第 4 节）。
-- **Action**：所有用户意图收敛为 `MainAction` sealed interface（如 `TabSelected`、
-  `ThemeSelected`、`FontScaleSaved`、`FontDownloadClicked`），UI 一律 `trySendAction(...)` 发送。页面间导航不走 action——由 `AppNavigator` 直接操作回退栈。
+- **State**：单一不可变 `MainState`（`stateFlow`），聚合主题/排版/字体（含自定义字体列表与下载进度）/侧栏等全部状态；
+  `theme` 与 `activeContentFont` 为派生字段，每次更新自动重算。**没有"标签页"**（单顶层界面，见第 7.3 节），
+  设置流的页面位置也**不在**此状态内——它由 Navigation 3 回退栈承载（见第 4 节）。
+- **Action**：所有用户意图收敛为 `MainAction` sealed interface（侧栏 `SidebarOpened/Closed/Toggled`、
+  `ThemeSelected`、`ColorModeChanged`、`TypographySelected`、`FontScaleSaved`、`FontDownloadClicked` 等），
+  UI 一律 `trySendAction(...)` 发送。页面间导航不走 action——由 `AppNavigator` 直接操作回退栈。
 - **Event**：一次性反馈（Toast）走 `MainEvent`（`eventFlow`），UI 经 `EventsEffect` 消费。
 
 异步结果（偏好读取、字体下载/导入）通过 `MainAction.Internal.*` 回流 action 管道，
@@ -136,7 +143,7 @@ app ──► feature:main:impl ──► feature:main:api
 ```
 
 - 主题解析集中在 `core:ui` 的 `ThemeResolver`（`familyOf` / `resolveFamily`，未知 ID 兜底 EditorialLight）。
-- 导航界面状态（currentTab / isSidebarOpen）**不持久化**：它属于会话瞬态 UI 位置，持久化会导致恢复/写入反馈环（侧栏闪烁），并会在进程死亡后把用户带回旧页面而非启动页。设置流的页面位置由 Navigation 3 回退栈序列化、进程死亡后由导航库恢复，不属于偏好存储。
+- 导航界面状态（侧栏 `isSidebarOpen`）**不持久化**：它属于会话瞬态 UI 位置，持久化会导致恢复/写入反馈环（侧栏闪烁），并会在进程死亡后把用户带回旧页面而非启动页。设置流的页面位置由 Navigation 3 回退栈序列化、进程死亡后由导航库恢复，不属于偏好存储。
 
 ### 2.3 View 层观察方式
 
@@ -145,7 +152,7 @@ app ──► feature:main:impl ──► feature:main:api
 ```kotlin
 val state by viewModel.stateFlow.collectAsStateWithLifecycle()
 // ...
-onTabSelected = { viewModel.trySendAction(MainAction.TabSelected(it)) }
+onSidebarToggle = { viewModel.trySendAction(MainAction.SidebarToggled) }
 ```
 
 一次性事件用 `EventsEffect(viewModel) { ... }` 消费（生命周期感知，防重复导航类问题）。
@@ -158,7 +165,10 @@ onTabSelected = { viewModel.trySendAction(MainAction.TabSelected(it)) }
 
 - **State**：`ChatState`（消息列表 / 输入 / 是否发送中 / 供应商列表 / 当前供应商与模型 / 模型选择是否展开）；`activeProvider`、`activeModel`、`isReady` 为派生属性（`isReady` 要求供应商已有 API 密钥且已选模型）。
 - **Action**：`ChatAction`（`InputChanged` / `SendClicked` / `NewConversationClicked` / `ModelPickerOpened` / `ModelPickerDismissed` / `ModelSelected`）+ `Internal.*`（供应商与偏好的回灌、流式分片、失败、回合结束）。
-- **Event**：无。失败直接渲染进消息气泡（比一闪而过的 toast 更可读、可回溯），因此 `BaseViewModel` 的事件类型参数取 `Nothing`。
+- **Event**：`ChatUiEvent`（`ShowToast` / `ShowError`）。**回合失败**直接渲染进消息气泡（比一闪而过的
+  toast 更可读、可回溯），所以只有"动作失败、界面无处可放"这类才走事件通道（例如删除会话失败）。
+- **派生**：`activeProvider` / `activeModel` / `isReady` 是 `ChatState` 的派生属性；每会话的状态另存一份
+  （`ConversationChats`），界面那一片由 combine 派生，不手工投影（门禁 R9 守护）。
 
 
 ---
@@ -191,7 +201,7 @@ onTabSelected = { viewModel.trySendAction(MainAction.TabSelected(it)) }
 @Serializable
 sealed interface MainNavKey : NavKey {
     @Serializable data object Splash : MainNavKey              // 打字机启动页
-    @Serializable data object Main : MainNavKey                // 主界面（侧栏 + CANVAS 单标签）
+    @Serializable data object Main : MainNavKey                // 主界面（侧栏 + 对话界面）
 }
 
 // feature:settings:api —— 设置流目的地
@@ -289,7 +299,7 @@ val animatedBg by animateColorAsState(
 )
 ```
 
-主题家族识别与目录集中在 `ThemeResolver`（core:ui）：`familyOf(themeId)`（先按 `families` 精确匹配，再回退去除 `-light`/`-dark` 后缀）、`families`（`PaletteFamily(key, light, dark)` 有序目录，设置页调色板列表使用）。**新增家族只需在 `families` 加一条**（设置页如需本地化名称/副标题再加一对字符串资源），选择器会自动出现新家族，无需再改屏幕代码。
+主题家族识别与目录集中在 `ThemeResolver`（core:ui）：`familyOf(themeId)`（**只在 `families` 里按 `themeId` 精确匹配**，匹配不上返回 `null` —— 刻意**不做**"去掉 `-light`/`-dark` 后缀"的回退：不是每个 themeId 都长成 `{key}-light/-dark`，例如 `shadcn-zinc-dark` 属于 `shadcn`、`notion-warm-light` 属于 `notion`）、`families`（`PaletteFamily(key, displayName, light, dark)` 有序目录，设置页调色板列表使用）。**新增家族只需在 `families` 加一条**（设置页如需本地化名称/副标题再加一对字符串资源），选择器会自动出现新家族，无需再改屏幕代码。
 
 ---
 
@@ -343,22 +353,16 @@ val panelOffset = -SidebarWidth * (1f - p)
 
 1. 底层：295dp 位移槽内的侧边栏内容（内容宽度 = `SidebarWidth`，无溢出裁剪——调整槽宽只需改这一处常量）。
 2. 表层：被推开的主画布（`offset(pushOffset)` + 动态圆角/阴影/1dp 描边）。
-3. 打开方式：顶栏菜单按钮，或**屏幕左缘 32dp 边缘滑出**（`SidebarEdgeZone`；底栏分页滑动会避开该区域）。
+3. 打开方式：顶栏菜单按钮，或**从屏幕左侧 2/3 区域内起手横拖**（`SidebarEdgeZoneFraction = 2f/3f`）。注意这个"边缘区"是**按比例**算的、不是固定 dp：收起状态下只有起手点落在这块里的拖动才开抽屉（内容区自己的横向滚动因此不受影响），展开或动画中则从任意位置起手都能收回。
 4. 收回机制（3 种）：① **系统返回键/手势**（`BackHandler(enabled = isSidebarOpen)` 优先拦截，只收侧边栏不退出页面）；② **点击侧边栏以外的区域**（全透明拦截层，`testTag = "sidebar_outside_dismiss"`，无视觉遮罩；拦截层通过 `padding(start = SidebarWidth)` 在几何上**只覆盖侧边栏右侧区域**——若做成全屏，点在侧边栏非交互区域的事件未被消费时会穿透到拦截层导致误收回）；③ **点击底部设置入口**（打开设置菜单页后自动收回）。层级顺序：主画布（底）→ 外部点击拦截层（中，仅展开时存在）→ 侧边栏（顶）。
 
 ### 7.3 侧边栏内容（AppSidebarContent）
 
-极简两段式结构：**顶部为空**（原品牌工作区头部——"J" 头像、"Jasmine Studio"、PRO 徽标与 "Design Systems Lab" 副标题——已整体移除，无关闭按钮），中间弹性留白，**底部固定设置入口**（右对齐的 32dp 纯齿轮图标按钮，点击 → `MainAction.SidebarClosed` + `navigator.navigate(MainNavKey.SettingsMenu)` 打开设置菜单目的地——该入口从顶栏迁移而来）。原导航组、调色板快切、快捷工具与引擎页脚均已移除；标签切换由底部导航栏承担，主题切换仅在设置页完成。
+极简两段式结构：**顶部为空**（原品牌工作区头部——"J" 头像、"Jasmine Studio"、PRO 徽标与 "Design Systems Lab" 副标题——已整体移除，无关闭按钮），中间弹性留白，**底部固定设置入口**（右对齐的 32dp 纯齿轮图标按钮，点击 → `MainAction.SidebarClosed` + `navigator.navigate(MainNavKey.SettingsMenu)` 打开设置菜单目的地——该入口从顶栏迁移而来）。原导航组、调色板快切、快捷工具与引擎页脚均已移除；**应用只有一个顶层界面，没有底部导航栏**（类注释见 `MainScreen.kt`：单顶层界面再加一条 tab 栏只会吃掉竖向空间，还牵进一整套 IME/inset 协调——那条栏得为键盘让位，结果正在输入的输入区跟着跳），主题切换仅在设置页完成。
 
 ---
 
-## 8. 底部导航栏 (BottomNavBar)
-
-`core/ui/components/BottomNavBar.kt`（`ProductionBottomNavBar`）：**目前只有 CHAT 一个标签**（`NavigationTab` 枚举仅剩 `CHAT`，文案 `nav_tab_chat` = Chat / 对话；原 `TYPOGRAPHY` / `TOKENS` / `SETTINGS` 及其屏幕已删除，设置功能整体在侧边栏触发的设置流程中）。激活态为微胶囊背景 + 颜色过渡，`.navigationBarsPadding()` 避让手势条。内容区仍由底栏自身托管为可滑动分页（320ms 分页动画；快滑阈值 180px/s，慢拖阈值 28% 页宽），单标签下不会产生实际翻页；侧栏展开时滑动禁用，左缘 32dp（`SidebarEdgeZone`）保留给侧栏滑出。**底部导航栏只存在于 Main 目的地**——设置菜单页与各设置子页是回退栈上的独立目的地，天然不渲染底栏。
-
----
-
-## 9. 启动页打字机引擎 (SplashScreen)
+## 8. 启动页打字机引擎 (SplashScreen)
 
 `screens/SplashScreen.kt`，纯无状态组件（`currentTheme + onFinish`），由 Nav3 的 Splash 键承载。
 
@@ -370,43 +374,48 @@ val panelOffset = -SidebarWidth * (1f - p)
 
 ---
 
-## 10. 对话界面 (ChatScreen)
+## 9. 对话界面 (ChatScreen)
 
-`chat/ChatScreen.kt` 承接底部导航栏的 CHAT 标签页：**消息列表 + 输入框 + 模型选择**，由 `chat/ChatViewModel` 驱动（UDF，状态为 `ChatState`）。
+`chat/ChatScreen.kt` 是 Main 目的地唯一的内容区：**消息列表 + 输入区（+ 按需出现的面板）**，由 `chat/ChatViewModel` 驱动（UDF，状态为 `ChatState`）。文件已按职责拆开（E3）：`ChatScreen.kt` 只留外壳与消息列表，转写渲染在 `ChatTranscript.kt`、输入区在 `ChatComposer.kt`、模型与上下文面板在 `ChatModelSheet.kt`。
 
-### 10.1 界面结构
+### 9.1 界面结构
 
-- **未就绪态**（`ChatState.isReady == false`）：整屏替换为引导页 —— 标题 + 说明（区分"未选模型"与"所选供应商缺 API 密钥"，后者带上供应商名）+「选择模型」按钮 +「管理模型提供商」入口（复用 `onOpenSettings`，零新增导航管道）。没有可用端点时聊天是死路，所以这里不做成可输入的界面。
-- **就绪态**：`ChatHeader`（48dp：左侧当前模型名，点开模型选择；右侧"新对话"，仅在已有消息时出现）→ `MessageList`（`LazyColumn`，随消息数与流式文本增长自动贴底）→ `Composer`（`BasicTextField` 多行 + 圆形发送键；发送中显示转圈）。
-- **气泡**：用户侧右对齐、`primary` 底 + `primaryForeground` 字；助手侧左对齐、`card` 底 + 1dp 描边；**失败消息**用 `subtleSurface` 底 + `mutedForeground` 字，正文里带着原始原因。宽度上限 `0.85`（`fillMaxWidth(fraction)` + `wrapContentWidth`），靠不对称读出"对话"感。
+- **外壳**（`ChatScreen`）：`MessageList(weight(1f))` + 底部那一条 —— 有未答提问时是 `PromptPanel`（输入区让位：这一轮正停着等答案，再发一条消息也无处可去），否则是 `Composer`；`ModelSheet` / `ContextUsageSheet` 叠在 `Box` 上按开关出现。
+- **没有顶栏了**：原来那行"当前模型 / 历史对话 / 新建对话"（48dp）已整体删除 —— 历史对话与新建对话搬进侧边栏，当前模型在输入区左下角有入口，这 48dp 还给了聊天区。
+- **MessageList**（`LazyColumn`）：随消息数与流式文本增长自动贴底。跟随尾部的判据是"用户没自己拖过，或此刻确实在底部"，拖动由手势（`PointerEventPass.Initial`）判定 —— 只看滚动位置的话，"回复在变长"和"用户滑走了"分不开。
+- **气泡**：用户侧右对齐、`primary` 底 + `primaryForeground` 字；助手侧左对齐、`card` 底 + 1dp 描边；**失败消息**用 `subtleSurface` 底 + `mutedForeground` 字，正文里带着原始原因。宽度上限 `0.85`（`fillMaxWidth(fraction)` + `wrapContentWidth`），靠不对称读出"对话"感。一轮里的工具调用是一张可展开的工具卡，正文 ↔ 工具卡之间用更小的行距。
+- **输入区**（`ChatComposer`）：`BasicTextField` 多行（回车换行，`ImeAction.Default`）+ 圆形发送键（发送中变转圈）+ 左下角的模型 / 上下文用量 / 推理档位入口。
 - **模型选择**：复用 `core:ui` 的 `BottomSheet`，按供应商分组列出**已配置的模型**（无模型的供应商不出现，空态指向「模型提供商」）；当前项打勾。
+- **未就绪**（`ChatState.isReady == false`，即"没选模型"或"所选供应商没有 API 密钥"）：**不再有整屏引导页**，界面照常渲染，只是发送被静默忽略 —— `handleSendClicked` 在缺供应商 / 缺模型 / 密钥为空时直接返回（见 `ChatViewModel`）。`isReady` 现在只是状态上的一个派生属性。
 
-### 10.2 会话与流式
+### 9.2 会话与流式
 
 - 每个分片经 `ChatAction.Internal.ReplyChunk` 回灌 action 管道，**状态变更仍全部同步发生在 `handleAction` 内**（与字体下载进度同一模式）。
 - 流式追加只更新"当前正在流式的那条助手消息"（按 id 定位），因此 `LazyColumn` 的 key 唯一、历史消息不重组。
 - `ChatViewModel` 由 `Main` 条目作用域持有（`rememberViewModelStoreNavEntryDecorator()`），且**在 `MainScreen` 的内容区收集状态**——流式分片只重组对话界面，不触发 NavHost 全树重组。
 
-### 10.3 持久化与历史对话
+### 9.3 持久化与历史对话
 
+**没有数据库**：会话整体落盘在 Rust 核心的 rollout 里 —— 每会话一个**只追加 JSONL**（`files/sessions/<年>/<月>/<日>/rollout-*.jsonl`，首行是会话元信息与标题/provider/model），一行一条事件。（Room / `core:database` 与 schema 导出都已删除，设备上 `databases/` 目录不存在；见第 13 节第 8 条。）
 
-- **写入时机**：用户消息在发送时落库；助手回复**在回合结束时落库一次**，不是每个分片一次——内存里的消息是实时视图，数据库行是持久记录。会话行在**首次发送**时创建（因此不会留下空会话），`title` 取首条用户消息（截断 60 字符）。
-- **恢复**：启动时读取最近更新的会话，把 transcript 填回界面。**模型选择不由会话决定**——它属于偏好（`activeProviderId` / `activeModelId`），是"我现在用哪个模型"的唯一来源；会话只记录"它由哪个模型产生"（在历史列表里显示），这样也避免了两份真源互相覆盖的竞态。
-- **历史面板**：头部时钟图标打开 `BottomSheet`，按 `updatedAt` 倒序列出会话（标题 + 产生它的模型），可切换或删除；删除走外键级联，消息一并消失。
-- **持久化是 best-effort**：写库失败会被 `runCatching` 吞掉而不中断对话。本地 SQLite 加 schema 编译期校验，实际近乎不可能触发；代价是这种情况下历史静默丢失。
+- **写入时机**：整份转写由**核心**在回合内写（`send` / `respond_to_prompts` / `persist_interrupted_reply` 三处落盘）。平台只负责**首次发送时让核心开会话**（`create_conversation`，因此不会留下空会话），`title` 取首条用户消息（截断 60 字符，`TITLE_MAX_LENGTH`）。内存里的消息始终是实时视图。
+- **恢复**：启动时读最近更新的会话，把 transcript 读回来填进界面（`latestConversation` + `messagesOf`，正文解析走 `parseDispatcher`，主线程不跑 JNI）。
+- **历史列表在侧边栏**：不是顶栏时钟图标那个 `BottomSheet`。侧边栏列"新建对话 + 全部会话"，每行是标题 + **最后一条消息的时间**（会话记录里的 `updatedAt`；以前显示模型名，但列表里的模型名绝大多数都一样，看不出哪条是刚聊的），可切换或删除。列表更新由**核心的存储变更推送**驱动（防抖后重读），不再靠"回合结束手动 refresh"。
+- **删除**：走核心的 `delete_conversation`（一条会话一个文件，删掉即整条消失，不需要外键级联）。
+- **失败可观察**：开会话失败会让这一轮以**失败提示**收尾（`ensureConversation` 失败 → 这一轮报 `TurnFailed`），不是静默吞掉。
 
 ---
 
-## 11. 设置流程
+## 10. 设置流程
 
 > 本章内容全部位于 **`feature:settings:impl`**（导航契约 `SettingsNavKey` 在 `feature:settings:api`）；
 > 目的地由外壳 `MainNavHost` 的 `NavDisplay` 组装。
 
-> 原先的「排印工作室（TypeStudioScreen）」与「令牌面板（TokensScreen）」两个标签页，
-> **已连同 `NavigationTab.TYPOGRAPHY` / `NavigationTab.TOKENS` / `NavigationTab.SETTINGS` 一并删除**，
-> 底部导航栏现在只剩 CANVAS 一个标签。主题与字体能力并未删除，仍完整保留在下面的设置流中。
+> 原先的「排印工作室（TypeStudioScreen）」与「令牌面板（TokensScreen）」两个页面，
+> **已连同 `NavigationTab` 这套标签枚举（`TYPOGRAPHY` / `TOKENS` / `SETTINGS` / `CHAT`）以及底部导航栏整体删除**
+> —— 应用现在只有一个顶层界面。主题与字体能力并未删除，仍完整保留在下面的设置流中。
 
-### 11.1 目的地与入口
+### 10.1 目的地与入口
 
 设置流是 Navigation 3 回退栈上的**平级目的地序列**（早期版本的 `settingsLevel` 状态机已整体移除）。每个目的地共享 `MainNavHost` 内的私有脚手架 `SettingsPage`：与主壳相同的 280ms 背景色过渡 + `ProductionTopNavBar` 子页形态（返回键 + 居中标题），仅内容区随目的地切换。
 
@@ -425,12 +434,12 @@ Main → SettingsMenu（设置菜单列表）→ AppearanceSettings（外观设�
 - **模型参数**：点选或自定义后进入第二个 `BottomSheet` 参数表单——模型 ID（目录点选预填、自定义可自由输入）+ **上下文长度 / 输出长度**（tokens，数字键盘，留空 = 0 未设置）；保存进 `ModelConfig(id, modelId, contextLength, maxOutputLength)` 挂在供应商草稿上，随供应商一起持久化（模型行支持再编辑/删除）。
 - 持久化走 `core:data` 的 `ProviderRepository`（`ProviderDataStore`，整表 JSON 存于独立 DataStore 文件 `model_providers`）；保存前校验三字段非空（Toast 提示），删除/保存均为乐观更新 + 仓库 StateFlow 回显对账。
 - **外观设置页（SettingsScreen）**：明暗/跟随系统三卡选择器 + 12 调色板列表（家族目录来自 `ThemeResolver.families`，当前选中高亮）。调色板行只显示**双色样点 + 本地化族名**，无描述副标题（描述文案与 `CssVariables.description` 字段已整链删除）。
-- **字体页（FontScreen）**：3 排版引擎（Serif/Sans/Mono，行内只有 "Aa" 样例 + 引擎名，无风格描述副标题）、字号入口、自定义字体管理（见 11.2）。
+- **字体页（FontScreen）**：3 排版引擎（Serif/Sans/Mono，行内只有 "Aa" 样例 + 引擎名，无风格描述副标题）、字号入口、自定义字体管理（见 10.2）。
 - **字号页（FontSizeScreen）**：全局字体缩放滑块 + 实时预览，保存 → `MainAction.FontScaleSaved`（持久化；`MainActivity` 通过 `LocalDensity` 的 `fontScale` 全局生效）。
 - **语言页（LanguageScreen）**：跟随系统 / English / 中文，经 `AppCompatDelegate.setApplicationLocales` 持久化并即时重建 Activity（`locales_config.xml` 声明 en、zh-CN，支持 Android 13+ 系统级应用语言列表）。
-- **返回**：系统返回键/手势与顶栏返回键统一走 `navigator.goBack()` 逐级弹栈（FontSize→Font→Menu→Main），由 NavDisplay 的 `onBack` 接管，天然支持预测返回与进程死亡恢复。设置目的地不经过 `MainScreen`，因此**天然不渲染底部导航栏与侧栏**，页面视觉只保留全局顶栏 + 内容区。
+- **返回**：系统返回键/手势与顶栏返回键统一走 `navigator.goBack()` 逐级弹栈（FontSize→Font→Menu→Main），由 NavDisplay 的 `onBack` 接管，天然支持预测返回与进程死亡恢复。设置目的地不经过 `MainScreen`，因此**天然不渲染侧栏**，页面视觉只保留全局顶栏 + 内容区。
 
-### 11.2 自定义字体系统（core:data + impl/fonts/）
+### 10.2 自定义字体系统（core:data + impl/fonts/）
 
 - **预设库（PresetFontCatalog，core:data/model）**：3 款字体（Source Han Serif SC / LXGW WenKai / JetBrains Mono）托管于 GitHub Releases（`releases/latest/download/<file>` HTTPS 直链），每条记录含 `sha256` 校验和。
 - **下载（CustomFontRepository.downloadPreset，core:data）**：IO 调度器流式写入 `.part` 临时文件，完成后做 **SHA-256 校验**，不匹配即删除拒绝安装；校验通过原子改名入库。下载进度经 `downloadProgress: StateFlow` 实时回流 UI。
@@ -440,52 +449,56 @@ Main → SettingsMenu（设置菜单列表）→ AppearanceSettings（外观设�
 
 ---
 
-## 12. 共享工具与测试体系
+## 11. 共享工具与测试体系
 
-### 12.1 测试栈
+### 11.1 测试栈（JVM 单测共 87 例）
 
 | 测试 | 内容 | 说明 |
 | :--- | :--- | :--- |
-| `ExampleUnitTest` | 2+2 | 模板级 |
-| `ExampleRobolectricTest` | 读取 `app_name` 资源 | Robolectric |
-| `MainScreenshotTest` | Roborazzi 渲染首页 | 验证首页 UI 可组合渲染 |
-| `MvvmUdfGateTest`（`feature:main:impl`） | 源码级 UDF 门禁：单一状态写入点、异步结果经 `Internal` action 回流、影子状态只由同步 handler 写、会话投影必须派生、View 层不碰平台 | 纯文本比对，非运行期断言 |
-| `ChatViewModelTest`（`feature:main:impl`） | 对话状态机：发送 / 流式追加 / 失败 / 回合结束 / 首条消息建会话并落库 / 恢复并重放 / 切换与删除会话 / 失败回复不重放 | 用假仓库与假 `AgentChat` 替换，不触网 |
-| `ProviderViewModelRollbackTest`（`feature:provider:impl`） | 乐观写的失败回滚：删除按原位插回、保存恢复快照并重开草稿、迟到的失败不顶掉新草稿 | 假仓库注入失败 |
-| `LanguageViewModelTest`（`feature:settings:impl`） | 语言页：首屏值经 action 落地、选择即应用、配置换掉回到平台权威值 | 假 `AppLanguageRepository` |
+| `ExampleUnitTest` / `ExampleRobolectricTest` / `MainScreenshotTest`（`app`，1 / 1 / 1 例） | 模板级 2+2、读 `app_name` 资源、Roborazzi 渲染首页 | Robolectric + Roborazzi |
+| `MvvmUdfGateTest`（`feature:main:impl`，10 例） | 源码级 UDF 门禁：单一状态写入点、异步结果经 `Internal` action 回流、影子状态只由同步 handler 写、会话投影必须派生、View 层不碰平台 | 纯文本比对，非运行期断言 |
+| `ChatViewModelTest`（`feature:main:impl`，49 例） | 对话状态机：发送 / 流式追加 / 贴块握手 / 失败 / 中断与继续 / 开会话 / 恢复并重放 / 切换与回收（keep-warm）/ 乐观写的身份守卫回滚 | 假仓库 + 假 `AgentChat`，不触网 |
+| `UsageStatsViewModelTest`（`feature:main:impl`，2 例） | 用量页：按天聚合、空态 | 假仓库 |
+| `ProviderViewModelRollbackTest`（`feature:provider:impl`，3 例） | 乐观写的失败回滚：删除按原位插回、保存恢复快照并重开草稿、迟到的失败不顶掉新草稿 | 假仓库注入失败 |
+| `LanguageViewModelTest`（`feature:settings:impl`，3 例） | 语言页：首屏值经 action 落地、选择即应用、配置换掉回到平台权威值 | 假 `AppLanguageRepository` |
+| `BaseViewModelTest` / `EventsEffectTest` / `ReasoningEffortTest`（`core:ui`，3 / 1 / 6 例） | `EffectRunner` 出站 FIFO / 失败回流 / 取消透传 / 单消费者、销毁时关通道；事件在 RESUMED 之后才投递；推理档位只列目录声明的档 | 假协程调度器 / 假生命周期 |
+| `EventSinkTest`（`core:agent`，4 例） | 事件汇：有界通道 + 文本合并、终态事件绝不丢、通道关闭后不抛 | |
+| `CoreEventFlowTest`（`core:agent`，3 例） | `coreEventFlow`：任何异常都收成一个终态失败，`finish()` 一定执行（含 5s 超时护栏） | |
 
 - Robolectric 基线 **SDK 36**（`app/src/test/resources/robolectric.properties`），**要求 JDK 21**（SDK 36 沙盒硬性要求；SDK 37 需 Robolectric 4.17-beta，暂不采用）。
 - 截图基准图生成：`gradle :app:testDebugUnitTest -Proborazzi.test.record=true`。
+- Rust 侧：`cargo test --workspace`（当前 **186 passed**）。
 
-### 12.2 构建验证命令
+### 11.2 构建验证命令
 
 ```
 gradle :app:compileDebugKotlin                # 全模块编译 + KSP（Hilt）
 gradle :app:assembleDebug                     # 完整打包（需根目录 debug.keystore）
-gradle :app:testDebugUnitTest                 # app 单元测试 + 截图测试
+gradle :app:testDebugUnitTest                 # 全部模块的 JVM 单测 + 截图测试
 gradle :feature:main:impl:testDebugUnitTest   # 对话状态机 + UDF 门禁
+gradle :core:ui:testDebugUnitTest             # BaseViewModel / EffectRunner / EventsEffect
+gradle :core:agent:testDebugUnitTest          # 事件汇与 coreEventFlow
 gradle :feature:provider:impl:testDebugUnitTest  # 供应商 CRUD + 回滚
 gradle :feature:settings:impl:testDebugUnitTest  # 语言页
 ```
 
 ---
 
-## 13. 核心组件参数速查
+## 12. 核心组件参数速查
 
 | 参数 | 值 | 位置 |
 | :--- | :--- | :--- |
 | 顶栏内容行高 | 47dp（`TopNavBarHeight`） | TopNavBar |
 | 侧边栏槽宽 / 内容宽 | 295dp / 295dp（同一常量 `SidebarWidth`） | SidebarDrawer |
-| 侧边栏边缘滑出区 | 32dp（`SidebarEdgeZone`） | SidebarDrawer |
-| 推拽动画 | 320ms，CubicBezier(0.16,1,0.3,1) | SidebarDrawer |
-| 底栏分页滑动 | 320ms；快滑 180px/s，慢拖 28% 页宽 | BottomNavBar |
+| 侧边栏边缘滑出区 | 屏宽的 2/3（`SidebarEdgeZoneFraction = 2f/3f`，收紧起手判定用） | SidebarDrawer |
+| 推拽 / 展开动画 | 320ms（`SidebarDrawerAnimMillis`），CubicBezier(0.16,1,0.3,1) | SidebarDrawer |
 | 背景色过渡 | 280ms FastOutSlowIn | MainScreen |
-| 对话头部行高 | 48dp（`ChatHeaderHeight`，容纳 48dp 触摸目标） | ChatScreen |
-| 对话气泡最大宽度 | 0.85 页宽（`ChatBubbleMaxWidthFraction`） | ChatScreen |
-| 对话发送键 | 44dp 圆形，图标 18dp / 转圈 16dp | ChatScreen |
-| 对话输入框 | 最多 5 行，`ImeAction.Send` 即发送 | ChatScreen |
-| 模型选择 / 历史列表最大高 | 380dp（`ChatPickerListMaxHeight`，两处共用） | ChatScreen |
+| 对话气泡最大宽度 | 0.85 页宽（`ChatBubbleMaxWidthFraction`） | ChatTranscript |
+| 对话发送键 | 26dp 方形圆角（`ChatSendButtonSize`），图标 14dp（`ChatSendIconSize`）/ 转圈 16dp（`ChatSendSpinnerSize`） | ChatComposer |
+| 对话输入框 | `maxLines = 5`（实测只看得全 4 行），回车换行（`ImeAction.Default`，不发送） | ChatComposer |
+| 模型 / 上下文面板列表最大高 | 380dp（`ChatPickerListMaxHeight`） | ChatModelSheet |
 | 会话标题长度 | 首条用户消息截断 60 字符（`TITLE_MAX_LENGTH`） | ChatViewModel |
+| 会话在内存里保热时长 | 30s（`KEEP_WARM_MS`；离开会话或回合收尾起算，到期后条目被回收） | ConversationChats |
 | 打字机 | 起始 350ms，逐字 28ms（末句 42ms），行间 400ms，收尾 850ms | SplashScreen |
 | 光标 / 光环 / 自转环 | 480ms / 1800ms / 12000ms | SplashScreen |
 | 偏好存储 | Preferences DataStore（`user_preferences`：主题 / 排版 / 明暗 / 字号 / 自定义字体 / **activeProviderId / activeModelId**） | core:data |
@@ -494,7 +507,7 @@ gradle :feature:settings:impl:testDebugUnitTest  # 语言页
 
 ---
 
-## 14. 已知局限与工程问题
+## 13. 已知局限与工程问题
 
 4. **`tools[].type` 的坑（已修，有回归测试）**：`openAiJson` 关闭了 `encodeDefaults`，因此**带默认值的必填字段不会被序列化**。原先 `ChatTool.type` 的默认值恰是 `"function"`，导致带工具的请求会漏掉 `type` 而被供应商拒绝；现改为必填无默认值（Responses 的 `parameters` / `strict` 同理）。
 7. **API Key 存在设备上**：`ProviderConfig.apiKey` 存于 Preferences DataStore 并由设备直连供应商。官方 Android 指南明确不建议在客户端内嵌密钥（建议自建后端或 Firebase AI Logic）。当前定位是"用户自备密钥的个人工具"，若要上架发布需改为代理方案。
@@ -506,4 +519,4 @@ gradle :feature:settings:impl:testDebugUnitTest  # 语言页
 
 ---
 
-> 本文档已按当前源码逐项核验（核验日期：2026-10-01），覆盖多模块化重构后的全部演进：偏好存储 Room→DataStore 迁移、**会话落盘 Room→`rust/rollout` 迁移（`core:database` 整体下线）**、序列化 Moshi→kotlinx.serialization、自定义字体系统、设置流程从 ViewModel 状态机迁移至 Navigation 3 回退栈、主题家族目录单源化（`ThemeResolver.families`）、侧栏/底栏手势体系、设置流独立为 `feature:settings:{api,impl}` 模块（共用组件 `Button` / `Slider` 下沉到 `core:ui`）、**`core:agent` 改为 Rust 核心的 UniFFI 门面（会话、模型调用、工具都在核心侧）**，以及 UDF 加固（出站命令统一走 `EffectRunner`、会话投影改为派生、源码级门禁 `MvvmUdfGateTest`）。后续修改组件参数时，请同步更新第 13 节速查表。
+> 本文档已按当前源码逐项核验（核验日期：2026-10-01），覆盖多模块化重构后的全部演进：偏好存储 Room→DataStore 迁移、**会话落盘 Room→`rust/rollout` 迁移（`core:database` 整体下线）**、序列化 Moshi→kotlinx.serialization、自定义字体系统、设置流程从 ViewModel 状态机迁移至 Navigation 3 回退栈、主题家族目录单源化（`ThemeResolver.families`）、侧栏推拽手势体系与**底部导航栏整体移除（单顶层界面）**、设置流独立为 `feature:settings:{api,impl}` 模块（共用组件 `Button` / `Slider` 下沉到 `core:ui`）、**`core:agent` 改为 Rust 核心的 UniFFI 门面（会话、模型调用、工具都在核心侧）**，以及 UDF 加固（出站命令统一走 `EffectRunner`、会话投影改为派生、源码级门禁 `MvvmUdfGateTest`）。后续修改组件参数时，请同步更新第 12 节速查表。
