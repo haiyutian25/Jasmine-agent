@@ -160,7 +160,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import androidx.compose.material3.contentColorFor
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import com.lhzkml.jasmine.core.widgets.divider.HorizontalDivider
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.layout.safeDrawing
