@@ -80,13 +80,12 @@ import androidx.compose.ui.util.fastMap
 import kotlin.math.max
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.ProvideTextStyle
-import androidx.compose.material3.ripple
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTextStyle
+import com.lhzkml.jasmine.core.widgets.text.ProvideTextStyle
+import com.lhzkml.jasmine.core.widgets.ripple.ripple
 import com.lhzkml.jasmine.core.widgets.divider.HorizontalDivider
 import com.lhzkml.jasmine.core.widgets.surface.Surface
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import com.lhzkml.jasmine.core.widgets.navigation.badgeBounds
@@ -162,7 +161,7 @@ import com.lhzkml.jasmine.core.widgets.tokens.fromToken
  * @param containerColor the color used for the background of this tab row. Use [Color.Transparent]
  *   to have no color.
  * @param contentColor the preferred color for content inside this tab row. Defaults to either the
- *   matching content color for [containerColor], or to the current [LocalContentColor] if
+ *   matching content color for [containerColor], or to the current [LocalWidgetsContentColor] if
  *   [containerColor] is not a color from the theme.
  * @param indicator the indicator that represents which tab is currently selected. By default this
  *   will be a [TabRowDefaults.PrimaryIndicator], using a [TabRowDefaults.tabIndicatorOffset]
@@ -210,7 +209,7 @@ fun PrimaryTabRow(
  * @param containerColor the color used for the background of this tab row. Use [Color.Transparent]
  *   to have no color.
  * @param contentColor the preferred color for content inside this tab row. Defaults to either the
- *   matching content color for [containerColor], or to the current [LocalContentColor] if
+ *   matching content color for [containerColor], or to the current [LocalWidgetsContentColor] if
  *   [containerColor] is not a color from the theme.
  * @param indicator the indicator that represents which tab is currently selected. By default this
  *   will be a [TabRowDefaults.SecondaryIndicator], using a [TabRowDefaults.tabIndicatorOffset]
@@ -260,7 +259,7 @@ fun SecondaryTabRow(
  * @param containerColor the color used for the background of this tab row. Use [Color.Transparent]
  *   to have no color.
  * @param contentColor the preferred color for content inside this tab row. Defaults to either the
- *   matching content color for [containerColor], or to the current [LocalContentColor] if
+ *   matching content color for [containerColor], or to the current [LocalWidgetsContentColor] if
  *   [containerColor] is not a color from the theme.
  * @param edgePadding the padding between the starting and ending edge of the scrollable tab row,
  *   and the tabs inside the row. This padding helps inform the user that this tab row can be
@@ -329,7 +328,7 @@ fun PrimaryScrollableTabRow(
  * @param containerColor the color used for the background of this tab row. Use [Color.Transparent]
  *   to have no color.
  * @param contentColor the preferred color for content inside this tab row. Defaults to either the
- *   matching content color for [containerColor], or to the current [LocalContentColor] if
+ *   matching content color for [containerColor], or to the current [LocalWidgetsContentColor] if
  *   [containerColor] is not a color from the theme.
  * @param edgePadding the padding between the starting and ending edge of the scrollable tab row,
  *   and the tabs inside the row. This padding helps inform the user that this tab row can be
@@ -412,7 +411,6 @@ internal interface TabPositionsHolder {
     fun setTabPositions(positions: List<TabPosition>)
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TabRowImpl(
     modifier: Modifier,
@@ -531,7 +529,6 @@ private fun TabRowImpl(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ScrollableTabRowImpl(
     selectedTabIndex: Int,

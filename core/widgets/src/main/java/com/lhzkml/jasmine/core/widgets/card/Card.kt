@@ -55,10 +55,8 @@ import androidx.compose.ui.unit.Dp
 import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.core.ui.theme.contentColorFor
-import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.ripple
-import androidx.compose.material3.ExperimentalMaterial3Api
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
+import com.lhzkml.jasmine.core.widgets.ripple.ripple
 import androidx.compose.ui.semantics.Role
 import com.lhzkml.jasmine.core.widgets.surface.Surface
 import com.lhzkml.jasmine.core.widgets.tokens.value

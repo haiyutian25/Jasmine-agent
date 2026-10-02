@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 The Android Open Source Project
+ * Copyright 2024 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,14 +15,19 @@
  */
 
 // 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
+// 上游位置：androidx/compose/material3/internal/TextFieldImpl.kt（M3 的 internal 共享件）——
+// 输入框 / 顶部栏 / 侧边栏 / 下拉刷新都在用它，所以从 textfield 包挪到 internal 包。
+// 符号名与上游一致（FloatProducer）。
 
-package com.lhzkml.jasmine.core.widgets.bottomsheet
+package com.lhzkml.jasmine.core.widgets.internal
 
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.displayCutout
-import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.union
-import androidx.compose.runtime.Composable
+/**
+ * Alternative to `() -> Float` but avoids boxing.
+ *
+ * !!! Do not use in public APIs !!!
+ */
 
-internal val WindowInsets.Companion.systemBarsForVisualComponents: WindowInsets
-    @Composable get() = systemBars.union(displayCutout)
+internal fun interface FloatProducer {
+    /** Returns the Float. */
+    operator fun invoke(): Float
+}

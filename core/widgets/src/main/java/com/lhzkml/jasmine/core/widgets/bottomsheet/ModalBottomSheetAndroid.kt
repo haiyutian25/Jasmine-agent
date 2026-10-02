@@ -18,11 +18,10 @@
 
 package com.lhzkml.jasmine.core.widgets.bottomsheet
 
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.contentColorFor
-import androidx.compose.material3.minimumInteractiveComponentSize
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTextStyle
+import com.lhzkml.jasmine.core.ui.theme.contentColorFor
+import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSize
 import com.lhzkml.jasmine.core.widgets.bottomsheet.SheetValue.*
 import com.lhzkml.jasmine.core.widgets.motion.value
 
@@ -46,6 +45,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import com.lhzkml.jasmine.core.widgets.bottomsheet.PredictiveBack
 import com.lhzkml.jasmine.core.widgets.bottomsheet.shouldApplySecureFlag
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionContext
 import androidx.compose.runtime.DisposableEffect
@@ -99,7 +99,6 @@ import kotlinx.coroutines.launch
  *   back button. If true, pressing the back button will call onDismissRequest.
  */
 @Immutable
-@ExperimentalMaterial3Api
 class ModalBottomSheetProperties {
     val securePolicy: SecureFlagPolicy
     val shouldDismissOnBackPress: Boolean
@@ -239,7 +238,6 @@ class ModalBottomSheetProperties {
 
 /** Default values for [ModalBottomSheet] */
 @Immutable
-@ExperimentalMaterial3Api
 object ModalBottomSheetDefaults {
 
     /** Properties used to customize the behavior of a [ModalBottomSheet]. */
@@ -298,7 +296,7 @@ object ModalBottomSheetDefaults {
  * @param shape The shape of the bottom sheet.
  * @param containerColor The color used for the background of this bottom sheet
  * @param contentColor The preferred color for content inside this bottom sheet. Defaults to either
- *   the matching content color for [containerColor], or to the current [LocalContentColor] if
+ *   the matching content color for [containerColor], or to the current [LocalWidgetsContentColor] if
  *   [containerColor] is not a color from the theme.
  * @param tonalElevation when [containerColor] is [ColorScheme.surface], a translucent primary color
  *   overlay is applied on top of the container. A higher tonal elevation value will result in a
@@ -312,7 +310,6 @@ object ModalBottomSheetDefaults {
  * @param content The content to be displayed inside the bottom sheet.
  */
 @Composable
-@ExperimentalMaterial3Api
 @Deprecated(
     level = DeprecationLevel.HIDDEN,
     message = "Use constructor with contentWindowInsets parameter.",
@@ -342,7 +339,7 @@ fun ModalBottomSheet(
     sheetMaxWidth: Dp = BottomSheetDefaults.SheetMaxWidth,
     shape: Shape = BottomSheetDefaults.ExpandedShape,
     containerColor: Color = BottomSheetDefaults.ContainerColor,
-    contentColor: Color = contentColorFor(containerColor),
+    contentColor: Color = LocalCssVariables.current.contentColorFor(containerColor),
     tonalElevation: Dp = 0.dp,
     scrimColor: Color = BottomSheetDefaults.ScrimColor,
     dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
@@ -368,7 +365,6 @@ fun ModalBottomSheet(
 
 // Fork of androidx.compose.ui.window.AndroidDialog_androidKt.Dialog
 // Added predictiveBackProgress param to pass into BottomSheetDialogWrapper.
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ModalBottomSheetDialog(
     onDismissRequest: () -> Unit,
@@ -452,7 +448,6 @@ private class ModalBottomSheetDialogLayout(context: Context, override val window
 // Fork of androidx.compose.ui.window.DialogWrapper.
 // predictiveBackProgress and scope params added for predictive back implementation.
 // EdgeToEdgeFloatingDialogWindowTheme provided to allow theme to extend into status bar.
-@ExperimentalMaterial3Api
 private class ModalBottomSheetDialogWrapper(
     private var onDismissRequest: () -> Unit,
     private var properties: ModalBottomSheetProperties,

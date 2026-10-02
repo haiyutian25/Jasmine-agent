@@ -43,7 +43,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.material3.LocalContentColor
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
 import androidx.compose.ui.R
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.AbstractComposeView
@@ -89,8 +89,8 @@ internal fun BasicEdgeToEdgeDialog(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
     properties: DialogProperties = DialogProperties(),
-    lightStatusBars: Boolean = LocalContentColor.current.luminance() < 0.5f,
-    lightNavigationBars: Boolean = LocalContentColor.current.luminance() < 0.5f,
+    lightStatusBars: Boolean = LocalWidgetsContentColor.current.luminance() < 0.5f,
+    lightNavigationBars: Boolean = LocalWidgetsContentColor.current.luminance() < 0.5f,
     content: @Composable (PredictiveBackState) -> Unit,
 ) {
     val view = LocalView.current

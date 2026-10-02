@@ -28,12 +28,13 @@ import androidx.compose.foundation.interaction.Interaction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.LocalAbsoluteTonalElevation
-import androidx.compose.material3.LocalContentColor
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.contentColorFor
-import androidx.compose.material3.minimumInteractiveComponentSize
-import androidx.compose.material3.ripple
+import com.lhzkml.jasmine.core.ui.theme.contentColorFor
+import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSize
+import com.lhzkml.jasmine.core.widgets.ripple.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.NonRestartableComposable
@@ -79,7 +80,7 @@ import com.lhzkml.jasmine.core.widgets.tokens.applyTonalElevation
  * [ColorScheme.onSurface]. If [color] is not part of the theme palette, [contentColor] will keep
  * the same value set above this Surface.
  *
- * To manually retrieve the content color inside a surface, use [LocalContentColor].
+ * To manually retrieve the content color inside a surface, use [LocalWidgetsContentColor].
  * 5) Blocking touch propagation behind the surface.
  *
  * @param modifier Modifier to be applied to the layout corresponding to the surface
@@ -103,7 +104,7 @@ fun Surface(
     modifier: Modifier = Modifier,
     shape: Shape = RectangleShape,
     color: Color = LocalCssVariables.current.card,
-    contentColor: Color = contentColorFor(color),
+    contentColor: Color = LocalCssVariables.current.contentColorFor(color),
     tonalElevation: Dp = 0.dp,
     shadowElevation: Dp = 0.dp,
     border: BorderStroke? = null,
@@ -111,7 +112,7 @@ fun Surface(
 ) {
     val absoluteElevation = LocalAbsoluteTonalElevation.current + tonalElevation
     CompositionLocalProvider(
-        LocalContentColor provides contentColor,
+        LocalWidgetsContentColor provides contentColor,
         LocalAbsoluteTonalElevation provides absoluteElevation,
     ) {
         Box(
@@ -171,7 +172,7 @@ fun Surface(
  *    produce semantics to indicate that it is clicked. No semantic role is set by default, you may
  *    specify one by passing a desired [Role] with a [Modifier.semantics].
  *
- * To manually retrieve the content color inside a surface, use [LocalContentColor].
+ * To manually retrieve the content color inside a surface, use [LocalWidgetsContentColor].
  *
  * @param onClick callback to be called when the surface is clicked
  * @param modifier Modifier to be applied to the layout corresponding to the surface
@@ -202,7 +203,7 @@ fun Surface(
     enabled: Boolean = true,
     shape: Shape = RectangleShape,
     color: Color = LocalCssVariables.current.card,
-    contentColor: Color = contentColorFor(color),
+    contentColor: Color = LocalCssVariables.current.contentColorFor(color),
     tonalElevation: Dp = 0.dp,
     shadowElevation: Dp = 0.dp,
     border: BorderStroke? = null,
@@ -213,7 +214,7 @@ fun Surface(
     val interactionSource = interactionSource ?: remember { MutableInteractionSource() }
     val absoluteElevation = LocalAbsoluteTonalElevation.current + tonalElevation
     CompositionLocalProvider(
-        LocalContentColor provides contentColor,
+        LocalWidgetsContentColor provides contentColor,
         LocalAbsoluteTonalElevation provides absoluteElevation,
     ) {
         Box(
@@ -274,7 +275,7 @@ fun Surface(
     enabled: Boolean = true,
     shape: Shape = RectangleShape,
     color: Color = LocalCssVariables.current.card,
-    contentColor: Color = contentColorFor(color),
+    contentColor: Color = LocalCssVariables.current.contentColorFor(color),
     tonalElevation: Dp = 0.dp,
     shadowElevation: Dp = 0.dp,
     border: BorderStroke? = null,
@@ -285,7 +286,7 @@ fun Surface(
     val interactionSource = interactionSource ?: remember { MutableInteractionSource() }
     val absoluteElevation = LocalAbsoluteTonalElevation.current + tonalElevation
     CompositionLocalProvider(
-        LocalContentColor provides contentColor,
+        LocalWidgetsContentColor provides contentColor,
         LocalAbsoluteTonalElevation provides absoluteElevation,
     ) {
         Box(
@@ -315,6 +316,59 @@ fun Surface(
 }
 
 
+
+/**
+ * 上游（M3 1.4.0）的 `Surface` 有四个重载：无色 / onClick / selected / checked。本库此前只搬了前三个，
+ * 为照搬 IconButton 家族（`IconToggleButton` 用的是 checked 版）补上第四个，实现与 selected 版逐行一致。
+ */
+@Composable
+@NonRestartableComposable
+fun Surface(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: Shape = RectangleShape,
+    color: Color = LocalCssVariables.current.card,
+    contentColor: Color = LocalCssVariables.current.contentColorFor(color),
+    tonalElevation: Dp = 0.dp,
+    shadowElevation: Dp = 0.dp,
+    border: BorderStroke? = null,
+    interactionSource: MutableInteractionSource? = null,
+    content: @Composable () -> Unit,
+) {
+    @Suppress("NAME_SHADOWING")
+    val interactionSource = interactionSource ?: remember { MutableInteractionSource() }
+    val absoluteElevation = LocalAbsoluteTonalElevation.current + tonalElevation
+    CompositionLocalProvider(
+        LocalWidgetsContentColor provides contentColor,
+        LocalAbsoluteTonalElevation provides absoluteElevation,
+    ) {
+        Box(
+            modifier =
+                modifier
+                    .minimumInteractiveComponentSize()
+                    .surface(
+                        shape = shape,
+                        backgroundColor =
+                            surfaceColorAtElevation(color = color, elevation = absoluteElevation),
+                        border = border,
+                        shadowElevation = with(LocalDensity.current) { shadowElevation.toPx() },
+                    )
+                    .toggleable(
+                        value = checked,
+                        interactionSource = interactionSource,
+                        indication = ripple(),
+                        enabled = enabled,
+                        onValueChange = onCheckedChange,
+                    )
+                    .childSemantics(),
+            propagateMinConstraints = true,
+        ) {
+            content()
+        }
+    }
+}
 
 @Stable
 private fun Modifier.surface(

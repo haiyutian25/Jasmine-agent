@@ -30,8 +30,8 @@ import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
+import com.lhzkml.jasmine.core.widgets.interactive.LocalMinimumInteractiveComponentSize
 import com.lhzkml.jasmine.core.ui.theme.AppTypography
 import com.lhzkml.jasmine.core.widgets.tokens.MotionSchemeKeyTokens
 import com.lhzkml.jasmine.core.widgets.tokens.SmallIconButtonTokens
@@ -69,13 +69,11 @@ import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isUnspecified
-import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.LocalTextStyle
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTextStyle
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
-import androidx.compose.material3.contentColorFor
-import androidx.compose.material3.minimumInteractiveComponentSize
+import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSize
+import com.lhzkml.jasmine.core.widgets.internal.ProvideContentColorTextStyle
 import com.lhzkml.jasmine.core.widgets.tokens.fromToken
 
 internal enum class TextFieldType {
@@ -335,7 +333,7 @@ private fun Decoration(contentColor: Color, textStyle: TextStyle, content: @Comp
 /** Decorates [content] with [contentColor]. */
 @Composable
 private fun Decoration(contentColor: Color, content: @Composable () -> Unit) =
-    CompositionLocalProvider(LocalContentColor provides contentColor, content = content)
+    CompositionLocalProvider(LocalWidgetsContentColor provides contentColor, content = content)
 
 // Developers need to handle invalid input manually. But since we don't provide an error message
 // slot API, we can set the default error message in case developers forget about it.

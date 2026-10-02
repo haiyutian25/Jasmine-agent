@@ -55,11 +55,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastFirst
 import kotlin.math.max
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.ProvideTextStyle
-import androidx.compose.material3.ripple
-import androidx.compose.material3.ExperimentalMaterial3Api
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTextStyle
+import com.lhzkml.jasmine.core.widgets.text.ProvideTextStyle
+import com.lhzkml.jasmine.core.widgets.ripple.ripple
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import com.lhzkml.jasmine.core.widgets.navigation.badgeBounds
@@ -128,7 +127,7 @@ fun Tab(
     enabled: Boolean = true,
     text: @Composable (() -> Unit)? = null,
     icon: @Composable (() -> Unit)? = null,
-    selectedContentColor: Color = LocalContentColor.current,
+    selectedContentColor: Color = LocalWidgetsContentColor.current,
     unselectedContentColor: Color = selectedContentColor,
     interactionSource: MutableInteractionSource? = null,
 ) {
@@ -192,7 +191,7 @@ fun LeadingIconTab(
     icon: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    selectedContentColor: Color = LocalContentColor.current,
+    selectedContentColor: Color = LocalWidgetsContentColor.current,
     unselectedContentColor: Color = selectedContentColor,
     interactionSource: MutableInteractionSource? = null,
 ) {
@@ -263,7 +262,7 @@ fun Tab(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    selectedContentColor: Color = LocalContentColor.current,
+    selectedContentColor: Color = LocalWidgetsContentColor.current,
     unselectedContentColor: Color = selectedContentColor,
     interactionSource: MutableInteractionSource? = null,
     content: @Composable ColumnScope.() -> Unit,
@@ -295,7 +294,7 @@ fun Tab(
 
 /**
  * Transition defining how the tint color for a tab animates, when a new tab is selected. This
- * component uses [LocalContentColor] to provide an interpolated value between [activeColor] and
+ * component uses [LocalWidgetsContentColor] to provide an interpolated value between [activeColor] and
  * [inactiveColor] depending on the animation status.
  */
 @Composable
@@ -321,7 +320,7 @@ private fun TabTransition(
         ) {
             if (it) activeColor else inactiveColor
         }
-    CompositionLocalProvider(LocalContentColor provides color, content = content)
+    CompositionLocalProvider(LocalWidgetsContentColor provides color, content = content)
 }
 
 /**

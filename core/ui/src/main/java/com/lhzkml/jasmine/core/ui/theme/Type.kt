@@ -77,6 +77,15 @@ val AppTypography = Typography(
         lineHeight = 22.sp,
         letterSpacing = 0.sp
     ),
+    // 顶部栏标题那一档。上游标题栏用的是 M3 基线的 TitleLarge（22sp / 行高 28sp / 字距 0 /
+    // 字重 Regular / FontFamily.SansSerif），本库把它收进自有主题、数值逐项照抄，观感与之前完全一致。
+    titleLarge = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Normal,
+        fontSize = 22.sp,
+        lineHeight = 28.sp,
+        letterSpacing = 0.sp
+    ),
     bodyLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,

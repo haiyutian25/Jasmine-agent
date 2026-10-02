@@ -41,12 +41,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
-import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.ProvideTextStyle
-import androidx.compose.material3.ripple
+import com.lhzkml.jasmine.core.widgets.icon.Icon
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
+import com.lhzkml.jasmine.core.widgets.text.ProvideTextStyle
+import com.lhzkml.jasmine.core.widgets.ripple.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -157,7 +155,6 @@ import kotlin.math.roundToInt
  * @param content the content of this ExposedDropdownMenuBox, typically a [TextField] and an
  *   [ExposedDropdownMenu][ExposedDropdownMenuBoxScope.ExposedDropdownMenu].
  */
-@ExperimentalMaterial3Api
 @Composable
 fun ExposedDropdownMenuBox(
     expanded: Boolean,
@@ -273,7 +270,6 @@ fun ExposedDropdownMenuBox(
 }
 
 /** Scope for [ExposedDropdownMenuBox]. */
-@ExperimentalMaterial3Api
 sealed class ExposedDropdownMenuBoxScope {
     /**
      * Modifier which should be applied to an element inside the [ExposedDropdownMenuBoxScope],
@@ -397,7 +393,6 @@ sealed class ExposedDropdownMenuBoxScope {
 }
 
 // Sealed classes don't allow dynamic anonymous subclasses.
-@OptIn(ExperimentalMaterial3Api::class)
 private abstract class ExposedDropdownMenuBoxScopeImpl : ExposedDropdownMenuBoxScope()
 
 /** The type of element that can serve as a dropdown menu anchor. */
@@ -446,7 +441,6 @@ private fun ExposedDropdownMenuAnchorType.hasGreaterOrEqualPriorityThan(
     }
 
 /** Contains default values used by Exposed Dropdown Menu. */
-@ExperimentalMaterial3Api
 object ExposedDropdownMenuDefaults {
     /**
      * Default trailing icon for Exposed Dropdown Menu.
@@ -454,7 +448,6 @@ object ExposedDropdownMenuDefaults {
      * @param expanded whether the menu is expanded or not. Affects the appearance of the icon.
      * @param modifier the [Modifier] to be applied to this icon
      */
-    @ExperimentalMaterial3Api
     @Composable
     fun TrailingIcon(expanded: Boolean, modifier: Modifier = Modifier) {
         Icon(Icons.Filled.ArrowDropDown, null, modifier.rotate(if (expanded) 180f else 0f))
@@ -791,7 +784,6 @@ object ExposedDropdownMenuDefaults {
     val ItemContentPadding: PaddingValues =
         PaddingValues(horizontal = ExposedDropdownMenuItemHorizontalPadding, vertical = 0.dp)
 
-    @ExperimentalMaterial3Api
     @Composable
     fun TrailingIcon(expanded: Boolean) = TrailingIcon(expanded, Modifier)
 

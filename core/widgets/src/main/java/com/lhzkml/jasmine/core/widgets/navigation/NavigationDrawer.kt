@@ -49,26 +49,25 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.contentColorFor
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
+import com.lhzkml.jasmine.core.ui.theme.contentColorFor
 import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
 import com.lhzkml.jasmine.core.widgets.motion.value
 import com.lhzkml.jasmine.core.widgets.surface.Surface
 import com.lhzkml.jasmine.core.widgets.tokens.fromToken
 import com.lhzkml.jasmine.core.widgets.tokens.value
 import com.lhzkml.jasmine.core.widgets.bottomsheet.BackEventCompat
-import com.lhzkml.jasmine.core.widgets.textfield.FloatProducer
+import com.lhzkml.jasmine.core.widgets.internal.FloatProducer
 import com.lhzkml.jasmine.core.widgets.bottomsheet.PredictiveBack
 import com.lhzkml.jasmine.core.widgets.bottomsheet.PredictiveBackHandler
 import com.lhzkml.jasmine.core.widgets.textfield.Strings
 import com.lhzkml.jasmine.core.widgets.textfield.getString
-import com.lhzkml.jasmine.core.widgets.bottomsheet.systemBarsForVisualComponents
+import com.lhzkml.jasmine.core.widgets.internal.systemBarsForVisualComponents
 import com.lhzkml.jasmine.core.widgets.tokens.ElevationTokens
 import com.lhzkml.jasmine.core.widgets.tokens.MotionSchemeKeyTokens
 import com.lhzkml.jasmine.core.widgets.tokens.NavigationDrawerTokens
 import com.lhzkml.jasmine.core.widgets.tokens.ScrimTokens
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -462,7 +461,7 @@ fun PermanentNavigationDrawer(
  * @param drawerContainerColor the color used for the background of this drawer. Use
  *   [Color.Transparent] to have no color.
  * @param drawerContentColor the preferred color for content inside this drawer. Defaults to either
- *   the matching content color for [drawerContainerColor], or to the current [LocalContentColor] if
+ *   the matching content color for [drawerContainerColor], or to the current [LocalWidgetsContentColor] if
  *   [drawerContainerColor] is not a color from the theme.
  * @param drawerTonalElevation when [drawerContainerColor] is [ColorScheme.surface], a translucent
  *   primary color overlay is applied on top of the container. A higher tonal elevation value will
@@ -475,7 +474,7 @@ fun DismissibleDrawerSheet(
     modifier: Modifier = Modifier,
     drawerShape: Shape = RectangleShape,
     drawerContainerColor: Color = DrawerDefaults.standardContainerColor,
-    drawerContentColor: Color = contentColorFor(drawerContainerColor),
+    drawerContentColor: Color = LocalCssVariables.current.contentColorFor(drawerContainerColor),
     drawerTonalElevation: Dp = DrawerDefaults.DismissibleDrawerElevation,
     windowInsets: WindowInsets = DrawerDefaults.windowInsets,
     content: @Composable ColumnScope.() -> Unit,
@@ -505,7 +504,7 @@ fun DismissibleDrawerSheet(
  * @param drawerContainerColor the color used for the background of this drawer. Use
  *   [Color.Transparent] to have no color.
  * @param drawerContentColor the preferred color for content inside this drawer. Defaults to either
- *   the matching content color for [drawerContainerColor], or to the current [LocalContentColor] if
+ *   the matching content color for [drawerContainerColor], or to the current [LocalWidgetsContentColor] if
  *   [drawerContainerColor] is not a color from the theme.
  * @param drawerTonalElevation when [drawerContainerColor] is [ColorScheme.surface], a translucent
  *   primary color overlay is applied on top of the container. A higher tonal elevation value will
@@ -519,7 +518,7 @@ fun DismissibleDrawerSheet(
     modifier: Modifier = Modifier,
     drawerShape: Shape = RectangleShape,
     drawerContainerColor: Color = DrawerDefaults.standardContainerColor,
-    drawerContentColor: Color = contentColorFor(drawerContainerColor),
+    drawerContentColor: Color = LocalCssVariables.current.contentColorFor(drawerContainerColor),
     drawerTonalElevation: Dp = DrawerDefaults.DismissibleDrawerElevation,
     windowInsets: WindowInsets = DrawerDefaults.windowInsets,
     content: @Composable ColumnScope.() -> Unit,
@@ -547,7 +546,7 @@ fun DismissibleDrawerSheet(
  * @param drawerContainerColor the color used for the background of this drawer. Use
  *   [Color.Transparent] to have no color.
  * @param drawerContentColor the preferred color for content inside this drawer. Defaults to either
- *   the matching content color for [drawerContainerColor], or to the current [LocalContentColor] if
+ *   the matching content color for [drawerContainerColor], or to the current [LocalWidgetsContentColor] if
  *   [drawerContainerColor] is not a color from the theme.
  * @param drawerTonalElevation when [drawerContainerColor] is [ColorScheme.surface], a translucent
  *   primary color overlay is applied on top of the container. A higher tonal elevation value will
@@ -560,7 +559,7 @@ fun PermanentDrawerSheet(
     modifier: Modifier = Modifier,
     drawerShape: Shape = RectangleShape,
     drawerContainerColor: Color = DrawerDefaults.standardContainerColor,
-    drawerContentColor: Color = contentColorFor(drawerContainerColor),
+    drawerContentColor: Color = LocalCssVariables.current.contentColorFor(drawerContainerColor),
     drawerTonalElevation: Dp = DrawerDefaults.PermanentDrawerElevation,
     windowInsets: WindowInsets = DrawerDefaults.windowInsets,
     content: @Composable ColumnScope.() -> Unit,
@@ -585,7 +584,7 @@ internal fun DrawerSheet(
     modifier: Modifier = Modifier,
     drawerShape: Shape = RectangleShape,
     drawerContainerColor: Color = DrawerDefaults.standardContainerColor,
-    drawerContentColor: Color = contentColorFor(drawerContainerColor),
+    drawerContentColor: Color = LocalCssVariables.current.contentColorFor(drawerContainerColor),
     drawerTonalElevation: Dp = DrawerDefaults.PermanentDrawerElevation,
     drawerOffset: FloatProducer = FloatProducer { 0F },
     content: @Composable ColumnScope.() -> Unit,
@@ -889,17 +888,17 @@ fun NavigationDrawerItem(
         ) {
             if (icon != null) {
                 val iconColor = colors.iconColor(selected).value
-                CompositionLocalProvider(LocalContentColor provides iconColor, content = icon)
+                CompositionLocalProvider(LocalWidgetsContentColor provides iconColor, content = icon)
                 Spacer(Modifier.width(12.dp))
             }
             Box(Modifier.weight(1f)) {
                 val labelColor = colors.textColor(selected).value
-                CompositionLocalProvider(LocalContentColor provides labelColor, content = label)
+                CompositionLocalProvider(LocalWidgetsContentColor provides labelColor, content = label)
             }
             if (badge != null) {
                 Spacer(Modifier.width(12.dp))
                 val badgeColor = colors.badgeColor(selected).value
-                CompositionLocalProvider(LocalContentColor provides badgeColor, content = badge)
+                CompositionLocalProvider(LocalWidgetsContentColor provides badgeColor, content = badge)
             }
         }
     }

@@ -2,6 +2,7 @@ package com.lhzkml.jasmine.core.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
@@ -136,6 +137,9 @@ fun JasmineTheme(
                 LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = contentFont),
                 LocalWidgetsColorScheme provides m3ColorScheme,
                 LocalWidgetsShapes provides AppShapes,
+                // 自有 local：值与本层级的 M3 对应 local 原样一致，组件逐个切过来时观感不变。
+                LocalWidgetsContentColor provides LocalContentColor.current,
+                LocalWidgetsTextStyle provides LocalTextStyle.current.copy(fontFamily = contentFont),
             ) {
                 content()
             }

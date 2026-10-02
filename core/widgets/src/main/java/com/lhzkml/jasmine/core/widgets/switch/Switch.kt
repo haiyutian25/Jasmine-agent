@@ -21,10 +21,8 @@ package com.lhzkml.jasmine.core.widgets.switch
 import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 
-import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.minimumInteractiveComponentSize
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
+import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSize
 import com.lhzkml.jasmine.core.widgets.motion.value
 import com.lhzkml.jasmine.core.widgets.tokens.fromToken
 import com.lhzkml.jasmine.core.widgets.tokens.value
@@ -178,7 +176,7 @@ private fun SwitchImpl(
             if (thumbContent != null) {
                 val iconColor = colors.iconColor(enabled, checked)
                 CompositionLocalProvider(
-                    LocalContentColor provides iconColor,
+                    LocalWidgetsContentColor provides iconColor,
                     content = thumbContent,
                 )
             }

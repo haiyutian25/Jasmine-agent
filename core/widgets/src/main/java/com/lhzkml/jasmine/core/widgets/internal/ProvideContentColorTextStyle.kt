@@ -15,11 +15,18 @@
  */
 
 // 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
+// 上游位置：androidx/compose/material3/internal/TextFieldImpl.kt（M3 把它声明在 internal 共享文件里，
+// 组件侧只是 internal 调用），顶栏 / 底栏 / 徽标 / 对话框 / 输入框都在用，所以挪到 internal 包。
+// 符号名与上游一致（`ProvideContentColorTextStyle`）。
+//
+// 注意（**有意保留，别删**）：这里用的是 M3 的 LocalWidgetsContentColor / LocalWidgetsTextStyle —— 它把颜色与字型
+// **下发给槽位里的内容**，而应用侧槽位用的正是 M3 的 Text / Icon（经确认继续用 M3、不自有化），
+// M3 的这两个件只认 M3 的这两个 local。换成自有 local 会让文字掉到 15sp、图标掉色。
 
-package com.lhzkml.jasmine.core.widgets.textfield
+package com.lhzkml.jasmine.core.widgets.internal
 
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.LocalTextStyle
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTextStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
@@ -28,10 +35,10 @@ import androidx.compose.ui.text.TextStyle
 /**
  * ProvideContentColorTextStyle
  *
- * A convenience method to provide values to both LocalContentColor and LocalTextStyle in one call.
+ * A convenience method to provide values to both LocalWidgetsContentColor and LocalWidgetsTextStyle in one call.
  * This is less expensive than nesting calls to CompositionLocalProvider.
  *
- * Text styles will be merged with the current value of LocalTextStyle.
+ * Text styles will be merged with the current value of LocalWidgetsTextStyle.
  */
 
 @Composable
@@ -40,10 +47,10 @@ internal fun ProvideContentColorTextStyle(
     textStyle: TextStyle,
     content: @Composable () -> Unit,
 ) {
-    val mergedStyle = LocalTextStyle.current.merge(textStyle)
+    val mergedStyle = LocalWidgetsTextStyle.current.merge(textStyle)
     CompositionLocalProvider(
-        LocalContentColor provides contentColor,
-        LocalTextStyle provides mergedStyle,
+        LocalWidgetsContentColor provides contentColor,
+        LocalWidgetsTextStyle provides mergedStyle,
         content = content,
     )
 }

@@ -38,7 +38,7 @@ import androidx.compose.foundation.shape.CircleShape
 import com.lhzkml.jasmine.core.widgets.progress.CircularProgressIndicator
 import com.lhzkml.jasmine.core.widgets.progress.LoadingIndicatorDefaults
 import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
-import com.lhzkml.jasmine.core.widgets.textfield.FloatProducer
+import com.lhzkml.jasmine.core.widgets.internal.FloatProducer
 import com.lhzkml.jasmine.core.widgets.pulltorefresh.PullToRefreshDefaults.Indicator
 import com.lhzkml.jasmine.core.widgets.pulltorefresh.PullToRefreshDefaults.IndicatorBox
 import com.lhzkml.jasmine.core.widgets.pulltorefresh.PullToRefreshDefaults.LoadingIndicator

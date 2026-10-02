@@ -48,15 +48,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.progressSemantics
-import androidx.compose.material3.SliderState.Companion.Saver
-import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.LocalContentColor
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
 import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
-import androidx.compose.material3.contentColorFor
-import androidx.compose.material3.minimumInteractiveComponentSize
-import androidx.compose.material3.ripple
+import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSize
+import com.lhzkml.jasmine.core.widgets.ripple.ripple
 import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
 import com.lhzkml.jasmine.core.widgets.motion.value
 import com.lhzkml.jasmine.core.widgets.tokens.fromToken
@@ -78,9 +74,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -188,7 +184,6 @@ import kotlinx.coroutines.launch
  *   for this slider. You can create and pass in your own `remember`ed instance to observe
  *   [Interaction]s and customize the appearance / behavior of this slider in different states.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Slider(
     value: Float,
@@ -280,7 +275,6 @@ fun Slider(
  *   to this range.
  */
 @Composable
-@ExperimentalMaterial3Api
 fun Slider(
     value: Float,
     onValueChange: (Float) -> Unit,
@@ -363,7 +357,6 @@ fun Slider(
  *   lambda receives a [SliderState] which is used to obtain the current active track.
  */
 @Composable
-@ExperimentalMaterial3Api
 fun Slider(
     state: SliderState,
     modifier: Modifier = Modifier,
@@ -393,7 +386,6 @@ fun Slider(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SliderImpl(
     modifier: Modifier,
@@ -768,7 +760,6 @@ object SliderDefaults {
      *   accessibility services.
      * @param thumbSize the size of the thumb.
      */
-    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     internal fun Thumb(
         interactionSource: MutableInteractionSource,
@@ -834,7 +825,6 @@ object SliderDefaults {
         level = DeprecationLevel.HIDDEN,
     )
     @Composable
-    @ExperimentalMaterial3Api
     fun Track(
         sliderState: SliderState,
         modifier: Modifier = Modifier,
@@ -867,7 +857,6 @@ object SliderDefaults {
      * @param thumbTrackGapSize size of the gap between the thumb and the track.
      * @param trackInsideCornerSize size of the corners towards the thumb when a gap is set.
      */
-    @ExperimentalMaterial3Api
     @Composable
     fun Track(
         sliderState: SliderState,
@@ -922,7 +911,6 @@ object SliderDefaults {
      * @param thumbTrackGapSize size of the gap between the thumb and the track.
      * @param trackInsideCornerSize size of the corners towards the thumb when a gap is set.
      */
-    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     internal fun Track(
         sliderState: SliderState,
@@ -977,7 +965,6 @@ object SliderDefaults {
      * @param trackInsideCornerSize size of the corners towards the thumb when a gap is set.
      * @param trackCornerSize size of the external corners.
      */
-    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     internal fun CenteredTrack(
         sliderState: SliderState,
@@ -1013,7 +1000,6 @@ object SliderDefaults {
         )
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     private fun TrackImpl(
         sliderState: SliderState,
@@ -1462,7 +1448,6 @@ private fun scale(
 private fun calcFraction(a: Float, b: Float, pos: Float) =
     (if (b - a == 0f) 0f else (pos - a) / (b - a)).coerceIn(0f, 1f)
 
-@OptIn(ExperimentalMaterial3Api::class)
 private fun Modifier.sliderSemantics(state: SliderState, enabled: Boolean): Modifier {
     return semantics {
             if (!enabled) disabled()
@@ -1526,7 +1511,6 @@ private fun Modifier.sliderSemantics(state: SliderState, enabled: Boolean): Modi
 
 private fun Float.formatForSemantics() = "${(this * 100).roundToInt() / 100f}"
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Stable
 private fun Modifier.sliderTapModifier(
     state: SliderState,
@@ -1696,7 +1680,6 @@ private enum class SliderComponents {
  * @param valueRange range of values that Slider values can take. [value] will be coerced to this
  *   range.
  */
-@ExperimentalMaterial3Api
 class SliderState(
     value: Float = 0f,
     @IntRange(from = 0) val steps: Int = 0,
@@ -1872,7 +1855,6 @@ class SliderState(
  * @param valueRange range of values that Slider values can take. [value] will be coerced to this
  *   range.
  */
-@ExperimentalMaterial3Api
 @Composable
 fun rememberSliderState(
     value: Float = 0f,

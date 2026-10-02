@@ -25,7 +25,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.sizeIn
-import com.lhzkml.jasmine.core.widgets.textfield.ProvideContentColorTextStyle
+import com.lhzkml.jasmine.core.widgets.internal.ProvideContentColorTextStyle
 import com.lhzkml.jasmine.core.widgets.textfield.Strings
 import com.lhzkml.jasmine.core.widgets.textfield.getString
 import com.lhzkml.jasmine.core.widgets.tokens.DialogTokens
@@ -48,8 +48,7 @@ import androidx.compose.ui.util.fastForEachIndexed
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlin.math.max
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.LocalContentColor
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
 import com.lhzkml.jasmine.core.widgets.surface.Surface
 import com.lhzkml.jasmine.core.widgets.tokens.value
 
@@ -171,7 +170,6 @@ fun AlertDialog(
  * @param properties typically platform specific properties to further configure the dialog.
  * @param content the content of the dialog
  */
-@ExperimentalMaterial3Api
 @Composable
 fun BasicAlertDialog(
     onDismissRequest: () -> Unit,
@@ -195,7 +193,6 @@ fun BasicAlertDialog(
  *
  * [BasicAlertDialogOverride] used when no override is specified.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 internal object DefaultBasicAlertDialogOverride : BasicAlertDialogOverride {
     @Composable
     override fun BasicAlertDialogOverrideScope.BasicAlertDialog() {
@@ -240,7 +237,6 @@ object AlertDialogDefaults {
     val TonalElevation: Dp = 0.dp
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AlertDialogImpl(
     onDismissRequest: () -> Unit,
@@ -314,7 +310,7 @@ internal fun AlertDialogContent(
     ) {
         Column(modifier = Modifier.padding(DialogPadding)) {
             icon?.let {
-                CompositionLocalProvider(LocalContentColor provides iconContentColor) {
+                CompositionLocalProvider(LocalWidgetsContentColor provides iconContentColor) {
                     Box(Modifier.padding(IconPadding).align(Alignment.CenterHorizontally)) {
                         icon()
                     }

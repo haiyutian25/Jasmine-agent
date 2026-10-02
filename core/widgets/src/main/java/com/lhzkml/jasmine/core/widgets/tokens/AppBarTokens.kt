@@ -15,17 +15,25 @@
  */
 
 // 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION 14_0_0），不再由上游生成，可直接改。
-// 只留本组件库真正用到的槽位（顶部栏几个角色的颜色）；上游那份里的 AvatarSize / IconSize / 各种
-// 间距 / 容器高度与形状等槽位没有任何组件在用，已随裁剪删掉 —— 要加就照这里补一行（若引用了
-// ColorScheme/Shape/Typography/Elevation 的键，也要在 TokenResolvers.kt 里补对应分支）。
+//
+// 与上游的差别：上游这里是 M3 的 **颜色角色键**（`ColorSchemeKeyTokens.Surface` 等），再由
+// `ColorScheme.fromToken` 映射到 M3 主题；本库不再做这层「角色键 → 主题」映射 ——
+// 槽位直接在**自有主题** `CssVariables` 上实现，取值与之前逐槽一致（观感不变）：
+//   ContainerColor Surface        -> CssVariables.card
+//   OnScrollContainerColor SurfaceContainer -> CssVariables.card
+//   LeadingIconColor / TitleColor OnSurface -> CssVariables.cardForeground
+//   TrailingIconColor / SubtitleColor OnSurfaceVariant -> CssVariables.mutedForeground
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
+import androidx.compose.ui.graphics.Color
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+
 internal object AppBarTokens {
-    val ContainerColor = ColorSchemeKeyTokens.Surface
-    val LeadingIconColor = ColorSchemeKeyTokens.OnSurface
-    val OnScrollContainerColor = ColorSchemeKeyTokens.SurfaceContainer
-    val SubtitleColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val TitleColor = ColorSchemeKeyTokens.OnSurface
-    val TrailingIconColor = ColorSchemeKeyTokens.OnSurfaceVariant
+    val ContainerColor: (CssVariables) -> Color = { it.card }
+    val LeadingIconColor: (CssVariables) -> Color = { it.cardForeground }
+    val OnScrollContainerColor: (CssVariables) -> Color = { it.card }
+    val SubtitleColor: (CssVariables) -> Color = { it.mutedForeground }
+    val TitleColor: (CssVariables) -> Color = { it.cardForeground }
+    val TrailingIconColor: (CssVariables) -> Color = { it.mutedForeground }
 }

@@ -19,8 +19,11 @@ package com.lhzkml.jasmine.core.widgets.tokens
 
 internal enum class ColorSchemeKeyTokens {
     Error,
+    InverseOnSurface,
+    InverseSurface,
     OnPrimary,
     OnPrimaryContainer,
+    OnSecondary,
     OnSecondaryContainer,
     OnSurface,
     OnSurfaceVariant,
@@ -36,5 +39,5 @@ internal enum class ColorSchemeKeyTokens {
     SurfaceContainerHigh,
     SurfaceContainerHighest,
     SurfaceContainerLow,
-    SurfaceVariant
+    SurfaceVariant,
 }

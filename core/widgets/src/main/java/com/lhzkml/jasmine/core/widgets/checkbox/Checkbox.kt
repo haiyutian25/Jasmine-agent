@@ -13,11 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// OWN-HEADER-PLACEHOLDER
+// 本项目自有的组件代码（移植自 AndroidX Material3 1.4.0 的 Checkbox.kt 后自行维护），不再跟随上游生成，可直接改。
+// 上游位置：androidx/compose/material3/Checkbox.kt —— Checkbox / TriStateCheckbox / CheckboxDefaults /
+// CheckboxColors 与私有绘制。差异：默认色缓存改成 `@Composable get() = remember(this) { … }`；
+// 涟漪、最小触控尺寸、内容色分别走本库自有的 ripple / minimumInteractiveComponentSize / LocalWidgetsContentColor。
 
 package com.lhzkml.jasmine.core.widgets.checkbox
-
-
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.AnimationSpec
@@ -58,11 +59,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import kotlin.math.floor
 import kotlin.math.max
-import androidx.compose.material3.ColorScheme
 import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
-import androidx.compose.material3.minimumInteractiveComponentSize
-import androidx.compose.material3.ripple
+import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSize
+import com.lhzkml.jasmine.core.widgets.ripple.ripple
 import com.lhzkml.jasmine.core.widgets.motion.value
 import com.lhzkml.jasmine.core.widgets.tokens.fromToken
 import com.lhzkml.jasmine.core.widgets.tokens.value

@@ -31,7 +31,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.progressSemantics
-import androidx.compose.material3.ExperimentalMaterial3Api
 import com.lhzkml.jasmine.core.widgets.progress.ProgressIndicatorDefaults.drawStopIndicator
 import com.lhzkml.jasmine.core.widgets.slider.IncreaseVerticalSemanticsBounds
 import com.lhzkml.jasmine.core.widgets.tokens.CircularProgressIndicatorTokens
@@ -87,7 +86,6 @@ import com.lhzkml.jasmine.core.widgets.tokens.value
  * @param drawStopIndicator lambda that will be called to draw the stop indicator. Note that a
  *   custom indicator implementation should also handle RTL layouts.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LinearProgressIndicator(
     progress: () -> Float,
@@ -155,7 +153,6 @@ fun LinearProgressIndicator(
  * @param strokeCap stroke cap to use for the ends of this progress indicator
  * @param gapSize size of the gap between the progress indicator and the track
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LinearProgressIndicator(
     modifier: Modifier = Modifier,
@@ -319,7 +316,6 @@ private fun DrawScope.drawLinearIndicator(
         ),
     level = DeprecationLevel.HIDDEN,
 )
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CircularProgressIndicator(
     progress: () -> Float,
@@ -363,7 +359,6 @@ fun CircularProgressIndicator(
  * @param strokeCap stroke cap to use for the ends of this progress indicator
  * @param gapSize size of the gap between the progress indicator and the track
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CircularProgressIndicator(
     progress: () -> Float,
@@ -423,7 +418,6 @@ fun CircularProgressIndicator(
  * @param strokeCap stroke cap to use for the ends of this progress indicator
  * @param gapSize size of the gap between the progress indicator and the track
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CircularProgressIndicator(
     modifier: Modifier = Modifier,
@@ -579,15 +573,12 @@ object ProgressIndicatorDefaults {
     val CircularIndeterminateStrokeCap: StrokeCap = StrokeCap.Round
 
     /** Default track stop indicator size for a linear progress indicator. */
-    @ExperimentalMaterial3Api
     val LinearTrackStopIndicatorSize: Dp = LinearProgressIndicatorTokens.StopSize
 
     /** Default indicator track gap size for a linear progress indicator. */
-    @ExperimentalMaterial3Api
     val LinearIndicatorTrackGapSize: Dp = LinearProgressIndicatorTokens.TrackActiveSpace
 
     /** Default indicator track gap size for a circular progress indicator. */
-    @ExperimentalMaterial3Api
     val CircularIndicatorTrackGapSize: Dp = CircularProgressIndicatorTokens.TrackActiveSpace
 
     /**

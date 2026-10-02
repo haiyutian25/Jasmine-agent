@@ -53,7 +53,7 @@ import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import com.lhzkml.jasmine.core.widgets.textfield.AboveLabelBottomPadding
 import com.lhzkml.jasmine.core.widgets.textfield.AboveLabelHorizontalPadding
 import com.lhzkml.jasmine.core.widgets.textfield.ContainerId
-import com.lhzkml.jasmine.core.widgets.textfield.FloatProducer
+import com.lhzkml.jasmine.core.widgets.internal.FloatProducer
 import com.lhzkml.jasmine.core.widgets.textfield.LabelId
 import com.lhzkml.jasmine.core.widgets.textfield.LeadingId
 import com.lhzkml.jasmine.core.widgets.textfield.MinFocusedLabelLineHeight
@@ -133,13 +133,10 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.LocalTextStyle
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTextStyle
 import androidx.compose.foundation.text.selection.TextSelectionColors
-import androidx.compose.material3.contentColorFor
-import androidx.compose.material3.minimumInteractiveComponentSize
+import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSize
 import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsColorScheme
 import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsShapes
 import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
@@ -211,7 +208,7 @@ import com.lhzkml.jasmine.core.widgets.tokens.value
  * @param readOnly controls the editable state of the text field. When `true`, the text field cannot
  *   be modified. However, a user can focus it and copy text from it. Read-only text fields are
  *   usually used to display pre-filled forms that a user cannot edit.
- * @param textStyle the style to be applied to the input text. Defaults to [LocalTextStyle].
+ * @param textStyle the style to be applied to the input text. Defaults to [LocalWidgetsTextStyle].
  * @param labelPosition the position of the label. See [TextFieldLabelPosition].
  * @param label the optional label to be displayed with this text field. The default text style uses
  *   [Typography.bodySmall] when minimized and [Typography.bodyLarge] when expanded.
@@ -268,14 +265,13 @@ import com.lhzkml.jasmine.core.widgets.tokens.value
  *   interactions will still happen internally.
  */
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TextField(
     state: TextFieldState,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     readOnly: Boolean = false,
-    textStyle: TextStyle = LocalTextStyle.current,
+    textStyle: TextStyle = LocalWidgetsTextStyle.current,
     labelPosition: TextFieldLabelPosition = TextFieldLabelPosition.Attached(),
     label: @Composable (TextFieldLabelScope.() -> Unit)? = null,
     placeholder: @Composable (() -> Unit)? = null,
@@ -391,7 +387,7 @@ fun TextField(
  * @param readOnly controls the editable state of the text field. When `true`, the text field cannot
  *   be modified. However, a user can focus it and copy text from it. Read-only text fields are
  *   usually used to display pre-filled forms that a user cannot edit.
- * @param textStyle the style to be applied to the input text. Defaults to [LocalTextStyle].
+ * @param textStyle the style to be applied to the input text. Defaults to [LocalWidgetsTextStyle].
  * @param label the optional label to be displayed with this text field. The default text style uses
  *   [Typography.bodySmall] when minimized and [Typography.bodyLarge] when expanded.
  * @param placeholder the optional placeholder to be displayed when the text field is in focus and
@@ -431,7 +427,6 @@ fun TextField(
  *   in different states. See [TextFieldDefaults.colors].
  */
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TextField(
     value: String,
@@ -439,7 +434,7 @@ fun TextField(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     readOnly: Boolean = false,
-    textStyle: TextStyle = LocalTextStyle.current,
+    textStyle: TextStyle = LocalWidgetsTextStyle.current,
     label: @Composable (() -> Unit)? = null,
     placeholder: @Composable (() -> Unit)? = null,
     leadingIcon: @Composable (() -> Unit)? = null,
@@ -542,7 +537,7 @@ fun TextField(
  * @param readOnly controls the editable state of the text field. When `true`, the text field cannot
  *   be modified. However, a user can focus it and copy text from it. Read-only text fields are
  *   usually used to display pre-filled forms that a user cannot edit.
- * @param textStyle the style to be applied to the input text. Defaults to [LocalTextStyle].
+ * @param textStyle the style to be applied to the input text. Defaults to [LocalWidgetsTextStyle].
  * @param label the optional label to be displayed with this text field. The default text style uses
  *   [Typography.bodySmall] when minimized and [Typography.bodyLarge] when expanded.
  * @param placeholder the optional placeholder to be displayed when the text field is in focus and
@@ -582,7 +577,6 @@ fun TextField(
  *   in different states. See [TextFieldDefaults.colors].
  */
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TextField(
     value: TextFieldValue,
@@ -590,7 +584,7 @@ fun TextField(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     readOnly: Boolean = false,
-    textStyle: TextStyle = LocalTextStyle.current,
+    textStyle: TextStyle = LocalWidgetsTextStyle.current,
     label: @Composable (() -> Unit)? = null,
     placeholder: @Composable (() -> Unit)? = null,
     leadingIcon: @Composable (() -> Unit)? = null,
@@ -812,7 +806,6 @@ internal fun TextFieldLayout(
             }
 
             if (supporting != null) {
-                @OptIn(ExperimentalMaterial3Api::class)
                 Box(
                     Modifier.layoutId(SupportingId)
                         .heightIn(min = MinSupportingTextLineHeight)

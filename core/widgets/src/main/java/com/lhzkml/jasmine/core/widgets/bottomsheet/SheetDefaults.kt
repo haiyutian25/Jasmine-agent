@@ -21,16 +21,15 @@ package com.lhzkml.jasmine.core.widgets.bottomsheet
 import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsShapes
 
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.LocalTextStyle
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTextStyle
 import androidx.compose.material3.PlainTooltip
 import com.lhzkml.jasmine.core.widgets.surface.Surface
-import androidx.compose.material3.Text
+import com.lhzkml.jasmine.core.widgets.text.Text
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
-import androidx.compose.material3.contentColorFor
-import androidx.compose.material3.minimumInteractiveComponentSize
+import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberTooltipState
 import com.lhzkml.jasmine.core.widgets.bottomsheet.SheetValue.*
 import com.lhzkml.jasmine.core.widgets.motion.value
@@ -103,7 +102,6 @@ import kotlinx.coroutines.CancellationException
  *   programmatically or by user interaction.
  */
 @Stable
-@ExperimentalMaterial3Api
 class SheetState(
     internal val skipPartiallyExpanded: Boolean,
     positionalThreshold: () -> Float,
@@ -372,7 +370,6 @@ class SheetState(
 }
 
 /** Possible values of [SheetState]. */
-@ExperimentalMaterial3Api
 enum class SheetValue {
     /** The sheet is not visible. */
     Hidden,
@@ -386,7 +383,6 @@ enum class SheetValue {
 
 /** Contains the default values used by [ModalBottomSheet]. */
 @Stable
-@ExperimentalMaterial3Api
 object BottomSheetDefaults {
     /** The default shape for a bottom sheets in [PartiallyExpanded] and [Expanded] states. */
     val ExpandedShape: Shape
@@ -438,6 +434,9 @@ object BottomSheetDefaults {
     }
 }
 
+// 全库唯一保留的 M3 opt-in：Tooltip 家族（TooltipBox / PlainTooltip / TooltipDefaults /
+// TooltipAnchorPosition / rememberTooltipState）在上游仍标着 @ExperimentalMaterial3Api，
+// 不 opt-in 就编不过（ERROR 级）。其余组件里那些纯装饰的同名注解已全部删掉。
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ColumnScope.DragHandleWithTooltip(content: @Composable (() -> Unit)) {
@@ -454,7 +453,6 @@ internal fun ColumnScope.DragHandleWithTooltip(content: @Composable (() -> Unit)
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 internal fun ConsumeSwipeWithinBottomSheetBoundsNestedScrollConnection(
     sheetState: SheetState,
     orientation: Orientation,
@@ -514,7 +512,6 @@ internal fun ConsumeSwipeWithinBottomSheetBoundsNestedScrollConnection(
     }
 
 @Composable
-@ExperimentalMaterial3Api
 internal fun rememberSheetState(
     skipPartiallyExpanded: Boolean = false,
     confirmValueChange: (SheetValue) -> Boolean = { true },

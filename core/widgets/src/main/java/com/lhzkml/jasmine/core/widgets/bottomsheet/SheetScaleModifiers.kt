@@ -19,7 +19,6 @@
 
 package com.lhzkml.jasmine.core.widgets.bottomsheet
 
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -35,7 +34,6 @@ import androidx.compose.ui.graphics.graphicsLayer
  * @param state a [SheetState]
  * @see verticalScaleDown
  */
-@OptIn(ExperimentalMaterial3Api::class)
 internal fun Modifier.verticalScaleUp(state: SheetState) = graphicsLayer {
     val offset = state.anchoredDraggableState.offset
     val anchor = state.anchoredDraggableState.anchors.minAnchor()
@@ -53,7 +51,6 @@ internal fun Modifier.verticalScaleUp(state: SheetState) = graphicsLayer {
  * @param state a [SheetState]
  * @see verticalScaleUp
  */
-@OptIn(ExperimentalMaterial3Api::class)
 internal fun Modifier.verticalScaleDown(state: SheetState) = graphicsLayer {
     val offset = state.anchoredDraggableState.offset
     val anchor = state.anchoredDraggableState.anchors.minAnchor()

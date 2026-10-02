@@ -158,10 +158,9 @@ import kotlin.math.roundToInt
 import kotlin.math.sign
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
-import androidx.compose.material3.contentColorFor
-import androidx.compose.material3.ExperimentalMaterial3Api
+import com.lhzkml.jasmine.core.ui.theme.contentColorFor
 import com.lhzkml.jasmine.core.widgets.divider.HorizontalDivider
-import androidx.compose.material3.LocalTextStyle
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTextStyle
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.runtime.getValue
@@ -172,6 +171,7 @@ import com.lhzkml.jasmine.core.widgets.tokens.ElevationTokens
 import com.lhzkml.jasmine.core.widgets.textfield.TextFieldColors
 import com.lhzkml.jasmine.core.widgets.textfield.TextFieldDefaults
 import com.lhzkml.jasmine.core.widgets.tokens.value
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 
 
 /**
@@ -202,7 +202,6 @@ import com.lhzkml.jasmine.core.widgets.tokens.value
  * @param shadowElevation the elevation for the shadow below this search bar.
  */
 @Suppress("ComposableLambdaParameterNaming", "ComposableLambdaParameterPosition")
-@ExperimentalMaterial3Api
 @Composable
 fun SearchBar(
     state: SearchBarState,
@@ -217,7 +216,7 @@ fun SearchBar(
         modifier = modifier.onGloballyPositioned { state.collapsedCoords = it },
         shape = shape,
         color = colors.containerColor,
-        contentColor = contentColorFor(colors.containerColor),
+        contentColor = LocalCssVariables.current.contentColorFor(colors.containerColor),
         tonalElevation = tonalElevation,
         shadowElevation = shadowElevation,
         content = inputField,
@@ -251,7 +250,6 @@ fun SearchBar(
  *   ignored.
  * @param content the content of this search bar to display search results below the [inputField].
  */
-@ExperimentalMaterial3Api
 @Composable
 fun ExpandedFullScreenSearchBar(
     state: SearchBarState,
@@ -333,7 +331,6 @@ fun ExpandedFullScreenSearchBar(
  *   ignored.
  * @param content the content of this search bar to display search results below the [inputField].
  */
-@ExperimentalMaterial3Api
 @Composable
 fun ExpandedDockedSearchBar(
     state: SearchBarState,
@@ -404,7 +401,6 @@ fun ExpandedDockedSearchBar(
 
 
 /** Possible values of [SearchBarState]. */
-@ExperimentalMaterial3Api
 enum class SearchBarValue {
     /** The state of the search bar when it is collapsed. */
     Collapsed,
@@ -414,7 +410,6 @@ enum class SearchBarValue {
 }
 
 /** The state of a search bar. */
-@ExperimentalMaterial3Api
 @Stable
 class SearchBarState
 private constructor(
@@ -527,7 +522,6 @@ private constructor(
  * @param animationSpecForExpand the animation spec used when the search bar expands.
  * @param animationSpecForCollapse the animation spec used when the search bar collapses.
  */
-@ExperimentalMaterial3Api
 @Composable
 fun rememberSearchBarState(
     initialValue: SearchBarValue = SearchBarValue.Collapsed,
@@ -552,12 +546,10 @@ fun rememberSearchBarState(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 private val SearchBarState.isExpanded
     get() = this.currentValue == SearchBarValue.Expanded
 
 /** Defaults used in [SearchBar] and [DockedSearchBar]. */
-@ExperimentalMaterial3Api
 object SearchBarDefaults {
     /** Default tonal elevation for a search bar. */
     val TonalElevation: Dp = ElevationTokens.Level0
@@ -733,7 +725,7 @@ object SearchBarDefaults {
      *   services.
      * @param readOnly controls the editable state of the input field. When `true`, the field cannot
      *   be modified. However, a user can focus it and copy text from it.
-     * @param textStyle the style to be applied to the input text. Defaults to [LocalTextStyle].
+     * @param textStyle the style to be applied to the input text. Defaults to [LocalWidgetsTextStyle].
      * @param placeholder the placeholder to be displayed when the input text is empty.
      * @param leadingIcon the leading icon to be displayed at the start of the input field.
      * @param trailingIcon the trailing icon to be displayed at the end of the input field.
@@ -757,7 +749,6 @@ object SearchBarDefaults {
      *   appearance or preview the search bar in different states. Note that if `null` is provided,
      *   interactions will still happen internally.
      */
-    @ExperimentalMaterial3Api
     @Composable
     fun InputField(
         textFieldState: TextFieldState,
@@ -766,7 +757,7 @@ object SearchBarDefaults {
         modifier: Modifier = Modifier,
         enabled: Boolean = true,
         readOnly: Boolean = false,
-        textStyle: TextStyle = LocalTextStyle.current,
+        textStyle: TextStyle = LocalWidgetsTextStyle.current,
         placeholder: @Composable (() -> Unit)? = null,
         leadingIcon: @Composable (() -> Unit)? = null,
         trailingIcon: @Composable (() -> Unit)? = null,
@@ -930,7 +921,6 @@ object SearchBarDefaults {
  * See [SearchBarDefaults.colors] for the default implementation that follows Material
  * specifications.
  */
-@ExperimentalMaterial3Api
 @Immutable
 class SearchBarColors(
     val containerColor: Color,
@@ -957,7 +947,6 @@ class SearchBarColors(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DockedSearchBarLayout(
     state: SearchBarState,
@@ -975,7 +964,7 @@ private fun DockedSearchBarLayout(
     Surface(
         shape = shape,
         color = colors.containerColor,
-        contentColor = contentColorFor(colors.containerColor),
+        contentColor = LocalCssVariables.current.contentColorFor(colors.containerColor),
         tonalElevation = tonalElevation,
         shadowElevation = shadowElevation,
         modifier = modifier.imePadding(),
@@ -1030,7 +1019,6 @@ private fun DockedSearchBarLayout(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FullScreenSearchBarLayout(
     state: SearchBarState,
@@ -1116,7 +1104,7 @@ private fun FullScreenSearchBarLayout(
                 modifier = Modifier.layoutId(LayoutIdSurface),
                 shape = animatedShape,
                 color = colors.containerColor,
-                contentColor = contentColorFor(colors.containerColor),
+                contentColor = LocalCssVariables.current.contentColorFor(colors.containerColor),
                 tonalElevation = tonalElevation,
                 shadowElevation = shadowElevation,
                 content = {},
@@ -1227,7 +1215,6 @@ private fun FullScreenSearchBarLayout(
 private fun BackEventProgress.InProgress?.transform(): Float =
     if (this == null) 0f else PredictiveBack.transform(this.progress)
 
-@OptIn(ExperimentalMaterial3Api::class)
 private val SearchBarState.collapsedBounds: IntRect
     get() =
         collapsedCoords?.let { IntRect(offset = it.positionInWindow().round(), size = it.size) }
@@ -1257,7 +1244,7 @@ private const val LayoutIdSurface = "Surface"
 private const val LayoutIdSearchContent = "Content"
 
 // Measurement specs
-@OptIn(ExperimentalMaterial3Api::class) private val SearchBarCornerRadius: Dp = SearchBarDefaults.InputFieldHeight / 2
+private val SearchBarCornerRadius: Dp = SearchBarDefaults.InputFieldHeight / 2
 internal val DockedExpandedTableMinHeight: Dp = 240.dp
 private const val DockedExpandedTableMaxHeightScreenRatio: Float = 2f / 3f
 internal val SearchBarMinWidth: Dp = 360.dp

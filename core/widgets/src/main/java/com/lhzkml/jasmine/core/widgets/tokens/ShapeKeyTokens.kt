@@ -25,5 +25,6 @@ internal enum class ShapeKeyTokens {
     CornerFull,
     CornerLargeEnd,
     CornerMedium,
-    CornerNone
+    CornerNone,
+    CornerSmall
 }

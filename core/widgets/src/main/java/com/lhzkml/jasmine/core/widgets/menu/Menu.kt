@@ -44,14 +44,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.LocalContentColor
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
 import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import com.lhzkml.jasmine.core.ui.theme.AppTypography
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
-import androidx.compose.material3.ProvideTextStyle
-import androidx.compose.material3.ripple
+import com.lhzkml.jasmine.core.widgets.text.ProvideTextStyle
+import com.lhzkml.jasmine.core.widgets.ripple.ripple
 import com.lhzkml.jasmine.core.widgets.surface.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -518,14 +516,14 @@ internal fun DropdownMenuItemContent(
         ProvideTextStyle(AppTypography.labelLarge) {
             if (leadingIcon != null) {
                 CompositionLocalProvider(
-                    LocalContentColor provides colors.leadingIconColor(enabled)
+                    LocalWidgetsContentColor provides colors.leadingIconColor(enabled)
                 ) {
                     Box(Modifier.defaultMinSize(minWidth = ListTokens.ListItemLeadingIconSize)) {
                         leadingIcon()
                     }
                 }
             }
-            CompositionLocalProvider(LocalContentColor provides colors.textColor(enabled)) {
+            CompositionLocalProvider(LocalWidgetsContentColor provides colors.textColor(enabled)) {
                 Box(
                     Modifier.weight(1f)
                         .padding(
@@ -548,7 +546,7 @@ internal fun DropdownMenuItemContent(
             }
             if (trailingIcon != null) {
                 CompositionLocalProvider(
-                    LocalContentColor provides colors.trailingIconColor(enabled)
+                    LocalWidgetsContentColor provides colors.trailingIconColor(enabled)
                 ) {
                     Box(Modifier.defaultMinSize(minWidth = ListTokens.ListItemTrailingIconSize)) {
                         trailingIcon()

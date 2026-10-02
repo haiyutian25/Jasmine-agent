@@ -34,12 +34,10 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.LocalContentColor
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
 import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
-import androidx.compose.material3.ripple
+import com.lhzkml.jasmine.core.widgets.ripple.ripple
 import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import com.lhzkml.jasmine.core.ui.theme.contentColorFor
 import com.lhzkml.jasmine.core.widgets.surface.Surface
@@ -48,8 +46,8 @@ import com.lhzkml.jasmine.core.widgets.motion.value
 import com.lhzkml.jasmine.core.widgets.tokens.fromToken
 import com.lhzkml.jasmine.core.widgets.tokens.value
 import com.lhzkml.jasmine.core.widgets.bottomsheet.MappedInteractionSource
-import com.lhzkml.jasmine.core.widgets.textfield.ProvideContentColorTextStyle
-import com.lhzkml.jasmine.core.widgets.bottomsheet.systemBarsForVisualComponents
+import com.lhzkml.jasmine.core.widgets.internal.ProvideContentColorTextStyle
+import com.lhzkml.jasmine.core.widgets.internal.systemBarsForVisualComponents
 import com.lhzkml.jasmine.core.widgets.tokens.ElevationTokens
 import com.lhzkml.jasmine.core.widgets.tokens.MotionSchemeKeyTokens
 import com.lhzkml.jasmine.core.widgets.tokens.NavigationBarTokens
@@ -113,7 +111,7 @@ import kotlin.math.roundToInt
  * @param containerColor the color used for the background of this navigation bar. Use
  *   [Color.Transparent] to have no color.
  * @param contentColor the preferred color for content inside this navigation bar. Defaults to
- *   either the matching content color for [containerColor], or to the current [LocalContentColor]
+ *   either the matching content color for [containerColor], or to the current [LocalWidgetsContentColor]
  *   if [containerColor] is not a color from the theme.
  * @param tonalElevation when [containerColor] is [ColorScheme.surface], a translucent primary color
  *   overlay is applied on top of the container. A higher tonal elevation value will result in a
@@ -231,7 +229,7 @@ fun RowScope.NavigationBarItem(
             // If there's a label, don't have a11y services repeat the icon description.
             val clearSemantics = label != null && (alwaysShowLabel || selected)
             Box(modifier = if (clearSemantics) Modifier.clearAndSetSemantics {} else Modifier) {
-                CompositionLocalProvider(LocalContentColor provides iconColor, content = icon)
+                CompositionLocalProvider(LocalWidgetsContentColor provides iconColor, content = icon)
             }
         }
 
@@ -801,7 +799,7 @@ internal interface NavigationBarOverride {
  * @param containerColor the color used for the background of this navigation bar. Use
  *   [Color.Transparent] to have no color.
  * @param contentColor the preferred color for content inside this navigation bar. Defaults to
- *   either the matching content color for [containerColor], or to the current [LocalContentColor]
+ *   either the matching content color for [containerColor], or to the current [LocalWidgetsContentColor]
  *   if [containerColor] is not a color from the theme.
  * @param tonalElevation when [containerColor] is [ColorScheme.surface], a translucent primary color
  *   overlay is applied on top of the container. A higher tonal elevation value will result in a

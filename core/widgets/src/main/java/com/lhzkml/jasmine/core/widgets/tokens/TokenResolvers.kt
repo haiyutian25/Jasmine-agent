@@ -60,6 +60,9 @@ internal fun CssVariables.fromToken(value: ColorSchemeKeyTokens): Color {
         ColorSchemeKeyTokens.OnPrimaryContainer -> accentForeground
         ColorSchemeKeyTokens.OnSecondaryContainer -> mutedForeground
         ColorSchemeKeyTokens.OnSurface -> cardForeground
+        ColorSchemeKeyTokens.OnSecondary -> foreground
+        ColorSchemeKeyTokens.InverseSurface -> foreground
+        ColorSchemeKeyTokens.InverseOnSurface -> background
         ColorSchemeKeyTokens.OnSurfaceVariant -> mutedForeground
         ColorSchemeKeyTokens.Outline -> border
         ColorSchemeKeyTokens.OutlineVariant -> muted
@@ -103,6 +106,9 @@ internal fun ColorScheme.fromToken(value: ColorSchemeKeyTokens): Color {
         ColorSchemeKeyTokens.OnPrimaryContainer -> onPrimaryContainer
         ColorSchemeKeyTokens.OnSecondaryContainer -> onSecondaryContainer
         ColorSchemeKeyTokens.OnSurface -> onSurface
+        ColorSchemeKeyTokens.OnSecondary -> onSecondary
+        ColorSchemeKeyTokens.InverseSurface -> inverseSurface
+        ColorSchemeKeyTokens.InverseOnSurface -> inverseOnSurface
         ColorSchemeKeyTokens.OnSurfaceVariant -> onSurfaceVariant
         ColorSchemeKeyTokens.Outline -> outline
         ColorSchemeKeyTokens.OutlineVariant -> outlineVariant
@@ -172,6 +178,7 @@ internal fun Shapes.fromToken(value: ShapeKeyTokens): Shape {
         ShapeKeyTokens.CornerLargeEnd -> large.end()
         ShapeKeyTokens.CornerMedium -> medium
         ShapeKeyTokens.CornerNone -> RectangleShape
+        ShapeKeyTokens.CornerSmall -> small
     }
 }
 

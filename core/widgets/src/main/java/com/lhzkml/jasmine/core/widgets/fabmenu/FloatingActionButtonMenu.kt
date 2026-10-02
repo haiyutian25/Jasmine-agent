@@ -97,10 +97,10 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import com.lhzkml.jasmine.core.ui.theme.AppTypography
-import androidx.compose.material3.contentColorFor
-import androidx.compose.material3.LocalMinimumInteractiveComponentSize
-import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.ripple
+import com.lhzkml.jasmine.core.ui.theme.contentColorFor
+import com.lhzkml.jasmine.core.widgets.interactive.LocalMinimumInteractiveComponentSize
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTextStyle
+import com.lhzkml.jasmine.core.widgets.ripple.ripple
 import com.lhzkml.jasmine.core.widgets.motion.value
 import com.lhzkml.jasmine.core.widgets.surface.Surface
 import com.lhzkml.jasmine.core.widgets.tokens.value
@@ -338,7 +338,7 @@ fun FloatingActionButtonMenuScope.FloatingActionButtonMenuItem(
     icon: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     containerColor: Color = LocalCssVariables.current.accent,
-    contentColor: Color = contentColorFor(containerColor),
+    contentColor: Color = LocalCssVariables.current.contentColorFor(containerColor),
 ) {
     var widthAnim by remember { mutableStateOf<Animatable<Float, AnimationVector1D>?>(null) }
     var alphaAnim by remember { mutableStateOf<Animatable<Float, AnimationVector1D>?>(null) }
@@ -409,7 +409,7 @@ fun FloatingActionButtonMenuScope.FloatingActionButtonMenuItem(
             ) {
                 icon()
                 CompositionLocalProvider(
-                    LocalTextStyle provides AppTypography.titleMedium,
+                    LocalWidgetsTextStyle provides AppTypography.titleMedium,
                     content = text,
                 )
             }

@@ -37,9 +37,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.LocalTextStyle
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTextStyle
 import com.lhzkml.jasmine.core.widgets.elevation.animateElevation
 import androidx.compose.runtime.CompositionLocalProvider
 import com.lhzkml.jasmine.core.widgets.surface.Surface
@@ -139,10 +138,10 @@ fun Button(
         border = border,
         interactionSource = interactionSource,
     ) {
-        val mergedStyle = LocalTextStyle.current.merge(AppTypography.labelLarge)
+        val mergedStyle = LocalWidgetsTextStyle.current.merge(AppTypography.labelLarge)
         CompositionLocalProvider(
-            LocalContentColor provides contentColor,
-            LocalTextStyle provides mergedStyle,
+            LocalWidgetsContentColor provides contentColor,
+            LocalWidgetsTextStyle provides mergedStyle,
         ) {
             Row(
                 Modifier.defaultMinSize(

@@ -28,7 +28,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.padding
-import com.lhzkml.jasmine.core.widgets.textfield.ProvideContentColorTextStyle
+import com.lhzkml.jasmine.core.widgets.internal.ProvideContentColorTextStyle
 import com.lhzkml.jasmine.core.widgets.tokens.BadgeTokens
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -40,11 +40,12 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastFirst
-import androidx.compose.material3.contentColorFor
+import com.lhzkml.jasmine.core.ui.theme.contentColorFor
 import com.lhzkml.jasmine.core.widgets.navigation.BadgeEndRuler
 import com.lhzkml.jasmine.core.widgets.navigation.BadgeTopRuler
 import com.lhzkml.jasmine.core.widgets.navigation.badgeBounds
 import com.lhzkml.jasmine.core.widgets.tokens.value
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 
 /**
  * Material Design badge box.
@@ -156,7 +157,7 @@ fun BadgedBox(
 fun Badge(
     modifier: Modifier = Modifier,
     containerColor: Color = BadgeDefaults.containerColor,
-    contentColor: Color = contentColorFor(containerColor),
+    contentColor: Color = LocalCssVariables.current.contentColorFor(containerColor),
     content: @Composable (RowScope.() -> Unit)? = null,
 ) {
     val size = if (content != null) BadgeTokens.LargeSize else BadgeTokens.Size

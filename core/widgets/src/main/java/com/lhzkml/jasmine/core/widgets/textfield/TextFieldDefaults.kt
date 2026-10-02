@@ -63,12 +63,10 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.contentColorFor
-import androidx.compose.material3.minimumInteractiveComponentSize
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTextStyle
+import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSize
 import com.lhzkml.jasmine.core.widgets.motion.value
 import com.lhzkml.jasmine.core.widgets.tokens.fromToken
 import com.lhzkml.jasmine.core.widgets.tokens.value
@@ -723,7 +721,6 @@ object TextFieldDefaults {
         level = DeprecationLevel.HIDDEN,
         message = "Maintained for binary compatibility. Use overload with `textFieldShape`.",
     )
-    @ExperimentalMaterial3Api
     fun Modifier.indicatorLine(
         enabled: Boolean,
         isError: Boolean,
@@ -756,7 +753,6 @@ object TextFieldDefaults {
             ),
         level = DeprecationLevel.WARNING,
     )
-    @ExperimentalMaterial3Api
     @Composable
     fun ContainerBox(
         enabled: Boolean,
@@ -1464,7 +1460,6 @@ object OutlinedTextFieldDefaults {
             ),
         level = DeprecationLevel.WARNING,
     )
-    @ExperimentalMaterial3Api
     @Composable
     fun ContainerBox(
         enabled: Boolean,
@@ -2033,7 +2028,7 @@ interface TextFieldLabelScope {
      * represents an expanded label and 1 represents a minimized label.
      *
      * Label animation is handled by the framework when using a component that reads from
-     * [LocalTextStyle], such as the default [Text]. This [labelMinimizedProgress] value can be used
+     * [LocalWidgetsTextStyle], such as the default [Text]. This [labelMinimizedProgress] value can be used
      * to coordinate other animations in conjunction with the default animation.
      */
     @get:FloatRange(from = 0.0, to = 1.0) val labelMinimizedProgress: Float

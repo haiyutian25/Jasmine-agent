@@ -18,12 +18,11 @@
 
 package com.lhzkml.jasmine.core.widgets.bottomsheet
 
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.LocalTextStyle
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTextStyle
 import com.lhzkml.jasmine.core.widgets.surface.Surface
-import androidx.compose.material3.contentColorFor
-import androidx.compose.material3.minimumInteractiveComponentSize
+import com.lhzkml.jasmine.core.ui.theme.contentColorFor
+import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSize
 import com.lhzkml.jasmine.core.widgets.bottomsheet.SheetValue.*
 import com.lhzkml.jasmine.core.widgets.motion.value
 
@@ -52,6 +51,7 @@ import com.lhzkml.jasmine.core.widgets.textfield.Strings
 import com.lhzkml.jasmine.core.widgets.bottomsheet.draggableAnchors
 import com.lhzkml.jasmine.core.widgets.textfield.getString
 import com.lhzkml.jasmine.core.widgets.tokens.MotionSchemeKeyTokens
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
@@ -111,7 +111,7 @@ import kotlinx.coroutines.launch
  * @param shape The shape of the bottom sheet.
  * @param containerColor The color used for the background of this bottom sheet
  * @param contentColor The preferred color for content inside this bottom sheet. Defaults to either
- *   the matching content color for [containerColor], or to the current [LocalContentColor] if
+ *   the matching content color for [containerColor], or to the current [LocalWidgetsContentColor] if
  *   [containerColor] is not a color from the theme.
  * @param tonalElevation when [containerColor] is [ColorScheme.surface], a translucent primary color
  *   overlay is applied on top of the container. A higher tonal elevation value will result in a
@@ -127,7 +127,6 @@ import kotlinx.coroutines.launch
  * @param content The content to be displayed inside the bottom sheet.
  */
 @Composable
-@ExperimentalMaterial3Api
 fun ModalBottomSheet(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
@@ -136,7 +135,7 @@ fun ModalBottomSheet(
     sheetGesturesEnabled: Boolean = true,
     shape: Shape = BottomSheetDefaults.ExpandedShape,
     containerColor: Color = BottomSheetDefaults.ContainerColor,
-    contentColor: Color = contentColorFor(containerColor),
+    contentColor: Color = LocalCssVariables.current.contentColorFor(containerColor),
     tonalElevation: Dp = 0.dp,
     scrimColor: Color = BottomSheetDefaults.ScrimColor,
     dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
@@ -227,7 +226,6 @@ fun ModalBottomSheet(
     message = "Maintained for Binary compatibility. Use overload with sheetGesturesEnabled param.",
 )
 @Composable
-@ExperimentalMaterial3Api
 fun ModalBottomSheet(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
@@ -235,7 +233,7 @@ fun ModalBottomSheet(
     sheetMaxWidth: Dp = BottomSheetDefaults.SheetMaxWidth,
     shape: Shape = BottomSheetDefaults.ExpandedShape,
     containerColor: Color = BottomSheetDefaults.ContainerColor,
-    contentColor: Color = contentColorFor(containerColor),
+    contentColor: Color = LocalCssVariables.current.contentColorFor(containerColor),
     tonalElevation: Dp = 0.dp,
     scrimColor: Color = BottomSheetDefaults.ScrimColor,
     dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
@@ -261,7 +259,6 @@ fun ModalBottomSheet(
     )
 
 @Composable
-@ExperimentalMaterial3Api
 internal fun BoxScope.ModalBottomSheetContent(
     predictiveBackProgress: Animatable<Float, AnimationVector1D>,
     scope: CoroutineScope,
@@ -273,7 +270,7 @@ internal fun BoxScope.ModalBottomSheetContent(
     sheetGesturesEnabled: Boolean = true,
     shape: Shape = BottomSheetDefaults.ExpandedShape,
     containerColor: Color = BottomSheetDefaults.ContainerColor,
-    contentColor: Color = contentColorFor(containerColor),
+    contentColor: Color = LocalCssVariables.current.contentColorFor(containerColor),
     tonalElevation: Dp = BottomSheetDefaults.Elevation,
     dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
     contentWindowInsets: @Composable () -> WindowInsets = { BottomSheetDefaults.windowInsets },
@@ -470,7 +467,6 @@ private fun GraphicsLayerScope.calculatePredictiveBackScaleY(progress: Float): F
  * @param confirmValueChange Optional callback invoked to confirm or veto a pending state change.
  */
 @Composable
-@ExperimentalMaterial3Api
 fun rememberModalBottomSheetState(
     skipPartiallyExpanded: Boolean = false,
     confirmValueChange: (SheetValue) -> Boolean = { true },
