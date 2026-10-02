@@ -44,10 +44,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import com.lhzkml.jasmine.core.widgets.surface.Surface
 import com.lhzkml.jasmine.core.widgets.tokens.BaselineButtonTokens
 import com.lhzkml.jasmine.core.widgets.tokens.ButtonSmallTokens
-import com.lhzkml.jasmine.core.widgets.tokens.ColorSchemeKeyTokens
 import com.lhzkml.jasmine.core.widgets.tokens.FilledButtonTokens
 import com.lhzkml.jasmine.core.widgets.tokens.TextButtonTokens
-import com.lhzkml.jasmine.core.widgets.tokens.fromToken
 import com.lhzkml.jasmine.core.widgets.tokens.value
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -361,13 +359,13 @@ object ButtonDefaults {
         get() =
             remember(this) {
                 ButtonColors(
-                    containerColor = fromToken(FilledButtonTokens.ContainerColor),
-                    contentColor = fromToken(FilledButtonTokens.LabelTextColor),
+                    containerColor = FilledButtonTokens.ContainerColor(this),
+                    contentColor = FilledButtonTokens.LabelTextColor(this),
                     disabledContainerColor =
-                        fromToken(FilledButtonTokens.DisabledContainerColor)
+                        FilledButtonTokens.DisabledContainerColor(this)
                             .copy(alpha = FilledButtonTokens.DisabledContainerOpacity),
                     disabledContentColor =
-                        fromToken(FilledButtonTokens.DisabledLabelTextColor)
+                        FilledButtonTokens.DisabledLabelTextColor(this)
                             .copy(alpha = FilledButtonTokens.DisabledLabelTextOpacity),
                 )
             }
@@ -407,11 +405,10 @@ object ButtonDefaults {
             remember(this) {
                 ButtonColors(
                     containerColor = Color.Transparent,
-                    // TODO replace with the token value once it's corrected
-                    contentColor = fromToken(ColorSchemeKeyTokens.Primary),
+                    contentColor = primary,
                     disabledContainerColor = Color.Transparent,
                     disabledContentColor =
-                        fromToken(TextButtonTokens.DisabledLabelColor)
+                        TextButtonTokens.DisabledLabelColor(this)
                             .copy(alpha = TextButtonTokens.DisabledLabelOpacity),
                 )
             }

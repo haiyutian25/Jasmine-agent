@@ -14,19 +14,24 @@
  * limitations under the License.
  */
 // 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
+// 颜色槽位直读自有主题 `CssVariables`（Primary -> primary、OnPrimary -> primaryForeground、
+// OnSurface -> cardForeground、OnSurfaceVariant -> mutedForeground），取值与之前逐槽一致。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
+import androidx.compose.ui.graphics.Color
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+
 internal object FilledButtonTokens {
-    val ContainerColor = ColorSchemeKeyTokens.Primary
+    val ContainerColor: (CssVariables) -> Color = { it.primary }
     val ContainerElevation = ElevationTokens.Level0
-    val DisabledContainerColor = ColorSchemeKeyTokens.OnSurface
+    val DisabledContainerColor: (CssVariables) -> Color = { it.cardForeground }
     val DisabledContainerElevation = ElevationTokens.Level0
     val DisabledContainerOpacity = 0.1f
-    val DisabledLabelTextColor = ColorSchemeKeyTokens.OnSurfaceVariant
+    val DisabledLabelTextColor: (CssVariables) -> Color = { it.mutedForeground }
     val DisabledLabelTextOpacity = 0.38f
     val FocusedContainerElevation = ElevationTokens.Level0
     val HoveredContainerElevation = ElevationTokens.Level1
-    val LabelTextColor = ColorSchemeKeyTokens.OnPrimary
+    val LabelTextColor: (CssVariables) -> Color = { it.primaryForeground }
     val PressedContainerElevation = ElevationTokens.Level0
 }

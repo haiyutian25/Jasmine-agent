@@ -1,7 +1,6 @@
 // 本项目自有的组件代码（移植自 AndroidX Material3 1.4.0 的 IconButtonDefaults.kt 后自行维护），不再跟随上游生成，可直接改。
 // 上游位置：androidx/compose/material3/IconButtonDefaults.kt —— 各变体的默认色 / 边框 / 形状 / 尺寸。
-// 差异：`MaterialTheme.colorScheme` → 自有 `LocalCssVariables.current`；`ColorScheme.defaultXxx` 扩展 →
-// `CssVariables.defaultXxx`；`LocalWidgetsContentColor` → 自有 `LocalWidgetsContentColor`；`fromToken` 走自有令牌表；
+// 差异：默认色 / 边框 / 形状 / 尺寸都直接读自有主题（`CssVariables`）与自有令牌表（不再经角色键映射）；
 // 上游那套包级 `…Cached` 缓存按本库惯例去掉（直接返回，行为一致）。
 /*
  * Copyright 2025 The Android Open Source Project
@@ -27,7 +26,6 @@ import com.lhzkml.jasmine.core.widgets.tokens.FilledTonalIconButtonTokens
 import com.lhzkml.jasmine.core.widgets.tokens.OutlinedIconButtonTokens
 import com.lhzkml.jasmine.core.widgets.tokens.SmallIconButtonTokens
 import com.lhzkml.jasmine.core.widgets.tokens.StandardIconButtonTokens
-import com.lhzkml.jasmine.core.widgets.tokens.fromToken
 import com.lhzkml.jasmine.core.widgets.tokens.value
 import androidx.compose.runtime.Composable
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
@@ -153,10 +151,10 @@ object IconButtonDefaults {
         return run {
                 IconButtonColors(
                         containerColor = Color.Transparent,
-                        contentColor = fromToken(StandardIconButtonTokens.Color),
+                        contentColor = StandardIconButtonTokens.Color(this),
                         disabledContainerColor = Color.Transparent,
                         disabledContentColor =
-                            fromToken(StandardIconButtonTokens.DisabledColor)
+                            StandardIconButtonTokens.DisabledColor(this)
                                 .copy(alpha = StandardIconButtonTokens.DisabledOpacity),
                     )
             }
@@ -233,7 +231,7 @@ object IconButtonDefaults {
                                 alpha = StandardIconButtonTokens.DisabledOpacity
                             ),
                         checkedContainerColor = Color.Transparent,
-                        checkedContentColor = fromToken(StandardIconButtonTokens.SelectedColor),
+                        checkedContentColor = StandardIconButtonTokens.SelectedColor(this),
                     )
             }
     }
@@ -286,13 +284,13 @@ object IconButtonDefaults {
         return run {
                 IconToggleButtonColors(
                         containerColor = Color.Transparent,
-                        contentColor = fromToken(StandardIconButtonTokens.UnselectedColor),
+                        contentColor = StandardIconButtonTokens.UnselectedColor(this),
                         disabledContainerColor = Color.Transparent,
                         disabledContentColor =
-                            fromToken(StandardIconButtonTokens.DisabledColor)
+                            StandardIconButtonTokens.DisabledColor(this)
                                 .copy(alpha = StandardIconButtonTokens.DisabledOpacity),
                         checkedContainerColor = Color.Transparent,
-                        checkedContentColor = fromToken(StandardIconButtonTokens.SelectedColor),
+                        checkedContentColor = StandardIconButtonTokens.SelectedColor(this),
                     )
             }
     }
@@ -329,13 +327,13 @@ object IconButtonDefaults {
     internal val CssVariables.defaultFilledIconButtonColors: IconButtonColors
         get() {
             return IconButtonColors(
-                        containerColor = fromToken(FilledIconButtonTokens.ContainerColor),
-                        contentColor = fromToken(FilledIconButtonTokens.Color),
+                        containerColor = FilledIconButtonTokens.ContainerColor(this),
+                        contentColor = FilledIconButtonTokens.Color(this),
                         disabledContainerColor =
-                            fromToken(FilledIconButtonTokens.DisabledContainerColor)
+                            FilledIconButtonTokens.DisabledContainerColor(this)
                                 .copy(alpha = FilledIconButtonTokens.DisabledContainerOpacity),
                         disabledContentColor =
-                            fromToken(FilledIconButtonTokens.DisabledColor)
+                            FilledIconButtonTokens.DisabledColor(this)
                                 .copy(alpha = FilledIconButtonTokens.DisabledOpacity),
                     )
         }
@@ -382,20 +380,20 @@ object IconButtonDefaults {
     internal val CssVariables.defaultFilledIconToggleButtonColors: IconToggleButtonColors
         get() {
             return IconToggleButtonColors(
-                        containerColor = fromToken(FilledIconButtonTokens.UnselectedContainerColor),
+                        containerColor = FilledIconButtonTokens.UnselectedContainerColor(this),
                         // TODO(b/228455081): Using contentColorFor here will return
                         // OnSurfaceVariant,
                         //  while the token value is Primary.
-                        contentColor = fromToken(FilledIconButtonTokens.UnselectedColor),
+                        contentColor = FilledIconButtonTokens.UnselectedColor(this),
                         disabledContainerColor =
-                            fromToken(FilledIconButtonTokens.DisabledContainerColor)
+                            FilledIconButtonTokens.DisabledContainerColor(this)
                                 .copy(alpha = FilledIconButtonTokens.DisabledContainerOpacity),
                         disabledContentColor =
-                            fromToken(FilledIconButtonTokens.DisabledColor)
+                            FilledIconButtonTokens.DisabledColor(this)
                                 .copy(alpha = FilledIconButtonTokens.DisabledOpacity),
                         checkedContainerColor =
-                            fromToken(FilledIconButtonTokens.SelectedContainerColor),
-                        checkedContentColor = fromToken(FilledIconButtonTokens.SelectedColor),
+                            FilledIconButtonTokens.SelectedContainerColor(this),
+                        checkedContentColor = FilledIconButtonTokens.SelectedColor(this),
                     )
         }
 
@@ -433,13 +431,13 @@ object IconButtonDefaults {
     internal val CssVariables.defaultFilledTonalIconButtonColors: IconButtonColors
         get() {
             return IconButtonColors(
-                        containerColor = fromToken(FilledTonalIconButtonTokens.ContainerColor),
-                        contentColor = fromToken(FilledTonalIconButtonTokens.Color),
+                        containerColor = FilledTonalIconButtonTokens.ContainerColor(this),
+                        contentColor = FilledTonalIconButtonTokens.Color(this),
                         disabledContainerColor =
-                            fromToken(FilledTonalIconButtonTokens.DisabledContainerColor)
+                            FilledTonalIconButtonTokens.DisabledContainerColor(this)
                                 .copy(alpha = FilledTonalIconButtonTokens.DisabledContainerOpacity),
                         disabledContentColor =
-                            fromToken(FilledTonalIconButtonTokens.DisabledColor)
+                            FilledTonalIconButtonTokens.DisabledColor(this)
                                 .copy(alpha = FilledTonalIconButtonTokens.DisabledOpacity),
                     )
         }
@@ -485,17 +483,17 @@ object IconButtonDefaults {
         get() {
             return IconToggleButtonColors(
                         containerColor =
-                            fromToken(FilledTonalIconButtonTokens.UnselectedContainerColor),
-                        contentColor = fromToken(FilledTonalIconButtonTokens.UnselectedColor),
+                            FilledTonalIconButtonTokens.UnselectedContainerColor(this),
+                        contentColor = FilledTonalIconButtonTokens.UnselectedColor(this),
                         disabledContainerColor =
-                            fromToken(FilledTonalIconButtonTokens.DisabledContainerColor)
+                            FilledTonalIconButtonTokens.DisabledContainerColor(this)
                                 .copy(alpha = FilledTonalIconButtonTokens.DisabledContainerOpacity),
                         disabledContentColor =
-                            fromToken(FilledTonalIconButtonTokens.DisabledColor)
+                            FilledTonalIconButtonTokens.DisabledColor(this)
                                 .copy(alpha = FilledTonalIconButtonTokens.DisabledOpacity),
                         checkedContainerColor =
-                            fromToken(FilledTonalIconButtonTokens.SelectedContainerColor),
-                        checkedContentColor = fromToken(FilledTonalIconButtonTokens.SelectedColor),
+                            FilledTonalIconButtonTokens.SelectedContainerColor(this),
+                        checkedContentColor = FilledTonalIconButtonTokens.SelectedColor(this),
                     )
         }
 
@@ -608,10 +606,10 @@ object IconButtonDefaults {
         return run {
                 IconButtonColors(
                         containerColor = Color.Transparent,
-                        contentColor = fromToken(OutlinedIconButtonTokens.Color),
+                        contentColor = OutlinedIconButtonTokens.Color(this),
                         disabledContainerColor = Color.Transparent,
                         disabledContentColor =
-                            fromToken(OutlinedIconButtonTokens.DisabledColor)
+                            OutlinedIconButtonTokens.DisabledColor(this)
                                 .copy(alpha = OutlinedIconButtonTokens.DisabledOpacity),
                     )
             }
@@ -689,10 +687,10 @@ object IconButtonDefaults {
                                 alpha = OutlinedIconButtonTokens.DisabledOpacity
                             ),
                         checkedContainerColor =
-                            fromToken(OutlinedIconButtonTokens.SelectedContainerColor),
+                            OutlinedIconButtonTokens.SelectedContainerColor(this),
                         checkedContentColor =
                             contentColorFor(
-                                fromToken(OutlinedIconButtonTokens.SelectedContainerColor)
+                                OutlinedIconButtonTokens.SelectedContainerColor(this)
                             ),
                     )
             }
@@ -749,14 +747,14 @@ object IconButtonDefaults {
         return run {
                 IconToggleButtonColors(
                         containerColor = Color.Transparent,
-                        contentColor = fromToken(OutlinedIconButtonTokens.UnselectedColor),
+                        contentColor = OutlinedIconButtonTokens.UnselectedColor(this),
                         disabledContainerColor = Color.Transparent,
                         disabledContentColor =
-                            fromToken(OutlinedIconButtonTokens.DisabledColor)
+                            OutlinedIconButtonTokens.DisabledColor(this)
                                 .copy(alpha = OutlinedIconButtonTokens.DisabledOpacity),
                         checkedContainerColor =
-                            fromToken(OutlinedIconButtonTokens.SelectedContainerColor),
-                        checkedContentColor = fromToken(OutlinedIconButtonTokens.SelectedColor),
+                            OutlinedIconButtonTokens.SelectedContainerColor(this),
+                        checkedContentColor = OutlinedIconButtonTokens.SelectedColor(this),
                     )
             }
     }
@@ -823,7 +821,7 @@ object IconButtonDefaults {
      */
     @Composable
     fun outlinedIconButtonVibrantBorder(enabled: Boolean): BorderStroke {
-        val outlineColor = OutlinedIconButtonTokens.OutlineColor.value
+        val outlineColor = OutlinedIconButtonTokens.OutlineColor(LocalCssVariables.current)
         val color: Color =
             if (enabled) {
                 outlineColor

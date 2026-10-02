@@ -1,5 +1,3 @@
-// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
-// 标准图标按钮的尺寸与形状槽位（含 StandardIconButtonTokens）。
 /*
  * Copyright 2022 The Android Open Source Project
  *
@@ -15,24 +13,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// VERSION: 14_1_0
-// GENERATED CODE - DO NOT MODIFY BY HAND
+// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
+// 颜色槽位直读自有主题 `CssVariables`（Primary -> primary、OnSurface -> cardForeground、
+// OnSurfaceVariant -> mutedForeground），取值与之前逐槽一致。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
+import androidx.compose.ui.graphics.Color
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+
 internal object StandardIconButtonTokens {
-    val DisabledColor = ColorSchemeKeyTokens.OnSurface
+    val DisabledColor: (CssVariables) -> Color = { it.cardForeground }
     val DisabledOpacity = 0.38f
-    val FocusedColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val HoveredColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val Color = ColorSchemeKeyTokens.OnSurfaceVariant
-    val PressedColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val SelectedFocusedColor = ColorSchemeKeyTokens.Primary
-    val SelectedHoveredColor = ColorSchemeKeyTokens.Primary
-    val SelectedColor = ColorSchemeKeyTokens.Primary
-    val SelectedPressedColor = ColorSchemeKeyTokens.Primary
-    val UnselectedFocusedColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val UnselectedHoveredColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val UnselectedColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val UnselectedPressedColor = ColorSchemeKeyTokens.OnSurfaceVariant
+    val FocusedColor: (CssVariables) -> Color = { it.mutedForeground }
+    val HoveredColor: (CssVariables) -> Color = { it.mutedForeground }
+    val Color: (CssVariables) -> Color = { it.mutedForeground }
+    val PressedColor: (CssVariables) -> Color = { it.mutedForeground }
+    val SelectedFocusedColor: (CssVariables) -> Color = { it.primary }
+    val SelectedHoveredColor: (CssVariables) -> Color = { it.primary }
+    val SelectedColor: (CssVariables) -> Color = { it.primary }
+    val SelectedPressedColor: (CssVariables) -> Color = { it.primary }
+    val UnselectedFocusedColor: (CssVariables) -> Color = { it.mutedForeground }
+    val UnselectedHoveredColor: (CssVariables) -> Color = { it.mutedForeground }
+    val UnselectedColor: (CssVariables) -> Color = { it.mutedForeground }
+    val UnselectedPressedColor: (CssVariables) -> Color = { it.mutedForeground }
 }

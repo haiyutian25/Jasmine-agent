@@ -1,5 +1,3 @@
-// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
-// FilledTonalIconButton / FilledTonalIconToggleButton 的颜色与不透明度槽位。
 /*
  * Copyright 2022 The Android Open Source Project
  *
@@ -15,29 +13,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// VERSION: 14_1_0
-// GENERATED CODE - DO NOT MODIFY BY HAND
+// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
+// 颜色槽位直读自有主题 `CssVariables`（SecondaryContainer -> subtleSurface、OnSurface -> cardForeground、
+// OnSecondaryContainer -> mutedForeground、Secondary -> mutedForeground、OnSecondary -> foreground）。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
+import androidx.compose.ui.graphics.Color
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+
 internal object FilledTonalIconButtonTokens {
-    val ContainerColor = ColorSchemeKeyTokens.SecondaryContainer
-    val DisabledContainerColor = ColorSchemeKeyTokens.OnSurface
+    val ContainerColor: (CssVariables) -> Color = { it.subtleSurface }
+    val DisabledContainerColor: (CssVariables) -> Color = { it.cardForeground }
     val DisabledContainerOpacity = 0.1f
-    val DisabledColor = ColorSchemeKeyTokens.OnSurface
+    val DisabledColor: (CssVariables) -> Color = { it.cardForeground }
     val DisabledOpacity = 0.38f
-    val FocusedColor = ColorSchemeKeyTokens.OnSecondaryContainer
-    val HoveredColor = ColorSchemeKeyTokens.OnSecondaryContainer
-    val Color = ColorSchemeKeyTokens.OnSecondaryContainer
-    val PressedColor = ColorSchemeKeyTokens.OnSecondaryContainer
-    val SelectedContainerColor = ColorSchemeKeyTokens.Secondary
-    val SelectedFocusedColor = ColorSchemeKeyTokens.OnSecondary
-    val SelectedHoveredColor = ColorSchemeKeyTokens.OnSecondary
-    val SelectedColor = ColorSchemeKeyTokens.OnSecondary
-    val SelectedPressedColor = ColorSchemeKeyTokens.OnSecondary
-    val UnselectedContainerColor = ColorSchemeKeyTokens.SecondaryContainer
-    val UnselectedFocusedColor = ColorSchemeKeyTokens.OnSecondaryContainer
-    val UnselectedHoveredColor = ColorSchemeKeyTokens.OnSecondaryContainer
-    val UnselectedColor = ColorSchemeKeyTokens.OnSecondaryContainer
-    val UnselectedPressedColor = ColorSchemeKeyTokens.OnSecondaryContainer
+    val FocusedColor: (CssVariables) -> Color = { it.mutedForeground }
+    val HoveredColor: (CssVariables) -> Color = { it.mutedForeground }
+    val Color: (CssVariables) -> Color = { it.mutedForeground }
+    val PressedColor: (CssVariables) -> Color = { it.mutedForeground }
+    val SelectedContainerColor: (CssVariables) -> Color = { it.mutedForeground }
+    val SelectedFocusedColor: (CssVariables) -> Color = { it.foreground }
+    val SelectedHoveredColor: (CssVariables) -> Color = { it.foreground }
+    val SelectedColor: (CssVariables) -> Color = { it.foreground }
+    val SelectedPressedColor: (CssVariables) -> Color = { it.foreground }
+    val UnselectedContainerColor: (CssVariables) -> Color = { it.subtleSurface }
+    val UnselectedFocusedColor: (CssVariables) -> Color = { it.mutedForeground }
+    val UnselectedHoveredColor: (CssVariables) -> Color = { it.mutedForeground }
+    val UnselectedColor: (CssVariables) -> Color = { it.mutedForeground }
+    val UnselectedPressedColor: (CssVariables) -> Color = { it.mutedForeground }
 }

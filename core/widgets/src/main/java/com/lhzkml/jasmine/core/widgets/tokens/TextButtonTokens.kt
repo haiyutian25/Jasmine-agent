@@ -14,9 +14,14 @@
  * limitations under the License.
  */
 // 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
+// 颜色槽位直读自有主题 `CssVariables`（OnSurfaceVariant -> mutedForeground）。
 
 package com.lhzkml.jasmine.core.widgets.tokens
+
+import androidx.compose.ui.graphics.Color
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+
 internal object TextButtonTokens {
-    val DisabledLabelColor = ColorSchemeKeyTokens.OnSurfaceVariant
+    val DisabledLabelColor: (CssVariables) -> Color = { it.mutedForeground }
     val DisabledLabelOpacity = 0.38f
 }
