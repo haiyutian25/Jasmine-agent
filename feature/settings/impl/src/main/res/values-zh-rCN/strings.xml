@@ -198,4 +198,20 @@
     <string name="debug_progress_determinate">确定</string>
     <string name="debug_progress_indeterminate">不确定</string>
     <string name="debug_progress_row">列表第 %1$d 行</string>
+
+    <!-- 组件层调试：单选按钮 -->
+    <string name="debug_screen_section_radio_button">单选按钮</string>
+    <string name="debug_radio_entry_basic">基本（单个）</string>
+    <string name="debug_radio_entry_group">单选组</string>
+    <string name="debug_radio_entry_disabled">启用 / 禁用</string>
+    <string name="debug_radio_entry_colors">自定义配色</string>
+    <string name="debug_radio_hint">点单选按钮本身或整行都能选中。</string>
+    <string name="debug_radio_basic_label">单选按钮</string>
+    <string name="debug_radio_option">选项 %1$d</string>
+    <string name="debug_radio_enabled_selected">启用 · 已选中</string>
+    <string name="debug_radio_enabled_unselected">启用 · 未选中</string>
+    <string name="debug_radio_disabled_selected">禁用 · 已选中</string>
+    <string name="debug_radio_disabled_unselected">禁用 · 未选中</string>
+    <string name="debug_radio_custom_selected">自定义 · 已选中</string>
+    <string name="debug_radio_custom_unselected">自定义 · 未选中</string>
 </resources>

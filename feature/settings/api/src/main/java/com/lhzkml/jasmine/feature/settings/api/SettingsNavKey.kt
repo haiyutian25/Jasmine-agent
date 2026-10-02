@@ -126,6 +126,14 @@ sealed interface SettingsNavKey : NavKey {
      */
     @Serializable
     data class DebugProgress(val variant: String) : SettingsNavKey
+
+    /**
+     * **单选按钮预览** 页：`variant` 取 [SettingsDebugRadioButtonVariant] 里的常量。
+     *
+     * 同样是组件层的独立试验场：页内顶栏是我们的小号 `TopAppBar`。
+     */
+    @Serializable
+    data class DebugRadioButton(val variant: String) : SettingsNavKey
 }
 
 /** [SettingsNavKey.DebugSidebar] 的 `variant` 取值。 */
@@ -225,4 +233,19 @@ object SettingsDebugProgressVariant {
 
     /** 下拉刷新：指示器换成「形状变换」的 `PullToRefreshDefaults.LoadingIndicator`。 */
     const val PULL_TO_REFRESH_LOADING = "pullToRefreshLoading"
+}
+
+/** [SettingsNavKey.DebugRadioButton] 的 `variant` 取值。 */
+object SettingsDebugRadioButtonVariant {
+    /** 基本：单个可切换的单选按钮 + 标签（照官方 `RadioButtonSample`）。 */
+    const val BASIC = "basic"
+
+    /** 单选组：3 个选项、整行可点，配 `Modifier.selectableGroup()`（照官方 `RadioGroupSample`）。 */
+    const val GROUP = "group"
+
+    /** 启用 / 禁用 × 选中 / 未选中 四行。 */
+    const val DISABLED = "disabled"
+
+    /** 自定义配色：`RadioButtonDefaults.colors(...)`。 */
+    const val COLORS = "colors"
 }

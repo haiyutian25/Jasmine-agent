@@ -46,6 +46,7 @@ import com.lhzkml.jasmine.feature.settings.api.SettingsDebugCheckboxVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugDialogVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugFabMenuVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugProgressVariant
+import com.lhzkml.jasmine.feature.settings.api.SettingsDebugRadioButtonVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugSearchBarVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugSidebarVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugTopAppBarVariant
@@ -79,6 +80,7 @@ fun DebugComponentsScreen(
     onOpenBadge: (String) -> Unit,
     onOpenCheckbox: (String) -> Unit,
     onOpenProgress: (String) -> Unit,
+    onOpenRadioButton: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -200,6 +202,15 @@ fun DebugComponentsScreen(
         DebugProgressGroup(
             currentTheme = currentTheme,
             onOpen = onOpenProgress,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupSpacing))
+
+        // 单选按钮：4 档，各自独立页面。
+        DebugRadioButtonGroup(
+            currentTheme = currentTheme,
+            onOpen = onOpenRadioButton,
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -813,6 +824,57 @@ private fun DebugProgressGroup(
             label = stringResource(R.string.debug_progress_entry_pull_to_refresh_loading),
             currentTheme = currentTheme,
             onClick = { onOpen(SettingsDebugProgressVariant.PULL_TO_REFRESH_LOADING) }
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupBottomPadding))
+    }
+}
+
+/** 单选按钮入口：4 档各是**独立**的页面（不套设置流那套顶栏）。 */
+@Composable
+private fun DebugRadioButtonGroup(
+    currentTheme: CssVariables,
+    onOpen: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(currentTheme.card)
+            .border(1.dp, currentTheme.border, shape)
+    ) {
+        Text(
+            text = stringResource(R.string.debug_screen_section_radio_button),
+            fontSize = DebugTitleFontSize,
+            fontWeight = FontWeight.Medium,
+            color = currentTheme.mutedForeground,
+            modifier = Modifier.padding(
+                start = DebugRowPaddingHorizontal,
+                top = DebugRowPaddingHorizontal,
+                bottom = DebugRowPaddingVertical
+            )
+        )
+
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_radio_entry_basic),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugRadioButtonVariant.BASIC) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_radio_entry_group),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugRadioButtonVariant.GROUP) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_radio_entry_disabled),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugRadioButtonVariant.DISABLED) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_radio_entry_colors),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugRadioButtonVariant.COLORS) }
         )
 
         Spacer(modifier = Modifier.height(DebugGroupBottomPadding))

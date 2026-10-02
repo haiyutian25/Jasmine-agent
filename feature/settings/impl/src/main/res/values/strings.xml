@@ -198,4 +198,20 @@
     <string name="debug_progress_determinate">Determinate</string>
     <string name="debug_progress_indeterminate">Indeterminate</string>
     <string name="debug_progress_row">Row %1$d</string>
+
+    <!-- Component-layer debug: radio buttons. -->
+    <string name="debug_screen_section_radio_button">Radio buttons</string>
+    <string name="debug_radio_entry_basic">Basic (single)</string>
+    <string name="debug_radio_entry_group">Radio group</string>
+    <string name="debug_radio_entry_disabled">Enabled / disabled</string>
+    <string name="debug_radio_entry_colors">Custom colors</string>
+    <string name="debug_radio_hint">Tap a radio button or a whole row to select it.</string>
+    <string name="debug_radio_basic_label">Radio button</string>
+    <string name="debug_radio_option">Option %1$d</string>
+    <string name="debug_radio_enabled_selected">Enabled · selected</string>
+    <string name="debug_radio_enabled_unselected">Enabled · unselected</string>
+    <string name="debug_radio_disabled_selected">Disabled · selected</string>
+    <string name="debug_radio_disabled_unselected">Disabled · unselected</string>
+    <string name="debug_radio_custom_selected">Custom · selected</string>
+    <string name="debug_radio_custom_unselected">Custom · unselected</string>
 </resources>

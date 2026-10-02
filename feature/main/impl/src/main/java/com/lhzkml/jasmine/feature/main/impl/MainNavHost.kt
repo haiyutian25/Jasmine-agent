@@ -46,6 +46,7 @@ import com.lhzkml.jasmine.feature.settings.impl.screens.DebugCheckboxScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugDialogScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugFabMenuScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugProgressScreen
+import com.lhzkml.jasmine.feature.settings.impl.screens.DebugRadioButtonScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugSearchBarScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugSidebarScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugSliderScreen
@@ -356,6 +357,9 @@ fun MainNavHost(
                             onOpenProgress = {
                                 navigator.navigate(SettingsNavKey.DebugProgress(it))
                             },
+                            onOpenRadioButton = {
+                                navigator.navigate(SettingsNavKey.DebugRadioButton(it))
+                            },
                             modifier = contentModifier,
                         )
                     }
@@ -434,6 +438,14 @@ fun MainNavHost(
                 // 进度与下拉刷新预览：同样是不套 SettingsPage 的独立页面。
                 entry<SettingsNavKey.DebugProgress> { key ->
                     DebugProgressScreen(
+                        variant = key.variant,
+                        currentTheme = state.theme,
+                        onBack = { navigator.goBack() },
+                    )
+                }
+                // 单选按钮预览：同样是不套 SettingsPage 的独立页面。
+                entry<SettingsNavKey.DebugRadioButton> { key ->
+                    DebugRadioButtonScreen(
                         variant = key.variant,
                         currentTheme = state.theme,
                         onBack = { navigator.goBack() },
