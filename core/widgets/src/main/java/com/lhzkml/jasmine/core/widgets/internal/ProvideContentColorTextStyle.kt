@@ -19,9 +19,8 @@
 // 组件侧只是 internal 调用），顶栏 / 底栏 / 徽标 / 对话框 / 输入框都在用，所以挪到 internal 包。
 // 符号名与上游一致（`ProvideContentColorTextStyle`）。
 //
-// 注意（**有意保留，别删**）：这里用的是 M3 的 LocalWidgetsContentColor / LocalWidgetsTextStyle —— 它把颜色与字型
-// **下发给槽位里的内容**，而应用侧槽位用的正是 M3 的 Text / Icon（经确认继续用 M3、不自有化），
-// M3 的这两个件只认 M3 的这两个 local。换成自有 local 会让文字掉到 15sp、图标掉色。
+// 这里下发的是**自有**的 local：`LocalWidgetsContentColor` / `LocalWidgetsTextStyle`（core/ui/theme，
+// 由 JasmineTheme 注入）—— 下游内容件（Text / Icon）也已是自有实现，两边配对一致，本文件无 M3 依赖。
 
 package com.lhzkml.jasmine.core.widgets.internal
 

@@ -23,11 +23,13 @@
 //   insets systemBarsForVisualComponents（internal 包，foundation 的 systemBars ∪ displayCutout）
 //   尺寸   字面量 dp；形状   顶栏没有 shape 参数
 //
-// 仅存的三处 M3 引用（**有意保留，别删**）：本文件里两处 `LocalWidgetsContentColor provides …`
-// （导航图标 / 操作图标）与 internal/ProvideContentColorTextStyle 里的 LocalWidgetsContentColor /
-// LocalWidgetsTextStyle。它们只把颜色与字型**下发给槽位里的内容**；而应用侧槽位用的是 M3 的 Text / Icon
-// （这两个件经确认继续用 M3、不自有化），M3 的 Text / Icon 只读 M3 的这两个 local，
-// 所以这两条管道必须留着 —— 换成自有 local 会让标题掉到 15sp、图标掉色。
+// 本文件 **不再有任何 M3 引用，也不经任何映射**（M3 import 0、fromToken / *KeyTokens / MaterialTheme 0）。
+// 槽位的颜色与字型由**自有** local 下发（`LocalWidgetsContentColor` / `LocalWidgetsTextStyle`，见 Theme.kt 注入），
+// 而槽位里的内容件（标题的 Text、图标的 Icon）也已是**自有**实现（core/widgets/text、core/widgets/icon），
+// 两边配对一致，所以字号与色调与移植前完全相同。
+//
+// 提醒：本文件里 4 处 `LocalWidgetsContentColor provides …` / `LocalWidgetsTextStyle provides …`
+// 与私有 `ProvideWidgetsContentColorTextStyle` 是同一条管道（下发给槽位内容），改动时保持一致即可。
 
 package com.lhzkml.jasmine.core.widgets.appbar
 
