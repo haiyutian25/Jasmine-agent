@@ -22,6 +22,10 @@ import androidx.compose.animation.core.CubicBezierEasing
 internal object MotionTokens {
     const val DurationShort2 = 100.0
     const val DurationMedium3 = 350.0
+    const val DurationLong2 = 500.0
     const val DurationLong4 = 600.0
     val EasingEmphasizedAccelerateCubicBezier = CubicBezierEasing(0.3f, 0.0f, 0.8f, 0.15f)
+    val EasingEmphasizedDecelerateCubicBezier = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1.0f)
+    val EasingLinearCubicBezier = CubicBezierEasing(0.0f, 0.0f, 1.0f, 1.0f)
+    val EasingStandardCubicBezier = CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f)
 }
