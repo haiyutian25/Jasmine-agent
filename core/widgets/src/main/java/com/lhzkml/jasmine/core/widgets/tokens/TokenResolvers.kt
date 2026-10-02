@@ -153,6 +153,7 @@ internal fun Typography.fromToken(value: TypographyKeyTokens): TextStyle {
         TypographyKeyTokens.HeadlineSmall -> headlineSmall
         TypographyKeyTokens.LabelLarge -> labelLarge
         TypographyKeyTokens.LabelMedium -> labelMedium
+        TypographyKeyTokens.LabelSmall -> labelSmall
         TypographyKeyTokens.TitleLarge -> titleLarge
     }
 }
