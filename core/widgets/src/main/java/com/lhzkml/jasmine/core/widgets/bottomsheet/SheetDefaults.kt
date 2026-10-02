@@ -18,21 +18,7 @@
 
 package com.lhzkml.jasmine.core.widgets.bottomsheet
 
-import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsShapes
-
-import androidx.compose.material3.ExperimentalMaterial3Api
-import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
-import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTextStyle
-import androidx.compose.material3.PlainTooltip
-import com.lhzkml.jasmine.core.widgets.surface.Surface
-import com.lhzkml.jasmine.core.widgets.text.Text
-import androidx.compose.material3.TooltipAnchorPosition
-import androidx.compose.material3.TooltipBox
-import androidx.compose.material3.TooltipDefaults
-import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSize
-import androidx.compose.material3.rememberTooltipState
 import com.lhzkml.jasmine.core.widgets.bottomsheet.SheetValue.*
-import com.lhzkml.jasmine.core.widgets.motion.value
 import com.lhzkml.jasmine.core.widgets.tokens.value
 
 import androidx.compose.animation.core.AnimationSpec
@@ -42,18 +28,12 @@ import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.size
 import com.lhzkml.jasmine.core.widgets.bottomsheet.AnchoredDraggableState
-import com.lhzkml.jasmine.core.widgets.textfield.Strings
 import com.lhzkml.jasmine.core.widgets.bottomsheet.animateTo
-import com.lhzkml.jasmine.core.widgets.textfield.getString
 import com.lhzkml.jasmine.core.widgets.bottomsheet.snapTo
 import com.lhzkml.jasmine.core.widgets.tokens.ScrimTokens
 import com.lhzkml.jasmine.core.widgets.tokens.SheetBottomTokens
@@ -61,15 +41,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment.Companion.CenterHorizontally
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
@@ -410,47 +387,6 @@ object BottomSheetDefaults {
     internal val PositionalThreshold = 56.dp
 
     internal val VelocityThreshold = 125.dp
-
-    /** The optional visual marker placed on top of a bottom sheet to indicate it may be dragged. */
-    @Composable
-    fun DragHandle(
-        modifier: Modifier = Modifier,
-        width: Dp = SheetBottomTokens.DockedDragHandleWidth,
-        height: Dp = SheetBottomTokens.DockedDragHandleHeight,
-        shape: Shape = LocalWidgetsShapes.current.extraLarge,
-        color: Color = SheetBottomTokens.DockedDragHandleColor.value,
-    ) {
-        val dragHandleDescription = getString(Strings.BottomSheetDragHandleDescription)
-        Surface(
-            modifier =
-                modifier.padding(vertical = DragHandleVerticalPadding).semantics {
-                    contentDescription = dragHandleDescription
-                },
-            color = color,
-            shape = shape,
-        ) {
-            Box(Modifier.size(width = width, height = height))
-        }
-    }
-}
-
-// 全库唯一保留的 M3 opt-in：Tooltip 家族（TooltipBox / PlainTooltip / TooltipDefaults /
-// TooltipAnchorPosition / rememberTooltipState）在上游仍标着 @ExperimentalMaterial3Api，
-// 不 opt-in 就编不过（ERROR 级）。其余组件里那些纯装饰的同名注解已全部删掉。
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun ColumnScope.DragHandleWithTooltip(content: @Composable (() -> Unit)) {
-    val dragHandleDescription = getString(Strings.BottomSheetDragHandleDescription)
-    // We need outer box for alignment because TooltipBox's modifier is only applied to its anchor.
-    Box(Modifier.align(CenterHorizontally)) {
-        TooltipBox(
-            positionProvider =
-                TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-            tooltip = { PlainTooltip { Text(dragHandleDescription) } },
-            state = rememberTooltipState(),
-            content = content,
-        )
-    }
 }
 
 internal fun ConsumeSwipeWithinBottomSheetBoundsNestedScrollConnection(
@@ -546,8 +482,6 @@ internal fun rememberSheetState(
         )
     }
 }
-
-private val DragHandleVerticalPadding = 22.dp
 
 /** A function that provides the default animation spec used by [SheetState]. */
 private val BottomSheetAnimationSpec: AnimationSpec<Float> =

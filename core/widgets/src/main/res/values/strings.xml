@@ -22,7 +22,6 @@
 
     <!-- 底部弹层 -->
     <string name="widgets_bottom_sheet_pane_title">Bottom sheet</string>
-    <string name="widgets_bottom_sheet_drag_handle_description">Drag handle</string>
     <string name="widgets_bottom_sheet_collapse_description">Partially expanded</string>
     <string name="widgets_bottom_sheet_dismiss_description">Dismiss</string>
     <string name="widgets_bottom_sheet_expand_description">Expanded</string>

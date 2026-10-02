@@ -19,9 +19,7 @@
 package com.lhzkml.jasmine.core.widgets.bottomsheet
 
 import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
-import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTextStyle
 import com.lhzkml.jasmine.core.ui.theme.contentColorFor
-import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSize
 import com.lhzkml.jasmine.core.widgets.bottomsheet.SheetValue.*
 import com.lhzkml.jasmine.core.widgets.motion.value
 
@@ -339,7 +337,7 @@ fun ModalBottomSheet(
     contentColor: Color = LocalCssVariables.current.contentColorFor(containerColor),
     tonalElevation: Dp = 0.dp,
     scrimColor: Color = BottomSheetDefaults.ScrimColor,
-    dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
+    dragHandle: @Composable (() -> Unit)? = null,
     windowInsets: WindowInsets = BottomSheetDefaults.windowInsets,
     properties: ModalBottomSheetProperties = ModalBottomSheetDefaults.properties,
     content: @Composable ColumnScope.() -> Unit,

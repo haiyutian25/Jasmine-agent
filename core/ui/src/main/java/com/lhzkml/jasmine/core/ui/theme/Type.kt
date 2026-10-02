@@ -100,6 +100,15 @@ val AppTypography = Typography(
         lineHeight = 19.sp,
         letterSpacing = 0.1.sp
     ),
+    // Tooltip 正文那一档。上游 PlainTooltip 用 M3 基线的 BodySmall（12sp / 行高 16sp /
+    // 字距 0.4sp / 字重 Regular），本库把它收进自有主题、数值逐项照抄，观感不变。
+    bodySmall = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.4.sp
+    ),
     labelLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Medium,

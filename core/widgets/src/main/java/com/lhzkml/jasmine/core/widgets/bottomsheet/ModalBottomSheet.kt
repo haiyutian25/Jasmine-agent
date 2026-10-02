@@ -19,12 +19,10 @@
 package com.lhzkml.jasmine.core.widgets.bottomsheet
 
 import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
-import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTextStyle
 import com.lhzkml.jasmine.core.widgets.surface.Surface
 import com.lhzkml.jasmine.core.ui.theme.contentColorFor
-import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSize
 import com.lhzkml.jasmine.core.widgets.bottomsheet.SheetValue.*
-import com.lhzkml.jasmine.core.widgets.motion.value
+import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
@@ -44,16 +42,19 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.lhzkml.jasmine.core.ui.icons.LucideIcons
 import com.lhzkml.jasmine.core.widgets.bottomsheet.DraggableAnchors
+import com.lhzkml.jasmine.core.widgets.icon.Icon
 import com.lhzkml.jasmine.core.widgets.textfield.Strings
 import com.lhzkml.jasmine.core.widgets.bottomsheet.draggableAnchors
 import com.lhzkml.jasmine.core.widgets.textfield.getString
-import com.lhzkml.jasmine.core.widgets.tokens.MotionSchemeKeyTokens
 import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -69,6 +70,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.collapse
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.dismiss
@@ -104,7 +107,9 @@ import kotlinx.coroutines.launch
  * @param sheetState The state of the bottom sheet.
  * @param sheetMaxWidth [Dp] that defines what the maximum width the sheet will take. Pass in
  *   [Dp.Unspecified] for a sheet that spans the entire screen width.
- * @param sheetGesturesEnabled Whether the bottom sheet can be interacted with by gestures.
+ * @param sheetGesturesEnabled Whether the bottom sheet can be interacted with by gestures. Defaults
+ *   to false here: this sheet is closed by the X at the top right, the scrim, or the back key —
+ *   never by a drag.
  * @param shape The shape of the bottom sheet.
  * @param containerColor The color used for the background of this bottom sheet
  * @param contentColor The preferred color for content inside this bottom sheet. Defaults to either
@@ -114,7 +119,8 @@ import kotlinx.coroutines.launch
  *   overlay is applied on top of the container. A higher tonal elevation value will result in a
  *   darker color in light theme and lighter color in dark theme. See also: [Surface].
  * @param scrimColor Color of the scrim that obscures content when the bottom sheet is open.
- * @param dragHandle Optional visual marker to swipe the bottom sheet.
+ * @param dragHandle Optional visual marker to swipe the bottom sheet. Defaults to null here: the
+ *   swipe-down affordance is deliberately absent.
  * @param contentWindowInsets callback which provides window insets to be passed to the bottom sheet
  *   content via [Modifier.windowInsetsPadding]. [ModalBottomSheet] will pre-emptively consume top
  *   insets based on it's current offset. This keeps content outside of the expected window insets
@@ -129,22 +135,23 @@ fun ModalBottomSheet(
     modifier: Modifier = Modifier,
     sheetState: SheetState = rememberModalBottomSheetState(),
     sheetMaxWidth: Dp = BottomSheetDefaults.SheetMaxWidth,
-    sheetGesturesEnabled: Boolean = true,
+    sheetGesturesEnabled: Boolean = false,
     shape: Shape = BottomSheetDefaults.ExpandedShape,
     containerColor: Color = BottomSheetDefaults.ContainerColor,
     contentColor: Color = LocalCssVariables.current.contentColorFor(containerColor),
     tonalElevation: Dp = 0.dp,
     scrimColor: Color = BottomSheetDefaults.ScrimColor,
-    dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
+    dragHandle: @Composable (() -> Unit)? = null,
     contentWindowInsets: @Composable () -> WindowInsets = { BottomSheetDefaults.windowInsets },
     properties: ModalBottomSheetProperties = ModalBottomSheetProperties(),
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    // TODO Load the motionScheme tokens from the component tokens file
+    // 动效规格直接读自有的 MotionScheme（与顶栏/抽屉同一做法），不再经令牌键映射。
     val anchoredDraggableMotion: FiniteAnimationSpec<Float> =
-        MotionSchemeKeyTokens.DefaultSpatial.value()
-    val showMotion: FiniteAnimationSpec<Float> = MotionSchemeKeyTokens.DefaultSpatial.value()
-    val hideMotion: FiniteAnimationSpec<Float> = MotionSchemeKeyTokens.FastEffects.value()
+        LocalMotionScheme.current.defaultSpatialSpec<Float>()
+    val showMotion: FiniteAnimationSpec<Float> =
+        LocalMotionScheme.current.defaultSpatialSpec<Float>()
+    val hideMotion: FiniteAnimationSpec<Float> = LocalMotionScheme.current.fastEffectsSpec<Float>()
 
     SideEffect {
         sheetState.showMotionSpec = showMotion
@@ -233,7 +240,7 @@ fun ModalBottomSheet(
     contentColor: Color = LocalCssVariables.current.contentColorFor(containerColor),
     tonalElevation: Dp = 0.dp,
     scrimColor: Color = BottomSheetDefaults.ScrimColor,
-    dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
+    dragHandle: @Composable (() -> Unit)? = null,
     contentWindowInsets: @Composable () -> WindowInsets = { BottomSheetDefaults.windowInsets },
     properties: ModalBottomSheetProperties = ModalBottomSheetDefaults.properties,
     content: @Composable ColumnScope.() -> Unit,
@@ -243,7 +250,7 @@ fun ModalBottomSheet(
         modifier = modifier,
         sheetState = sheetState,
         sheetMaxWidth = sheetMaxWidth,
-        sheetGesturesEnabled = true,
+        sheetGesturesEnabled = false,
         shape = shape,
         containerColor = containerColor,
         contentColor = contentColor,
@@ -264,12 +271,12 @@ internal fun BoxScope.ModalBottomSheetContent(
     modifier: Modifier = Modifier,
     sheetState: SheetState = rememberModalBottomSheetState(),
     sheetMaxWidth: Dp = BottomSheetDefaults.SheetMaxWidth,
-    sheetGesturesEnabled: Boolean = true,
+    sheetGesturesEnabled: Boolean = false,
     shape: Shape = BottomSheetDefaults.ExpandedShape,
     containerColor: Color = BottomSheetDefaults.ContainerColor,
     contentColor: Color = LocalCssVariables.current.contentColorFor(containerColor),
     tonalElevation: Dp = BottomSheetDefaults.Elevation,
-    dragHandle: @Composable (() -> Unit)? = { BottomSheetDefaults.DragHandle() },
+    dragHandle: @Composable (() -> Unit)? = null,
     contentWindowInsets: @Composable () -> WindowInsets = { BottomSheetDefaults.windowInsets },
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -382,60 +389,96 @@ internal fun BoxScope.ModalBottomSheetContent(
                 val collapseActionLabel = getString(Strings.BottomSheetPartialExpandDescription)
                 val dismissActionLabel = getString(Strings.BottomSheetDismissDescription)
                 val expandActionLabel = getString(Strings.BottomSheetExpandDescription)
-                DragHandleWithTooltip {
-                    Box(
-                        modifier =
-                            Modifier.clickable {
-                                    when (sheetState.currentValue) {
-                                        Expanded -> animateToDismiss()
-                                        PartiallyExpanded -> scope.launch { sheetState.expand() }
-                                        else -> scope.launch { sheetState.show() }
-                                    }
+                Box(
+                    modifier =
+                        Modifier.clickable {
+                                when (sheetState.currentValue) {
+                                    Expanded -> animateToDismiss()
+                                    PartiallyExpanded -> scope.launch { sheetState.expand() }
+                                    else -> scope.launch { sheetState.show() }
                                 }
-                                .semantics(mergeDescendants = true) {
-                                    // Provides semantics to interact with the bottomsheet based on
-                                    // its current value.
-                                    if (sheetGesturesEnabled) {
-                                        with(sheetState) {
-                                            dismiss(dismissActionLabel) {
-                                                animateToDismiss()
+                            }
+                            .semantics(mergeDescendants = true) {
+                                // Provides semantics to interact with the bottomsheet based on
+                                // its current value.
+                                if (sheetGesturesEnabled) {
+                                    with(sheetState) {
+                                        dismiss(dismissActionLabel) {
+                                            animateToDismiss()
+                                            true
+                                        }
+                                        if (currentValue == PartiallyExpanded) {
+                                            expand(expandActionLabel) {
+                                                if (
+                                                    anchoredDraggableState.confirmValueChange(
+                                                        Expanded
+                                                    )
+                                                ) {
+                                                    scope.launch { sheetState.expand() }
+                                                }
                                                 true
                                             }
-                                            if (currentValue == PartiallyExpanded) {
-                                                expand(expandActionLabel) {
-                                                    if (
-                                                        anchoredDraggableState.confirmValueChange(
-                                                            Expanded
-                                                        )
-                                                    ) {
-                                                        scope.launch { sheetState.expand() }
-                                                    }
-                                                    true
+                                        } else if (hasPartiallyExpandedState) {
+                                            collapse(collapseActionLabel) {
+                                                if (
+                                                    anchoredDraggableState.confirmValueChange(
+                                                        PartiallyExpanded
+                                                    )
+                                                ) {
+                                                    scope.launch { partialExpand() }
                                                 }
-                                            } else if (hasPartiallyExpandedState) {
-                                                collapse(collapseActionLabel) {
-                                                    if (
-                                                        anchoredDraggableState.confirmValueChange(
-                                                            PartiallyExpanded
-                                                        )
-                                                    ) {
-                                                        scope.launch { partialExpand() }
-                                                    }
-                                                    true
-                                                }
+                                                true
                                             }
                                         }
                                     }
                                 }
-                    ) {
-                        dragHandle()
-                    }
+                            }
+                ) {
+                    dragHandle()
+                }
+            }
+            // 右上角的关闭入口：X + 56dp 触摸区（尺寸与配色照 core:ui 的 BottomSheet 那套）。
+            // 拖拽已禁（sheetGesturesEnabled 默认 false）、默认也没有把手，所以这里是除遮罩与
+            // 返回键之外唯一的关闭方式。
+            Box(
+                modifier =
+                    Modifier.fillMaxWidth()
+                        .padding(top = BottomSheetCloseTopInset, end = BottomSheetCloseEndInset),
+                contentAlignment = Alignment.TopEnd
+            ) {
+                Box(
+                    modifier =
+                        Modifier.size(BottomSheetCloseTouchTarget)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                role = Role.Button,
+                                onClick = animateToDismiss
+                            )
+                            .testTag("bottom_sheet_close"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = LucideIcons.Close,
+                        contentDescription = getString(Strings.CloseSheet),
+                        tint = LocalCssVariables.current.mutedForeground,
+                        modifier = Modifier.size(BottomSheetCloseIconSize)
+                    )
                 }
             }
             content()
         }
     }
 }
+
+// ── 右上角关闭入口的尺寸（照 core:ui 的 BottomSheet 那套，值一致） ──────────────
+//
+// 触摸区 56dp：Android 无障碍下限是 48dp，这里再放大一点 —— 它是关掉 sheet 的主要按钮。
+// 图形 26dp；end 内缩 12dp（触摸区自带 (56-26)/2 = 15dp 留白，视觉距离约 27dp）。
+private val BottomSheetCloseTouchTarget = 56.dp
+private val BottomSheetCloseIconSize = 26.dp
+private val BottomSheetCloseEndInset = 12.dp
+private val BottomSheetCloseTopInset = 4.dp
 
 private fun GraphicsLayerScope.calculatePredictiveBackScaleX(progress: Float): Float {
     val width = size.width
@@ -481,12 +524,11 @@ private fun Scrim(
     visible: Boolean,
     dismissEnabled: Boolean,
 ) {
-    // TODO Load the motionScheme tokens from the component tokens file
     if (color.isSpecified) {
         val alpha by
             animateFloatAsState(
                 targetValue = if (visible) 1f else 0f,
-                animationSpec = MotionSchemeKeyTokens.DefaultEffects.value(),
+                animationSpec = LocalMotionScheme.current.defaultEffectsSpec<Float>(),
             )
         val closeSheet = getString(Strings.CloseSheet)
         val dismissSheet =

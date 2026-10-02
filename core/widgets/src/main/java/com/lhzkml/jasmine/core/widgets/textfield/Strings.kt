@@ -75,10 +75,6 @@ internal value class Strings constructor(val value: Int) {
         inline val BottomSheetPaneTitle
             get() = Strings(R.string.widgets_bottom_sheet_pane_title)
 
-        /** 拖拽把手。 */
-        inline val BottomSheetDragHandleDescription
-            get() = Strings(R.string.widgets_bottom_sheet_drag_handle_description)
-
         /** 弹层"部分展开"。 */
         inline val BottomSheetPartialExpandDescription
             get() = Strings(R.string.widgets_bottom_sheet_collapse_description)

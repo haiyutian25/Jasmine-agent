@@ -18,7 +18,6 @@
 
     <!-- 底部弹层 -->
     <string name="widgets_bottom_sheet_pane_title">底部面板</string>
-    <string name="widgets_bottom_sheet_drag_handle_description">拖拽把手</string>
     <string name="widgets_bottom_sheet_collapse_description">部分展开</string>
     <string name="widgets_bottom_sheet_dismiss_description">关闭</string>
     <string name="widgets_bottom_sheet_expand_description">已展开</string>
