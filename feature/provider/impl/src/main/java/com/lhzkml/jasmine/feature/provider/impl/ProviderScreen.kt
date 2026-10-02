@@ -1,5 +1,6 @@
 package com.lhzkml.jasmine.feature.provider.impl
 
+import com.lhzkml.jasmine.core.ui.theme.AppShapes
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -189,9 +190,9 @@ private fun ProviderListContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(currentTheme.radiusLg))
+            .clip(AppShapes.large)
             .background(currentTheme.card)
-            .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusLg))
+            .border(1.dp, currentTheme.border, AppShapes.large)
     ) {
         providers.forEachIndexed { index, provider ->
             ProviderRow(
@@ -217,9 +218,9 @@ private fun ProviderListContent(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(currentTheme.radiusLg))
+                .clip(AppShapes.large)
                 .background(currentTheme.card)
-                .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusLg))
+                .border(1.dp, currentTheme.border, AppShapes.large)
                 .padding(horizontal = ProviderRowPaddingHorizontal, vertical = ProviderRowPaddingVertical),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(ProviderRowIconTextSpacing)
@@ -372,9 +373,9 @@ private fun ProviderEditorContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(currentTheme.radiusLg))
+            .clip(AppShapes.large)
             .background(currentTheme.card)
-            .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusLg))
+            .border(1.dp, currentTheme.border, AppShapes.large)
     ) {
         ProviderApiType.entries.forEachIndexed { index, type ->
             val isSelected = editor.apiType == type
@@ -428,9 +429,9 @@ private fun ProviderEditorContent(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(currentTheme.radiusLg))
+                .clip(AppShapes.large)
                 .background(currentTheme.card)
-                .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusLg))
+                .border(1.dp, currentTheme.border, AppShapes.large)
         ) {
             editor.models.forEachIndexed { index, model ->
                 ModelRow(
@@ -1025,9 +1026,9 @@ private fun ProviderField(
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag(testTag)
-                .clip(RoundedCornerShape(currentTheme.radiusSm))
+                .clip(AppShapes.small)
                 .background(currentTheme.subtleSurface)
-                .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusSm))
+                .border(1.dp, currentTheme.border, AppShapes.small)
                 .padding(
                     horizontal = ProviderFieldPaddingHorizontal,
                     vertical = ProviderFieldPaddingVertical
@@ -1084,8 +1085,8 @@ private fun ProviderReasoningEffortField(
         Box {
             Row(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(currentTheme.radiusSm))
-                    .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusSm))
+                    .clip(AppShapes.small)
+                    .border(1.dp, currentTheme.border, AppShapes.small)
                     .clickable { open = true }
                     .padding(
                         horizontal = ProviderFieldPaddingHorizontal,
@@ -1132,7 +1133,7 @@ private fun ProviderReasoningEffortField(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(currentTheme.radiusSm))
+                                    .clip(AppShapes.small)
                                     .clickable {
                                         onValueChange(option.value)
                                         open = false

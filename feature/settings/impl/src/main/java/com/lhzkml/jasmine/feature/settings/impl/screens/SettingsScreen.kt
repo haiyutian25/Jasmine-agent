@@ -1,5 +1,6 @@
 package com.lhzkml.jasmine.feature.settings.impl.screens
 
+import com.lhzkml.jasmine.core.ui.theme.AppShapes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -155,9 +156,9 @@ fun SettingsScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(currentTheme.radiusLg))
+                    .clip(AppShapes.large)
                     .background(currentTheme.card)
-                    .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusLg))
+                    .border(1.dp, currentTheme.border, AppShapes.large)
             ) {
                 paletteList.forEachIndexed { index, entry ->
                     val isSelected = currentFamilyKey == entry.family.key
@@ -291,7 +292,7 @@ private fun ColorModeCard(
         isSelected = isSelected,
         currentTheme = currentTheme,
         modifier = modifier,
-        shape = RoundedCornerShape(currentTheme.radiusMd),
+        shape = AppShapes.medium,
         // Selected card gets an elevated surface (white in light / muted in dark)
         // instead of staying the same gray as the unselected cards. Braun (Dieter
         // Rams) keeps its original restrained card surface instead.

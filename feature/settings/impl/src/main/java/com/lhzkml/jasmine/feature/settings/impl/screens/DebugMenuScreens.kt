@@ -1,5 +1,6 @@
 package com.lhzkml.jasmine.feature.settings.impl.screens
 
+import com.lhzkml.jasmine.core.ui.theme.AppShapes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -226,7 +227,7 @@ fun DebugMenuScreen(
                                 expanded = expanded,
                                 onDismissRequest = { expanded = false },
                                 offset = DebugMenuOffset,
-                                shape = RoundedCornerShape(currentTheme.radiusMd),
+                                shape = AppShapes.medium,
                                 containerColor = currentTheme.card,
                                 shadowElevation = MenuDefaults.ShadowElevation,
                                 border = BorderStroke(DebugMenuBorderWidth, currentTheme.border)

@@ -1,5 +1,6 @@
 package com.lhzkml.jasmine.feature.settings.impl.screens
 
+import com.lhzkml.jasmine.core.ui.theme.AppShapes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
@@ -173,7 +174,7 @@ private fun SettingsGroupCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
     Column(
         modifier = modifier
             .clip(shape)

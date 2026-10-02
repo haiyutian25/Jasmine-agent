@@ -1,5 +1,6 @@
 package com.lhzkml.jasmine.feature.main.impl.chat
 
+import com.lhzkml.jasmine.core.ui.theme.AppShapes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -133,7 +134,7 @@ internal fun Composer(
     val resume = state.canContinue && !canSend
     // 「推理强度」选择面板（复用我们的 BottomSheet）的开合。
     var isEffortSheetOpen by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
 
     // One card holds both the text field and a tool row underneath it: model picker
     // on the left, the action button on the right.
@@ -362,7 +363,7 @@ internal fun PromptPanel(
     currentTheme: CssVariables,
     onAnswer: (String) -> Unit,
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -417,7 +418,7 @@ internal fun PromptPanel(
 private fun FreeTextAnswer(currentTheme: CssVariables, onAnswer: (String) -> Unit) {
     var answer by remember { mutableStateOf("") }
     val canSend = answer.isNotBlank()
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -522,7 +523,7 @@ private fun ChatReasoningEffortSheet(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(currentTheme.radiusSm))
+                        .clip(AppShapes.small)
                         .clickable { onSelect(option.value) }
                         .padding(vertical = ChatEffortSheetRowPaddingVertical),
                     verticalAlignment = Alignment.CenterVertically

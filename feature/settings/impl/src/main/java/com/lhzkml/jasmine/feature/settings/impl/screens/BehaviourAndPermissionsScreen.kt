@@ -1,5 +1,6 @@
 package com.lhzkml.jasmine.feature.settings.impl.screens
 
+import com.lhzkml.jasmine.core.ui.theme.AppShapes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -75,9 +76,9 @@ fun BehaviourAndPermissionsScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(currentTheme.radiusLg))
+                .clip(AppShapes.large)
                 .background(currentTheme.card)
-                .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusLg))
+                .border(1.dp, currentTheme.border, AppShapes.large)
         ) {
             AgentOutputLanguage.CHOICES.forEachIndexed { index, value ->
                 if (index > 0) OptionDivider(currentTheme)

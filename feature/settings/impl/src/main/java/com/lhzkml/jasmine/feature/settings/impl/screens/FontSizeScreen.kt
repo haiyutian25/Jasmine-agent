@@ -1,5 +1,6 @@
 package com.lhzkml.jasmine.feature.settings.impl.screens
 
+import com.lhzkml.jasmine.core.ui.theme.AppShapes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -103,9 +104,9 @@ fun FontSizeScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(currentTheme.radiusLg))
+                    .clip(AppShapes.large)
                     .background(currentTheme.card)
-                    .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusLg))
+                    .border(1.dp, currentTheme.border, AppShapes.large)
                     .padding(16.dp)
                     .testTag("font_size_preview_box")
             ) {
@@ -140,9 +141,9 @@ fun FontSizeScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(currentTheme.radiusLg))
+                    .clip(AppShapes.large)
                     .background(currentTheme.card)
-                    .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusLg))
+                    .border(1.dp, currentTheme.border, AppShapes.large)
                     .padding(horizontal = 16.dp, vertical = 14.dp)
             ) {
                 Slider(
@@ -165,7 +166,7 @@ fun FontSizeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("font_size_save_btn"),
-                shape = RoundedCornerShape(currentTheme.radiusMd),
+                shape = AppShapes.medium,
                 currentTheme = currentTheme,
                 containerColor = currentTheme.primary,
                 border = BorderStroke(0.dp, Color.Transparent),

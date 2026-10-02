@@ -31,9 +31,6 @@ data class CssVariables(
     val subtleSurface: Color,
     
     // Radius Tokens (Editorial: 24px primary radius)
-    val radiusSm: Dp = 10.dp,
-    val radiusMd: Dp = 16.dp,
-    val radiusLg: Dp = 24.dp
 )
 
 /**
@@ -59,9 +56,6 @@ object ProductionPalettes {
         accentForeground = Color(0xFFFAFAFA),
         ring = Color(0xFF111111),
         subtleSurface = Color(0xFFF5F5F5),
-        radiusSm = 10.dp,
-        radiusMd = 16.dp,
-        radiusLg = 24.dp
     )
 
     val EditorialDark = CssVariables(
@@ -81,9 +75,6 @@ object ProductionPalettes {
         accentForeground = Color(0xFF0A0A0A),
         ring = Color(0xFFFFFFFF),
         subtleSurface = Color(0xFF141414),
-        radiusSm = 10.dp,
-        radiusMd = 16.dp,
-        radiusLg = 24.dp
     )
 
     // 2. Geist Minimal (Vercel)
@@ -104,9 +95,6 @@ object ProductionPalettes {
         accentForeground = Color(0xFFEDEDED),
         ring = Color(0xFF0070F3),
         subtleSurface = Color(0xFF111111),
-        radiusSm = 10.dp,
-        radiusMd = 16.dp,
-        radiusLg = 24.dp
     )
 
     val GeistLight = CssVariables(
@@ -126,9 +114,6 @@ object ProductionPalettes {
         accentForeground = Color(0xFF0A0A0A),
         ring = Color(0xFF0070F3),
         subtleSurface = Color(0xFFF9F9F9),
-        radiusSm = 10.dp,
-        radiusMd = 16.dp,
-        radiusLg = 24.dp
     )
 
     // 3. Linear Obsidian
@@ -149,9 +134,6 @@ object ProductionPalettes {
         accentForeground = Color(0xFFF2F3F5),
         ring = Color(0xFF5E6AD2),
         subtleSurface = Color(0xFF0F1013),
-        radiusSm = 10.dp,
-        radiusMd = 16.dp,
-        radiusLg = 24.dp
     )
 
     val LinearLight = CssVariables(
@@ -171,9 +153,6 @@ object ProductionPalettes {
         accentForeground = Color(0xFF1A1B1E),
         ring = Color(0xFF5E6AD2),
         subtleSurface = Color(0xFFF0F2F5),
-        radiusSm = 10.dp,
-        radiusMd = 16.dp,
-        radiusLg = 24.dp
     )
 
     // 4. Shadcn Zinc
@@ -194,9 +173,6 @@ object ProductionPalettes {
         accentForeground = Color(0xFFFAFAFA),
         ring = Color(0xFFD4D4D8),
         subtleSurface = Color(0xFF121215),
-        radiusSm = 10.dp,
-        radiusMd = 16.dp,
-        radiusLg = 24.dp
     )
 
     val ShadcnZincLight = CssVariables(
@@ -216,9 +192,6 @@ object ProductionPalettes {
         accentForeground = Color(0xFF09090B),
         ring = Color(0xFF18181B),
         subtleSurface = Color(0xFFFAFAFA),
-        radiusSm = 10.dp,
-        radiusMd = 16.dp,
-        radiusLg = 24.dp
     )
 
     // 5. Notion Warm
@@ -239,9 +212,6 @@ object ProductionPalettes {
         accentForeground = Color(0xFFEFEFEF),
         ring = Color(0xFFEB5757),
         subtleSurface = Color(0xFF202020),
-        radiusSm = 10.dp,
-        radiusMd = 16.dp,
-        radiusLg = 24.dp
     )
 
     val NotionWarmLight = CssVariables(
@@ -261,9 +231,6 @@ object ProductionPalettes {
         accentForeground = Color(0xFF37352F),
         ring = Color(0xFFEB5757),
         subtleSurface = Color(0xFFF7F6F3),
-        radiusSm = 10.dp,
-        radiusMd = 16.dp,
-        radiusLg = 24.dp
     )
 
     // 6. Braun Dieter Rams
@@ -284,9 +251,6 @@ object ProductionPalettes {
         accentForeground = Color(0xFFF5F5F0),
         ring = Color(0xFFFF5500),
         subtleSurface = Color(0xFF171717),
-        radiusSm = 10.dp,
-        radiusMd = 16.dp,
-        radiusLg = 24.dp
     )
 
     val DieterRamsLight = CssVariables(
@@ -306,9 +270,6 @@ object ProductionPalettes {
         accentForeground = Color(0xFF1A1A1A),
         ring = Color(0xFFFF5500),
         subtleSurface = Color(0xFFE2E2DC),
-        radiusSm = 10.dp,
-        radiusMd = 16.dp,
-        radiusLg = 24.dp
     )
 }
 

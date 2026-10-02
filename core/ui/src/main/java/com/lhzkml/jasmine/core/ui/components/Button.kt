@@ -1,5 +1,6 @@
 package com.lhzkml.jasmine.core.ui.components
 
+import com.lhzkml.jasmine.core.ui.theme.AppShapes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -51,7 +52,7 @@ private val CardButtonDefaultContentPadding = PaddingValues(14.dp)
  *   the call site draws everything via [content]. This is the original mode —
  *   every existing usage stays pixel-identical without any change.
  * - Themed ([currentTheme] != null): the button draws its own chrome
- *   (subtleSurface background, 1dp border, radiusSm corners, 12x10 padding),
+ *   (subtleSurface background, 1dp border, AppShapes.small corners, 12x10 padding),
  *   and every aspect is overridable: [shape], [containerColor], [border],
  *   [contentPadding], [contentAlignment], [fillWidth]. Pass
  *   `border = BorderStroke(0.dp, Color.Transparent)` to drop the border.
@@ -82,7 +83,7 @@ fun Button(
     content: @Composable () -> Unit
 ) {
     val themedShape: Shape =
-        if (currentTheme != null) RoundedCornerShape(currentTheme.radiusSm) else RectangleShape
+        if (currentTheme != null) AppShapes.small else RectangleShape
     val resolvedShape = shape ?: themedShape
 
     val tagged = if (testTag != null) modifier.testTag(testTag) else modifier
@@ -140,7 +141,7 @@ fun CardButton(
     isSelected: Boolean,
     currentTheme: CssVariables,
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(currentTheme.radiusMd),
+    shape: Shape = AppShapes.medium,
     containerColor: Color = currentTheme.card,
     selectedBorderWidth: Dp = CardButtonSelectedBorderWidth,
     contentPadding: PaddingValues = CardButtonDefaultContentPadding,

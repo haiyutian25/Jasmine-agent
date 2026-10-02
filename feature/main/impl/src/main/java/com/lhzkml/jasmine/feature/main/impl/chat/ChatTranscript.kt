@@ -1,5 +1,6 @@
 package com.lhzkml.jasmine.feature.main.impl.chat
 
+import com.lhzkml.jasmine.core.ui.theme.AppShapes
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
@@ -258,7 +259,7 @@ internal fun MessageBubble(
         return
     }
 
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
     // 气泡贴右；时间在**气泡正下方、和气泡左边缘对齐**（小标签）。
     //
     // 三层约束都要满足：不进气泡（会跟正文抢地方、跟着气泡底色走）、
@@ -330,7 +331,7 @@ private fun MessageMetaChip(text: String, currentTheme: CssVariables) {
         lineHeight = ChatMessageTimeLineHeight,
         color = currentTheme.mutedForeground,
         modifier = Modifier
-            .clip(RoundedCornerShape(currentTheme.radiusSm))
+            .clip(AppShapes.small)
             .background(currentTheme.muted)
             .padding(
                 horizontal = ChatTimeChipPaddingHorizontal,
@@ -486,7 +487,7 @@ private fun ReasoningRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(currentTheme.radiusSm))
+                .clip(AppShapes.small)
                 .clickable {
                     touched = true
                     expanded = !expanded
@@ -616,7 +617,7 @@ internal fun ToolActivityRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(currentTheme.radiusSm))
+                .clip(AppShapes.small)
                 .clickable { onToggle(!expanded) }
                 .padding(vertical = ChatToolRowPaddingVertical),
             verticalAlignment = Alignment.CenterVertically

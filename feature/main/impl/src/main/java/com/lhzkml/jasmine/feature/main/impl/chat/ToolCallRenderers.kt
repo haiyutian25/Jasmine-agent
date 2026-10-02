@@ -1,5 +1,6 @@
 package com.lhzkml.jasmine.feature.main.impl.chat
 
+import com.lhzkml.jasmine.core.ui.theme.AppShapes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -160,7 +161,7 @@ private fun DiffContent(detail: String, result: String?, currentTheme: CssVariab
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(currentTheme.radiusSm))
+                .clip(AppShapes.small)
                 .background(currentTheme.subtleSurface)
                 .padding(horizontal = 8.dp, vertical = 6.dp)
         ) {
@@ -245,7 +246,7 @@ private fun TerminalContent(command: String, output: String?, currentTheme: CssV
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(currentTheme.radiusSm))
+                    .clip(AppShapes.small)
                     .background(currentTheme.subtleSurface)
                     .padding(horizontal = 8.dp, vertical = 6.dp)
             ) {

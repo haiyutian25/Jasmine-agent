@@ -1,5 +1,6 @@
 package com.lhzkml.jasmine.feature.main.impl.screens
 
+import com.lhzkml.jasmine.core.ui.theme.AppShapes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -176,9 +177,9 @@ fun SplashScreen(
         ) {
             Row(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(currentTheme.radiusSm))
+                    .clip(AppShapes.small)
                     .background(currentTheme.subtleSurface)
-                    .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusSm))
+                    .border(1.dp, currentTheme.border, AppShapes.small)
                     .clickable { onFinish() }
                     .padding(horizontal = 12.dp, vertical = 6.dp)
                     .testTag("splash_skip_btn"),
@@ -239,9 +240,9 @@ fun SplashScreen(
                 Box(
                     modifier = Modifier
                         .size(68.dp)
-                        .clip(RoundedCornerShape(currentTheme.radiusMd))
+                        .clip(AppShapes.medium)
                         .background(currentTheme.card)
-                        .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusMd)),
+                        .border(1.dp, currentTheme.border, AppShapes.medium),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -262,9 +263,9 @@ fun SplashScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier
-                    .clip(RoundedCornerShape(currentTheme.radiusSm))
+                    .clip(AppShapes.small)
                     .background(currentTheme.subtleSurface)
-                    .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusSm))
+                    .border(1.dp, currentTheme.border, AppShapes.small)
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 Icon(
@@ -289,9 +290,9 @@ fun SplashScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(currentTheme.radiusMd))
+                    .clip(AppShapes.medium)
                     .background(currentTheme.card)
-                    .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusMd))
+                    .border(1.dp, currentTheme.border, AppShapes.medium)
                     .padding(horizontal = 20.dp, vertical = 22.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
@@ -406,7 +407,7 @@ fun SplashScreen(
             ) {
                 Row(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(currentTheme.radiusSm))
+                        .clip(AppShapes.small)
                         .background(currentTheme.primary)
                         .clickable { onFinish() }
                         .padding(horizontal = 22.dp, vertical = 10.dp)

@@ -1,5 +1,6 @@
 package com.lhzkml.jasmine.feature.main.impl.chat
 
+import com.lhzkml.jasmine.core.ui.theme.AppShapes
 import android.icu.text.CompactDecimalFormat
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -256,7 +257,7 @@ private fun ContextWindowSection(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(currentTheme.radiusSm))
+                            .clip(AppShapes.small)
                             .background(currentTheme.subtleSurface)
                             .padding(
                                 horizontal = ChatContextStepPaddingHorizontal,
@@ -308,7 +309,7 @@ private fun ContextWindowStep(
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusSm)
+    val shape = AppShapes.small
     Box(
         modifier = Modifier
             .clip(shape)

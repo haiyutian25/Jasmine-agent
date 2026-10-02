@@ -1,5 +1,6 @@
 package com.lhzkml.jasmine.core.markdown.ui
 
+import com.lhzkml.jasmine.core.ui.theme.AppShapes
 import android.Manifest
 import android.content.Context
 import android.graphics.Bitmap
@@ -593,7 +594,7 @@ private fun ToolbarBlock(
     toolbar: @Composable RowScope.() -> Unit,
     content: @Composable () -> Unit,
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusSm)
+    val shape = AppShapes.small
     Column(
         modifier
             .fillMaxWidth()
@@ -626,7 +627,7 @@ private fun ToolbarIconButton(
     currentTheme: CssVariables,
     onClick: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusSm - 2.dp)
+    val shape = AppShapes.small
     Box(
         modifier = Modifier
             .size(30.dp)
@@ -659,7 +660,7 @@ private fun MermaidTab(
     bodyFontSize: TextUnit,
     onClick: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusSm - 2.dp)
+    val shape = AppShapes.small
     Text(
         text = label,
         fontSize = (bodyFontSize.value * 0.82f).sp,
@@ -786,7 +787,7 @@ private fun TableBlock(
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(currentTheme.radiusSm))
+            .clip(AppShapes.small)
             .horizontalScroll(rememberScrollState()),
     ) {
         block.table.forEach { row ->

@@ -1,5 +1,6 @@
 package com.lhzkml.jasmine.core.markdown.ui
 
+import com.lhzkml.jasmine.core.ui.theme.AppShapes
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.clickable
@@ -39,7 +40,7 @@ internal fun MarkdownImage(
         onError = { markImageFailed(url) },
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(currentTheme.radiusSm))
+            .clip(AppShapes.small)
             .then(
                 if (linkUrl.isNullOrBlank()) {
                     Modifier

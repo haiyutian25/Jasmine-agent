@@ -1,5 +1,6 @@
 package com.lhzkml.jasmine.feature.settings.impl.screens
 
+import com.lhzkml.jasmine.core.ui.theme.AppShapes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
@@ -257,7 +258,7 @@ private fun DebugStateGroup(
     currentTheme: CssVariables,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
     Column(
         modifier = modifier
             .clip(shape)
@@ -309,7 +310,7 @@ private fun DebugSheetGroup(
     currentTheme: CssVariables,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
     var showSheet by remember { mutableStateOf(false) }
 
     Column(
@@ -465,7 +466,7 @@ private fun DebugSwitchGroup(
     currentTheme: CssVariables,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
     var onState by remember { mutableStateOf(true) }
     var offState by remember { mutableStateOf(false) }
 
@@ -524,7 +525,7 @@ private fun DebugTopAppBarGroup(
     onOpen: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
     Column(
         modifier = modifier
             .clip(shape)
@@ -579,7 +580,7 @@ private fun DebugSearchBarGroup(
     onOpen: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
     Column(
         modifier = modifier
             .clip(shape)
@@ -625,7 +626,7 @@ private fun DebugFabMenuGroup(
     onOpen: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
     Column(
         modifier = modifier
             .clip(shape)
@@ -671,7 +672,7 @@ private fun DebugDialogGroup(
     onOpen: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
     Column(
         modifier = modifier
             .clip(shape)
@@ -717,7 +718,7 @@ private fun DebugBadgeGroup(
     onOpen: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
     Column(
         modifier = modifier
             .clip(shape)
@@ -763,7 +764,7 @@ private fun DebugCheckboxGroup(
     onOpen: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
     Column(
         modifier = modifier
             .clip(shape)
@@ -809,7 +810,7 @@ private fun DebugProgressGroup(
     onOpen: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
     Column(
         modifier = modifier
             .clip(shape)
@@ -870,7 +871,7 @@ private fun DebugRadioButtonGroup(
     onOpen: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
     Column(
         modifier = modifier
             .clip(shape)
@@ -921,7 +922,7 @@ private fun DebugMenuGroup(
     onOpen: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
     Column(
         modifier = modifier
             .clip(shape)
@@ -972,7 +973,7 @@ private fun DebugTabsGroup(
     onOpen: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
     Column(
         modifier = modifier
             .clip(shape)
@@ -1023,7 +1024,7 @@ private fun DebugCardGroup(
     onOpen: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
     Column(
         modifier = modifier
             .clip(shape)
@@ -1074,7 +1075,7 @@ private fun DebugSidebarGroup(
     onOpen: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
     Column(
         modifier = modifier
             .clip(shape)
@@ -1114,7 +1115,7 @@ private fun DebugBottomBarGroup(
     onOpen: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
     Column(
         modifier = modifier
             .clip(shape)
@@ -1149,7 +1150,7 @@ private fun DebugSliderGroup(
     onOpen: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    val shape = AppShapes.medium
     Column(
         modifier = modifier
             .clip(shape)

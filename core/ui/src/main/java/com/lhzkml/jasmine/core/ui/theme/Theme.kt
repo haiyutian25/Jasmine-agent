@@ -122,6 +122,7 @@ fun JasmineTheme(
     CompositionLocalProvider(LocalCssVariables provides cssVars) {
         MaterialTheme(
             colorScheme = m3ColorScheme,
+            shapes = AppShapes,
             typography = AppTypography
         ) {
             // The default text style follows the user's chosen content font, so
@@ -134,7 +135,7 @@ fun JasmineTheme(
             CompositionLocalProvider(
                 LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = contentFont),
                 LocalWidgetsColorScheme provides m3ColorScheme,
-                LocalWidgetsShapes provides MaterialTheme.shapes,
+                LocalWidgetsShapes provides AppShapes,
             ) {
                 content()
             }

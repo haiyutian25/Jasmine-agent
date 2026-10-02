@@ -1,5 +1,6 @@
 package com.lhzkml.jasmine.feature.settings.impl.screens
 
+import com.lhzkml.jasmine.core.ui.theme.AppShapes
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -115,9 +116,9 @@ fun FontScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(currentTheme.radiusLg))
+                .clip(AppShapes.large)
                 .background(currentTheme.card)
-                .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusLg))
+                .border(1.dp, currentTheme.border, AppShapes.large)
         ) {
             AppTypographyChoice.entries.forEachIndexed { index, style ->
                 // A system engine reads as selected only while no custom font overrides it.
@@ -191,14 +192,14 @@ fun FontScreen(
         Button(
             onClick = { fontPickerLauncher.launch(FontPickerMimeTypes) },
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(currentTheme.radiusMd),
+            shape = AppShapes.medium,
             testTag = "font_upload_entry"
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(currentTheme.card)
-                    .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusMd))
+                    .border(1.dp, currentTheme.border, AppShapes.medium)
                     .padding(horizontal = 14.dp, vertical = 13.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -232,9 +233,9 @@ fun FontScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(currentTheme.radiusMd))
+                    .clip(AppShapes.medium)
                     .background(currentTheme.card)
-                    .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusMd))
+                    .border(1.dp, currentTheme.border, AppShapes.medium)
                     .padding(horizontal = 16.dp, vertical = 18.dp)
             ) {
                 Text(
@@ -247,9 +248,9 @@ fun FontScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(currentTheme.radiusLg))
+                    .clip(AppShapes.large)
                     .background(currentTheme.card)
-                    .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusLg))
+                    .border(1.dp, currentTheme.border, AppShapes.large)
             ) {
                 installedFonts.forEachIndexed { index, font ->
                     val isActive = activeCustomFontId == font.id
@@ -349,9 +350,9 @@ fun FontScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(currentTheme.radiusLg))
+                    .clip(AppShapes.large)
                     .background(currentTheme.card)
-                    .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusLg))
+                    .border(1.dp, currentTheme.border, AppShapes.large)
             ) {
                 downloadable.forEachIndexed { index, preset ->
                     val progress = downloadProgress[preset.fileName]
@@ -415,13 +416,13 @@ fun FontScreen(
                         } else {
                             Button(
                                 onClick = { onDownloadFont(preset) },
-                                shape = RoundedCornerShape(currentTheme.radiusMd),
+                                shape = AppShapes.medium,
                                 testTag = "font_download_${preset.id}"
                             ) {
                                 Row(
                                     modifier = Modifier
                                         .background(currentTheme.subtleSurface)
-                                        .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusMd))
+                                        .border(1.dp, currentTheme.border, AppShapes.medium)
                                         .padding(horizontal = 12.dp, vertical = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -466,14 +467,14 @@ fun FontScreen(
         Button(
             onClick = { onOpenFontSize() },
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(currentTheme.radiusMd),
+            shape = AppShapes.medium,
             testTag = "font_size_entry"
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(currentTheme.card)
-                    .border(1.dp, currentTheme.border, RoundedCornerShape(currentTheme.radiusMd))
+                    .border(1.dp, currentTheme.border, AppShapes.medium)
                     .padding(horizontal = 14.dp, vertical = 13.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
