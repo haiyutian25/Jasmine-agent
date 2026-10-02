@@ -21,6 +21,8 @@
 package com.lhzkml.jasmine.core.widgets.tokens
 
 internal enum class TypographyKeyTokens {
+    BodyMedium,
+    HeadlineSmall,
     LabelLarge,
     LabelMedium,
     TitleLarge

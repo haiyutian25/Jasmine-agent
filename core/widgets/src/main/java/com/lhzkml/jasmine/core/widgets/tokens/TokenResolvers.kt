@@ -149,6 +149,8 @@ internal fun ColorScheme.applyTonalElevation(backgroundColor: Color, elevation: 
 /** Helper function for component typography tokens. */
 internal fun Typography.fromToken(value: TypographyKeyTokens): TextStyle {
     return when (value) {
+        TypographyKeyTokens.BodyMedium -> bodyMedium
+        TypographyKeyTokens.HeadlineSmall -> headlineSmall
         TypographyKeyTokens.LabelLarge -> labelLarge
         TypographyKeyTokens.LabelMedium -> labelMedium
         TypographyKeyTokens.TitleLarge -> titleLarge
