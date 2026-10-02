@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- 组件自用文案（随组件从 feature:main:impl 下沉到 core:ui） -->
-    <string name="top_nav_cd_back">返回</string>
-    <string name="top_nav_cd_open_sidebar">打开侧边栏菜单</string>
     <string name="sidebar_cd_settings">设置</string>
     <string name="sidebar_new_conversation">新对话</string>
     <string name="sidebar_history_empty">暂无历史对话。</string>

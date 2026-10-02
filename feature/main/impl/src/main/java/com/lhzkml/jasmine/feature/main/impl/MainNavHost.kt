@@ -28,7 +28,6 @@ import com.lhzkml.jasmine.core.navigation.rememberAppNavigator
 import com.lhzkml.jasmine.core.ui.base.util.EventsEffect
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.feature.main.api.MainNavKey
-import com.lhzkml.jasmine.core.ui.components.ProductionTopNavBar
 import com.lhzkml.jasmine.feature.main.impl.screens.SplashScreen
 import com.lhzkml.jasmine.feature.provider.api.ProviderNavKey
 import com.lhzkml.jasmine.feature.provider.impl.ProviderAction

@@ -22,7 +22,6 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lhzkml.jasmine.core.ui.base.util.EventsEffect
-import com.lhzkml.jasmine.core.ui.components.ProductionTopNavBar
 import com.lhzkml.jasmine.core.ui.components.SidebarDrawer
 import com.lhzkml.jasmine.feature.main.impl.chat.ChatAction
 import com.lhzkml.jasmine.feature.main.impl.chat.ChatScreen

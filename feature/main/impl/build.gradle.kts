@@ -29,6 +29,8 @@ dependencies {
   // Chat surface: the shell hosts the conversation, so it owns the AgentChat facade.
   implementation(project(":core:agent"))
   implementation(project(":core:ui"))
+  // 顶栏等界面外壳改用 core:widgets 的自有组件（不再用 M3 的 MaterialTheme）。
+  implementation(project(":core:widgets"))
   implementation(project(":core:data"))
   implementation(project(":core:navigation"))
   // 流式回复的增量 Markdown 渲染（native incremark 引擎）

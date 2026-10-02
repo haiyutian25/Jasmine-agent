@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- 顶栏自用文案（随 ProductionTopNavBar 从 core:ui 回到 feature:main:impl） -->
+    <string name="top_nav_cd_back">Back</string>
+    <string name="top_nav_cd_open_sidebar">Open Sidebar Menu</string>
+
     <!-- Settings menu -->
 
     <!-- Settings section headers -->

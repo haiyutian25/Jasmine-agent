@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- 顶栏自用文案（随 ProductionTopNavBar 从 core:ui 回到 feature:main:impl） -->
+    <string name="top_nav_cd_back">返回</string>
+    <string name="top_nav_cd_open_sidebar">打开侧边栏菜单</string>
+
     <!-- 设置菜单 -->
 
     <!-- 设置区块标题 -->
