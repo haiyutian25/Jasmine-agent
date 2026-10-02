@@ -33,7 +33,7 @@ internal object NavigationDrawerTokens {
     val ActiveIndicatorShape = ShapeKeyTokens.CornerFull
     val ActiveLabelTextColor: (CssVariables) -> Color = { it.mutedForeground }
     val ContainerShape = ShapeKeyTokens.CornerLargeEnd
-    val ContainerWidth = 360.0.dp
+    val ContainerWidth = 295.0.dp
     val InactiveIconColor: (CssVariables) -> Color = { it.mutedForeground }
     val InactiveLabelTextColor: (CssVariables) -> Color = { it.mutedForeground }
     val ModalContainerColor: (CssVariables) -> Color = { it.card }

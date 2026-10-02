@@ -7,7 +7,7 @@ import com.lhzkml.jasmine.core.data.model.Conversation
 import com.lhzkml.jasmine.core.data.model.ModelConfig
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import com.lhzkml.jasmine.core.markdown.model.MarkdownBlock
-import com.lhzkml.jasmine.core.ui.components.SidebarConversation
+import com.lhzkml.jasmine.feature.main.impl.SidebarConversation
 
 /** 核心的默认上下文窗口（200K）在界面上的镜像；附着会话后立刻被核心报的值覆盖。 */
 internal const val DEFAULT_CONTEXT_WINDOW_TOKENS = 200_000L

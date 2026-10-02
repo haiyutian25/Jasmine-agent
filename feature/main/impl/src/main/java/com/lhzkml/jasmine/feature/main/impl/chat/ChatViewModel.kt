@@ -25,7 +25,7 @@ import com.lhzkml.jasmine.core.markdown.model.MarkdownInlineType
 import com.lhzkml.jasmine.core.markdown.model.MarkdownUpdate
 import com.lhzkml.jasmine.core.ui.base.BaseViewModel
 import com.lhzkml.jasmine.core.ui.base.EffectRunner
-import com.lhzkml.jasmine.core.ui.components.SidebarConversation
+import com.lhzkml.jasmine.feature.main.impl.SidebarConversation
 import com.lhzkml.jasmine.feature.main.impl.R
 import com.lhzkml.jasmine.feature.main.impl.relativeTimeText
 import dagger.hilt.android.lifecycle.HiltViewModel

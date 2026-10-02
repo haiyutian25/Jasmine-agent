@@ -9,20 +9,28 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import com.lhzkml.jasmine.core.ui.base.util.EventsEffect
-import com.lhzkml.jasmine.core.ui.components.SidebarDrawer
+import com.lhzkml.jasmine.core.widgets.navigation.DismissibleDrawerSheet
+import com.lhzkml.jasmine.core.widgets.navigation.DismissibleNavigationDrawer
+import com.lhzkml.jasmine.core.widgets.navigation.DrawerValue
+import com.lhzkml.jasmine.core.widgets.navigation.rememberDrawerState
 import com.lhzkml.jasmine.feature.main.impl.chat.ChatAction
 import com.lhzkml.jasmine.feature.main.impl.chat.ChatScreen
 import com.lhzkml.jasmine.feature.main.impl.chat.ChatUiEvent
@@ -115,22 +123,49 @@ fun MainScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         // Push-canvas sidebar drawer; the main scaffold is its pushed content.
-        SidebarDrawer(
-            isOpen = state.isSidebarOpen,
-            currentTheme = state.theme,
-            onOpen = { onAction(MainAction.SidebarOpened) },
-            onOpenSettings = onOpenSettings,
-            onClose = { onAction(MainAction.SidebarClosed) },
-            conversations = sidebar.conversations,
-            activeConversationId = sidebar.activeConversationId,
-            onNewConversation = {
-                chatViewModel.trySendAction(ChatAction.NewConversationClicked)
-            },
-            onConversationSelected = {
-                chatViewModel.trySendAction(ChatAction.ConversationSelected(it))
-            },
-            onConversationDeleted = {
-                chatViewModel.trySendAction(ChatAction.ConversationDeleted(it))
+        val drawerState = rememberDrawerState(
+            if (state.isSidebarOpen) DrawerValue.Open else DrawerValue.Closed
+        )
+        val drawerScope = rememberCoroutineScope()
+
+        // 宿主状态 -> 抽屉（顶部按钮 / 返回键触发）
+        LaunchedEffect(state.isSidebarOpen) {
+            if (state.isSidebarOpen && !drawerState.isOpen) {
+                drawerState.open()
+            } else if (!state.isSidebarOpen && !drawerState.isClosed) {
+                drawerState.close()
+            }
+        }
+        // 抽屉 -> 宿主状态（手势开合 / 内容里的关闭动作触发）
+        LaunchedEffect(drawerState.currentValue) {
+            val isOpen = drawerState.currentValue == DrawerValue.Open
+            if (isOpen != state.isSidebarOpen) {
+                onAction(if (isOpen) MainAction.SidebarOpened else MainAction.SidebarClosed)
+            }
+        }
+
+        DismissibleNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                DismissibleDrawerSheet(modifier = Modifier.width(295.dp)) {
+                    AppSidebarContent(
+                        currentTheme = state.theme,
+                        onOpenSettings = onOpenSettings,
+                        onCloseDrawer = { drawerScope.launch { drawerState.close() } },
+                        modifier = Modifier.fillMaxWidth(),
+                        conversations = sidebar.conversations,
+                        activeConversationId = sidebar.activeConversationId,
+                        onNewConversation = {
+                            chatViewModel.trySendAction(ChatAction.NewConversationClicked)
+                        },
+                        onConversationSelected = {
+                            chatViewModel.trySendAction(ChatAction.ConversationSelected(it))
+                        },
+                        onConversationDeleted = {
+                            chatViewModel.trySendAction(ChatAction.ConversationDeleted(it))
+                        }
+                    )
+                }
             }
         ) {
             Scaffold(
