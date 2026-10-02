@@ -41,6 +41,7 @@ import com.lhzkml.jasmine.feature.settings.impl.R as SettingsR
 import com.lhzkml.jasmine.feature.settings.impl.screens.BehaviourAndPermissionsScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugComponentsScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugBottomBarScreen
+import com.lhzkml.jasmine.feature.settings.impl.screens.DebugDialogScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugFabMenuScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugSearchBarScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugSidebarScreen
@@ -340,6 +341,9 @@ fun MainNavHost(
                             onOpenFabMenu = {
                                 navigator.navigate(SettingsNavKey.DebugFabMenu(it))
                             },
+                            onOpenDialog = {
+                                navigator.navigate(SettingsNavKey.DebugDialog(it))
+                            },
                             modifier = contentModifier,
                         )
                     }
@@ -386,6 +390,14 @@ fun MainNavHost(
                 // FAB 菜单预览：同样是不套 SettingsPage 的独立页面。
                 entry<SettingsNavKey.DebugFabMenu> { key ->
                     DebugFabMenuScreen(
+                        variant = key.variant,
+                        currentTheme = state.theme,
+                        onBack = { navigator.goBack() },
+                    )
+                }
+                // 对话框预览：同样是不套 SettingsPage 的独立页面。
+                entry<SettingsNavKey.DebugDialog> { key ->
+                    DebugDialogScreen(
                         variant = key.variant,
                         currentTheme = state.theme,
                         onBack = { navigator.goBack() },

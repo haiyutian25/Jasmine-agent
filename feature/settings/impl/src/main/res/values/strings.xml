@@ -139,4 +139,21 @@
     <string name="debug_fab_menu_item_upload">Upload</string>
     <string name="debug_fab_menu_item_delete">Delete</string>
     <string name="debug_fab_menu_body">Row %1$d</string>
+
+    <!-- Component-layer debug: dialogs (basic / classic / classic with long copy). -->
+    <string name="debug_screen_section_dialog">Dialogs</string>
+    <string name="debug_dialog_entry_basic">Basic (custom content)</string>
+    <string name="debug_dialog_entry_classic">Classic (icon + title + text)</string>
+    <string name="debug_dialog_entry_classic_long">Classic (long copy, buttons wrap)</string>
+    <string name="debug_dialog_hint">The dialog opens right away. Dismiss it, then tap the button to open it again.</string>
+    <string name="debug_dialog_reopen">Open again</string>
+    <string name="debug_dialog_title">Discard draft?</string>
+    <string name="debug_dialog_text">This draft will be gone for good and cannot be recovered.</string>
+    <string name="debug_dialog_long_title">Delete this conversation and all of its messages?</string>
+    <string name="debug_dialog_long_text">Every message in this conversation will be removed from this device. This action cannot be undone, and the other participants will not be notified.</string>
+    <string name="debug_dialog_confirm">Discard</string>
+    <string name="debug_dialog_confirm_long">Delete this conversation permanently</string>
+    <string name="debug_dialog_dismiss">Cancel</string>
+    <string name="debug_dialog_basic_title">Basic dialog</string>
+    <string name="debug_dialog_basic_text">The container comes from the caller, so the styling is yours to define.</string>
 </resources>

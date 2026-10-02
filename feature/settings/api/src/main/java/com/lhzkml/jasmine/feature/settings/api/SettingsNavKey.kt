@@ -94,6 +94,14 @@ sealed interface SettingsNavKey : NavKey {
      */
     @Serializable
     data class DebugFabMenu(val variant: String) : SettingsNavKey
+
+    /**
+     * **对话框预览** 页：`variant` 取 [SettingsDebugDialogVariant] 里的常量。
+     *
+     * 同样是组件层的独立试验场：页内顶栏是我们的小号 `TopAppBar`，进来对话框就是打开的。
+     */
+    @Serializable
+    data class DebugDialog(val variant: String) : SettingsNavKey
 }
 
 /** [SettingsNavKey.DebugSidebar] 的 `variant` 取值。 */
@@ -136,4 +144,16 @@ object SettingsDebugFabMenuVariant {
 
     /** 大号：按钮 96dp。 */
     const val LARGE = "large"
+}
+
+/** [SettingsNavKey.DebugDialog] 的 `variant` 取值。 */
+object SettingsDebugDialogVariant {
+    /** 基础档：`BasicAlertDialog` + 调用方自定内容。 */
+    const val BASIC = "basic"
+
+    /** 经典档：`AlertDialog`（图标 + 标题 + 正文 + 两个按钮）。 */
+    const val CLASSIC = "classic"
+
+    /** 经典档·长文案：标题/正文/按钮都拉长，用来看按钮自动换行。 */
+    const val CLASSIC_LONG = "classicLong"
 }

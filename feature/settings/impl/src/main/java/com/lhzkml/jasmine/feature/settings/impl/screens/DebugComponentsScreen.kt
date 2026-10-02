@@ -41,6 +41,7 @@ import com.lhzkml.jasmine.core.widgets.switch.Switch
 import com.lhzkml.jasmine.core.widgets.switch.SwitchDefaults
 import com.lhzkml.jasmine.core.widgets.textfield.OutlinedTextField
 import com.lhzkml.jasmine.core.widgets.textfield.TextField
+import com.lhzkml.jasmine.feature.settings.api.SettingsDebugDialogVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugFabMenuVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugSearchBarVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugSidebarVariant
@@ -71,6 +72,7 @@ fun DebugComponentsScreen(
     onOpenSlider: () -> Unit,
     onOpenSearchBar: (String) -> Unit,
     onOpenFabMenu: (String) -> Unit,
+    onOpenDialog: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -156,6 +158,15 @@ fun DebugComponentsScreen(
         DebugFabMenuGroup(
             currentTheme = currentTheme,
             onOpen = onOpenFabMenu,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupSpacing))
+
+        // 对话框：3 档，各自独立页面（进来对话框就是打开的）。
+        DebugDialogGroup(
+            currentTheme = currentTheme,
+            onOpen = onOpenDialog,
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -570,6 +581,52 @@ private fun DebugFabMenuGroup(
             label = stringResource(R.string.debug_fab_menu_entry_large),
             currentTheme = currentTheme,
             onClick = { onOpen(SettingsDebugFabMenuVariant.LARGE) }
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupBottomPadding))
+    }
+}
+
+/** 对话框入口：3 档各是**独立**的页面（不套设置流那套顶栏）。 */
+@Composable
+private fun DebugDialogGroup(
+    currentTheme: CssVariables,
+    onOpen: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(currentTheme.card)
+            .border(1.dp, currentTheme.border, shape)
+    ) {
+        Text(
+            text = stringResource(R.string.debug_screen_section_dialog),
+            fontSize = DebugTitleFontSize,
+            fontWeight = FontWeight.Medium,
+            color = currentTheme.mutedForeground,
+            modifier = Modifier.padding(
+                start = DebugRowPaddingHorizontal,
+                top = DebugRowPaddingHorizontal,
+                bottom = DebugRowPaddingVertical
+            )
+        )
+
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_dialog_entry_basic),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugDialogVariant.BASIC) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_dialog_entry_classic),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugDialogVariant.CLASSIC) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_dialog_entry_classic_long),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugDialogVariant.CLASSIC_LONG) }
         )
 
         Spacer(modifier = Modifier.height(DebugGroupBottomPadding))

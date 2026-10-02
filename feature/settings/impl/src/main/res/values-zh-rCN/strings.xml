@@ -139,4 +139,21 @@
     <string name="debug_fab_menu_item_upload">上传</string>
     <string name="debug_fab_menu_item_delete">删除</string>
     <string name="debug_fab_menu_body">列表第 %1$d 行</string>
+
+    <!-- 组件层调试：对话框（基础 / 经典 / 经典长文案） -->
+    <string name="debug_screen_section_dialog">对话框</string>
+    <string name="debug_dialog_entry_basic">基础（自定义内容）</string>
+    <string name="debug_dialog_entry_classic">经典（图标 + 标题 + 正文）</string>
+    <string name="debug_dialog_entry_classic_long">经典（长文案，按钮会换行）</string>
+    <string name="debug_dialog_hint">进来对话框就是打开的。关掉它之后点下面的按钮可以再打开。</string>
+    <string name="debug_dialog_reopen">重新打开</string>
+    <string name="debug_dialog_title">丢弃草稿？</string>
+    <string name="debug_dialog_text">这份草稿会彻底消失，没法再找回来。</string>
+    <string name="debug_dialog_long_title">删除这条会话和它的全部消息？</string>
+    <string name="debug_dialog_long_text">这条会话里的每条消息都会从这台设备上移除。此操作无法撤销，其他人也不会收到通知。</string>
+    <string name="debug_dialog_confirm">丢弃</string>
+    <string name="debug_dialog_confirm_long">永久删除这条会话</string>
+    <string name="debug_dialog_dismiss">取消</string>
+    <string name="debug_dialog_basic_title">基础对话框</string>
+    <string name="debug_dialog_basic_text">容器由调用方自己给，样式也由你自己定。</string>
 </resources>
