@@ -10,6 +10,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Color
 
 @Composable
 fun JasmineTheme(
@@ -148,4 +149,24 @@ fun JasmineTheme(
 val LocalWidgetsColorScheme = staticCompositionLocalOf<ColorScheme> { lightColorScheme() }
 
 val LocalWidgetsShapes = staticCompositionLocalOf { Shapes() }
+
+/**
+ * 「容器色 → 该用在上面的内容色」——与 M3 `ColorScheme.contentColorFor` 同语义，但**是纯函数**：
+ * 拿我们自己的槽位比对（[accent] 配 [accentForeground]、[card] 配 [cardForeground] …），
+ * 不去问 M3 主题，所以在 `remember {}` 这类**非组合上下文**里也能调用。
+ * 匹配不到时返回 [Color.Unspecified]，调用方照旧回落 `LocalContentColor`。
+ *
+ * 槽位对应关系与 [JasmineTheme] 里的映射逐条一致：`primaryContainer -> accent`、
+ * `surfaceVariant -> subtleSurface`、`inverseSurface -> foreground` …
+ */
+fun CssVariables.contentColorFor(backgroundColor: Color): Color =
+    when (backgroundColor) {
+        accent -> accentForeground
+        card -> cardForeground
+        primary -> primaryForeground
+        background -> foreground
+        subtleSurface -> mutedForeground
+        foreground -> background
+        else -> Color.Unspecified
+    }
 
