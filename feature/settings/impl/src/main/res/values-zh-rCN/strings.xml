@@ -183,4 +183,19 @@
     <string name="debug_checkbox_child">子项 %1$d</string>
     <string name="debug_checkbox_custom_on">自定义（选中）</string>
     <string name="debug_checkbox_custom_off">自定义（未选中）</string>
+
+    <!-- 组件层调试：进度指示器与下拉刷新 -->
+    <string name="debug_screen_section_progress">进度与下拉刷新</string>
+    <string name="debug_progress_entry_linear">线性（确定 / 不确定）</string>
+    <string name="debug_progress_entry_circular">圆形（确定 / 不确定）</string>
+    <string name="debug_progress_entry_pull_to_refresh">下拉刷新</string>
+    <string name="debug_progress_entry_wavy_linear">波形线性（确定 / 不确定）</string>
+    <string name="debug_progress_entry_wavy_circular">波形圆形（确定 / 不确定）</string>
+    <string name="debug_progress_entry_pull_to_refresh_loading">下拉刷新（形状变换指示器）</string>
+    <string name="debug_progress_hint">确定那一档点下面的按钮就会往前推进。</string>
+    <string name="debug_progress_pull_hint">把列表往下拉试试。</string>
+    <string name="debug_progress_advance">推进</string>
+    <string name="debug_progress_determinate">确定</string>
+    <string name="debug_progress_indeterminate">不确定</string>
+    <string name="debug_progress_row">列表第 %1$d 行</string>
 </resources>

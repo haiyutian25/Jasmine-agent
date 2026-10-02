@@ -45,6 +45,7 @@ import com.lhzkml.jasmine.feature.settings.api.SettingsDebugBadgeVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugCheckboxVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugDialogVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugFabMenuVariant
+import com.lhzkml.jasmine.feature.settings.api.SettingsDebugProgressVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugSearchBarVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugSidebarVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugTopAppBarVariant
@@ -77,6 +78,7 @@ fun DebugComponentsScreen(
     onOpenDialog: (String) -> Unit,
     onOpenBadge: (String) -> Unit,
     onOpenCheckbox: (String) -> Unit,
+    onOpenProgress: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -189,6 +191,15 @@ fun DebugComponentsScreen(
         DebugCheckboxGroup(
             currentTheme = currentTheme,
             onOpen = onOpenCheckbox,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupSpacing))
+
+        // 进度与下拉刷新：3 档，各自独立页面。
+        DebugProgressGroup(
+            currentTheme = currentTheme,
+            onOpen = onOpenProgress,
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -741,6 +752,67 @@ private fun DebugCheckboxGroup(
             label = stringResource(R.string.debug_checkbox_entry_colors),
             currentTheme = currentTheme,
             onClick = { onOpen(SettingsDebugCheckboxVariant.COLORS) }
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupBottomPadding))
+    }
+}
+
+/** 进度与下拉刷新入口：3 档各是**独立**的页面（不套设置流那套顶栏）。 */
+@Composable
+private fun DebugProgressGroup(
+    currentTheme: CssVariables,
+    onOpen: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(currentTheme.card)
+            .border(1.dp, currentTheme.border, shape)
+    ) {
+        Text(
+            text = stringResource(R.string.debug_screen_section_progress),
+            fontSize = DebugTitleFontSize,
+            fontWeight = FontWeight.Medium,
+            color = currentTheme.mutedForeground,
+            modifier = Modifier.padding(
+                start = DebugRowPaddingHorizontal,
+                top = DebugRowPaddingHorizontal,
+                bottom = DebugRowPaddingVertical
+            )
+        )
+
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_progress_entry_linear),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugProgressVariant.LINEAR) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_progress_entry_circular),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugProgressVariant.CIRCULAR) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_progress_entry_pull_to_refresh),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugProgressVariant.PULL_TO_REFRESH) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_progress_entry_wavy_linear),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugProgressVariant.WAVY_LINEAR) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_progress_entry_wavy_circular),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugProgressVariant.WAVY_CIRCULAR) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_progress_entry_pull_to_refresh_loading),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugProgressVariant.PULL_TO_REFRESH_LOADING) }
         )
 
         Spacer(modifier = Modifier.height(DebugGroupBottomPadding))

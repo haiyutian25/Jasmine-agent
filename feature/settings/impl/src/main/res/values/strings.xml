@@ -183,4 +183,19 @@
     <string name="debug_checkbox_child">Child %1$d</string>
     <string name="debug_checkbox_custom_on">Custom (on)</string>
     <string name="debug_checkbox_custom_off">Custom (off)</string>
+
+    <!-- Component-layer debug: progress indicators and pull-to-refresh. -->
+    <string name="debug_screen_section_progress">Progress &amp; pull to refresh</string>
+    <string name="debug_progress_entry_linear">Linear (determinate / indeterminate)</string>
+    <string name="debug_progress_entry_circular">Circular (determinate / indeterminate)</string>
+    <string name="debug_progress_entry_pull_to_refresh">Pull to refresh</string>
+    <string name="debug_progress_entry_wavy_linear">Wavy linear (determinate / indeterminate)</string>
+    <string name="debug_progress_entry_wavy_circular">Wavy circular (determinate / indeterminate)</string>
+    <string name="debug_progress_entry_pull_to_refresh_loading">Pull to refresh (shape-morph indicator)</string>
+    <string name="debug_progress_hint">The determinate one advances with the button below.</string>
+    <string name="debug_progress_pull_hint">Pull the list down to refresh.</string>
+    <string name="debug_progress_advance">Advance</string>
+    <string name="debug_progress_determinate">Determinate</string>
+    <string name="debug_progress_indeterminate">Indeterminate</string>
+    <string name="debug_progress_row">Row %1$d</string>
 </resources>

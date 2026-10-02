@@ -118,6 +118,14 @@ sealed interface SettingsNavKey : NavKey {
      */
     @Serializable
     data class DebugCheckbox(val variant: String) : SettingsNavKey
+
+    /**
+     * **进度与下拉刷新预览** 页：`variant` 取 [SettingsDebugProgressVariant] 里的常量。
+     *
+     * 同样是组件层的独立试验场：页内顶栏是我们的小号 `TopAppBar`。
+     */
+    @Serializable
+    data class DebugProgress(val variant: String) : SettingsNavKey
 }
 
 /** [SettingsNavKey.DebugSidebar] 的 `variant` 取值。 */
@@ -196,4 +204,25 @@ object SettingsDebugCheckboxVariant {
 
     /** 自定义配色：`CheckboxDefaults.colors(...)`。 */
     const val COLORS = "colors"
+}
+
+/** [SettingsNavKey.DebugProgress] 的 `variant` 取值。 */
+object SettingsDebugProgressVariant {
+    /** 线性：确定（进度 lambda）+ 不确定。 */
+    const val LINEAR = "linear"
+
+    /** 圆形：确定（进度 lambda）+ 不确定。 */
+    const val CIRCULAR = "circular"
+
+    /** 下拉刷新：`PullToRefreshBox` 包一个可滚列表。 */
+    const val PULL_TO_REFRESH = "pullToRefresh"
+
+    /** 波形线性：确定 + 不确定（1.5.0-alpha29 移植的那套）。 */
+    const val WAVY_LINEAR = "wavyLinear"
+
+    /** 波形圆形：确定 + 不确定。 */
+    const val WAVY_CIRCULAR = "wavyCircular"
+
+    /** 下拉刷新：指示器换成「形状变换」的 `PullToRefreshDefaults.LoadingIndicator`。 */
+    const val PULL_TO_REFRESH_LOADING = "pullToRefreshLoading"
 }
