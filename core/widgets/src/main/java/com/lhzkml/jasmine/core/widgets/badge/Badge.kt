@@ -184,7 +184,7 @@ fun Badge(
     ) {
         if (content != null) {
             // Not using Surface composable because it blocks touch propagation behind it.
-            val style = BadgeTokens.LargeLabelTextFont.value
+            val style = BadgeTokens.LargeLabelTextFont
             ProvideContentColorTextStyle(
                 contentColor = contentColor,
                 textStyle = style,

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION v0_14_0），不再由上游生成，可直接改。
+// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
 // 只留本组件库真正用到的槽位（FAB 菜单的关闭按钮尺寸与条目尺寸/间距/形状）；上游那份里的
 // CloseButtonContainerShape/ContainerWidth/ContainerElevation 与 ListItemContainerElevation 没有任何
 // 组件在用（形状与高度按数学算、阴影取 FabPrimaryContainerTokens），已随裁剪删掉。

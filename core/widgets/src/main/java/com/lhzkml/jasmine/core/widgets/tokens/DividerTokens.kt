@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION v0_117），不再由上游生成，可直接改。
+// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
 // 两个槽位都被 divider/Divider.kt 用着：Color（OutlineVariant）与 Thickness（1dp）。
 
 package com.lhzkml.jasmine.core.widgets.tokens

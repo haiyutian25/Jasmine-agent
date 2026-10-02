@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION v0_117），不再由上游生成，可直接改。
+// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
 // 只留本组件库真正用到的槽位（选中/未选中的容器色与描边色、禁用态透明度、选中图标色、状态层尺寸）；
 // 上游那份里的 Focus/Hover/Pressed/Error 三态成对色、容器尺寸与形状、图标尺寸、各档描边宽度
 // 都没有任何组件在用（绘制里用的字面量），已随裁剪删掉。

@@ -163,7 +163,7 @@ private class DialogWrapper(
     ComponentDialog(
         ContextThemeWrapper(
             composeView.context,
-            androidx.compose.material3.R.style.EdgeToEdgeFloatingDialogWindowTheme,
+            com.lhzkml.jasmine.core.widgets.R.style.WidgetsEdgeToEdgeFloatingDialogWindowTheme,
         )
     ),
     ViewRootForInspector {

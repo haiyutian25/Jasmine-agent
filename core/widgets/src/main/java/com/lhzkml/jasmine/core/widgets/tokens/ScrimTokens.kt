@@ -13,11 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION v0_117），不再由上游生成，可直接改。
+// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
+//
+// 遮罩色直接写死同一个值：`CssVariables` 没有遮罩槽位（12 套调色板都没定义，浅色/深色本来也都是纯黑）。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
+import androidx.compose.ui.graphics.Color
+
 internal object ScrimTokens {
-    val ContainerColor = ColorSchemeKeyTokens.Scrim
+    /** 遮罩色：M3 基线值（浅色/深色两套都是纯黑）。 */
+    val ContainerColor: Color = Color(0xFF000000)
     const val ContainerOpacity = 0.32f
 }

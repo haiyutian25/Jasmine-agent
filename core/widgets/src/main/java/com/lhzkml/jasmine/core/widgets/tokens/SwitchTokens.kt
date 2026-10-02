@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION v0_210），不再由上游生成，可直接改。
+// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
 // 这里只留本组件实际用到的槽位；上游那份里的 Hover / Focus / Pressed 配色与部分尺寸槽位
 // 我们从不渲染（SwitchColors 只有 选中 / 未选中 / 禁用 三态），已随本次瘦身一并删掉。
 

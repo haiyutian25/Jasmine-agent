@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION v0_103），不再由上游生成，可直接改。
+// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
 // 上游位置：androidx/compose/material3/tokens/TypographyTokens.kt 末尾的 DefaultTextStyle /
 // DefaultLineHeightStyle，以及 internal/DefaultPlatformTextStyle.kt 的 expect/actual。
 // 本库是 Android 应用，把 android 侧的 actual 直接内联（`DefaultIncludeFontPadding = false`），取值逐项一致。

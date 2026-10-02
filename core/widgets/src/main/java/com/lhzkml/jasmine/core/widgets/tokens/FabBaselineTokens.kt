@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION v0_14_0），不再由上游生成，可直接改。
+// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
 // 只留本组件库真正用到的槽位（基准档 FAB 的尺寸）；上游那份里的 ContainerShape/ContainerWidth
 // 没有任何组件在用，已随裁剪删掉。
 

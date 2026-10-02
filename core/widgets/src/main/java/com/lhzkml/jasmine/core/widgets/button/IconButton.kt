@@ -3,7 +3,7 @@
 // FilledIconButton / FilledIconToggleButton / FilledTonalIconButton / FilledTonalIconToggleButton /
 // OutlinedIconButton / OutlinedIconToggleButton 及两个 Colors 类。差异：涟漪、最小触控尺寸、子语义、
 // 内容色分别走本库自有的 ripple / minimumInteractiveComponentSize / internal.childSemantics /
-// LocalWidgetsContentColor；上游的 @ExperimentalMaterial3Api 注解与 @sample 链接已去掉。
+// LocalWidgetsContentColor；上游那两类 KDoc 标记（实验性注解与样例链接）已去掉。
 /*
  * Copyright 2021 The Android Open Source Project
  *

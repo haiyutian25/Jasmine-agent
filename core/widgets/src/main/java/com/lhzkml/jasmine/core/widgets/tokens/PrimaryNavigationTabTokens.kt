@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION v0_103），不再由上游生成，可直接改。
+// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
 // 只保留 Tab / TabRow 真正引用到的槽位（活动指示条的色/高/形状、活动标签文字色、容器色与高、标签字体）；
 // 上游那份里的 Focus / Hover / Pressed 态色与图标相关槽位本组件库都没用到，已随裁剪删掉。
 
@@ -21,6 +21,7 @@ package com.lhzkml.jasmine.core.widgets.tokens
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
+import com.lhzkml.jasmine.core.ui.theme.AppTypography
 
 internal object PrimaryNavigationTabTokens {
     val ActiveIndicatorColor = ColorSchemeKeyTokens.Primary
@@ -29,6 +30,6 @@ internal object PrimaryNavigationTabTokens {
     val ContainerColor = ColorSchemeKeyTokens.Surface
     val ContainerHeight = 48.0.dp
     val ActiveLabelTextColor = ColorSchemeKeyTokens.Primary
-    val LabelTextFont = TypographyKeyTokens.TitleSmall
+    val LabelTextFont = AppTypography.titleSmall
 }
 

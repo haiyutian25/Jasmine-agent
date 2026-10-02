@@ -137,6 +137,7 @@ import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
 import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTextStyle
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSize
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsColorScheme
 import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsShapes
 import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
@@ -161,45 +162,6 @@ import com.lhzkml.jasmine.core.widgets.tokens.value
  * This overload of [TextField] uses [TextFieldState] to keep track of its text content and position
  * of the cursor or selection.
  *
- * A simple single line text field looks like:
- *
- * @sample androidx.compose.material3.samples.SimpleTextFieldSample
- *
- * You can control the initial text input and selection:
- *
- * @sample androidx.compose.material3.samples.TextFieldWithInitialValueAndSelection
- *
- * Use input and output transformations to control user input and the displayed text:
- *
- * @sample androidx.compose.material3.samples.TextFieldWithTransformations
- *
- * You may provide a placeholder:
- *
- * @sample androidx.compose.material3.samples.TextFieldWithPlaceholder
- *
- * You can also provide leading and trailing icons:
- *
- * @sample androidx.compose.material3.samples.TextFieldWithIcons
- *
- * You can also provide a prefix or suffix to the text:
- *
- * @sample androidx.compose.material3.samples.TextFieldWithPrefixAndSuffix
- *
- * To handle the error input state, use [isError] parameter:
- *
- * @sample androidx.compose.material3.samples.TextFieldWithErrorState
- *
- * Additionally, you may provide additional message at the bottom:
- *
- * @sample androidx.compose.material3.samples.TextFieldWithSupportingText
- *
- * You can change the content padding to create a dense text field:
- *
- * @sample androidx.compose.material3.samples.DenseTextFieldContentPadding
- *
- * Hiding a software keyboard on IME action performed:
- *
- * @sample androidx.compose.material3.samples.TextFieldWithHideKeyboardOnImeAction
  * @param state [TextFieldState] object that holds the internal editing state of the text field.
  * @param modifier the [Modifier] to be applied to this text field.
  * @param enabled controls the enabled state of this text field. When `false`, this component will
@@ -1496,7 +1458,7 @@ internal class IndicatorLineNode(
     private val colors: TextFieldColors
         get() =
             _colors
-                ?: currentValueOf(LocalWidgetsColorScheme)
+                ?: currentValueOf(LocalCssVariables)
                     .defaultTextFieldColors(currentValueOf(LocalTextSelectionColors))
 
     // Must be initialized in `onAttach` so `colors` can read from the `MaterialTheme`

@@ -135,7 +135,7 @@ fun Tab(
         text?.let {
             @Composable {
                 val style =
-                    PrimaryNavigationTabTokens.LabelTextFont.value.copy(
+                    PrimaryNavigationTabTokens.LabelTextFont.copy(
                         textAlign = TextAlign.Center
                     )
                 ProvideTextStyle(style, content = text)
@@ -221,7 +221,7 @@ fun LeadingIconTab(
             icon()
             Spacer(Modifier.requiredWidth(TextDistanceFromLeadingIcon))
             val style =
-                PrimaryNavigationTabTokens.LabelTextFont.value.copy(textAlign = TextAlign.Center)
+                PrimaryNavigationTabTokens.LabelTextFont.copy(textAlign = TextAlign.Center)
             ProvideTextStyle(style, content = text)
         }
     }

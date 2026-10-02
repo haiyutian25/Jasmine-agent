@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  本组件库自有的对话框主题（对应上游 material3 的 EdgeToEdgeFloatingDialogWindowTheme /
+  EdgeToEdgeFloatingDialogTheme），属性逐条照抄，边到边弹层的观感不变 —— 于是组件库不再引用
+  `androidx.compose.material3.R.style.*`。
+-->
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="WidgetsEdgeToEdgeFloatingDialogWindowTheme">
+        <item name="android:dialogTheme">@style/WidgetsEdgeToEdgeFloatingDialogTheme</item>
+    </style>
+    <style name="WidgetsEdgeToEdgeFloatingDialogTheme" parent="android:Theme.DeviceDefault.Dialog">
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="27">@integer/widgets_window_layout_in_display_cutout_mode</item>
+        <item name="android:windowClipToOutline">false</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowElevation">0dp</item>
+    </style>
+    <!-- "shortEdges"（上游同名整数资源的值就是 1） -->
+    <integer name="widgets_window_layout_in_display_cutout_mode">1</integer>
+</resources>

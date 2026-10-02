@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- core:widgets 自有的无障碍文案（中文），与 values/strings.xml 一一对应。 -->
+<resources>
+    <!-- 输入框 -->
+    <string name="widgets_error_default">错误</string>
+
+    <!-- 对话框 -->
+    <string name="widgets_dialog_pane_title">对话框</string>
+
+    <!-- 下拉菜单 -->
+    <string name="widgets_menu_expanded">已展开</string>
+    <string name="widgets_menu_collapsed">已收起</string>
+    <string name="widgets_menu_toggle">展开或收起菜单</string>
+
+    <!-- 搜索框 -->
+    <string name="widgets_search_bar_search">搜索</string>
+    <string name="widgets_suggestions_available">有可用的建议</string>
+
+    <!-- 底部弹层 -->
+    <string name="widgets_bottom_sheet_pane_title">底部面板</string>
+    <string name="widgets_bottom_sheet_drag_handle_description">拖拽把手</string>
+    <string name="widgets_bottom_sheet_collapse_description">部分展开</string>
+    <string name="widgets_bottom_sheet_dismiss_description">关闭</string>
+    <string name="widgets_bottom_sheet_expand_description">已展开</string>
+    <string name="widgets_close_sheet">关闭面板</string>
+
+    <!-- 侧边栏 -->
+    <string name="widgets_navigation_menu">导航菜单</string>
+</resources>

@@ -13,17 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION v0_103），不再由上游生成，可直接改。
+// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
 // 只留本组件库真正用到的槽位（小圆点与带内容徽标的尺寸/形状/底色/字体）；上游那份里的 LargeColor
 // 与 LargeLabelTextColor 没有任何组件在用，已随裁剪删掉。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
 import androidx.compose.ui.unit.dp
+import com.lhzkml.jasmine.core.ui.theme.AppTypography
 
 internal object BadgeTokens {
     val Color = ColorSchemeKeyTokens.Error
-    val LargeLabelTextFont = TypographyKeyTokens.LabelSmall
+    val LargeLabelTextFont = AppTypography.labelSmall
     val LargeShape = ShapeKeyTokens.CornerFull
     val LargeSize = 16.0.dp
     val Shape = ShapeKeyTokens.CornerFull

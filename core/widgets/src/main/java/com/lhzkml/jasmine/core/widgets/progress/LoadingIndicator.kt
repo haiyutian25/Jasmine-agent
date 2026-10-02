@@ -163,7 +163,7 @@ public fun LoadingIndicator(
  *
  *
  * It can also be used as an indicator for a
- * [androidx.compose.material3.pulltorefresh.PullToRefreshBox] like this:
+ * [PullToRefreshBox] like this:
  *
  * @param progress the progress of this loading indicator, where 0.0 represents no progress and 1.0
  *   represents full progress. Values outside of this range are coerced into the range. The

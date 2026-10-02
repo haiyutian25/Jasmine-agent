@@ -38,18 +38,14 @@ import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
 import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.core.widgets.ripple.ripple
-import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import com.lhzkml.jasmine.core.ui.theme.contentColorFor
 import com.lhzkml.jasmine.core.widgets.surface.Surface
 import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
-import com.lhzkml.jasmine.core.widgets.motion.value
-import com.lhzkml.jasmine.core.widgets.tokens.fromToken
 import com.lhzkml.jasmine.core.widgets.tokens.value
 import com.lhzkml.jasmine.core.widgets.bottomsheet.MappedInteractionSource
 import com.lhzkml.jasmine.core.widgets.internal.ProvideContentColorTextStyle
 import com.lhzkml.jasmine.core.widgets.internal.systemBarsForVisualComponents
 import com.lhzkml.jasmine.core.widgets.tokens.ElevationTokens
-import com.lhzkml.jasmine.core.widgets.tokens.MotionSchemeKeyTokens
 import com.lhzkml.jasmine.core.widgets.tokens.NavigationBarTokens
 import com.lhzkml.jasmine.core.widgets.tokens.NavigationBarVerticalItemTokens
 import androidx.compose.runtime.Composable
@@ -100,9 +96,6 @@ import kotlin.math.roundToInt
  * [NavigationBar] should contain three to five [NavigationBarItem]s, each representing a singular
  * destination.
  *
- * A simple example looks like:
- *
- * @sample androidx.compose.material3.samples.NavigationBarSample
  *
  * See [NavigationBarItem] for configuration specific to each item, and not the overall
  * [NavigationBar] component.
@@ -113,7 +106,7 @@ import kotlin.math.roundToInt
  * @param contentColor the preferred color for content inside this navigation bar. Defaults to
  *   either the matching content color for [containerColor], or to the current [LocalWidgetsContentColor]
  *   if [containerColor] is not a color from the theme.
- * @param tonalElevation when [containerColor] is [ColorScheme.surface], a translucent primary color
+ * @param tonalElevation when [containerColor] is `CssVariables.card`, a translucent primary color
  *   overlay is applied on top of the container. A higher tonal elevation value will result in a
  *   darker color in light theme and lighter color in dark theme. See also: [Surface].
  * @param windowInsets a window insets of the navigation bar.
@@ -217,8 +210,7 @@ fun RowScope.NavigationBarItem(
 ) {
     @Suppress("NAME_SHADOWING")
     val interactionSource = interactionSource ?: remember { MutableInteractionSource() }
-    // TODO Load the motionScheme tokens from the component tokens file
-    val colorAnimationSpec = MotionSchemeKeyTokens.DefaultEffects.value<Color>()
+    val colorAnimationSpec = LocalMotionScheme.current.defaultEffectsSpec<Color>()
     val styledIcon =
         @Composable {
             val iconColor by
@@ -236,7 +228,7 @@ fun RowScope.NavigationBarItem(
     val styledLabel: @Composable (() -> Unit)? =
         label?.let {
             @Composable {
-                val style = NavigationBarTokens.LabelTextFont.value
+                val style = NavigationBarTokens.LabelTextFont
                 val textColor by
                     animateColorAsState(
                         targetValue = colors.textColor(selected = selected, enabled = enabled),
@@ -271,14 +263,12 @@ fun RowScope.NavigationBarItem(
         val alphaAnimationProgress: State<Float> =
             animateFloatAsState(
                 targetValue = if (selected) 1f else 0f,
-                // TODO Load the motionScheme tokens from the component tokens file
-                animationSpec = MotionSchemeKeyTokens.DefaultEffects.value(),
+                animationSpec = LocalMotionScheme.current.defaultEffectsSpec(),
             )
         val sizeAnimationProgress: State<Float> =
             animateFloatAsState(
                 targetValue = if (selected) 1f else 0f,
-                // TODO Load the motionScheme tokens from the component tokens file
-                animationSpec = MotionSchemeKeyTokens.FastSpatial.value(),
+                animationSpec = LocalMotionScheme.current.fastSpatialSpec(),
             )
         // The entire item is selectable, but only the indicator pill shows the ripple. To achieve
         // this, we re-map the coordinates of the item's InteractionSource into the coordinates of
@@ -335,7 +325,7 @@ object NavigationBarDefaults {
 
     /** Default color for a navigation bar. */
     val containerColor: Color
-        @Composable get() = NavigationBarTokens.ContainerColor.value
+        @Composable get() = NavigationBarTokens.ContainerColor(LocalCssVariables.current)
 
     /** Default window insets to be used and consumed by navigation bar */
     val windowInsets: WindowInsets
@@ -393,17 +383,17 @@ object NavigationBarItemDefaults {
         get() =
             remember(this) {
                 NavigationBarItemColors(
-                    selectedIconColor = fromToken(NavigationBarTokens.ItemActiveIconColor),
-                    selectedTextColor = fromToken(NavigationBarTokens.ItemActiveLabelTextColor),
+                    selectedIconColor = NavigationBarTokens.ItemActiveIconColor(this),
+                    selectedTextColor = NavigationBarTokens.ItemActiveLabelTextColor(this),
                     selectedIndicatorColor =
-                        fromToken(NavigationBarTokens.ItemActiveIndicatorColor),
-                    unselectedIconColor = fromToken(NavigationBarTokens.ItemInactiveIconColor),
-                    unselectedTextColor = fromToken(NavigationBarTokens.ItemInactiveLabelTextColor),
+                        NavigationBarTokens.ItemActiveIndicatorColor(this),
+                    unselectedIconColor = NavigationBarTokens.ItemInactiveIconColor(this),
+                    unselectedTextColor = NavigationBarTokens.ItemInactiveLabelTextColor(this),
                     disabledIconColor =
-                        fromToken(NavigationBarTokens.ItemInactiveIconColor)
+                        NavigationBarTokens.ItemInactiveIconColor(this)
                             .copy(alpha = DisabledAlpha),
                     disabledTextColor =
-                        fromToken(NavigationBarTokens.ItemInactiveLabelTextColor)
+                        NavigationBarTokens.ItemInactiveLabelTextColor(this)
                             .copy(alpha = DisabledAlpha),
                 )
             }
@@ -414,11 +404,11 @@ object NavigationBarItemDefaults {
     )
     @Composable
     fun colors(
-        selectedIconColor: Color = NavigationBarTokens.ItemActiveIconColor.value,
-        selectedTextColor: Color = NavigationBarTokens.ItemActiveLabelTextColor.value,
-        indicatorColor: Color = NavigationBarTokens.ItemActiveIndicatorColor.value,
-        unselectedIconColor: Color = NavigationBarTokens.ItemInactiveIconColor.value,
-        unselectedTextColor: Color = NavigationBarTokens.ItemInactiveLabelTextColor.value,
+        selectedIconColor: Color = NavigationBarTokens.ItemActiveIconColor(LocalCssVariables.current),
+        selectedTextColor: Color = NavigationBarTokens.ItemActiveLabelTextColor(LocalCssVariables.current),
+        indicatorColor: Color = NavigationBarTokens.ItemActiveIndicatorColor(LocalCssVariables.current),
+        unselectedIconColor: Color = NavigationBarTokens.ItemInactiveIconColor(LocalCssVariables.current),
+        unselectedTextColor: Color = NavigationBarTokens.ItemInactiveLabelTextColor(LocalCssVariables.current),
     ): NavigationBarItemColors =
         NavigationBarItemColors(
             selectedIconColor = selectedIconColor,
@@ -801,7 +791,7 @@ internal interface NavigationBarOverride {
  * @param contentColor the preferred color for content inside this navigation bar. Defaults to
  *   either the matching content color for [containerColor], or to the current [LocalWidgetsContentColor]
  *   if [containerColor] is not a color from the theme.
- * @param tonalElevation when [containerColor] is [ColorScheme.surface], a translucent primary color
+ * @param tonalElevation when [containerColor] is `CssVariables.card`, a translucent primary color
  *   overlay is applied on top of the container. A higher tonal elevation value will result in a
  *   darker color in light theme and lighter color in dark theme. See also: [Surface].
  * @param windowInsets a window insets of the navigation bar.

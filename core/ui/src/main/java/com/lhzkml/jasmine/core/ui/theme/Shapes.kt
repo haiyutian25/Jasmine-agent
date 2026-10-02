@@ -1,25 +1,37 @@
 package com.lhzkml.jasmine.core.ui.theme
 
+import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Shapes
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.unit.dp
 
 /**
- * 本应用的形状表 —— **值照抄 Material3 的默认形状**（上游 `tokens/ShapeTokens.kt`），
- * 不自创：extraSmall = 4dp、small = 8dp、medium = 12dp、large = 16dp、extraLarge = 28dp。
+ * 本应用的形状表 —— **自有类型**（不再拿 M3 的 `Shapes` 当载体），值照抄 Material3 的默认形状
+ * （上游 `tokens/ShapeTokens.kt`）：extraSmall = 4dp、small = 8dp、medium = 12dp、large = 16dp、
+ * extraLarge = 28dp —— **一个都没改**，观感与之前完全一致。
  *
- * **为什么自己持有一份**：此前 `MaterialTheme` 没传 `shapes`，于是 `core:widgets` 的
- * `ShapeKeyTokens` 最终取到的是 M3 主题内部的默认值 —— 形状的真值不在我们手里。
- * 现在由这里提供同一份对象（既喂给 `MaterialTheme`，也喂给 `LocalWidgetsShapes`）：
- * **值不变、观感不变**，但以后要调形状只需改这一处。
+ * 属性名与上游逐字一致，所以调用点（`feature/settings/impl` 里多处 `AppShapes.medium` /
+ * `AppShapes.large`）不用动。
  *
- * 注意：`Shapes` 的另外三个 expressive 参数（`largeIncreased` / `extraLargeIncreased` /
- * `extraExtraLarge`）在上游是 `internal`，外部构造不了，所以这里不传，保持 M3 默认。
+ * 与 M3 的唯一接触点是 [toM3Shapes]：`MaterialTheme(shapes = …)` 只接受 M3 的 `Shapes`，
+ * 在主题那一处转换一次即可 —— 与颜色走 `ColorScheme` 的接缝同理。
  */
-val AppShapes = Shapes(
-    extraSmall = RoundedCornerShape(4.dp),
-    small = RoundedCornerShape(8.dp),
-    medium = RoundedCornerShape(12.dp),
-    large = RoundedCornerShape(16.dp),
-    extraLarge = RoundedCornerShape(28.dp),
-)
+@Immutable
+object AppShapes {
+    val extraSmall: CornerBasedShape = RoundedCornerShape(4.dp)
+    val small: CornerBasedShape = RoundedCornerShape(8.dp)
+    val medium: CornerBasedShape = RoundedCornerShape(12.dp)
+    val large: CornerBasedShape = RoundedCornerShape(16.dp)
+    val extraLarge: CornerBasedShape = RoundedCornerShape(28.dp)
+}
+
+/** 接缝：把自有形状表转成 M3 的 `Shapes`，只给 `MaterialTheme()` 那一处用。 */
+internal fun AppShapes.toM3Shapes(): Shapes =
+    Shapes(
+        extraSmall = extraSmall,
+        small = small,
+        medium = medium,
+        large = large,
+        extraLarge = extraLarge,
+    )

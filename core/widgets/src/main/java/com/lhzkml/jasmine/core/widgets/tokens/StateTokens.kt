@@ -1,4 +1,4 @@
-// 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION 1_5_0_alpha29），不再由上游生成，可直接改。
+// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
 // 状态层透明度（pressed / focus / dragged / hover），涟漪与各组件共用。
 /*
  * Copyright 2021 The Android Open Source Project

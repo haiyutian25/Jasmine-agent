@@ -22,22 +22,23 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.LocalTonalElevationEnabled
-import androidx.compose.material3.Shapes
-import androidx.compose.material3.surfaceColorAtElevation
-import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import com.lhzkml.jasmine.core.ui.theme.AppShapes
 import com.lhzkml.jasmine.core.ui.theme.AppTypography
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsShapes
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTonalElevationEnabled
+import kotlin.math.ln
 
 /**
  * 组件颜色令牌 → **本应用现有主题**（[CssVariables]，即 `JasmineTheme` 注入的那份调色板）的取值表。
@@ -51,11 +52,10 @@ import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsShapes
 @Stable
 internal fun CssVariables.fromToken(value: ColorSchemeKeyTokens): Color {
     return when (value) {
-        // 这两项现有 12 套调色板都还没有自己的槽位，暂用 M3 基线值（与改造前取到的值一致）：
-        // 错误色分深浅两套基线，遮罩色两套都是纯黑。将来若要给每套调色板单独的 error，
-        // 给 CssVariables 加槽后改这两行即可。
+        // 错误色：现有 12 套调色板都还没有自己的槽位，暂用 M3 基线值（与改造前取到的值一致，
+        // 深浅两套分开）。将来若要给每套调色板单独的 error，给 CssVariables 加槽后改这行即可。
+        // （遮罩色原先也走这里，现已收进 `ScrimTokens` 直接写死，`Scrim` 角色键随之下线。）
         ColorSchemeKeyTokens.Error -> if (isDark) M3DarkError else M3LightError
-        ColorSchemeKeyTokens.Scrim -> M3BaselineScrim
         ColorSchemeKeyTokens.OnPrimary -> primaryForeground
         ColorSchemeKeyTokens.OnPrimaryContainer -> accentForeground
         ColorSchemeKeyTokens.OnSecondaryContainer -> mutedForeground
@@ -85,9 +85,6 @@ private val M3LightError = Color(0xFFB3261E)
 /** M3 深色基线错误色（= `darkColorScheme().error`）。 */
 private val M3DarkError = Color(0xFFF2B8B5)
 
-/** M3 基线遮罩色（浅色与深色两套都是纯黑）。 */
-private val M3BaselineScrim = Color(0xFF000000)
-
 /**
  * **过渡用的旧入口**：仍是"从 M3 `ColorScheme` 的角色取"。
  *
@@ -114,7 +111,6 @@ internal fun ColorScheme.fromToken(value: ColorSchemeKeyTokens): Color {
         ColorSchemeKeyTokens.OutlineVariant -> outlineVariant
         ColorSchemeKeyTokens.Primary -> primary
         ColorSchemeKeyTokens.PrimaryContainer -> primaryContainer
-        ColorSchemeKeyTokens.Scrim -> scrim
         ColorSchemeKeyTokens.Secondary -> secondary
         ColorSchemeKeyTokens.SecondaryContainer -> secondaryContainer
         ColorSchemeKeyTokens.Surface -> surface
@@ -168,7 +164,7 @@ internal fun CornerBasedShape.end(
  * Helper function for component shape tokens. Here is an example on how to use component color
  * tokens: ``LocalWidgetsShapes.current.fromToken(FabPrimarySmallTokens.ContainerShape)``
  */
-internal fun Shapes.fromToken(value: ShapeKeyTokens): Shape {
+internal fun AppShapes.fromToken(value: ShapeKeyTokens): Shape {
     return when (value) {
         ShapeKeyTokens.CornerExtraLarge -> extraLarge
         ShapeKeyTokens.CornerExtraLargeTop -> extraLarge.top()
@@ -184,48 +180,44 @@ internal fun Shapes.fromToken(value: ShapeKeyTokens): Shape {
 
 /**
  * 形状令牌 → 当前主题的形状；随 [LocalWidgetsShapes] 变化自动重组。
- * （`JasmineTheme` 目前注入的还是 M3 默认形状，改动形状口径只需改注入值。）
+ * （注入的是**自有**的 [AppShapes] 类型，不再经 M3 的 `Shapes`；改形状口径只需改 `AppShapes`。）
  */
 internal val ShapeKeyTokens.value: Shape
     @Composable @ReadOnlyComposable get() = LocalWidgetsShapes.current.fromToken(this)
 
 /**
- * Returns [ColorScheme.surfaceColorAtElevation] with the provided elevation if
- * [LocalTonalElevationEnabled] is set to true, and the provided background color matches
- * [ColorScheme.surface]. Otherwise, the provided color is returned unchanged.
+ * 「表面色 + 海拔」的染色，**本项目自己实现**（上游对应 `ColorScheme.kt` 的
+ * `ColorScheme.applyTonalElevation` 与 `ColorScheme.surfaceColorAtElevation`，算法就是下面这两段）。
+ * 取值与改造前逐项一致：
+ * - 比较基准 `surface` → 自有主题的 [CssVariables.card]（`Theme.kt` 里 `surface = cssVars.card`）；
+ * - 染色 tint `surfaceTint` → `Theme.kt` 里映射的 [CssVariables.primary]；
+ * - 开关换成自有的 [LocalWidgetsTonalElevationEnabled]（默认开，与上游 `LocalTonalElevationEnabled` 一致）。
  *
- * @param backgroundColor The background color to compare to [ColorScheme.surface]
- * @param elevation The elevation provided to [ColorScheme.surfaceColorAtElevation] if
- *   [backgroundColor] matches surface.
- * @return [ColorScheme.surfaceColorAtElevation] at [elevation] if [backgroundColor] ==
- *   [ColorScheme.surface] and [LocalTonalElevationEnabled] is set to true. Else [backgroundColor]
+ * @param backgroundColor 要判断的底色；不是主题 surface（= [CssVariables.card]）时原样返回
+ * @param elevation 海拔；0.dp 时也原样返回
  */
 @Composable
 @ReadOnlyComposable
-internal fun ColorScheme.applyTonalElevation(backgroundColor: Color, elevation: Dp): Color {
-    val tonalElevationEnabled = LocalTonalElevationEnabled.current
-    return if (backgroundColor == surface && tonalElevationEnabled) {
+internal fun CssVariables.applyTonalElevation(backgroundColor: Color, elevation: Dp): Color {
+    return if (backgroundColor == card && LocalWidgetsTonalElevationEnabled.current) {
         surfaceColorAtElevation(elevation)
     } else {
         backgroundColor
     }
 }
 
-/** Helper function for component typography tokens. */
-internal fun Typography.fromToken(value: TypographyKeyTokens): TextStyle {
-    return when (value) {
-        TypographyKeyTokens.BodyMedium -> bodyMedium
-        TypographyKeyTokens.HeadlineSmall -> headlineSmall
-        TypographyKeyTokens.LabelLarge -> labelLarge
-        TypographyKeyTokens.LabelMedium -> labelMedium
-        TypographyKeyTokens.LabelSmall -> labelSmall
-        TypographyKeyTokens.TitleLarge -> titleLarge
-        TypographyKeyTokens.TitleSmall -> titleSmall
-    }
+/**
+ * 海拔 [elevation] 处的表面色：把 [CssVariables.primary] 以 `(4.5·ln(e+1) + 2) / 100` 的透明度
+ * 叠在 [CssVariables.card] 上（上游 `ColorScheme.surfaceColorAtElevation` 的原式，逐字照抄）。
+ */
+@Composable
+@ReadOnlyComposable
+private fun CssVariables.surfaceColorAtElevation(elevation: Dp): Color {
+    if (elevation == 0.dp) return card
+    val alpha = ((4.5f * ln(elevation.value + 1)) + 2f) / 100f
+    return primary.copy(alpha = alpha).compositeOver(card)
 }
 
-/**
- * 字体令牌 → 当前主题的排版样式；用的是 `JasmineTheme` 注入给 M3 的同一份 [AppTypography]。
- */
-internal val TypographyKeyTokens.value: TextStyle
-    @Composable @ReadOnlyComposable get() = AppTypography.fromToken(this)
+// 排版槽位不再经过"字体令牌键 → M3 Typography"这层映射：各令牌表（AppBarSmallTokens /
+// NavigationBarTokens / DialogTokens / BadgeTokens / PrimaryNavigationTabTokens）直接指向
+// 自有排版档 `AppTypography.*`，所以 `Typography.fromToken` 与 `TypographyKeyTokens` 已删除。

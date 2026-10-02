@@ -195,7 +195,7 @@ import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
  * @param shape the shape of this search bar when collapsed.
  * @param colors [SearchBarColors] that will be used to resolve the colors used for this search bar
  *   in different states. See [SearchBarDefaults.colors].
- * @param tonalElevation when [SearchBarColors.containerColor] is [ColorScheme.surface], a
+ * @param tonalElevation when [SearchBarColors.containerColor] is `CssVariables.card`, a
  *   translucent primary color overlay is applied on top of the container. A higher tonal elevation
  *   value will result in a darker color in light theme and lighter color in dark theme. See also:
  *   [Surface].
@@ -239,7 +239,7 @@ fun SearchBar(
  *   shape will always be [SearchBarDefaults.fullScreenShape].
  * @param colors [SearchBarColors] that will be used to resolve the colors used for this search bar
  *   in different states. See [SearchBarDefaults.colors].
- * @param tonalElevation when [SearchBarColors.containerColor] is [ColorScheme.surface], a
+ * @param tonalElevation when [SearchBarColors.containerColor] is `CssVariables.card`, a
  *   translucent primary color overlay is applied on top of the container. A higher tonal elevation
  *   value will result in a darker color in light theme and lighter color in dark theme. See also:
  *   [Surface].
@@ -321,7 +321,7 @@ fun ExpandedFullScreenSearchBar(
  * @param shape the shape of this search bar.
  * @param colors [SearchBarColors] that will be used to resolve the colors used for this search bar
  *   in different states. See [SearchBarDefaults.colors].
- * @param tonalElevation when [SearchBarColors.containerColor] is [ColorScheme.surface], a
+ * @param tonalElevation when [SearchBarColors.containerColor] is `CssVariables.card`, a
  *   translucent primary color overlay is applied on top of the container. A higher tonal elevation
  *   value will result in a darker color in light theme and lighter color in dark theme. See also:
  *   [Surface].

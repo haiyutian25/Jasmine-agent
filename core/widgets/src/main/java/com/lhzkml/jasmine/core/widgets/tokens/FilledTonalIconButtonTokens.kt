@@ -1,4 +1,4 @@
-// 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION 14_0_0），不再由上游生成，可直接改。
+// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
 // FilledTonalIconButton / FilledTonalIconToggleButton 的颜色与不透明度槽位。
 /*
  * Copyright 2022 The Android Open Source Project

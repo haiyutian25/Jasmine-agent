@@ -123,7 +123,8 @@ fun JasmineTheme(
     CompositionLocalProvider(LocalCssVariables provides cssVars) {
         MaterialTheme(
             colorScheme = m3ColorScheme,
-            shapes = AppShapes,
+            // 接缝：MaterialTheme 只收 M3 的 Shapes，这里把自有形状表转换一次。
+            shapes = AppShapes.toM3Shapes(),
             typography = AppTypography
         ) {
             // The default text style follows the user's chosen content font, so
@@ -153,7 +154,14 @@ fun JasmineTheme(
  */
 val LocalWidgetsColorScheme = staticCompositionLocalOf<ColorScheme> { lightColorScheme() }
 
-val LocalWidgetsShapes = staticCompositionLocalOf { Shapes() }
+val LocalWidgetsShapes = staticCompositionLocalOf { AppShapes }
+
+/**
+ * 是否给「表面色 + 海拔」染色（对应上游 `ColorScheme.kt` 的 `LocalTonalElevationEnabled`，
+ * 语义与默认值一致：`staticCompositionLocalOf { true }`；置 false 时其下所有 Surface 都不再做海拔染色）。
+ * `core:widgets` 的 `CssVariables.applyTonalElevation` 读它。
+ */
+val LocalWidgetsTonalElevationEnabled = staticCompositionLocalOf { true }
 
 /**
  * 「容器色 → 该用在上面的内容色」——与 M3 `ColorScheme.contentColorFor` 同语义，但**是纯函数**：

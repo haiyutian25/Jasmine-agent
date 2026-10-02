@@ -20,7 +20,7 @@ package com.lhzkml.jasmine.core.widgets.bottomsheet
 
 /**
  * Material-specific anchor layout logic which considers lookahead. This internal code is expected
- * to remain in the library after androidx.compose.material3.internal.AnchoredDraggable.kt is
+ * to remain in the library after 上游 M3 的 AnchoredDraggable.kt is
  * removed.
  */
 import androidx.compose.foundation.gestures.AnchoredDraggableState as AnchoredDraggableStateV2

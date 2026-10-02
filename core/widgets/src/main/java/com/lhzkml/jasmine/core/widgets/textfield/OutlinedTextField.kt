@@ -138,10 +138,6 @@ import com.lhzkml.jasmine.core.widgets.tokens.value
  * This overload of [OutlinedTextField] uses [TextFieldState] to keep track of its text content and
  * position of the cursor or selection.
  *
- * See example usage:
- *
- * @sample androidx.compose.material3.samples.SimpleOutlinedTextFieldSample
- * @sample androidx.compose.material3.samples.OutlinedTextFieldWithInitialValueAndSelection
  * @param state [TextFieldState] object that holds the internal editing state of the text field.
  * @param modifier the [Modifier] to be applied to this text field.
  * @param enabled controls the enabled state of this text field. When `false`, this component will

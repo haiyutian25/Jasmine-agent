@@ -62,8 +62,6 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.MaterialTheme
 import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
 import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTextStyle
 import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSize
@@ -114,9 +112,6 @@ object TextFieldDefaults {
      * accepts a [TextFieldDecorator] parameter. For other overloads of [BasicTextField] that use a
      * `decorationBox`, see [DecorationBox].
      *
-     * An example of building a custom text field using [decorator]:
-     *
-     * @sample androidx.compose.material3.samples.CustomTextFieldUsingDecorator
      * @param state [TextFieldState] object that holds the internal editing state of the text field.
      * @param enabled the enabled state of the text field. When `false`, this decorator will appear
      *   visually disabled. This must be the same value that is passed to [BasicTextField].
@@ -331,9 +326,6 @@ object TextFieldDefaults {
      * that accept a `decorationBox` parameter. For other overloads of [BasicTextField] that use a
      * [TextFieldDecorator], see [decorator].
      *
-     * An example of building a custom text field using [DecorationBox]:
-     *
-     * @sample androidx.compose.material3.samples.CustomTextFieldBasedOnDecorationBox
      * @param value the input [String] shown by the text field
      * @param innerTextField input text field that this decoration box wraps. Pass the
      *   framework-controlled composable parameter `innerTextField` from the `decorationBox` lambda
@@ -490,7 +482,7 @@ object TextFieldDefaults {
      */
     @Composable
     fun colors() =
-        MaterialTheme.colorScheme.defaultTextFieldColors(LocalTextSelectionColors.current)
+        LocalCssVariables.current.defaultTextFieldColors(LocalTextSelectionColors.current)
 
     /**
      * Creates a [TextFieldColors] that represents the default input text, container, and content
@@ -592,7 +584,7 @@ object TextFieldDefaults {
         disabledSuffixColor: Color = Color.Unspecified,
         errorSuffixColor: Color = Color.Unspecified,
     ): TextFieldColors =
-        MaterialTheme.colorScheme
+        LocalCssVariables.current
             .defaultTextFieldColors(LocalTextSelectionColors.current)
             .copy(
                 focusedTextColor = focusedTextColor,
@@ -640,7 +632,7 @@ object TextFieldDefaults {
                 errorSuffixColor = errorSuffixColor,
             )
 
-    internal fun ColorScheme.defaultTextFieldColors(
+    internal fun CssVariables.defaultTextFieldColors(
         localTextSelectionColors: TextSelectionColors
     ): TextFieldColors {
         return TextFieldColors(
@@ -922,9 +914,6 @@ object OutlinedTextFieldDefaults {
      * accepts a [TextFieldDecorator] parameter. For other overloads of [BasicTextField] that use a
      * `decorationBox`, see [DecorationBox].
      *
-     * An example of building a custom text field using [decorator]:
-     *
-     * @sample androidx.compose.material3.samples.CustomOutlinedTextFieldUsingDecorator
      * @param state [TextFieldState] object that holds the internal editing state of the text field.
      * @param enabled the enabled state of the text field. When `false`, this decorator will appear
      *   visually disabled. This must be the same value that is passed to [BasicTextField].
@@ -1093,9 +1082,6 @@ object OutlinedTextFieldDefaults {
      * that accept a `decorationBox` parameter. For other overloads of [BasicTextField] that use a
      * [TextFieldDecorator], see [decorator].
      *
-     * An example of building a custom text field using [DecorationBox]:
-     *
-     * @sample androidx.compose.material3.samples.CustomOutlinedTextFieldBasedOnDecorationBox
      * @param value the input [String] shown by the text field
      * @param innerTextField input text field that this decoration box wraps. Pass the
      *   framework-controlled composable parameter `innerTextField` from the `decorationBox` lambda

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION 14_0_0），不再由上游生成，可直接改。
+// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
 //
 // 与上游的差别：上游的 TitleFont 是字体令牌键（`TypographyKeyTokens.TitleLarge`），再经
 // `Typography.fromToken` 映射；本库直接读**自有主题**的排版档 `AppTypography.titleLarge`

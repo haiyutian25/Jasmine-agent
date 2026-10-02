@@ -87,7 +87,7 @@ import com.lhzkml.jasmine.core.widgets.tokens.fromToken
  *   different states. See [CardDefaults.cardColors].
  * @param elevation [CardElevation] used to resolve the elevation for this card in different states.
  *   This controls the size of the shadow below the card. Additionally, when the container color is
- *   [ColorScheme.surface], this controls the amount of primary color applied as an overlay. See
+ *   `CssVariables.card`, this controls the amount of primary color applied as an overlay. See
  *   also: [Surface].
  * @param border the border to draw around the container of this card
  * @param content The content displayed on the card
@@ -138,7 +138,7 @@ fun Card(
  *   different states. See [CardDefaults.cardColors].
  * @param elevation [CardElevation] used to resolve the elevation for this card in different states.
  *   This controls the size of the shadow below the card. Additionally, when the container color is
- *   [ColorScheme.surface], this controls the amount of primary color applied as an overlay. See
+ *   `CssVariables.card`, this controls the amount of primary color applied as an overlay. See
  *   also: [Surface].
  * @param border the border to draw around the container of this card
  * @param interactionSource an optional hoisted [MutableInteractionSource] for observing and
@@ -197,7 +197,7 @@ fun Card(
  *   different states. See [CardDefaults.elevatedCardElevation].
  * @param elevation [CardElevation] used to resolve the elevation for this card in different states.
  *   This controls the size of the shadow below the card. Additionally, when the container color is
- *   [ColorScheme.surface], this controls the amount of primary color applied as an overlay. See
+ *   `CssVariables.card`, this controls the amount of primary color applied as an overlay. See
  *   also: [Surface].
  * @param content The content displayed on the card
  */
@@ -242,7 +242,7 @@ fun ElevatedCard(
  *   different states. See [CardDefaults.elevatedCardElevation].
  * @param elevation [CardElevation] used to resolve the elevation for this card in different states.
  *   This controls the size of the shadow below the card. Additionally, when the container color is
- *   [ColorScheme.surface], this controls the amount of primary color applied as an overlay. See
+ *   `CssVariables.card`, this controls the amount of primary color applied as an overlay. See
  *   also: [Surface].
  * @param interactionSource an optional hoisted [MutableInteractionSource] for observing and
  *   emitting [Interaction]s for this card. You can use this to change the card's appearance or
@@ -294,7 +294,7 @@ fun ElevatedCard(
  *   different states. See [CardDefaults.outlinedCardColors].
  * @param elevation [CardElevation] used to resolve the elevation for this card in different states.
  *   This controls the size of the shadow below the card. Additionally, when the container color is
- *   [ColorScheme.surface], this controls the amount of primary color applied as an overlay. See
+ *   `CssVariables.card`, this controls the amount of primary color applied as an overlay. See
  *   also: [Surface].
  * @param border the border to draw around the container of this card
  * @param content The content displayed on the card
@@ -341,7 +341,7 @@ fun OutlinedCard(
  *   different states. See [CardDefaults.outlinedCardColors].
  * @param elevation [CardElevation] used to resolve the elevation for this card in different states.
  *   This controls the size of the shadow below the card. Additionally, when the container color is
- *   [ColorScheme.surface], this controls the amount of primary color applied as an overlay. See
+ *   `CssVariables.card`, this controls the amount of primary color applied as an overlay. See
  *   also: [Surface].
  * @param border the border to draw around the container of this card
  * @param interactionSource an optional hoisted [MutableInteractionSource] for observing and

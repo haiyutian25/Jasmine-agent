@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  core:widgets 的自有文案（基本都是无障碍朗读用的）——不再借 material3 的
+  `material3.R.string.m3c_*`，也不再借 compose-ui 的 `androidx.compose.ui.R`。
+  只保留组件库里真正被引用的条目，与 `textfield/Strings.kt` 的枚举值一一对应。
+-->
+<resources>
+    <!-- 输入框 -->
+    <string name="widgets_error_default">Error</string>
+
+    <!-- 对话框 -->
+    <string name="widgets_dialog_pane_title">Dialog</string>
+
+    <!-- 下拉菜单 -->
+    <string name="widgets_menu_expanded">Expanded</string>
+    <string name="widgets_menu_collapsed">Collapsed</string>
+    <string name="widgets_menu_toggle">Toggle menu</string>
+
+    <!-- 搜索框 -->
+    <string name="widgets_search_bar_search">Search</string>
+    <string name="widgets_suggestions_available">Suggestions available</string>
+
+    <!-- 底部弹层 -->
+    <string name="widgets_bottom_sheet_pane_title">Bottom sheet</string>
+    <string name="widgets_bottom_sheet_drag_handle_description">Drag handle</string>
+    <string name="widgets_bottom_sheet_collapse_description">Partially expanded</string>
+    <string name="widgets_bottom_sheet_dismiss_description">Dismiss</string>
+    <string name="widgets_bottom_sheet_expand_description">Expanded</string>
+    <string name="widgets_close_sheet">Close sheet</string>
+
+    <!-- 侧边栏 -->
+    <string name="widgets_navigation_menu">Navigation menu</string>
+</resources>

@@ -101,7 +101,7 @@ import com.lhzkml.jasmine.core.widgets.motion.value import com.lhzkml.jasmine.co
  * choose to set your own indicator or use [PullToRefreshDefaults.LoadingIndicator].
  *
  *
- * Using a [androidx.compose.material3.LoadingIndicator] as the [PullToRefreshBox] indicator can be
+ * Using our [LoadingIndicator] as the [PullToRefreshBox] indicator can be
  * done like this
  *
  *

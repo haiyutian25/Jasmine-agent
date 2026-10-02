@@ -89,7 +89,7 @@ import com.lhzkml.jasmine.core.widgets.tokens.value
  * @param iconContentColor the content color used for the icon.
  * @param titleContentColor the content color used for the title.
  * @param textContentColor the content color used for the text.
- * @param tonalElevation when [containerColor] is [ColorScheme.surface], a translucent primary color
+ * @param tonalElevation when [containerColor] is `CssVariables.card`, a translucent primary color
  *   overlay is applied on top of the container. A higher tonal elevation value will result in a
  *   darker color in light theme and lighter color in dark theme. See also: [Surface].
  * @param properties typically platform specific properties to further configure the dialog.
@@ -319,7 +319,7 @@ internal fun AlertDialogContent(
             title?.let {
                 ProvideContentColorTextStyle(
                     contentColor = titleContentColor,
-                    textStyle = DialogTokens.HeadlineFont.value,
+                    textStyle = DialogTokens.HeadlineFont,
                 ) {
                     Box(
                         // Align the title to the center when an icon is present.
@@ -337,7 +337,7 @@ internal fun AlertDialogContent(
                 }
             }
             text?.let {
-                val textStyle = DialogTokens.SupportingTextFont.value
+                val textStyle = DialogTokens.SupportingTextFont
                 ProvideContentColorTextStyle(
                     contentColor = textContentColor,
                     textStyle = textStyle,
@@ -352,7 +352,7 @@ internal fun AlertDialogContent(
                 }
             }
             Box(modifier = Modifier.align(Alignment.End)) {
-                val textStyle = DialogTokens.ActionLabelTextFont.value
+                val textStyle = DialogTokens.ActionLabelTextFont
                 ProvideContentColorTextStyle(
                     contentColor = buttonContentColor,
                     textStyle = textStyle,

@@ -134,7 +134,7 @@ import kotlin.math.min
  * @param properties [PopupProperties] for further customization of this popup's behavior
  * @param shape the shape of the menu
  * @param containerColor the container color of the menu
- * @param tonalElevation when [containerColor] is [ColorScheme.surface], a translucent primary color
+ * @param tonalElevation when [containerColor] is `CssVariables.card`, a translucent primary color
  *   overlay is applied on top of the container. A higher tonal elevation value will result in a
  *   darker color in light theme and lighter color in dark theme. See also: [Surface].
  * @param shadowElevation the elevation for the shadow below the menu

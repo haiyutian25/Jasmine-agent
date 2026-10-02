@@ -52,9 +52,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
 import com.lhzkml.jasmine.core.ui.theme.contentColorFor
 import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
-import com.lhzkml.jasmine.core.widgets.motion.value
 import com.lhzkml.jasmine.core.widgets.surface.Surface
-import com.lhzkml.jasmine.core.widgets.tokens.fromToken
 import com.lhzkml.jasmine.core.widgets.tokens.value
 import com.lhzkml.jasmine.core.widgets.bottomsheet.BackEventCompat
 import com.lhzkml.jasmine.core.widgets.internal.FloatProducer
@@ -64,7 +62,6 @@ import com.lhzkml.jasmine.core.widgets.textfield.Strings
 import com.lhzkml.jasmine.core.widgets.textfield.getString
 import com.lhzkml.jasmine.core.widgets.internal.systemBarsForVisualComponents
 import com.lhzkml.jasmine.core.widgets.tokens.ElevationTokens
-import com.lhzkml.jasmine.core.widgets.tokens.MotionSchemeKeyTokens
 import com.lhzkml.jasmine.core.widgets.tokens.NavigationDrawerTokens
 import com.lhzkml.jasmine.core.widgets.tokens.ScrimTokens
 import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
@@ -323,14 +320,11 @@ fun rememberDrawerState(
  * Navigation drawers provide ergonomic access to destinations in an app. They’re often next to app
  * content and affect the screen’s layout grid.
  *
- * ![Navigation drawer
- * image](https://developer.android.com/images/reference/androidx/compose/material3/navigation-drawer.png)
  *
  * Dismissible standard drawers can be used for layouts that prioritize content (such as a photo
  * gallery) or for apps where users are unlikely to switch destinations often. They should use a
  * visible navigation menu icon to open and close the drawer.
  *
- * @sample androidx.compose.material3.samples.DismissibleNavigationDrawerSample
  * @param drawerContent content inside this drawer
  * @param modifier the [Modifier] to be applied to this drawer
  * @param drawerState state of the drawer
@@ -348,9 +342,9 @@ fun DismissibleNavigationDrawer(
     var anchorsInitialized by remember { mutableStateOf(false) }
     val density = LocalDensity.current
 
-    // TODO Load the motionScheme tokens from the component tokens file
-    val openMotion: FiniteAnimationSpec<Float> = MotionSchemeKeyTokens.DefaultSpatial.value()
-    val closeMotion: FiniteAnimationSpec<Float> = MotionSchemeKeyTokens.FastEffects.value()
+    // 动效规格直接读自有的 MotionScheme（与顶栏同一做法），不再经令牌键映射。
+    val openMotion: FiniteAnimationSpec<Float> = LocalMotionScheme.current.defaultSpatialSpec<Float>()
+    val closeMotion: FiniteAnimationSpec<Float> = LocalMotionScheme.current.fastEffectsSpec<Float>()
 
     SideEffect {
         drawerState.density = density
@@ -426,13 +420,10 @@ fun DismissibleNavigationDrawer(
  * Navigation drawers provide ergonomic access to destinations in an app. They’re often next to app
  * content and affect the screen’s layout grid.
  *
- * ![Navigation drawer
- * image](https://developer.android.com/images/reference/androidx/compose/material3/navigation-drawer.png)
  *
  * The permanent navigation drawer is always visible and usually used for frequently switching
  * destinations. On mobile screens, use [ModalNavigationDrawer] instead.
  *
- * @sample androidx.compose.material3.samples.PermanentNavigationDrawerSample
  * @param drawerContent content inside this drawer
  * @param modifier the [Modifier] to be applied to this drawer
  * @param content content of the rest of the UI
@@ -463,7 +454,7 @@ fun PermanentNavigationDrawer(
  * @param drawerContentColor the preferred color for content inside this drawer. Defaults to either
  *   the matching content color for [drawerContainerColor], or to the current [LocalWidgetsContentColor] if
  *   [drawerContainerColor] is not a color from the theme.
- * @param drawerTonalElevation when [drawerContainerColor] is [ColorScheme.surface], a translucent
+ * @param drawerTonalElevation when [drawerContainerColor] is `CssVariables.card`, a translucent
  *   primary color overlay is applied on top of the container. A higher tonal elevation value will
  *   result in a darker color in light theme and lighter color in dark theme. See also: [Surface].
  * @param windowInsets a window insets for the sheet.
@@ -506,7 +497,7 @@ fun DismissibleDrawerSheet(
  * @param drawerContentColor the preferred color for content inside this drawer. Defaults to either
  *   the matching content color for [drawerContainerColor], or to the current [LocalWidgetsContentColor] if
  *   [drawerContainerColor] is not a color from the theme.
- * @param drawerTonalElevation when [drawerContainerColor] is [ColorScheme.surface], a translucent
+ * @param drawerTonalElevation when [drawerContainerColor] is `CssVariables.card`, a translucent
  *   primary color overlay is applied on top of the container. A higher tonal elevation value will
  *   result in a darker color in light theme and lighter color in dark theme. See also: [Surface].
  * @param windowInsets a window insets for the sheet.
@@ -548,7 +539,7 @@ fun DismissibleDrawerSheet(
  * @param drawerContentColor the preferred color for content inside this drawer. Defaults to either
  *   the matching content color for [drawerContainerColor], or to the current [LocalWidgetsContentColor] if
  *   [drawerContainerColor] is not a color from the theme.
- * @param drawerTonalElevation when [drawerContainerColor] is [ColorScheme.surface], a translucent
+ * @param drawerTonalElevation when [drawerContainerColor] is `CssVariables.card`, a translucent
  *   primary color overlay is applied on top of the container. A higher tonal elevation value will
  *   result in a darker color in light theme and lighter color in dark theme. See also: [Surface].
  * @param windowInsets a window insets for the sheet.
@@ -804,7 +795,7 @@ object DrawerDefaults {
 
     /** Default color of the scrim that obscures content when the drawer is open */
     val scrimColor: Color
-        @Composable get() = ScrimTokens.ContainerColor.value.copy(ScrimTokens.ContainerOpacity)
+        @Composable get() = ScrimTokens.ContainerColor.copy(ScrimTokens.ContainerOpacity)
 
     /** Default container color for a navigation drawer */
     @Deprecated(
@@ -813,17 +804,17 @@ object DrawerDefaults {
         level = DeprecationLevel.WARNING,
     )
     val containerColor: Color
-        @Composable get() = NavigationDrawerTokens.StandardContainerColor.value
+        @Composable get() = NavigationDrawerTokens.StandardContainerColor(LocalCssVariables.current)
 
     /**
      * Default container color for a [DismissibleNavigationDrawer] and [PermanentNavigationDrawer]
      */
     val standardContainerColor: Color
-        @Composable get() = NavigationDrawerTokens.StandardContainerColor.value
+        @Composable get() = NavigationDrawerTokens.StandardContainerColor(LocalCssVariables.current)
 
     /** Default container color for a [ModalNavigationDrawer] */
     val modalContainerColor: Color
-        @Composable get() = NavigationDrawerTokens.ModalContainerColor.value
+        @Composable get() = NavigationDrawerTokens.ModalContainerColor(LocalCssVariables.current)
 
     /** Default and maximum width of a navigation drawer */
     val MaximumDrawerWidth = NavigationDrawerTokens.ContainerWidth
@@ -843,7 +834,6 @@ object DrawerDefaults {
  * A [NavigationDrawerItem] represents a destination within drawers, either [ModalNavigationDrawer],
  * [PermanentNavigationDrawer] or [DismissibleNavigationDrawer].
  *
- * @sample androidx.compose.material3.samples.ModalNavigationDrawerSample
  * @param label text label for this item
  * @param selected whether this item is selected
  * @param onClick called when this item is clicked
@@ -955,12 +945,16 @@ object NavigationDrawerItemDefaults {
      */
     @Composable
     fun colors(
-        selectedContainerColor: Color = NavigationDrawerTokens.ActiveIndicatorColor.value,
+        selectedContainerColor: Color =
+            NavigationDrawerTokens.ActiveIndicatorColor(LocalCssVariables.current),
         unselectedContainerColor: Color = Color.Transparent,
-        selectedIconColor: Color = NavigationDrawerTokens.ActiveIconColor.value,
-        unselectedIconColor: Color = NavigationDrawerTokens.InactiveIconColor.value,
-        selectedTextColor: Color = NavigationDrawerTokens.ActiveLabelTextColor.value,
-        unselectedTextColor: Color = NavigationDrawerTokens.InactiveLabelTextColor.value,
+        selectedIconColor: Color = NavigationDrawerTokens.ActiveIconColor(LocalCssVariables.current),
+        unselectedIconColor: Color =
+            NavigationDrawerTokens.InactiveIconColor(LocalCssVariables.current),
+        selectedTextColor: Color =
+            NavigationDrawerTokens.ActiveLabelTextColor(LocalCssVariables.current),
+        unselectedTextColor: Color =
+            NavigationDrawerTokens.InactiveLabelTextColor(LocalCssVariables.current),
         selectedBadgeColor: Color = selectedTextColor,
         unselectedBadgeColor: Color = unselectedTextColor,
     ): NavigationDrawerItemColors =

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION v0_103），不再由上游生成，可直接改。
+// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
 // 只保留 Tab / TabRow 真正引用到的槽位（活动标签文字色与容器色）；上游那份里的 Focus / Hover / Pressed
 // 与图标、分割线相关槽位本组件库没用到，已随裁剪删掉。
 

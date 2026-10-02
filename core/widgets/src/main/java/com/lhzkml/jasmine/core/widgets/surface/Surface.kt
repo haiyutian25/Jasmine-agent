@@ -29,9 +29,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.material3.LocalAbsoluteTonalElevation
 import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
-import androidx.compose.material3.MaterialTheme
 import com.lhzkml.jasmine.core.ui.theme.contentColorFor
 import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSize
 import com.lhzkml.jasmine.core.widgets.ripple.ripple
@@ -67,7 +65,7 @@ import com.lhzkml.jasmine.core.widgets.tokens.applyTonalElevation
  * 1) Clipping: Surface clips its children to the shape specified by [shape]
  * 2) Borders: If [shape] has a border, then it will also be drawn.
  * 3) Background: Surface fills the shape specified by [shape] with the [color]. If [color] is
- *    [ColorScheme.surface] a color overlay will be applied. The color of the overlay depends on the
+ *    `CssVariables.card` a color overlay will be applied. The color of the overlay depends on the
  *    [tonalElevation] of this Surface, and the [LocalAbsoluteTonalElevation] set by any parent
  *    surfaces. This ensures that a Surface never appears to have a lower elevation overlay than its
  *    ancestors, by summing the elevation of all previous Surfaces.
@@ -75,9 +73,9 @@ import com.lhzkml.jasmine.core.widgets.tokens.applyTonalElevation
  *    this surface - this is used by the [Text] and [Icon] components as a default color.
  *
  * If no [contentColor] is set, this surface will try and match its background color to a color
- * defined in the theme [ColorScheme], and return the corresponding content color. For example, if
- * the [color] of this surface is [ColorScheme.surface], [contentColor] will be set to
- * [ColorScheme.onSurface]. If [color] is not part of the theme palette, [contentColor] will keep
+ * defined in the theme `CssVariables`, and return the corresponding content color. For example, if
+ * the [color] of this surface is `CssVariables.card`, [contentColor] will be set to
+ * `CssVariables.cardForeground`. If [color] is not part of the theme palette, [contentColor] will keep
  * the same value set above this Surface.
  *
  * To manually retrieve the content color inside a surface, use [LocalWidgetsContentColor].
@@ -89,7 +87,7 @@ import com.lhzkml.jasmine.core.widgets.tokens.applyTonalElevation
  * @param contentColor The preferred content color provided by this Surface to its children.
  *   Defaults to either the matching content color for [color], or if [color] is not a color from
  *   the theme, this will keep the same value set above this Surface.
- * @param tonalElevation When [color] is [ColorScheme.surface], a higher the elevation will result
+ * @param tonalElevation When [color] is `CssVariables.card`, a higher the elevation will result
  *   in a darker color in light theme and lighter color in dark theme.
  * @param shadowElevation The size of the shadow below the surface. To prevent shadow creep, only
  *   apply shadow elevation when absolutely necessary, such as when the surface requires visual
@@ -151,16 +149,16 @@ fun Surface(
  * 1) Clipping: Surface clips its children to the shape specified by [shape]
  * 2) Borders: If [shape] has a border, then it will also be drawn.
  * 3) Background: Surface fills the shape specified by [shape] with the [color]. If [color] is
- *    [ColorScheme.surface] a color overlay may be applied. The color of the overlay depends on the
+ *    `CssVariables.card` a color overlay may be applied. The color of the overlay depends on the
  *    [tonalElevation] of this Surface, and the [LocalAbsoluteTonalElevation] set by any parent
  *    surfaces. This ensures that a Surface never appears to have a lower elevation overlay than its
  *    ancestors, by summing the elevation of all previous Surfaces.
  * 4) Content color: Surface uses [contentColor] to specify a preferred color for the content of
  *    this surface - this is used by the [Text] and [Icon] components as a default color. If no
  *    [contentColor] is set, this surface will try and match its background color to a color defined
- *    in the theme [ColorScheme], and return the corresponding content color. For example, if the
- *    [color] of this surface is [ColorScheme.surface], [contentColor] will be set to
- *    [ColorScheme.onSurface]. If [color] is not part of the theme palette, [contentColor] will keep
+ *    in the theme `CssVariables`, and return the corresponding content color. For example, if the
+ *    [color] of this surface is `CssVariables.card`, [contentColor] will be set to
+ *    `CssVariables.cardForeground`. If [color] is not part of the theme palette, [contentColor] will keep
  *    the same value set above this Surface.
  * 5) Click handling. This version of surface will react to the clicks, calling [onClick] lambda,
  *    updating the [interactionSource] when [PressInteraction] occurs, and showing ripple indication
@@ -185,7 +183,7 @@ fun Surface(
  *   Defaults to either the matching content color for [color], or if [color] is not a color from
  *   the theme, this will keep the same value set above this Surface.
  * @param border Optional border to draw on top of the surface
- * @param tonalElevation When [color] is [ColorScheme.surface], a higher the elevation will result
+ * @param tonalElevation When [color] is `CssVariables.card`, a higher the elevation will result
  *   in a darker color in light theme and lighter color in dark theme.
  * @param shadowElevation The size of the shadow below the surface. Note that It will not affect z
  *   index of the Surface. If you want to change the drawing order you can use `Modifier.zIndex`.
@@ -258,7 +256,7 @@ fun Surface(
  *   [tonalElevation] is greater than zero.
  * @param color The background color. Use [Color.Transparent] to have no color.
  * @param contentColor The preferred content color provided by this Surface to its children.
- * @param tonalElevation When [color] is [ColorScheme.surface], a higher the elevation will result
+ * @param tonalElevation When [color] is `CssVariables.card`, a higher the elevation will result
  *   in a darker color in light theme and lighter color in dark theme.
  * @param shadowElevation The size of the shadow below the surface.
  * @param border Optional border to draw on top of the surface
@@ -394,7 +392,7 @@ private fun Modifier.surface(
 
 @Composable
 private fun surfaceColorAtElevation(color: Color, elevation: Dp): Color =
-    MaterialTheme.colorScheme.applyTonalElevation(color, elevation)
+    LocalCssVariables.current.applyTonalElevation(color, elevation)
 
 /**
  * CompositionLocal containing the current absolute elevation provided by [Surface] components. This

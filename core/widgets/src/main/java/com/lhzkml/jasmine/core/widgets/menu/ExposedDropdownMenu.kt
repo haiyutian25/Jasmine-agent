@@ -319,7 +319,7 @@ sealed class ExposedDropdownMenuBoxScope {
      *   the width of the text field to which it's attached.
      * @param shape the shape of the menu
      * @param containerColor the container color of the menu
-     * @param tonalElevation when [containerColor] is [ColorScheme.surface], a translucent primary
+     * @param tonalElevation when [containerColor] is `CssVariables.card`, a translucent primary
      *   color overlay is applied on top of the container. A higher tonal elevation value will
      *   result in a darker color in light theme and lighter color in dark theme. See also:
      *   [Surface].

@@ -98,9 +98,6 @@ import kotlinx.coroutines.launch
  * ![Bottom sheet
  * image](https://developer.android.com/images/reference/androidx/compose/material3/bottom_sheet.png)
  *
- * A simple example of a modal bottom sheet looks like this:
- *
- * @sample androidx.compose.material3.samples.ModalBottomSheetSample
  * @param onDismissRequest Executes when the user clicks outside of the bottom sheet, after sheet
  *   animates to [Hidden].
  * @param modifier Optional [Modifier] for the bottom sheet.
@@ -113,7 +110,7 @@ import kotlinx.coroutines.launch
  * @param contentColor The preferred color for content inside this bottom sheet. Defaults to either
  *   the matching content color for [containerColor], or to the current [LocalWidgetsContentColor] if
  *   [containerColor] is not a color from the theme.
- * @param tonalElevation when [containerColor] is [ColorScheme.surface], a translucent primary color
+ * @param tonalElevation when [containerColor] is `CssVariables.card`, a translucent primary color
  *   overlay is applied on top of the container. A higher tonal elevation value will result in a
  *   darker color in light theme and lighter color in dark theme. See also: [Surface].
  * @param scrimColor Color of the scrim that obscures content when the bottom sheet is open.

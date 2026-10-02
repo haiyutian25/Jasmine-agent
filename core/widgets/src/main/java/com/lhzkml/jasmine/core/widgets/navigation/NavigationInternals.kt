@@ -13,8 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本组件库自己的共享小工具（移植自 AndroidX Material3 的 ColorScheme.kt 与 Badge.kt），
-// 不再由上游生成，可直接改：底部导航栏与侧边栏共用的常量与徽标定位工具。
+// 本组件库自己的共享小工具，可直接改：底部导航栏与侧边栏共用的常量与徽标定位工具。
 
 package com.lhzkml.jasmine.core.widgets.navigation
 
@@ -23,10 +22,10 @@ import androidx.compose.ui.layout.HorizontalRuler
 import androidx.compose.ui.layout.VerticalRuler
 import androidx.compose.ui.layout.layout
 
-/** Disabled state layer alpha (upstream `ColorScheme.kt`). */
+/** 禁用态状态层的透明度。 */
 internal const val DisabledAlpha = 0.38f
 
-/** Rulers that let a badge position itself against its anchor (upstream `Badge.kt`). */
+/** 让徽标能贴着自己锚点定位的标尺。 */
 internal val BadgeTopRuler = HorizontalRuler()
 internal val BadgeEndRuler = VerticalRuler()
 

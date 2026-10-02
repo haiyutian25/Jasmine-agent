@@ -183,7 +183,7 @@ fun Button(
  *   states. See [ButtonDefaults.textButtonColors].
  * @param elevation [ButtonElevation] used to resolve the elevation for this button in different
  *   states. This controls the size of the shadow below the button. Additionally, when the container
- *   color is [ColorScheme.surface], this controls the amount of primary color applied as an
+ *   color is `CssVariables.card`, this controls the amount of primary color applied as an
  *   overlay. A TextButton typically has no elevation, and the default value is `null`.
  * @param border the border to draw around the container of this button
  * @param contentPadding the spacing values to apply internally between the container and the

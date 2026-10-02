@@ -397,7 +397,7 @@ object BottomSheetDefaults {
 
     /** The default color of the scrim overlay for background content. */
     val ScrimColor: Color
-        @Composable get() = ScrimTokens.ContainerColor.value.copy(ScrimTokens.ContainerOpacity)
+        @Composable get() = ScrimTokens.ContainerColor.copy(ScrimTokens.ContainerOpacity)
 
     /** The default max width used by [ModalBottomSheet]. */
     val SheetMaxWidth = 640.dp

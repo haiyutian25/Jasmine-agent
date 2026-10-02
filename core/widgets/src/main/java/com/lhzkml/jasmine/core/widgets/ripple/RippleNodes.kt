@@ -1,5 +1,5 @@
 // 本项目自有的组件代码（移植自 Compose Material 的 material-ripple 1.12.0 后自行维护），不再跟随上游生成，可直接改。
-// 上游位置：androidx/compose/material/ripple/Ripple.kt（M3 1.5 起搬到独立产物 androidx.compose.material3:material3-ripple）。
+// 上游位置：Compose Material 的 material-ripple（M3 1.5 起改为独立产物）。
 // 提供 createRippleModifierNode / StateLayer / Ripple 接口等；expect/actual 已合并，android 实现在同目录的
 // RippleAndroid.kt（上游两个 expect 声明已删，actual 关键字已去）。
 /*

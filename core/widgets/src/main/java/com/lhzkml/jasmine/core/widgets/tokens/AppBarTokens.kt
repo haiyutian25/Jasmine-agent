@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION 14_0_0），不再由上游生成，可直接改。
+// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
 //
 // 与上游的差别：上游这里是 M3 的 **颜色角色键**（`ColorSchemeKeyTokens.Surface` 等），再由
 // `ColorScheme.fromToken` 映射到 M3 主题；本库不再做这层「角色键 → 主题」映射 ——
