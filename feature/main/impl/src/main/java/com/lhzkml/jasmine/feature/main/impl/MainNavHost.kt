@@ -42,6 +42,7 @@ import com.lhzkml.jasmine.feature.settings.impl.screens.BehaviourAndPermissionsS
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugComponentsScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugBadgeScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugBottomBarScreen
+import com.lhzkml.jasmine.feature.settings.impl.screens.DebugCheckboxScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugDialogScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugFabMenuScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugSearchBarScreen
@@ -348,6 +349,9 @@ fun MainNavHost(
                             onOpenBadge = {
                                 navigator.navigate(SettingsNavKey.DebugBadge(it))
                             },
+                            onOpenCheckbox = {
+                                navigator.navigate(SettingsNavKey.DebugCheckbox(it))
+                            },
                             modifier = contentModifier,
                         )
                     }
@@ -410,6 +414,14 @@ fun MainNavHost(
                 // 徽标预览：同样是不套 SettingsPage 的独立页面。
                 entry<SettingsNavKey.DebugBadge> { key ->
                     DebugBadgeScreen(
+                        variant = key.variant,
+                        currentTheme = state.theme,
+                        onBack = { navigator.goBack() },
+                    )
+                }
+                // 复选框预览：同样是不套 SettingsPage 的独立页面。
+                entry<SettingsNavKey.DebugCheckbox> { key ->
+                    DebugCheckboxScreen(
                         variant = key.variant,
                         currentTheme = state.theme,
                         onBack = { navigator.goBack() },

@@ -42,6 +42,7 @@ import com.lhzkml.jasmine.core.widgets.switch.SwitchDefaults
 import com.lhzkml.jasmine.core.widgets.textfield.OutlinedTextField
 import com.lhzkml.jasmine.core.widgets.textfield.TextField
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugBadgeVariant
+import com.lhzkml.jasmine.feature.settings.api.SettingsDebugCheckboxVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugDialogVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugFabMenuVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugSearchBarVariant
@@ -75,6 +76,7 @@ fun DebugComponentsScreen(
     onOpenFabMenu: (String) -> Unit,
     onOpenDialog: (String) -> Unit,
     onOpenBadge: (String) -> Unit,
+    onOpenCheckbox: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -178,6 +180,15 @@ fun DebugComponentsScreen(
         DebugBadgeGroup(
             currentTheme = currentTheme,
             onOpen = onOpenBadge,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupSpacing))
+
+        // 复选框：3 档，各自独立页面。
+        DebugCheckboxGroup(
+            currentTheme = currentTheme,
+            onOpen = onOpenCheckbox,
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -684,6 +695,52 @@ private fun DebugBadgeGroup(
             label = stringResource(R.string.debug_badge_entry_long_count),
             currentTheme = currentTheme,
             onClick = { onOpen(SettingsDebugBadgeVariant.LONG_COUNT) }
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupBottomPadding))
+    }
+}
+
+/** 复选框入口：3 档各是**独立**的页面（不套设置流那套顶栏）。 */
+@Composable
+private fun DebugCheckboxGroup(
+    currentTheme: CssVariables,
+    onOpen: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(currentTheme.card)
+            .border(1.dp, currentTheme.border, shape)
+    ) {
+        Text(
+            text = stringResource(R.string.debug_screen_section_checkbox),
+            fontSize = DebugTitleFontSize,
+            fontWeight = FontWeight.Medium,
+            color = currentTheme.mutedForeground,
+            modifier = Modifier.padding(
+                start = DebugRowPaddingHorizontal,
+                top = DebugRowPaddingHorizontal,
+                bottom = DebugRowPaddingVertical
+            )
+        )
+
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_checkbox_entry_two_state),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugCheckboxVariant.TWO_STATE) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_checkbox_entry_tri_state),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugCheckboxVariant.TRI_STATE) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_checkbox_entry_colors),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugCheckboxVariant.COLORS) }
         )
 
         Spacer(modifier = Modifier.height(DebugGroupBottomPadding))

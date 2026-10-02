@@ -165,4 +165,22 @@
     <string name="debug_badge_hint">BadgedBox hangs the badge on the top-end corner of its anchor. The badge itself does not take clicks.</string>
     <string name="debug_badge_count">9</string>
     <string name="debug_badge_long_count">999</string>
+
+    <!-- Component-layer debug: checkboxes (two-state / tri-state / custom colors). -->
+    <string name="debug_screen_section_checkbox">Checkboxes</string>
+    <string name="debug_checkbox_entry_two_state">Two-state (checked / unchecked / disabled)</string>
+    <string name="debug_checkbox_entry_tri_state">Tri-state (tap cycles the parent)</string>
+    <string name="debug_checkbox_entry_colors">Custom colors</string>
+    <string name="debug_checkbox_hint">Tap a checkbox to toggle it; rows have no extra labels.</string>
+    <string name="debug_checkbox_checked">Checked</string>
+    <string name="debug_checkbox_unchecked">Unchecked</string>
+    <string name="debug_checkbox_disabled">Disabled</string>
+    <string name="debug_checkbox_disabled_checked">Disabled (checked)</string>
+    <string name="debug_checkbox_parent">Parent</string>
+    <string name="debug_checkbox_parent_state_on">Parent: checked</string>
+    <string name="debug_checkbox_parent_state_mixed">Parent: partial</string>
+    <string name="debug_checkbox_parent_state_off">Parent: unchecked</string>
+    <string name="debug_checkbox_child">Child %1$d</string>
+    <string name="debug_checkbox_custom_on">Custom (on)</string>
+    <string name="debug_checkbox_custom_off">Custom (off)</string>
 </resources>

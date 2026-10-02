@@ -165,4 +165,22 @@
     <string name="debug_badge_hint">徽标由 BadgedBox 挂到锚点图标的右上角；徽标本身不接收点击。</string>
     <string name="debug_badge_count">9</string>
     <string name="debug_badge_long_count">999</string>
+
+    <!-- 组件层调试：复选框（两态 / 三态 / 自定义配色） -->
+    <string name="debug_screen_section_checkbox">复选框</string>
+    <string name="debug_checkbox_entry_two_state">两态（勾选 / 未勾选 / 禁用）</string>
+    <string name="debug_checkbox_entry_tri_state">三态（点父项循环切换）</string>
+    <string name="debug_checkbox_entry_colors">自定义配色</string>
+    <string name="debug_checkbox_hint">点复选框即可切换；这几行没有额外标签。</string>
+    <string name="debug_checkbox_checked">已勾选</string>
+    <string name="debug_checkbox_unchecked">未勾选</string>
+    <string name="debug_checkbox_disabled">禁用</string>
+    <string name="debug_checkbox_disabled_checked">禁用（已勾选）</string>
+    <string name="debug_checkbox_parent">父项</string>
+    <string name="debug_checkbox_parent_state_on">父项：已勾选</string>
+    <string name="debug_checkbox_parent_state_mixed">父项：部分选中</string>
+    <string name="debug_checkbox_parent_state_off">父项：未勾选</string>
+    <string name="debug_checkbox_child">子项 %1$d</string>
+    <string name="debug_checkbox_custom_on">自定义（选中）</string>
+    <string name="debug_checkbox_custom_off">自定义（未选中）</string>
 </resources>

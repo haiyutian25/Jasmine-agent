@@ -110,6 +110,14 @@ sealed interface SettingsNavKey : NavKey {
      */
     @Serializable
     data class DebugBadge(val variant: String) : SettingsNavKey
+
+    /**
+     * **复选框预览** 页：`variant` 取 [SettingsDebugCheckboxVariant] 里的常量。
+     *
+     * 同样是组件层的独立试验场：页内顶栏是我们的小号 `TopAppBar`，正文是几个可点的复选框。
+     */
+    @Serializable
+    data class DebugCheckbox(val variant: String) : SettingsNavKey
 }
 
 /** [SettingsNavKey.DebugSidebar] 的 `variant` 取值。 */
@@ -176,4 +184,16 @@ object SettingsDebugBadgeVariant {
 
     /** 三位数字：同上，但更宽。 */
     const val LONG_COUNT = "longCount"
+}
+
+/** [SettingsNavKey.DebugCheckbox] 的 `variant` 取值。 */
+object SettingsDebugCheckboxVariant {
+    /** 两态：勾选 / 未勾选 / 禁用（含禁用+勾选）。 */
+    const val TWO_STATE = "twoState"
+
+    /** 三态：父项 + 子项（点父项循环切换，点子项会回到"部分选中"）。 */
+    const val TRI_STATE = "triState"
+
+    /** 自定义配色：`CheckboxDefaults.colors(...)`。 */
+    const val COLORS = "colors"
 }
