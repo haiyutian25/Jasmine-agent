@@ -134,6 +134,30 @@ sealed interface SettingsNavKey : NavKey {
      */
     @Serializable
     data class DebugRadioButton(val variant: String) : SettingsNavKey
+
+    /**
+     * **菜单预览** 页：`variant` 取 [SettingsDebugMenuVariant] 里的常量。
+     *
+     * 同样是组件层的独立试验场：页内顶栏是我们的小号 `TopAppBar`。
+     */
+    @Serializable
+    data class DebugMenu(val variant: String) : SettingsNavKey
+
+    /**
+     * **标签页预览** 页：`variant` 取 [SettingsDebugTabsVariant] 里的常量。
+     *
+     * 同样是组件层的独立试验场：页内顶栏是我们的小号 `TopAppBar`。
+     */
+    @Serializable
+    data class DebugTabs(val variant: String) : SettingsNavKey
+
+    /**
+     * **卡片预览** 页：`variant` 取 [SettingsDebugCardVariant] 里的常量。
+     *
+     * 同样是组件层的独立试验场：页内顶栏是我们的小号 `TopAppBar`，正文是几个卡片。
+     */
+    @Serializable
+    data class DebugCard(val variant: String) : SettingsNavKey
 }
 
 /** [SettingsNavKey.DebugSidebar] 的 `variant` 取值。 */
@@ -248,4 +272,49 @@ object SettingsDebugRadioButtonVariant {
 
     /** 自定义配色：`RadioButtonDefaults.colors(...)`。 */
     const val COLORS = "colors"
+}
+
+/** [SettingsNavKey.DebugCard] 的 `variant` 取值。 */
+object SettingsDebugCardVariant {
+    /** 填充卡片（`Card` + `FilledCardTokens`）。 */
+    const val FILLED = "filled"
+
+    /** 抬升卡片（`ElevatedCard`）。 */
+    const val ELEVATED = "elevated"
+
+    /** 描边卡片（`OutlinedCard`）。 */
+    const val OUTLINED = "outlined"
+
+    /** 可点击 / 禁用 / 自定义底色（`Card(onClick = …)`、`enabled = false`、`CardDefaults.cardColors`）。 */
+    const val INTERACTIVE = "interactive"
+}
+
+/** [SettingsNavKey.DebugMenu] 的 `variant` 取值。 */
+object SettingsDebugMenuVariant {
+    /** 基本：普通 / 带前图标 / 禁用 / 带快捷键提示四个菜单项（照官方 `MenuSample`）。 */
+    const val BASIC = "basic"
+
+    /** 长菜单：把外部 `scrollState` 交给 `DropdownMenu`（照官方 `MenuWithScrollStateSample`）。 */
+    const val SCROLL = "scroll"
+
+    /** Exposed 下拉：只读锚点 + 可编辑锚点，走 `menuAnchor` 与 `ExposedDropdownMenuAnchorType`。 */
+    const val EXPOSED = "exposed"
+
+    /** 自定义外观：形状 / 描边 / 底色 / 偏移。 */
+    const val CUSTOM = "custom"
+}
+
+/** [SettingsNavKey.DebugTabs] 的 `variant` 取值。 */
+object SettingsDebugTabsVariant {
+    /** 主要标签页（`PrimaryTabRow` + 文字，其中一个禁用）。 */
+    const val PRIMARY = "primary"
+
+    /** 次要标签页（`SecondaryTabRow`，底部只有一条细分割线）。 */
+    const val SECONDARY = "secondary"
+
+    /** 带图标的主要标签页（`Tab(icon = …, text = …)`）。 */
+    const val ICON = "icon"
+
+    /** 可滚动标签页（`PrimaryScrollableTabRow`，8 个标签，带两侧边缘内边距）。 */
+    const val SCROLLABLE = "scrollable"
 }

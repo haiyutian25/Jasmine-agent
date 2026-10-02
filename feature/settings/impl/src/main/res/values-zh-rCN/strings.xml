@@ -214,4 +214,45 @@
     <string name="debug_radio_disabled_unselected">禁用 · 未选中</string>
     <string name="debug_radio_custom_selected">自定义 · 已选中</string>
     <string name="debug_radio_custom_unselected">自定义 · 未选中</string>
+
+    <!-- 组件层调试：卡片 -->
+    <string name="debug_screen_section_card">卡片</string>
+    <string name="debug_card_entry_filled">填充卡片</string>
+    <string name="debug_card_entry_elevated">抬升卡片</string>
+    <string name="debug_card_entry_outlined">描边卡片</string>
+    <string name="debug_card_entry_interactive">可点击 / 禁用 / 自定义底色</string>
+    <string name="debug_card_hint">点卡片看涟漪；禁用那张不响应点击。</string>
+    <string name="debug_card_title">卡片标题</string>
+    <string name="debug_card_body">卡片承载同一主题的内容与操作。</string>
+    <string name="debug_card_taps">已点击 %1$d 次</string>
+    <string name="debug_card_disabled">禁用卡片</string>
+    <string name="debug_card_custom">自定义底色</string>
+
+    <!-- 组件层调试：菜单 -->
+    <string name="debug_screen_section_menu">菜单</string>
+    <string name="debug_menu_entry_basic">下拉菜单</string>
+    <string name="debug_menu_entry_scroll">下拉菜单（长，可滚动）</string>
+    <string name="debug_menu_entry_exposed">Exposed 下拉</string>
+    <string name="debug_menu_entry_custom">自定义形状与描边</string>
+    <string name="debug_menu_hint">点按钮打开菜单；Exposed 那两档直接点输入框。</string>
+    <string name="debug_menu_open">打开菜单</string>
+    <string name="debug_menu_item_plain">普通项</string>
+    <string name="debug_menu_item_with_icon">带前图标</string>
+    <string name="debug_menu_item_disabled">禁用项</string>
+    <string name="debug_menu_item_shortcut">带快捷键提示</string>
+    <string name="debug_menu_shortcut">⌘C</string>
+    <string name="debug_menu_item_row">菜单项 %1$d</string>
+    <string name="debug_menu_option">选项 %1$d</string>
+    <string name="debug_menu_label">只读锚点</string>
+    <string name="debug_menu_editable_label">可编辑锚点</string>
+
+    <!-- 组件层调试：标签页 -->
+    <string name="debug_screen_section_tabs">标签页</string>
+    <string name="debug_tabs_entry_primary">主要标签页</string>
+    <string name="debug_tabs_entry_secondary">次要标签页</string>
+    <string name="debug_tabs_entry_icon">带图标的标签页</string>
+    <string name="debug_tabs_entry_scrollable">可滚动标签页</string>
+    <string name="debug_tabs_hint">点标签切换；主要与次要两档的最后一个标签是禁用的。</string>
+    <string name="debug_tabs_label">标签 %1$d</string>
+    <string name="debug_tabs_content">第 %1$d 个标签的内容</string>
 </resources>

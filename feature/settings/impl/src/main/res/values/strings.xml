@@ -214,4 +214,45 @@
     <string name="debug_radio_disabled_unselected">Disabled · unselected</string>
     <string name="debug_radio_custom_selected">Custom · selected</string>
     <string name="debug_radio_custom_unselected">Custom · unselected</string>
+
+    <!-- Component-layer debug: cards. -->
+    <string name="debug_screen_section_card">Cards</string>
+    <string name="debug_card_entry_filled">Filled card</string>
+    <string name="debug_card_entry_elevated">Elevated card</string>
+    <string name="debug_card_entry_outlined">Outlined card</string>
+    <string name="debug_card_entry_interactive">Clickable / disabled / custom</string>
+    <string name="debug_card_hint">Tap a card to see the ripple; the disabled one ignores taps.</string>
+    <string name="debug_card_title">Card title</string>
+    <string name="debug_card_body">Cards contain content and actions about a single subject.</string>
+    <string name="debug_card_taps">Tapped %1$d times</string>
+    <string name="debug_card_disabled">Disabled card</string>
+    <string name="debug_card_custom">Custom container color</string>
+
+    <!-- Component-layer debug: menus. -->
+    <string name="debug_screen_section_menu">Menus</string>
+    <string name="debug_menu_entry_basic">Dropdown menu</string>
+    <string name="debug_menu_entry_scroll">Dropdown menu (long, scrollable)</string>
+    <string name="debug_menu_entry_exposed">Exposed dropdown</string>
+    <string name="debug_menu_entry_custom">Custom shape &amp; border</string>
+    <string name="debug_menu_hint">Tap the button to open the menu; the exposed ones open from the field itself.</string>
+    <string name="debug_menu_open">Open menu</string>
+    <string name="debug_menu_item_plain">Plain item</string>
+    <string name="debug_menu_item_with_icon">Item with leading icon</string>
+    <string name="debug_menu_item_disabled">Disabled item</string>
+    <string name="debug_menu_item_shortcut">Item with shortcut</string>
+    <string name="debug_menu_shortcut">⌘C</string>
+    <string name="debug_menu_item_row">Item %1$d</string>
+    <string name="debug_menu_option">Option %1$d</string>
+    <string name="debug_menu_label">Read-only anchor</string>
+    <string name="debug_menu_editable_label">Editable anchor</string>
+
+    <!-- Component-layer debug: tabs. -->
+    <string name="debug_screen_section_tabs">Tabs</string>
+    <string name="debug_tabs_entry_primary">Primary tabs</string>
+    <string name="debug_tabs_entry_secondary">Secondary tabs</string>
+    <string name="debug_tabs_entry_icon">Tabs with icons</string>
+    <string name="debug_tabs_entry_scrollable">Scrollable tabs</string>
+    <string name="debug_tabs_hint">Tap a tab to switch; the last tab of the primary and secondary variants is disabled.</string>
+    <string name="debug_tabs_label">Tab %1$d</string>
+    <string name="debug_tabs_content">Content of tab %1$d</string>
 </resources>

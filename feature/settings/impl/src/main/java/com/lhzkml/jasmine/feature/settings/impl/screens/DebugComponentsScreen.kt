@@ -42,13 +42,16 @@ import com.lhzkml.jasmine.core.widgets.switch.SwitchDefaults
 import com.lhzkml.jasmine.core.widgets.textfield.OutlinedTextField
 import com.lhzkml.jasmine.core.widgets.textfield.TextField
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugBadgeVariant
+import com.lhzkml.jasmine.feature.settings.api.SettingsDebugCardVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugCheckboxVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugDialogVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugFabMenuVariant
+import com.lhzkml.jasmine.feature.settings.api.SettingsDebugMenuVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugProgressVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugRadioButtonVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugSearchBarVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugSidebarVariant
+import com.lhzkml.jasmine.feature.settings.api.SettingsDebugTabsVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugTopAppBarVariant
 import com.lhzkml.jasmine.feature.settings.impl.R
 
@@ -81,6 +84,9 @@ fun DebugComponentsScreen(
     onOpenCheckbox: (String) -> Unit,
     onOpenProgress: (String) -> Unit,
     onOpenRadioButton: (String) -> Unit,
+    onOpenMenu: (String) -> Unit,
+    onOpenTabs: (String) -> Unit,
+    onOpenCard: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -211,6 +217,33 @@ fun DebugComponentsScreen(
         DebugRadioButtonGroup(
             currentTheme = currentTheme,
             onOpen = onOpenRadioButton,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupSpacing))
+
+        // 菜单：4 档，各自独立页面。
+        DebugMenuGroup(
+            currentTheme = currentTheme,
+            onOpen = onOpenMenu,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupSpacing))
+
+        // 标签页：4 档，各自独立页面。
+        DebugTabsGroup(
+            currentTheme = currentTheme,
+            onOpen = onOpenTabs,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupSpacing))
+
+        // 卡片：4 档，各自独立页面。
+        DebugCardGroup(
+            currentTheme = currentTheme,
+            onOpen = onOpenCard,
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -875,6 +908,159 @@ private fun DebugRadioButtonGroup(
             label = stringResource(R.string.debug_radio_entry_colors),
             currentTheme = currentTheme,
             onClick = { onOpen(SettingsDebugRadioButtonVariant.COLORS) }
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupBottomPadding))
+    }
+}
+
+/** 菜单入口：4 档各是**独立**的页面（不套设置流那套顶栏）。 */
+@Composable
+private fun DebugMenuGroup(
+    currentTheme: CssVariables,
+    onOpen: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(currentTheme.card)
+            .border(1.dp, currentTheme.border, shape)
+    ) {
+        Text(
+            text = stringResource(R.string.debug_screen_section_menu),
+            fontSize = DebugTitleFontSize,
+            fontWeight = FontWeight.Medium,
+            color = currentTheme.mutedForeground,
+            modifier = Modifier.padding(
+                start = DebugRowPaddingHorizontal,
+                top = DebugRowPaddingHorizontal,
+                bottom = DebugRowPaddingVertical
+            )
+        )
+
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_menu_entry_basic),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugMenuVariant.BASIC) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_menu_entry_scroll),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugMenuVariant.SCROLL) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_menu_entry_exposed),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugMenuVariant.EXPOSED) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_menu_entry_custom),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugMenuVariant.CUSTOM) }
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupBottomPadding))
+    }
+}
+
+/** 标签页入口：4 档各是**独立**的页面（不套设置流那套顶栏）。 */
+@Composable
+private fun DebugTabsGroup(
+    currentTheme: CssVariables,
+    onOpen: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(currentTheme.card)
+            .border(1.dp, currentTheme.border, shape)
+    ) {
+        Text(
+            text = stringResource(R.string.debug_screen_section_tabs),
+            fontSize = DebugTitleFontSize,
+            fontWeight = FontWeight.Medium,
+            color = currentTheme.mutedForeground,
+            modifier = Modifier.padding(
+                start = DebugRowPaddingHorizontal,
+                top = DebugRowPaddingHorizontal,
+                bottom = DebugRowPaddingVertical
+            )
+        )
+
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_tabs_entry_primary),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugTabsVariant.PRIMARY) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_tabs_entry_secondary),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugTabsVariant.SECONDARY) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_tabs_entry_icon),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugTabsVariant.ICON) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_tabs_entry_scrollable),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugTabsVariant.SCROLLABLE) }
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupBottomPadding))
+    }
+}
+
+/** 卡片入口：4 档各是**独立**的页面（不套设置流那套顶栏）。 */
+@Composable
+private fun DebugCardGroup(
+    currentTheme: CssVariables,
+    onOpen: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(currentTheme.card)
+            .border(1.dp, currentTheme.border, shape)
+    ) {
+        Text(
+            text = stringResource(R.string.debug_screen_section_card),
+            fontSize = DebugTitleFontSize,
+            fontWeight = FontWeight.Medium,
+            color = currentTheme.mutedForeground,
+            modifier = Modifier.padding(
+                start = DebugRowPaddingHorizontal,
+                top = DebugRowPaddingHorizontal,
+                bottom = DebugRowPaddingVertical
+            )
+        )
+
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_card_entry_filled),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugCardVariant.FILLED) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_card_entry_elevated),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugCardVariant.ELEVATED) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_card_entry_outlined),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugCardVariant.OUTLINED) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_card_entry_interactive),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugCardVariant.INTERACTIVE) }
         )
 
         Spacer(modifier = Modifier.height(DebugGroupBottomPadding))

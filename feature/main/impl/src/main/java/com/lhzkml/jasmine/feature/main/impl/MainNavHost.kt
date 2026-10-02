@@ -42,13 +42,16 @@ import com.lhzkml.jasmine.feature.settings.impl.screens.BehaviourAndPermissionsS
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugComponentsScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugBadgeScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugBottomBarScreen
+import com.lhzkml.jasmine.feature.settings.impl.screens.DebugCardScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugCheckboxScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugDialogScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugFabMenuScreen
+import com.lhzkml.jasmine.feature.settings.impl.screens.DebugMenuScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugProgressScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugRadioButtonScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugSearchBarScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugSidebarScreen
+import com.lhzkml.jasmine.feature.settings.impl.screens.DebugTabsScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugSliderScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugTopAppBarScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.FontScreen
@@ -360,6 +363,15 @@ fun MainNavHost(
                             onOpenRadioButton = {
                                 navigator.navigate(SettingsNavKey.DebugRadioButton(it))
                             },
+                            onOpenMenu = {
+                                navigator.navigate(SettingsNavKey.DebugMenu(it))
+                            },
+                            onOpenTabs = {
+                                navigator.navigate(SettingsNavKey.DebugTabs(it))
+                            },
+                            onOpenCard = {
+                                navigator.navigate(SettingsNavKey.DebugCard(it))
+                            },
                             modifier = contentModifier,
                         )
                     }
@@ -446,6 +458,30 @@ fun MainNavHost(
                 // 单选按钮预览：同样是不套 SettingsPage 的独立页面。
                 entry<SettingsNavKey.DebugRadioButton> { key ->
                     DebugRadioButtonScreen(
+                        variant = key.variant,
+                        currentTheme = state.theme,
+                        onBack = { navigator.goBack() },
+                    )
+                }
+                // 菜单预览：同样是不套 SettingsPage 的独立页面。
+                entry<SettingsNavKey.DebugMenu> { key ->
+                    DebugMenuScreen(
+                        variant = key.variant,
+                        currentTheme = state.theme,
+                        onBack = { navigator.goBack() },
+                    )
+                }
+                // 标签页预览：同样是不套 SettingsPage 的独立页面。
+                entry<SettingsNavKey.DebugTabs> { key ->
+                    DebugTabsScreen(
+                        variant = key.variant,
+                        currentTheme = state.theme,
+                        onBack = { navigator.goBack() },
+                    )
+                }
+                // 卡片预览：同样是不套 SettingsPage 的独立页面。
+                entry<SettingsNavKey.DebugCard> { key ->
+                    DebugCardScreen(
                         variant = key.variant,
                         currentTheme = state.theme,
                         onBack = { navigator.goBack() },
