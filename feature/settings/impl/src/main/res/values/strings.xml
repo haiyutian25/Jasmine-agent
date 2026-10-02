@@ -156,4 +156,13 @@
     <string name="debug_dialog_dismiss">Cancel</string>
     <string name="debug_dialog_basic_title">Basic dialog</string>
     <string name="debug_dialog_basic_text">The container comes from the caller, so the styling is yours to define.</string>
+
+    <!-- Component-layer debug: badges (dot / one digit / three digits). -->
+    <string name="debug_screen_section_badge">Badges</string>
+    <string name="debug_badge_entry_dot">Dot (no content)</string>
+    <string name="debug_badge_entry_count">Count (one digit)</string>
+    <string name="debug_badge_entry_long_count">Count (three digits)</string>
+    <string name="debug_badge_hint">BadgedBox hangs the badge on the top-end corner of its anchor. The badge itself does not take clicks.</string>
+    <string name="debug_badge_count">9</string>
+    <string name="debug_badge_long_count">999</string>
 </resources>

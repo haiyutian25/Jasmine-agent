@@ -102,6 +102,14 @@ sealed interface SettingsNavKey : NavKey {
      */
     @Serializable
     data class DebugDialog(val variant: String) : SettingsNavKey
+
+    /**
+     * **徽标预览** 页：`variant` 取 [SettingsDebugBadgeVariant] 里的常量。
+     *
+     * 同样是组件层的独立试验场：页内顶栏是我们的小号 `TopAppBar`，中间是挂在图标上的徽标。
+     */
+    @Serializable
+    data class DebugBadge(val variant: String) : SettingsNavKey
 }
 
 /** [SettingsNavKey.DebugSidebar] 的 `variant` 取值。 */
@@ -156,4 +164,16 @@ object SettingsDebugDialogVariant {
 
     /** 经典档·长文案：标题/正文/按钮都拉长，用来看按钮自动换行。 */
     const val CLASSIC_LONG = "classicLong"
+}
+
+/** [SettingsNavKey.DebugBadge] 的 `variant` 取值。 */
+object SettingsDebugBadgeVariant {
+    /** 小圆点：无内容，6dp。 */
+    const val DOT = "dot"
+
+    /** 一位数字：16dp 高、随文字撑宽的胶囊。 */
+    const val COUNT = "count"
+
+    /** 三位数字：同上，但更宽。 */
+    const val LONG_COUNT = "longCount"
 }

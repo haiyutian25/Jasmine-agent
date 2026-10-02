@@ -40,6 +40,7 @@ import com.lhzkml.jasmine.feature.settings.impl.LanguageViewModel
 import com.lhzkml.jasmine.feature.settings.impl.R as SettingsR
 import com.lhzkml.jasmine.feature.settings.impl.screens.BehaviourAndPermissionsScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugComponentsScreen
+import com.lhzkml.jasmine.feature.settings.impl.screens.DebugBadgeScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugBottomBarScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugDialogScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugFabMenuScreen
@@ -344,6 +345,9 @@ fun MainNavHost(
                             onOpenDialog = {
                                 navigator.navigate(SettingsNavKey.DebugDialog(it))
                             },
+                            onOpenBadge = {
+                                navigator.navigate(SettingsNavKey.DebugBadge(it))
+                            },
                             modifier = contentModifier,
                         )
                     }
@@ -398,6 +402,14 @@ fun MainNavHost(
                 // 对话框预览：同样是不套 SettingsPage 的独立页面。
                 entry<SettingsNavKey.DebugDialog> { key ->
                     DebugDialogScreen(
+                        variant = key.variant,
+                        currentTheme = state.theme,
+                        onBack = { navigator.goBack() },
+                    )
+                }
+                // 徽标预览：同样是不套 SettingsPage 的独立页面。
+                entry<SettingsNavKey.DebugBadge> { key ->
+                    DebugBadgeScreen(
                         variant = key.variant,
                         currentTheme = state.theme,
                         onBack = { navigator.goBack() },

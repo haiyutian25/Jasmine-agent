@@ -156,4 +156,13 @@
     <string name="debug_dialog_dismiss">取消</string>
     <string name="debug_dialog_basic_title">基础对话框</string>
     <string name="debug_dialog_basic_text">容器由调用方自己给，样式也由你自己定。</string>
+
+    <!-- 组件层调试：徽标（小圆点 / 一位数 / 三位数） -->
+    <string name="debug_screen_section_badge">徽标</string>
+    <string name="debug_badge_entry_dot">小圆点（无内容）</string>
+    <string name="debug_badge_entry_count">数字（一位）</string>
+    <string name="debug_badge_entry_long_count">数字（三位）</string>
+    <string name="debug_badge_hint">徽标由 BadgedBox 挂到锚点图标的右上角；徽标本身不接收点击。</string>
+    <string name="debug_badge_count">9</string>
+    <string name="debug_badge_long_count">999</string>
 </resources>
