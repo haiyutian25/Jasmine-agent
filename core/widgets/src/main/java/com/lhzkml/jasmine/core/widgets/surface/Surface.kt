@@ -18,6 +18,8 @@
 
 package com.lhzkml.jasmine.core.widgets.surface
 
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -100,7 +102,7 @@ import com.lhzkml.jasmine.core.widgets.tokens.applyTonalElevation
 fun Surface(
     modifier: Modifier = Modifier,
     shape: Shape = RectangleShape,
-    color: Color = MaterialTheme.colorScheme.surface,
+    color: Color = LocalCssVariables.current.card,
     contentColor: Color = contentColorFor(color),
     tonalElevation: Dp = 0.dp,
     shadowElevation: Dp = 0.dp,
@@ -199,7 +201,7 @@ fun Surface(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     shape: Shape = RectangleShape,
-    color: Color = MaterialTheme.colorScheme.surface,
+    color: Color = LocalCssVariables.current.card,
     contentColor: Color = contentColorFor(color),
     tonalElevation: Dp = 0.dp,
     shadowElevation: Dp = 0.dp,
@@ -271,7 +273,7 @@ fun Surface(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     shape: Shape = RectangleShape,
-    color: Color = MaterialTheme.colorScheme.surface,
+    color: Color = LocalCssVariables.current.card,
     contentColor: Color = contentColorFor(color),
     tonalElevation: Dp = 0.dp,
     shadowElevation: Dp = 0.dp,

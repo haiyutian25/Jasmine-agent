@@ -37,7 +37,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import com.lhzkml.jasmine.core.widgets.progress.CircularProgressIndicator
 import com.lhzkml.jasmine.core.widgets.progress.LoadingIndicatorDefaults
-import androidx.compose.material3.MaterialTheme
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import com.lhzkml.jasmine.core.widgets.textfield.FloatProducer
 import com.lhzkml.jasmine.core.widgets.pulltorefresh.PullToRefreshDefaults.Indicator
 import com.lhzkml.jasmine.core.widgets.pulltorefresh.PullToRefreshDefaults.IndicatorBox
@@ -417,7 +417,7 @@ public object PullToRefreshDefaults {
 
     /** The default container color for [Indicator] */
     public val indicatorContainerColor: Color
-        @Composable get() = MaterialTheme.colorScheme.surfaceContainerHigh
+        @Composable get() = LocalCssVariables.current.subtleSurface
 
     /**
      * The default container color for the loading indicator that appears when pulling to refresh.
@@ -429,7 +429,7 @@ public object PullToRefreshDefaults {
 
     /** The default indicator color for [Indicator] */
     public val indicatorColor: Color
-        @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+        @Composable get() = LocalCssVariables.current.mutedForeground
 
     /**
      * The default active indicator color for the loading indicator that appears when pulling to

@@ -52,8 +52,9 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.unit.Dp
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.contentColorFor
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+import com.lhzkml.jasmine.core.ui.theme.contentColorFor
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.ripple
@@ -482,7 +483,7 @@ object CardDefaults {
      * Creates a [CardColors] that represents the default container and content colors used in a
      * [Card].
      */
-    @Composable fun cardColors() = MaterialTheme.colorScheme.defaultCardColors
+    @Composable fun cardColors() = LocalCssVariables.current.defaultCardColors
 
     /**
      * Creates a [CardColors] that represents the default container and content colors used in a
@@ -496,18 +497,18 @@ object CardDefaults {
     @Composable
     fun cardColors(
         containerColor: Color = Color.Unspecified,
-        contentColor: Color = contentColorFor(containerColor),
+        contentColor: Color = LocalCssVariables.current.contentColorFor(containerColor),
         disabledContainerColor: Color = Color.Unspecified,
         disabledContentColor: Color = contentColor.copy(DisabledAlpha),
     ): CardColors =
-        MaterialTheme.colorScheme.defaultCardColors.copy(
+        LocalCssVariables.current.defaultCardColors.copy(
             containerColor = containerColor,
             contentColor = contentColor,
             disabledContainerColor = disabledContainerColor,
             disabledContentColor = disabledContentColor,
         )
 
-    internal val ColorScheme.defaultCardColors: CardColors
+    internal val CssVariables.defaultCardColors: CardColors
         @Composable
         get() =
             remember(this) {
@@ -528,7 +529,7 @@ object CardDefaults {
      * Creates a [CardColors] that represents the default container and content colors used in an
      * [ElevatedCard].
      */
-    @Composable fun elevatedCardColors() = MaterialTheme.colorScheme.defaultElevatedCardColors
+    @Composable fun elevatedCardColors() = LocalCssVariables.current.defaultElevatedCardColors
 
     /**
      * Creates a [CardColors] that represents the default container and content colors used in an
@@ -542,18 +543,18 @@ object CardDefaults {
     @Composable
     fun elevatedCardColors(
         containerColor: Color = Color.Unspecified,
-        contentColor: Color = contentColorFor(containerColor),
+        contentColor: Color = LocalCssVariables.current.contentColorFor(containerColor),
         disabledContainerColor: Color = Color.Unspecified,
         disabledContentColor: Color = contentColor.copy(DisabledAlpha),
     ): CardColors =
-        MaterialTheme.colorScheme.defaultElevatedCardColors.copy(
+        LocalCssVariables.current.defaultElevatedCardColors.copy(
             containerColor = containerColor,
             contentColor = contentColor,
             disabledContainerColor = disabledContainerColor,
             disabledContentColor = disabledContentColor,
         )
 
-    internal val ColorScheme.defaultElevatedCardColors: CardColors
+    internal val CssVariables.defaultElevatedCardColors: CardColors
         @Composable
         get() =
             remember(this) {
@@ -577,7 +578,7 @@ object CardDefaults {
      * Creates a [CardColors] that represents the default container and content colors used in an
      * [OutlinedCard].
      */
-    @Composable fun outlinedCardColors() = MaterialTheme.colorScheme.defaultOutlinedCardColors
+    @Composable fun outlinedCardColors() = LocalCssVariables.current.defaultOutlinedCardColors
 
     /**
      * Creates a [CardColors] that represents the default container and content colors used in an
@@ -591,18 +592,19 @@ object CardDefaults {
     @Composable
     fun outlinedCardColors(
         containerColor: Color = Color.Unspecified,
-        contentColor: Color = contentColorFor(containerColor),
+        contentColor: Color = LocalCssVariables.current.contentColorFor(containerColor),
         disabledContainerColor: Color = Color.Unspecified,
-        disabledContentColor: Color = contentColorFor(containerColor).copy(DisabledAlpha),
+        disabledContentColor: Color =
+            LocalCssVariables.current.contentColorFor(containerColor).copy(DisabledAlpha),
     ): CardColors =
-        MaterialTheme.colorScheme.defaultOutlinedCardColors.copy(
+        LocalCssVariables.current.defaultOutlinedCardColors.copy(
             containerColor = containerColor,
             contentColor = contentColor,
             disabledContainerColor = disabledContainerColor,
             disabledContentColor = disabledContentColor,
         )
 
-    internal val ColorScheme.defaultOutlinedCardColors: CardColors
+    internal val CssVariables.defaultOutlinedCardColors: CardColors
         @Composable
         get() =
             remember(this) {

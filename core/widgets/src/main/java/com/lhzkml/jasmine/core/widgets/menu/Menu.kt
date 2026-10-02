@@ -48,7 +48,9 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.MaterialTheme
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
+import com.lhzkml.jasmine.core.ui.theme.AppTypography
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.ripple
 import androidx.compose.material3.Surface
@@ -264,7 +266,7 @@ object MenuDefaults {
      * Creates a [MenuItemColors] that represents the default text and icon colors used in a
      * [DropdownMenuItemContent].
      */
-    @Composable fun itemColors() = MaterialTheme.colorScheme.defaultMenuItemColors
+    @Composable fun itemColors() = LocalCssVariables.current.defaultMenuItemColors
 
     /**
      * Creates a [MenuItemColors] that represents the default text and icon colors used in a
@@ -289,7 +291,7 @@ object MenuDefaults {
         disabledLeadingIconColor: Color = Color.Unspecified,
         disabledTrailingIconColor: Color = Color.Unspecified,
     ): MenuItemColors =
-        MaterialTheme.colorScheme.defaultMenuItemColors.copy(
+        LocalCssVariables.current.defaultMenuItemColors.copy(
             textColor = textColor,
             leadingIconColor = leadingIconColor,
             trailingIconColor = trailingIconColor,
@@ -298,7 +300,7 @@ object MenuDefaults {
             disabledTrailingIconColor = disabledTrailingIconColor,
         )
 
-    internal val ColorScheme.defaultMenuItemColors: MenuItemColors
+    internal val CssVariables.defaultMenuItemColors: MenuItemColors
         @Composable
         get() =
             remember(this) {
@@ -514,7 +516,7 @@ internal fun DropdownMenuItemContent(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // TODO(b/271818892): Align menu list item style with general list item style.
-        ProvideTextStyle(MaterialTheme.typography.labelLarge) {
+        ProvideTextStyle(AppTypography.labelLarge) {
             if (leadingIcon != null) {
                 CompositionLocalProvider(
                     LocalContentColor provides colors.leadingIconColor(enabled)

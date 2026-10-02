@@ -37,9 +37,11 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.MaterialTheme
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import androidx.compose.material3.ripple
-import androidx.compose.material3.contentColorFor
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
+import com.lhzkml.jasmine.core.ui.theme.contentColorFor
 import com.lhzkml.jasmine.core.widgets.surface.Surface
 import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
 import com.lhzkml.jasmine.core.widgets.motion.value
@@ -123,7 +125,7 @@ import kotlin.math.roundToInt
 fun NavigationBar(
     modifier: Modifier = Modifier,
     containerColor: Color = NavigationBarDefaults.containerColor,
-    contentColor: Color = MaterialTheme.colorScheme.contentColorFor(containerColor),
+    contentColor: Color = LocalCssVariables.current.contentColorFor(containerColor),
     tonalElevation: Dp = NavigationBarDefaults.Elevation,
     windowInsets: WindowInsets = NavigationBarDefaults.windowInsets,
     content: @Composable RowScope.() -> Unit,
@@ -353,7 +355,7 @@ object NavigationBarItemDefaults {
      * Creates a [NavigationBarItemColors] with the provided colors according to the Material
      * specification.
      */
-    @Composable fun colors() = MaterialTheme.colorScheme.defaultNavigationBarItemColors
+    @Composable fun colors() = LocalCssVariables.current.defaultNavigationBarItemColors
 
     /**
      * Creates a [NavigationBarItemColors] with the provided colors according to the Material
@@ -378,7 +380,7 @@ object NavigationBarItemDefaults {
         disabledIconColor: Color = Color.Unspecified,
         disabledTextColor: Color = Color.Unspecified,
     ): NavigationBarItemColors =
-        MaterialTheme.colorScheme.defaultNavigationBarItemColors.copy(
+        LocalCssVariables.current.defaultNavigationBarItemColors.copy(
             selectedIconColor = selectedIconColor,
             selectedTextColor = selectedTextColor,
             selectedIndicatorColor = indicatorColor,
@@ -388,7 +390,7 @@ object NavigationBarItemDefaults {
             disabledTextColor = disabledTextColor,
         )
 
-    internal val ColorScheme.defaultNavigationBarItemColors: NavigationBarItemColors
+    internal val CssVariables.defaultNavigationBarItemColors: NavigationBarItemColors
         @Composable
         get() =
             remember(this) {

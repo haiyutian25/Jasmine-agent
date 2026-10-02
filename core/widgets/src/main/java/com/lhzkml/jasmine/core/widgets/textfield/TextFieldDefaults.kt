@@ -18,6 +18,9 @@
 
 package com.lhzkml.jasmine.core.widgets.textfield
 
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+
 import androidx.annotation.FloatRange
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.border
@@ -61,9 +64,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.contentColorFor
 import androidx.compose.material3.minimumInteractiveComponentSize
 import com.lhzkml.jasmine.core.widgets.motion.value
@@ -1217,7 +1220,7 @@ object OutlinedTextFieldDefaults {
      * Creates a [TextFieldColors] that represents the default input text, container, and content
      * colors (including label, placeholder, icons, etc.) used in an [OutlinedTextField].
      */
-    @Composable fun colors() = MaterialTheme.colorScheme.defaultOutlinedTextFieldColors
+    @Composable fun colors() = LocalCssVariables.current.defaultOutlinedTextFieldColors
 
     /**
      * Creates a [TextFieldColors] that represents the default input text, container, and content
@@ -1319,7 +1322,7 @@ object OutlinedTextFieldDefaults {
         disabledSuffixColor: Color = Color.Unspecified,
         errorSuffixColor: Color = Color.Unspecified,
     ): TextFieldColors =
-        MaterialTheme.colorScheme.defaultOutlinedTextFieldColors.copy(
+        LocalCssVariables.current.defaultOutlinedTextFieldColors.copy(
             focusedTextColor = focusedTextColor,
             unfocusedTextColor = unfocusedTextColor,
             disabledTextColor = disabledTextColor,
@@ -1365,7 +1368,7 @@ object OutlinedTextFieldDefaults {
             errorSuffixColor = errorSuffixColor,
         )
 
-    internal val ColorScheme.defaultOutlinedTextFieldColors: TextFieldColors
+    internal val CssVariables.defaultOutlinedTextFieldColors: TextFieldColors
         @Composable
         get() =
             TextFieldColors(
@@ -1587,7 +1590,7 @@ constructor(
 
     /**
      * Returns a copy of this ChipColors, optionally overriding some of the values. This uses the
-     * Color.Unspecified to mean “use the value from the source”
+     * Color.Unspecified to mean "use the value from the source"
      */
     fun copy(
         focusedTextColor: Color = this.focusedTextColor,

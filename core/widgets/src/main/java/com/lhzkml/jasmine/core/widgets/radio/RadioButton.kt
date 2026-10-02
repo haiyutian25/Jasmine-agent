@@ -32,7 +32,8 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.MaterialTheme
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
@@ -138,7 +139,7 @@ object RadioButtonDefaults {
      * Creates a [RadioButtonColors] that will animate between the provided colors according to the
      * Material specification.
      */
-    @Composable fun colors() = MaterialTheme.colorScheme.defaultRadioButtonColors
+    @Composable fun colors() = LocalCssVariables.current.defaultRadioButtonColors
 
     /**
      * Creates a [RadioButtonColors] that will animate between the provided colors according to the
@@ -158,14 +159,14 @@ object RadioButtonDefaults {
         disabledSelectedColor: Color = Color.Unspecified,
         disabledUnselectedColor: Color = Color.Unspecified,
     ): RadioButtonColors =
-        MaterialTheme.colorScheme.defaultRadioButtonColors.copy(
+        LocalCssVariables.current.defaultRadioButtonColors.copy(
             selectedColor,
             unselectedColor,
             disabledSelectedColor,
             disabledUnselectedColor,
         )
 
-    internal val ColorScheme.defaultRadioButtonColors: RadioButtonColors
+    internal val CssVariables.defaultRadioButtonColors: RadioButtonColors
         @Composable
         get() =
             remember(this) {

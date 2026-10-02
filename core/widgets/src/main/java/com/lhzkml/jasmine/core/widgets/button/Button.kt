@@ -18,6 +18,10 @@
 
 package com.lhzkml.jasmine.core.widgets.button
 
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
+import com.lhzkml.jasmine.core.ui.theme.AppTypography
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.foundation.BorderStroke
@@ -36,7 +40,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.MaterialTheme
 import com.lhzkml.jasmine.core.widgets.elevation.animateElevation
 import androidx.compose.runtime.CompositionLocalProvider
 import com.lhzkml.jasmine.core.widgets.surface.Surface
@@ -136,7 +139,7 @@ fun Button(
         border = border,
         interactionSource = interactionSource,
     ) {
-        val mergedStyle = LocalTextStyle.current.merge(MaterialTheme.typography.labelLarge)
+        val mergedStyle = LocalTextStyle.current.merge(AppTypography.labelLarge)
         CompositionLocalProvider(
             LocalContentColor provides contentColor,
             LocalTextStyle provides mergedStyle,
@@ -329,7 +332,7 @@ object ButtonDefaults {
      * Creates a [ButtonColors] that represents the default container and content colors used in a
      * [Button].
      */
-    @Composable fun buttonColors() = MaterialTheme.colorScheme.defaultButtonColors
+    @Composable fun buttonColors() = LocalCssVariables.current.defaultButtonColors
 
     /**
      * Creates a [ButtonColors] that represents the default container and content colors used in a
@@ -347,14 +350,14 @@ object ButtonDefaults {
         disabledContainerColor: Color = Color.Unspecified,
         disabledContentColor: Color = Color.Unspecified,
     ): ButtonColors =
-        MaterialTheme.colorScheme.defaultButtonColors.copy(
+        LocalCssVariables.current.defaultButtonColors.copy(
             containerColor = containerColor,
             contentColor = contentColor,
             disabledContainerColor = disabledContainerColor,
             disabledContentColor = disabledContentColor,
         )
 
-    internal val ColorScheme.defaultButtonColors: ButtonColors
+    internal val CssVariables.defaultButtonColors: ButtonColors
         @Composable
         get() =
             remember(this) {
@@ -374,7 +377,7 @@ object ButtonDefaults {
      * Creates a [ButtonColors] that represents the default container and content colors used in a
      * [TextButton].
      */
-    @Composable fun textButtonColors() = MaterialTheme.colorScheme.defaultTextButtonColors
+    @Composable fun textButtonColors() = LocalCssVariables.current.defaultTextButtonColors
 
     /**
      * Creates a [ButtonColors] that represents the default container and content colors used in a
@@ -392,14 +395,14 @@ object ButtonDefaults {
         disabledContainerColor: Color = Color.Unspecified,
         disabledContentColor: Color = Color.Unspecified,
     ): ButtonColors =
-        MaterialTheme.colorScheme.defaultTextButtonColors.copy(
+        LocalCssVariables.current.defaultTextButtonColors.copy(
             containerColor = containerColor,
             contentColor = contentColor,
             disabledContainerColor = disabledContainerColor,
             disabledContentColor = disabledContentColor,
         )
 
-    internal val ColorScheme.defaultTextButtonColors: ButtonColors
+    internal val CssVariables.defaultTextButtonColors: ButtonColors
         @Composable
         get() =
             remember(this) {

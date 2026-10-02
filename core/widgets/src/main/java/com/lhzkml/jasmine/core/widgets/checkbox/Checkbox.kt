@@ -59,7 +59,8 @@ import androidx.compose.ui.util.lerp
 import kotlin.math.floor
 import kotlin.math.max
 import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.MaterialTheme
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.ripple
 import com.lhzkml.jasmine.core.widgets.motion.value
@@ -318,7 +319,7 @@ object CheckboxDefaults {
      * Creates a [CheckboxColors] that will animate between the provided colors according to the
      * Material specification.
      */
-    @Composable fun colors() = MaterialTheme.colorScheme.defaultCheckboxColors
+    @Composable fun colors() = LocalCssVariables.current.defaultCheckboxColors
 
     /**
      * Creates a [CheckboxColors] that will animate between the provided colors according to the
@@ -344,7 +345,7 @@ object CheckboxDefaults {
         disabledUncheckedColor: Color = Color.Unspecified,
         disabledIndeterminateColor: Color = Color.Unspecified,
     ): CheckboxColors =
-        MaterialTheme.colorScheme.defaultCheckboxColors.copy(
+        LocalCssVariables.current.defaultCheckboxColors.copy(
             checkedCheckmarkColor = checkmarkColor,
             uncheckedCheckmarkColor = Color.Transparent,
             checkedBoxColor = checkedColor,
@@ -359,7 +360,7 @@ object CheckboxDefaults {
             disabledIndeterminateBorderColor = disabledIndeterminateColor,
         )
 
-    internal val ColorScheme.defaultCheckboxColors: CheckboxColors
+    internal val CssVariables.defaultCheckboxColors: CheckboxColors
         @Composable
         get() =
             remember(this) {

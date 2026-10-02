@@ -23,11 +23,10 @@ import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.LocalTonalElevationEnabled
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.surfaceColorAtElevation
-import androidx.compose.runtime.Composable
 import androidx.compose.material3.Typography
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.graphics.Color
@@ -35,10 +34,66 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
+import com.lhzkml.jasmine.core.ui.theme.AppTypography
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsShapes
 
 /**
- * Helper function for component color tokens. Here is an example on how to use component color
- * tokens: ``MaterialTheme.colorScheme.fromToken(ExtendedFabBranded.BrandedContainerColor)``
+ * 组件颜色令牌 → **本应用现有主题**（[CssVariables]，即 `JasmineTheme` 注入的那份调色板）的取值表。
+ *
+ * 这张表是 `core/ui/theme/Theme.kt` 里「[CssVariables] → M3 `ColorScheme`」那份映射的**镜像**，
+ * 逐条对齐（`PrimaryContainer -> accent`、`SurfaceContainerHighest -> subtleSurface`、
+ * `Outline -> border`、`OutlineVariant -> muted` …），所以取值与"经 M3 主题取"完全一致；
+ * 区别只在于组件**不再借 M3 主题**，而是直接读我们自己的主题。
+ * 6 个家族 × 明暗共 12 套调色板因此自动生效 —— 它们换的就是 [CssVariables]。
+ */
+@Stable
+internal fun CssVariables.fromToken(value: ColorSchemeKeyTokens): Color {
+    return when (value) {
+        // 这两项现有 12 套调色板都还没有自己的槽位，暂用 M3 基线值（与改造前取到的值一致）：
+        // 错误色分深浅两套基线，遮罩色两套都是纯黑。将来若要给每套调色板单独的 error，
+        // 给 CssVariables 加槽后改这两行即可。
+        ColorSchemeKeyTokens.Error -> if (isDark) M3DarkError else M3LightError
+        ColorSchemeKeyTokens.Scrim -> M3BaselineScrim
+        ColorSchemeKeyTokens.OnPrimary -> primaryForeground
+        ColorSchemeKeyTokens.OnPrimaryContainer -> accentForeground
+        ColorSchemeKeyTokens.OnSecondaryContainer -> mutedForeground
+        ColorSchemeKeyTokens.OnSurface -> cardForeground
+        ColorSchemeKeyTokens.OnSurfaceVariant -> mutedForeground
+        ColorSchemeKeyTokens.Outline -> border
+        ColorSchemeKeyTokens.OutlineVariant -> muted
+        ColorSchemeKeyTokens.Primary -> primary
+        ColorSchemeKeyTokens.PrimaryContainer -> accent
+        ColorSchemeKeyTokens.Secondary -> mutedForeground
+        ColorSchemeKeyTokens.SecondaryContainer -> subtleSurface
+        ColorSchemeKeyTokens.Surface -> card
+        ColorSchemeKeyTokens.SurfaceContainer -> card
+        ColorSchemeKeyTokens.SurfaceContainerHigh -> subtleSurface
+        ColorSchemeKeyTokens.SurfaceContainerHighest -> subtleSurface
+        ColorSchemeKeyTokens.SurfaceContainerLow -> card
+        ColorSchemeKeyTokens.SurfaceVariant -> subtleSurface
+    }
+}
+
+/** M3 浅色基线错误色（= `lightColorScheme().error`）。 */
+private val M3LightError = Color(0xFFB3261E)
+
+/** M3 深色基线错误色（= `darkColorScheme().error`）。 */
+private val M3DarkError = Color(0xFFF2B8B5)
+
+/** M3 基线遮罩色（浅色与深色两套都是纯黑）。 */
+private val M3BaselineScrim = Color(0xFF000000)
+
+/**
+ * **过渡用的旧入口**：仍是"从 M3 `ColorScheme` 的角色取"。
+ *
+ * 只服务于那些自己声明了 `internal val CssVariables.defaultXxxColors` 的组件文件
+ *（`TopAppBar` / `Button` / `Card` / `Switch` …）—— 它们还没改成读我们的主题。
+ * 因为 `Theme.kt` 的映射与上面 [CssVariables.fromToken] 逐条对齐，两条路取到的值完全一致。
+ *
+ * 组件侧（`ColorSchemeKeyTokens.value`）已经走 [CssVariables.fromToken]；
+ * 等那批构造器也改成 `CssVariables` 之后，本函数即可删除（见 `CORE_WIDGETS_M3_AUDIT.md` §8）。
  */
 @Stable
 internal fun ColorScheme.fromToken(value: ColorSchemeKeyTokens): Color {
@@ -66,11 +121,10 @@ internal fun ColorScheme.fromToken(value: ColorSchemeKeyTokens): Color {
 }
 
 /**
- * Converts a color token key to the local color scheme provided by the theme The color is
- * subscribed to [MaterialTheme] changes.
+ * 颜色令牌 → 当前主题的颜色；随 [LocalCssVariables] 变化自动重组（换调色板即刻生效）。
  */
 internal val ColorSchemeKeyTokens.value: Color
-    @ReadOnlyComposable @Composable get() = MaterialTheme.colorScheme.fromToken(this)
+    @ReadOnlyComposable @Composable get() = LocalCssVariables.current.fromToken(this)
 
 /** Helper function for component shape tokens. Used to grab the top values of a shape parameter. */
 internal fun CornerBasedShape.top(
@@ -106,7 +160,7 @@ internal fun CornerBasedShape.end(
 
 /**
  * Helper function for component shape tokens. Here is an example on how to use component color
- * tokens: ``MaterialTheme.shapes.fromToken(FabPrimarySmallTokens.ContainerShape)``
+ * tokens: ``LocalWidgetsShapes.current.fromToken(FabPrimarySmallTokens.ContainerShape)``
  */
 internal fun Shapes.fromToken(value: ShapeKeyTokens): Shape {
     return when (value) {
@@ -122,11 +176,11 @@ internal fun Shapes.fromToken(value: ShapeKeyTokens): Shape {
 }
 
 /**
- * Converts a shape token key to the local shape provided by the theme The shape is subscribed to
- * [MaterialTheme] changes.
+ * 形状令牌 → 当前主题的形状；随 [LocalWidgetsShapes] 变化自动重组。
+ * （`JasmineTheme` 目前注入的还是 M3 默认形状，改动形状口径只需改注入值。）
  */
 internal val ShapeKeyTokens.value: Shape
-    @Composable @ReadOnlyComposable get() = MaterialTheme.shapes.fromToken(this)
+    @Composable @ReadOnlyComposable get() = LocalWidgetsShapes.current.fromToken(this)
 
 /**
  * Returns [ColorScheme.surfaceColorAtElevation] with the provided elevation if
@@ -164,8 +218,7 @@ internal fun Typography.fromToken(value: TypographyKeyTokens): TextStyle {
 }
 
 /**
- * Converts a typography token key to the local typography provided by the theme The style is
- * subscribed to [MaterialTheme] changes.
+ * 字体令牌 → 当前主题的排版样式；用的是 `JasmineTheme` 注入给 M3 的同一份 [AppTypography]。
  */
 internal val TypographyKeyTokens.value: TextStyle
-    @Composable @ReadOnlyComposable get() = MaterialTheme.typography.fromToken(this)
+    @Composable @ReadOnlyComposable get() = AppTypography.fromToken(this)

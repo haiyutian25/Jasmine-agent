@@ -18,6 +18,8 @@
 
 package com.lhzkml.jasmine.core.widgets.textfield
 
+import com.lhzkml.jasmine.core.ui.theme.AppTypography
+
 import androidx.compose.animation.animateColor
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -30,7 +32,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
-import androidx.compose.material3.MaterialTheme
+import com.lhzkml.jasmine.core.ui.theme.AppTypography
 import com.lhzkml.jasmine.core.widgets.tokens.MotionSchemeKeyTokens
 import com.lhzkml.jasmine.core.widgets.tokens.SmallIconButtonTokens
 import com.lhzkml.jasmine.core.widgets.tokens.TypeScaleTokens
@@ -112,7 +114,7 @@ internal fun CommonDecorationBox(
 
     val labelColor = colors.labelColor(enabled, isError, isFocused)
 
-    val typography = MaterialTheme.typography
+    val typography = AppTypography
     val bodyLarge = typography.bodyLarge
     val bodySmall = typography.bodySmall
     val overrideLabelTextStyleColor =
@@ -533,7 +535,7 @@ internal fun textFieldHorizontalIconPadding(): Dp {
 
 @Composable
 internal fun minimizedLabelHalfHeight(): Dp {
-    val compositionLocalValue = MaterialTheme.typography.bodySmall.lineHeight
+    val compositionLocalValue = AppTypography.bodySmall.lineHeight
     val fallbackValue = TypeScaleTokens.BodySmallLineHeight
     val value = if (compositionLocalValue.isSp) compositionLocalValue else fallbackValue
     return with(LocalDensity.current) { value.toDp() / 2 }

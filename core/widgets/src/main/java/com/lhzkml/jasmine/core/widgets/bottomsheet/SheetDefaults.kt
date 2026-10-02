@@ -18,10 +18,11 @@
 
 package com.lhzkml.jasmine.core.widgets.bottomsheet
 
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsShapes
+
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -422,7 +423,7 @@ object BottomSheetDefaults {
         modifier: Modifier = Modifier,
         width: Dp = SheetBottomTokens.DockedDragHandleWidth,
         height: Dp = SheetBottomTokens.DockedDragHandleHeight,
-        shape: Shape = MaterialTheme.shapes.extraLarge,
+        shape: Shape = LocalWidgetsShapes.current.extraLarge,
         color: Color = SheetBottomTokens.DockedDragHandleColor.value,
     ) {
         val dragHandleDescription = getString(Strings.BottomSheetDragHandleDescription)

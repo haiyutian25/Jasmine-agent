@@ -95,7 +95,8 @@ import androidx.compose.ui.util.fastSumBy
 import kotlin.math.hypot
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
-import androidx.compose.material3.MaterialTheme
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
+import com.lhzkml.jasmine.core.ui.theme.AppTypography
 import androidx.compose.material3.contentColorFor
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.LocalTextStyle
@@ -336,7 +337,7 @@ fun FloatingActionButtonMenuScope.FloatingActionButtonMenuItem(
     text: @Composable () -> Unit,
     icon: @Composable () -> Unit,
     modifier: Modifier = Modifier,
-    containerColor: Color = MaterialTheme.colorScheme.primaryContainer,
+    containerColor: Color = LocalCssVariables.current.accent,
     contentColor: Color = contentColorFor(containerColor),
 ) {
     var widthAnim by remember { mutableStateOf<Animatable<Float, AnimationVector1D>?>(null) }
@@ -408,7 +409,7 @@ fun FloatingActionButtonMenuScope.FloatingActionButtonMenuItem(
             ) {
                 icon()
                 CompositionLocalProvider(
-                    LocalTextStyle provides MaterialTheme.typography.titleMedium,
+                    LocalTextStyle provides AppTypography.titleMedium,
                     content = text,
                 )
             }
@@ -582,8 +583,8 @@ object ToggleFloatingActionButtonDefaults {
 
     @Composable
     fun containerColor(
-        initialColor: Color = MaterialTheme.colorScheme.primaryContainer,
-        finalColor: Color = MaterialTheme.colorScheme.primary,
+        initialColor: Color = LocalCssVariables.current.accent,
+        finalColor: Color = LocalCssVariables.current.primary,
     ): (Float) -> Color = { progress -> lerp(initialColor, finalColor, progress) }
 
     fun containerSize(initialSize: Dp, finalSize: Dp = FabFinalSize): (Float) -> Dp =
@@ -613,8 +614,8 @@ object ToggleFloatingActionButtonDefaults {
 
     @Composable
     fun iconColor(
-        initialColor: Color = MaterialTheme.colorScheme.onPrimaryContainer,
-        finalColor: Color = MaterialTheme.colorScheme.onPrimary,
+        initialColor: Color = LocalCssVariables.current.accentForeground,
+        finalColor: Color = LocalCssVariables.current.primaryForeground,
     ): (Float) -> Color = { progress -> lerp(initialColor, finalColor, progress) }
 
     fun iconSize(initialSize: Dp, finalSize: Dp = FabFinalIconSize): (Float) -> Dp =

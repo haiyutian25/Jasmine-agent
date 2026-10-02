@@ -104,7 +104,8 @@ import androidx.compose.ui.util.fastSumBy
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.MaterialTheme
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.core.widgets.tokens.fromToken
 import com.lhzkml.jasmine.core.widgets.tokens.value
 import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
@@ -298,7 +299,7 @@ object TopAppBarDefaults {
      * Creates a [TopAppBarColors] for small [TopAppBar]. The default implementation animates
      * between the provided colors according to the Material Design specification.
      */
-    @Composable fun topAppBarColors() = MaterialTheme.colorScheme.defaultTopAppBarColors
+    @Composable fun topAppBarColors() = LocalCssVariables.current.defaultTopAppBarColors
 
     /**
      * Creates a [TopAppBarColors] for small [TopAppBar]. The default implementation animates
@@ -321,7 +322,7 @@ object TopAppBarDefaults {
         actionIconContentColor: Color = Color.Unspecified,
         subtitleContentColor: Color = Color.Unspecified,
     ): TopAppBarColors =
-        MaterialTheme.colorScheme.defaultTopAppBarColors.copy(
+        LocalCssVariables.current.defaultTopAppBarColors.copy(
             containerColor,
             scrolledContainerColor,
             navigationIconContentColor,
@@ -362,7 +363,7 @@ object TopAppBarDefaults {
             subtitleContentColor = titleContentColor,
         )
 
-    internal val ColorScheme.defaultTopAppBarColors: TopAppBarColors
+    internal val CssVariables.defaultTopAppBarColors: TopAppBarColors
         @Composable
         get() =
             remember(this) {
@@ -394,7 +395,7 @@ object TopAppBarDefaults {
         DeprecationLevel.WARNING,
     )
     @Composable
-    fun centerAlignedTopAppBarColors() = MaterialTheme.colorScheme.defaultTopAppBarColors
+    fun centerAlignedTopAppBarColors() = LocalCssVariables.current.defaultTopAppBarColors
 
     /**
      * Creates a [TopAppBarColors] for [CenterAlignedTopAppBar]s. The default implementation
@@ -424,7 +425,7 @@ object TopAppBarDefaults {
         titleContentColor: Color = Color.Unspecified,
         actionIconContentColor: Color = Color.Unspecified,
     ): TopAppBarColors =
-        MaterialTheme.colorScheme.defaultTopAppBarColors.copy(
+        LocalCssVariables.current.defaultTopAppBarColors.copy(
             containerColor,
             scrolledContainerColor,
             navigationIconContentColor,

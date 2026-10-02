@@ -52,7 +52,8 @@ import androidx.compose.material3.SliderState.Companion.Saver
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.MaterialTheme
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import androidx.compose.material3.contentColorFor
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.ripple
@@ -618,7 +619,7 @@ object SliderDefaults {
      * Creates a [SliderColors] that represents the different colors used in parts of the [Slider]
      * in different states.
      */
-    @Composable fun colors() = MaterialTheme.colorScheme.defaultSliderColors
+    @Composable fun colors() = LocalCssVariables.current.defaultSliderColors
 
     /**
      * Creates a [SliderColors] that represents the different colors used in parts of the [Slider]
@@ -660,7 +661,7 @@ object SliderDefaults {
         disabledInactiveTrackColor: Color = Color.Unspecified,
         disabledInactiveTickColor: Color = Color.Unspecified,
     ): SliderColors =
-        MaterialTheme.colorScheme.defaultSliderColors.copy(
+        LocalCssVariables.current.defaultSliderColors.copy(
             thumbColor = thumbColor,
             activeTrackColor = activeTrackColor,
             activeTickColor = activeTickColor,
@@ -673,7 +674,7 @@ object SliderDefaults {
             disabledInactiveTickColor = disabledInactiveTickColor,
         )
 
-    internal val ColorScheme.defaultSliderColors: SliderColors
+    internal val CssVariables.defaultSliderColors: SliderColors
         @Composable
         get() =
             remember(this) {
@@ -686,7 +687,7 @@ object SliderDefaults {
                     disabledThumbColor =
                         fromToken(SliderTokens.DisabledHandleColor)
                             .copy(alpha = SliderTokens.DisabledHandleOpacity)
-                            .compositeOver(surface),
+                            .compositeOver(card),
                     disabledActiveTrackColor =
                         fromToken(SliderTokens.DisabledActiveTrackColor)
                             .copy(alpha = SliderTokens.DisabledActiveTrackOpacity),

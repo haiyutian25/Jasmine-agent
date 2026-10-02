@@ -264,7 +264,7 @@ internal interface MotionScheme {
  * Helper function for component motion tokens.
  *
  * Here is an example on how to use component motion tokens:
- * ``MaterialTheme.motionScheme.fromToken(ExtendedFabBranded.ExpandMotion)``
+ * ``LocalMotionScheme.current.fromToken(ExtendedFabBranded.ExpandMotion)``
  *
  * The returned [FiniteAnimationSpec] is remembered across compositions.
  *
