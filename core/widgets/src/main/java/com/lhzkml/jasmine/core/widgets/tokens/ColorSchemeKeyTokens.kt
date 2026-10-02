@@ -26,6 +26,7 @@ internal enum class ColorSchemeKeyTokens {
     OnSurfaceVariant,
     Outline,
     Primary,
+    PrimaryContainer,
     Scrim,
     Secondary,
     SecondaryContainer,

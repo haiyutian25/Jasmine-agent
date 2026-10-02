@@ -51,6 +51,7 @@ internal fun ColorScheme.fromToken(value: ColorSchemeKeyTokens): Color {
         ColorSchemeKeyTokens.OnSurfaceVariant -> onSurfaceVariant
         ColorSchemeKeyTokens.Outline -> outline
         ColorSchemeKeyTokens.Primary -> primary
+        ColorSchemeKeyTokens.PrimaryContainer -> primaryContainer
         ColorSchemeKeyTokens.Scrim -> scrim
         ColorSchemeKeyTokens.Secondary -> secondary
         ColorSchemeKeyTokens.SecondaryContainer -> secondaryContainer

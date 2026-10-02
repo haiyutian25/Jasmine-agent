@@ -22,5 +22,6 @@ import androidx.compose.ui.unit.dp
 internal object ElevationTokens {
     val Level0 = 0.0.dp
     val Level1 = 1.0.dp
+    val Level2 = 2.0.dp
     val Level3 = 3.0.dp
 }

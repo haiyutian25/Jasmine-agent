@@ -29,6 +29,8 @@ roborazzi = "1.59.0"
 coil = "2.7.0"
 # A2UI 渲染器：Google Maven 上目前只有这一个版本（2026-09-23 发布），compose-bom 还没纳入它。
 a2ui = "1.0.0-alpha01"
+# 形状变换型加载指示器与波形进度条要用的形状库（M3 1.5.0-alpha29 依赖的就是这个版本）。
+graphicsShapes = "1.0.1"
 
 
 [libraries]
@@ -70,6 +72,7 @@ coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coi
 androidx-a2ui-compose-runtime = { group = "androidx.a2ui.compose", name = "compose-runtime", version.ref = "a2ui" }
 androidx-a2ui-compose-ui = { group = "androidx.a2ui.compose", name = "compose-ui", version.ref = "a2ui" }
 androidx-compose-material3-a2ui = { group = "androidx.compose.material3", name = "material3-a2ui", version.ref = "a2ui" }
+androidx-graphics-shapes = { group = "androidx.graphics", name = "graphics-shapes", version.ref = "graphicsShapes" }
 roborazzi = { group = "io.github.takahirom.roborazzi", name = "roborazzi", version.ref = "roborazzi" }
 roborazzi-compose = { group = "io.github.takahirom.roborazzi", name = "roborazzi-compose", version.ref = "roborazzi" }
 
