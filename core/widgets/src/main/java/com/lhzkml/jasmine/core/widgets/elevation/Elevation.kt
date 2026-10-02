@@ -13,8 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-// 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自 AndroidX Material3 1.4.0 的 internal/Elevation.kt 后自行维护），
+// 不再跟随上游生成，可直接改。提供 `Animatable<Dp, *>.animateElevation(target, from, to)` 这个
+// 共享助手（按交互类型选进出场动画规格，本来就是 internal），卡片的海拔状态机 CardElevation 用它；
+// 同目录的 ElevationDefaults 与三个私有 spec 都照搬上游。
 
 package com.lhzkml.jasmine.core.widgets.elevation
 
@@ -113,3 +115,4 @@ private val DefaultIncomingSpec = TweenSpec<Dp>(durationMillis = 120, easing = F
 private val DefaultOutgoingSpec = TweenSpec<Dp>(durationMillis = 150, easing = OutgoingSpecEasing)
 
 private val HoveredOutgoingSpec = TweenSpec<Dp>(durationMillis = 120, easing = OutgoingSpecEasing)
+

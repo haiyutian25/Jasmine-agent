@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The Android Open Source Project
+ * Copyright 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,16 @@
  * limitations under the License.
  */
 // 本项目自有的设计令牌（来源：AndroidX Material3 token VERSION v0_103），不再由上游生成，可直接改。
+// 只保留 Tab / TabRow 真正引用到的槽位（活动标签文字色与容器色）；上游那份里的 Focus / Hover / Pressed
+// 与图标、分割线相关槽位本组件库没用到，已随裁剪删掉。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 
-internal object ElevationTokens {
-    val Level0 = 0.0.dp
-    val Level1 = 1.0.dp
-    val Level2 = 2.0.dp
-    val Level3 = 3.0.dp
-    val Level4 = 8.0.dp
+internal object SecondaryNavigationTabTokens {
+    val ActiveLabelTextColor = ColorSchemeKeyTokens.OnSurface
+    val ContainerColor = ColorSchemeKeyTokens.Surface
 }
+

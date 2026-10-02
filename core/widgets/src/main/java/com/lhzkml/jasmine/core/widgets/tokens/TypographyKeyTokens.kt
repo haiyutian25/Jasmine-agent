@@ -26,5 +26,6 @@ internal enum class TypographyKeyTokens {
     LabelLarge,
     LabelMedium,
     LabelSmall,
-    TitleLarge
+    TitleLarge,
+    TitleSmall
 }

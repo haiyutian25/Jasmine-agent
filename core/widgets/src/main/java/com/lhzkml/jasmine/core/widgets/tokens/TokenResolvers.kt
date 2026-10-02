@@ -50,6 +50,7 @@ internal fun ColorScheme.fromToken(value: ColorSchemeKeyTokens): Color {
         ColorSchemeKeyTokens.OnSurface -> onSurface
         ColorSchemeKeyTokens.OnSurfaceVariant -> onSurfaceVariant
         ColorSchemeKeyTokens.Outline -> outline
+        ColorSchemeKeyTokens.OutlineVariant -> outlineVariant
         ColorSchemeKeyTokens.Primary -> primary
         ColorSchemeKeyTokens.PrimaryContainer -> primaryContainer
         ColorSchemeKeyTokens.Scrim -> scrim
@@ -60,6 +61,7 @@ internal fun ColorScheme.fromToken(value: ColorSchemeKeyTokens): Color {
         ColorSchemeKeyTokens.SurfaceContainerHigh -> surfaceContainerHigh
         ColorSchemeKeyTokens.SurfaceContainerHighest -> surfaceContainerHighest
         ColorSchemeKeyTokens.SurfaceContainerLow -> surfaceContainerLow
+        ColorSchemeKeyTokens.SurfaceVariant -> surfaceVariant
     }
 }
 
@@ -114,6 +116,7 @@ internal fun Shapes.fromToken(value: ShapeKeyTokens): Shape {
         ShapeKeyTokens.CornerExtraSmallTop -> extraSmall.top()
         ShapeKeyTokens.CornerFull -> CircleShape
         ShapeKeyTokens.CornerLargeEnd -> large.end()
+        ShapeKeyTokens.CornerMedium -> medium
         ShapeKeyTokens.CornerNone -> RectangleShape
     }
 }
@@ -156,6 +159,7 @@ internal fun Typography.fromToken(value: TypographyKeyTokens): TextStyle {
         TypographyKeyTokens.LabelMedium -> labelMedium
         TypographyKeyTokens.LabelSmall -> labelSmall
         TypographyKeyTokens.TitleLarge -> titleLarge
+        TypographyKeyTokens.TitleSmall -> titleSmall
     }
 }
 
