@@ -48,6 +48,8 @@ import com.lhzkml.jasmine.core.ui.theme.AppTypographyChoice
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.feature.settings.impl.R
 import com.lhzkml.jasmine.core.ui.components.Button
+import com.lhzkml.jasmine.core.widgets.button.Button as WidgetsButton
+import com.lhzkml.jasmine.core.widgets.button.ButtonDefaults
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -414,32 +416,19 @@ fun FontScreen(
                                 )
                             }
                         } else {
-                            Button(
+                            // 不做任何外观定制：直接用自有 Button 的默认外观（primary 填充按钮），
+                            // 图标与文字的颜色/字型由组件下发、自动继承。
+                            WidgetsButton(
                                 onClick = { onDownloadFont(preset) },
-                                shape = AppShapes.medium,
-                                testTag = "font_download_${preset.id}"
+                                modifier = Modifier.testTag("font_download_${preset.id}")
                             ) {
-                                Row(
-                                    modifier = Modifier
-                                        .background(currentTheme.subtleSurface)
-                                        .border(1.dp, currentTheme.border, AppShapes.medium)
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = LucideIcons.CloudDownload,
-                                        contentDescription = null,
-                                        tint = currentTheme.primary,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Text(
-                                        text = stringResource(R.string.settings_font_download),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = currentTheme.primary
-                                    )
-                                }
+                                Icon(
+                                    imageVector = LucideIcons.CloudDownload,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(ButtonDefaults.IconSize)
+                                )
+                                Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
+                                Text(text = stringResource(R.string.settings_font_download))
                             }
                         }
                     }

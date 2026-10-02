@@ -27,6 +27,8 @@ kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarg
 dependencies {
   api(project(":feature:provider:api"))
   implementation(project(":core:ui"))
+  // 部分操作按钮改用 core:widgets 的自有 Button/Text（不再用 core:ui 的自建按钮）。
+  implementation(project(":core:widgets"))
   implementation(project(":core:data"))
   // Provider connectivity check runs through the agent layer's probe facade.
   implementation(project(":core:agent"))

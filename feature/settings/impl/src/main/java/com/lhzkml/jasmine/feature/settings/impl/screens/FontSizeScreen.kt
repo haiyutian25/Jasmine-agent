@@ -1,7 +1,6 @@
 package com.lhzkml.jasmine.feature.settings.impl.screens
 
 import com.lhzkml.jasmine.core.ui.theme.AppShapes
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -30,7 +29,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -41,7 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.feature.settings.impl.R
-import com.lhzkml.jasmine.core.ui.components.Button
+import com.lhzkml.jasmine.core.widgets.button.Button
 import com.lhzkml.jasmine.core.ui.components.Slider
 import kotlin.math.roundToInt
 
@@ -161,24 +159,15 @@ fun FontSizeScreen(
 
             // Save: commit the draft to the app-wide font scale. The
             // confirmation toast is emitted by the ViewModel (UDF event).
+            // 不做外观定制：直接用自有 Button 的默认外观（primary 填充按钮），
+            // 文字颜色/字型由组件下发、自动继承。
             Button(
                 onClick = { onSave(draftScale) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("font_size_save_btn"),
-                shape = AppShapes.medium,
-                currentTheme = currentTheme,
-                containerColor = currentTheme.primary,
-                border = BorderStroke(0.dp, Color.Transparent),
-                contentAlignment = Alignment.Center,
-                fillWidth = true
+                    .testTag("font_size_save_btn")
             ) {
-                Text(
-                    text = stringResource(R.string.font_size_save),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = currentTheme.primaryForeground
-                )
+                Text(text = stringResource(R.string.font_size_save))
             }
 
             Spacer(modifier = Modifier.height(30.dp))

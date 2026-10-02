@@ -58,6 +58,8 @@ import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import com.lhzkml.jasmine.core.ui.components.BottomSheet
 import com.lhzkml.jasmine.core.ui.components.Button
 import com.lhzkml.jasmine.core.ui.components.ReasoningEffort
+import com.lhzkml.jasmine.core.widgets.button.Button as WidgetsButton
+import com.lhzkml.jasmine.core.widgets.text.Text as WidgetsText
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 
 // ── Provider screen dimensions ─────────────────────────────────────────
@@ -451,35 +453,22 @@ private fun ProviderEditorContent(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Button(
+        // 用自有 Button 的默认外观（primary 填充），不做任何外观定制。
+        WidgetsButton(
             onClick = { onAction(ProviderAction.FetchModelsClicked) },
-            modifier = Modifier.weight(1f),
-            currentTheme = currentTheme,
-            fillWidth = true,
-            contentAlignment = Alignment.Center,
-            testTag = "provider_fetch_models_btn"
+            modifier = Modifier
+                .weight(1f)
+                .testTag("provider_fetch_models_btn")
         ) {
-            Text(
-                text = stringResource(R.string.provider_fetch_models),
-                fontSize = ProviderActionButtonFontSize,
-                fontWeight = FontWeight.Medium,
-                color = currentTheme.foreground
-            )
+            WidgetsText(text = stringResource(R.string.provider_fetch_models))
         }
-        Button(
+        WidgetsButton(
             onClick = { onAction(ProviderAction.CustomModelClicked) },
-            modifier = Modifier.weight(1f),
-            currentTheme = currentTheme,
-            fillWidth = true,
-            contentAlignment = Alignment.Center,
-            testTag = "provider_custom_model_btn"
+            modifier = Modifier
+                .weight(1f)
+                .testTag("provider_custom_model_btn")
         ) {
-            Text(
-                text = stringResource(R.string.provider_custom_model),
-                fontSize = ProviderActionButtonFontSize,
-                fontWeight = FontWeight.Medium,
-                color = currentTheme.foreground
-            )
+            WidgetsText(text = stringResource(R.string.provider_custom_model))
         }
     }
 
@@ -487,36 +476,32 @@ private fun ProviderEditorContent(
 
     // Connectivity check: a real round trip through the draft credentials and
     // the first configured model — verifies the provider before saving.
-    Button(
+    WidgetsButton(
         onClick = { onAction(ProviderAction.TestConnectionClicked) },
-        modifier = Modifier.fillMaxWidth(),
-        currentTheme = currentTheme,
-        fillWidth = true,
-        contentAlignment = Alignment.Center,
-        testTag = "provider_test_connection_btn"
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("provider_test_connection_btn")
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (editor.isProbing) {
+                // 默认外观是 primary 实心底，进度圈随之改用前景色才可见。
                 CircularProgressIndicator(
                     modifier = Modifier.size(ModelSheetSpinnerSize),
-                    color = currentTheme.primary,
+                    color = currentTheme.primaryForeground,
                     strokeWidth = 2.dp
                 )
             }
-            Text(
+            WidgetsText(
                 text = stringResource(
                     if (editor.isProbing) {
                         R.string.provider_testing
                     } else {
                         R.string.provider_test_connection
                     }
-                ),
-                fontSize = ProviderActionButtonFontSize,
-                fontWeight = FontWeight.Medium,
-                color = currentTheme.foreground
+                )
             )
         }
     }
@@ -527,37 +512,21 @@ private fun ProviderEditorContent(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Button(
+        WidgetsButton(
             onClick = { onAction(ProviderAction.CancelClicked) },
-            modifier = Modifier.weight(1f),
-            currentTheme = currentTheme,
-            fillWidth = true,
-            contentAlignment = Alignment.Center,
-            testTag = "provider_cancel_btn"
+            modifier = Modifier
+                .weight(1f)
+                .testTag("provider_cancel_btn")
         ) {
-            Text(
-                text = stringResource(R.string.provider_cancel),
-                fontSize = ProviderRowNameFontSize,
-                fontWeight = FontWeight.Medium,
-                color = currentTheme.foreground
-            )
+            WidgetsText(text = stringResource(R.string.provider_cancel))
         }
-        Button(
+        WidgetsButton(
             onClick = { onAction(ProviderAction.SaveClicked) },
-            modifier = Modifier.weight(1f),
-            currentTheme = currentTheme,
-            fillWidth = true,
-            containerColor = currentTheme.primary,
-            border = null,
-            contentAlignment = Alignment.Center,
-            testTag = "provider_save_btn"
+            modifier = Modifier
+                .weight(1f)
+                .testTag("provider_save_btn")
         ) {
-            Text(
-                text = stringResource(R.string.provider_save),
-                fontSize = ProviderRowNameFontSize,
-                fontWeight = FontWeight.SemiBold,
-                color = currentTheme.primaryForeground
-            )
+            WidgetsText(text = stringResource(R.string.provider_save))
         }
     }
 }
