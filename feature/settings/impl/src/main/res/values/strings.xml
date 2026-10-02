@@ -126,4 +126,17 @@
     <string name="debug_search_bar_suggestions">Suggestions</string>
     <string name="debug_search_bar_body">Row %1$d</string>
     <string name="debug_search_bar_content">Result %1$d</string>
+
+    <!-- Component-layer debug: the FAB menu (baseline / medium / large). -->
+    <string name="debug_screen_section_fab_menu">FAB menu</string>
+    <string name="debug_fab_menu_entry_baseline">Baseline (56dp)</string>
+    <string name="debug_fab_menu_entry_medium">Medium (80dp)</string>
+    <string name="debug_fab_menu_entry_large">Large (96dp)</string>
+    <string name="debug_fab_menu_hint">Tap the button at the bottom right to expand the menu. Only the button itself changes with the size tier; the menu items stay 56dp.</string>
+    <string name="debug_fab_menu_toggle">Toggle menu</string>
+    <string name="debug_fab_menu_item_copy">Copy</string>
+    <string name="debug_fab_menu_item_download">Download</string>
+    <string name="debug_fab_menu_item_upload">Upload</string>
+    <string name="debug_fab_menu_item_delete">Delete</string>
+    <string name="debug_fab_menu_body">Row %1$d</string>
 </resources>

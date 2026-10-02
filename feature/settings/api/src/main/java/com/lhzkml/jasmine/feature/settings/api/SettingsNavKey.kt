@@ -86,6 +86,14 @@ sealed interface SettingsNavKey : NavKey {
      */
     @Serializable
     data class DebugSearchBar(val variant: String) : SettingsNavKey
+
+    /**
+     * **FAB 菜单预览** 页：`variant` 取 [SettingsDebugFabMenuVariant] 里的常量。
+     *
+     * 同样是组件层的独立试验场：页内顶栏是我们的小号 `TopAppBar`，右下角是被测的 FAB 菜单。
+     */
+    @Serializable
+    data class DebugFabMenu(val variant: String) : SettingsNavKey
 }
 
 /** [SettingsNavKey.DebugSidebar] 的 `variant` 取值。 */
@@ -116,4 +124,16 @@ object SettingsDebugSearchBarVariant {
 
     /** 展开态：停靠（`ExpandedDockedSearchBar`，走 `Popup`）。 */
     const val EXPANDED_DOCKED = "expandedDocked"
+}
+
+/** [SettingsNavKey.DebugFabMenu] 的 `variant` 取值（只影响按钮本体，菜单条目固定 56dp）。 */
+object SettingsDebugFabMenuVariant {
+    /** 基准档：按钮 56dp（跟随基准档 FAB）。 */
+    const val BASELINE = "baseline"
+
+    /** 中号：按钮 80dp。 */
+    const val MEDIUM = "medium"
+
+    /** 大号：按钮 96dp。 */
+    const val LARGE = "large"
 }

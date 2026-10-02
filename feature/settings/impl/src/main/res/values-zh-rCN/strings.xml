@@ -126,4 +126,17 @@
     <string name="debug_search_bar_suggestions">搜索建议</string>
     <string name="debug_search_bar_body">列表第 %1$d 行</string>
     <string name="debug_search_bar_content">结果 %1$d</string>
+
+    <!-- 组件层调试：FAB 菜单（基准 / 中号 / 大号） -->
+    <string name="debug_screen_section_fab_menu">FAB 菜单</string>
+    <string name="debug_fab_menu_entry_baseline">基准档（56dp）</string>
+    <string name="debug_fab_menu_entry_medium">中号（80dp）</string>
+    <string name="debug_fab_menu_entry_large">大号（96dp）</string>
+    <string name="debug_fab_menu_hint">点右下角按钮展开菜单。三档只改按钮本体的大小/圆角/图标尺寸，菜单条目固定 56dp。</string>
+    <string name="debug_fab_menu_toggle">开合菜单</string>
+    <string name="debug_fab_menu_item_copy">复制</string>
+    <string name="debug_fab_menu_item_download">下载</string>
+    <string name="debug_fab_menu_item_upload">上传</string>
+    <string name="debug_fab_menu_item_delete">删除</string>
+    <string name="debug_fab_menu_body">列表第 %1$d 行</string>
 </resources>

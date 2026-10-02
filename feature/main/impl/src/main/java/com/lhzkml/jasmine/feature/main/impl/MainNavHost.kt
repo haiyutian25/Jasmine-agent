@@ -41,6 +41,7 @@ import com.lhzkml.jasmine.feature.settings.impl.R as SettingsR
 import com.lhzkml.jasmine.feature.settings.impl.screens.BehaviourAndPermissionsScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugComponentsScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugBottomBarScreen
+import com.lhzkml.jasmine.feature.settings.impl.screens.DebugFabMenuScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugSearchBarScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugSidebarScreen
 import com.lhzkml.jasmine.feature.settings.impl.screens.DebugSliderScreen
@@ -336,6 +337,9 @@ fun MainNavHost(
                             onOpenSearchBar = {
                                 navigator.navigate(SettingsNavKey.DebugSearchBar(it))
                             },
+                            onOpenFabMenu = {
+                                navigator.navigate(SettingsNavKey.DebugFabMenu(it))
+                            },
                             modifier = contentModifier,
                         )
                     }
@@ -374,6 +378,14 @@ fun MainNavHost(
                 // 搜索框变体预览：同样是不套 SettingsPage 的独立页面（页内顶栏是我们的小号 TopAppBar）。
                 entry<SettingsNavKey.DebugSearchBar> { key ->
                     DebugSearchBarScreen(
+                        variant = key.variant,
+                        currentTheme = state.theme,
+                        onBack = { navigator.goBack() },
+                    )
+                }
+                // FAB 菜单预览：同样是不套 SettingsPage 的独立页面。
+                entry<SettingsNavKey.DebugFabMenu> { key ->
+                    DebugFabMenuScreen(
                         variant = key.variant,
                         currentTheme = state.theme,
                         onBack = { navigator.goBack() },

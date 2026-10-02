@@ -41,6 +41,7 @@ import com.lhzkml.jasmine.core.widgets.switch.Switch
 import com.lhzkml.jasmine.core.widgets.switch.SwitchDefaults
 import com.lhzkml.jasmine.core.widgets.textfield.OutlinedTextField
 import com.lhzkml.jasmine.core.widgets.textfield.TextField
+import com.lhzkml.jasmine.feature.settings.api.SettingsDebugFabMenuVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugSearchBarVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugSidebarVariant
 import com.lhzkml.jasmine.feature.settings.api.SettingsDebugTopAppBarVariant
@@ -69,6 +70,7 @@ fun DebugComponentsScreen(
     onOpenBottomBar: () -> Unit,
     onOpenSlider: () -> Unit,
     onOpenSearchBar: (String) -> Unit,
+    onOpenFabMenu: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -141,10 +143,19 @@ fun DebugComponentsScreen(
 
         Spacer(modifier = Modifier.height(DebugGroupSpacing))
 
-        // 搜索框：同样只是入口，4 个变体点进去是各自独立的页面。
+        // 搜索框：同样只是入口，3 个变体点进去是各自独立的页面。
         DebugSearchBarGroup(
             currentTheme = currentTheme,
             onOpen = onOpenSearchBar,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupSpacing))
+
+        // FAB 菜单：3 档尺寸，各自独立页面。
+        DebugFabMenuGroup(
+            currentTheme = currentTheme,
+            onOpen = onOpenFabMenu,
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -513,6 +524,52 @@ private fun DebugSearchBarGroup(
             label = stringResource(R.string.debug_search_bar_entry_expanded_docked),
             currentTheme = currentTheme,
             onClick = { onOpen(SettingsDebugSearchBarVariant.EXPANDED_DOCKED) }
+        )
+
+        Spacer(modifier = Modifier.height(DebugGroupBottomPadding))
+    }
+}
+
+/** FAB 菜单入口：3 档尺寸各是**独立**的页面（不套设置流那套顶栏）。 */
+@Composable
+private fun DebugFabMenuGroup(
+    currentTheme: CssVariables,
+    onOpen: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(currentTheme.radiusMd)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(currentTheme.card)
+            .border(1.dp, currentTheme.border, shape)
+    ) {
+        Text(
+            text = stringResource(R.string.debug_screen_section_fab_menu),
+            fontSize = DebugTitleFontSize,
+            fontWeight = FontWeight.Medium,
+            color = currentTheme.mutedForeground,
+            modifier = Modifier.padding(
+                start = DebugRowPaddingHorizontal,
+                top = DebugRowPaddingHorizontal,
+                bottom = DebugRowPaddingVertical
+            )
+        )
+
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_fab_menu_entry_baseline),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugFabMenuVariant.BASELINE) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_fab_menu_entry_medium),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugFabMenuVariant.MEDIUM) }
+        )
+        DebugTopAppBarEntry(
+            label = stringResource(R.string.debug_fab_menu_entry_large),
+            currentTheme = currentTheme,
+            onClick = { onOpen(SettingsDebugFabMenuVariant.LARGE) }
         )
 
         Spacer(modifier = Modifier.height(DebugGroupBottomPadding))
