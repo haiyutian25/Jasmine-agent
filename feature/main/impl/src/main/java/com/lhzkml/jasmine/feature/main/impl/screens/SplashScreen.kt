@@ -32,8 +32,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.lhzkml.jasmine.core.ui.icons.LucideIcons
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
+import com.lhzkml.jasmine.core.widgets.icon.Icon
+import com.lhzkml.jasmine.core.widgets.text.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue

@@ -1,4 +1,7 @@
-// OWN-HEADER-PLACEHOLDER
+// 本项目自有的组件代码（移植自 AndroidX Material3 1.4.0 的 Text.kt 后自行维护），不再跟随上游生成，可直接改。
+// 上游位置：androidx/compose/material3/Text.kt。它唯一的 M3 依赖是 tokens/DefaultTextStyle，已换成
+// 本库 tokens/DefaultTextStyle.kt（同名同位置，取值逐项一致）；LocalTextStyle / LocalContentColor
+// 换成自有的 LocalWidgetsTextStyle / LocalWidgetsContentColor；链接色改读 LocalCssVariables.primary。
 /*
  * Copyright 2021 The Android Open Source Project
  *
@@ -51,7 +54,7 @@ import androidx.compose.ui.unit.TextUnit
 /**
  * High level element that displays text and provides semantics / accessibility information.
  *
- * The default [style] uses the [LocalWidgetsTextStyle] provided by the [MaterialTheme] / components. If
+ * The default [style] uses the [LocalWidgetsTextStyle] provided by the theme / components. If
  * you are setting your own style, you may want to consider first retrieving [LocalWidgetsTextStyle], and
  * using [TextStyle.copy] to keep any theme defined attributes, only modifying the specific
  * attributes you want to override.
@@ -153,7 +156,7 @@ fun Text(
 /**
  * High level element that displays text and provides semantics / accessibility information.
  *
- * The default [style] uses the [LocalWidgetsTextStyle] provided by the [MaterialTheme] / components. If
+ * The default [style] uses the [LocalWidgetsTextStyle] provided by the theme / components. If
  * you are setting your own style, you may want to consider first retrieving [LocalWidgetsTextStyle], and
  * using [TextStyle.copy] to keep any theme defined attributes, only modifying the specific
  * attributes you want to override.

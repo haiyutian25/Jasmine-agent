@@ -80,6 +80,8 @@ android {
 
 dependencies {
   implementation(project(":core:ui"))
+  // A2uiSmokeActivity 的文本改用 core:widgets 的自有 Text（不再用 M3 的）。
+  implementation(project(":core:widgets"))
   implementation(project(":feature:main:impl"))
 
   implementation(platform(libs.androidx.compose.bom))

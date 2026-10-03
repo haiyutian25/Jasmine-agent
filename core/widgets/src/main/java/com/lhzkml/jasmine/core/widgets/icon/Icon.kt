@@ -1,4 +1,7 @@
-// OWN-HEADER-PLACEHOLDER
+// 本项目自有的组件代码（移植自 AndroidX Material3 1.4.0 的 Icon.kt 后自行维护），不再跟随上游生成，可直接改。
+// 上游位置：androidx/compose/material3/Icon.kt。它唯一的 M3 依赖是 tokens/SmallIconButtonTokens，
+// 已换成本库 tokens/SmallIconButtonTokens.kt（同名同位置，取值逐项一致）；LocalContentColor
+// 换成自有的 LocalWidgetsContentColor。
 /*
  * Copyright 2021 The Android Open Source Project
  *

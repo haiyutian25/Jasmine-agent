@@ -23,7 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Text
+import com.lhzkml.jasmine.core.widgets.text.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,7 +55,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.graphics.RectangleShape
 import com.lhzkml.jasmine.core.widgets.button.Button as WidgetsButton
 import com.lhzkml.jasmine.core.widgets.button.ButtonDefaults
-import com.lhzkml.jasmine.core.widgets.text.Text as WidgetsText
+
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.feature.main.impl.R
 import java.text.NumberFormat
@@ -298,7 +298,7 @@ private fun ContextWindowSection(
 /**
  * 一个档位：直接用自有 [WidgetsButton] 的默认外观（primary 填充），不做任何外观定制。
  *
- * 内容是自有的 [WidgetsText]，这样文字才吃得到按钮下发的内容色与字型。宽度由标签自己撑开；
+ * 内容是自有的 [Text]，这样文字才吃得到按钮下发的内容色与字型。宽度由标签自己撑开；
  * 一行放不下时整行横向滚动（见调用处）。
  */
 @Composable
@@ -312,7 +312,7 @@ private fun ContextWindowStep(
         enabled = enabled,
         modifier = Modifier.testTag("chat_context_window_$label"),
     ) {
-        WidgetsText(text = label)
+        Text(text = label)
     }
 }
 

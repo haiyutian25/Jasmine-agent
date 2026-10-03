@@ -25,8 +25,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import com.lhzkml.jasmine.core.ui.icons.LucideIcons
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
+import com.lhzkml.jasmine.core.widgets.icon.Icon
+import com.lhzkml.jasmine.core.widgets.text.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -60,7 +60,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.graphics.Color
 import com.lhzkml.jasmine.core.widgets.button.Button as WidgetsButton
 import com.lhzkml.jasmine.core.widgets.button.ButtonDefaults as WidgetsButtonDefaults
-import com.lhzkml.jasmine.core.widgets.text.Text as WidgetsText
+
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 
 // ── Provider screen dimensions ─────────────────────────────────────────
@@ -483,7 +483,7 @@ private fun ProviderEditorContent(
                 .weight(1f)
                 .testTag("provider_fetch_models_btn")
         ) {
-            WidgetsText(text = stringResource(R.string.provider_fetch_models))
+            Text(text = stringResource(R.string.provider_fetch_models))
         }
         WidgetsButton(
             onClick = { onAction(ProviderAction.CustomModelClicked) },
@@ -491,7 +491,7 @@ private fun ProviderEditorContent(
                 .weight(1f)
                 .testTag("provider_custom_model_btn")
         ) {
-            WidgetsText(text = stringResource(R.string.provider_custom_model))
+            Text(text = stringResource(R.string.provider_custom_model))
         }
     }
 
@@ -517,7 +517,7 @@ private fun ProviderEditorContent(
                     strokeWidth = 2.dp
                 )
             }
-            WidgetsText(
+            Text(
                 text = stringResource(
                     if (editor.isProbing) {
                         R.string.provider_testing
@@ -541,7 +541,7 @@ private fun ProviderEditorContent(
                 .weight(1f)
                 .testTag("provider_cancel_btn")
         ) {
-            WidgetsText(text = stringResource(R.string.provider_cancel))
+            Text(text = stringResource(R.string.provider_cancel))
         }
         WidgetsButton(
             onClick = { onAction(ProviderAction.SaveClicked) },
@@ -549,7 +549,7 @@ private fun ProviderEditorContent(
                 .weight(1f)
                 .testTag("provider_save_btn")
         ) {
-            WidgetsText(text = stringResource(R.string.provider_save))
+            Text(text = stringResource(R.string.provider_save))
         }
     }
 }
@@ -958,7 +958,7 @@ private fun ModelEditorSheet(
                         .weight(1f)
                         .testTag("provider_model_cancel_btn")
                 ) {
-                    WidgetsText(text = stringResource(R.string.provider_cancel))
+                    Text(text = stringResource(R.string.provider_cancel))
                 }
                 WidgetsButton(
                     onClick = { onAction(ProviderAction.ModelSaveClicked) },
@@ -966,7 +966,7 @@ private fun ModelEditorSheet(
                         .weight(1f)
                         .testTag("provider_model_save_btn")
                 ) {
-                    WidgetsText(text = stringResource(R.string.provider_save))
+                    Text(text = stringResource(R.string.provider_save))
                 }
             }
         }

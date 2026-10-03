@@ -35,9 +35,9 @@ import androidx.compose.foundation.text.InlineTextContent
 //    （定义在 InlineTextContentKt 里）。用旧包名会报 Unresolved reference。
 import androidx.compose.foundation.text.appendInlineContent
 import com.lhzkml.jasmine.core.ui.icons.LucideIcons
-import androidx.compose.material3.Icon
+import com.lhzkml.jasmine.core.widgets.icon.Icon
 import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.Text
+import com.lhzkml.jasmine.core.widgets.text.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
