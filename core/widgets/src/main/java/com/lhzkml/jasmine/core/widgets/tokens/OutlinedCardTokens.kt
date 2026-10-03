@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 
 internal object OutlinedCardTokens {
-    val ContainerColor: (CssVariables) -> Color = { it.card }
+    val ContainerColor: (CssVariables) -> Color = { it.surface }
     val ContainerElevation = ElevationTokens.Level0
     val ContainerShape = ShapeKeyTokens.CornerMedium
     val DisabledContainerElevation = ElevationTokens.Level0

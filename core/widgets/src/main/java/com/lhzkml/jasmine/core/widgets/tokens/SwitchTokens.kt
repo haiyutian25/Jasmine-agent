@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,33 +19,36 @@
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
+import androidx.compose.ui.graphics.Color
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+
 import androidx.compose.ui.unit.dp
 
 internal object SwitchTokens {
-    val DisabledSelectedHandleColor = ColorSchemeKeyTokens.Surface
+    val DisabledSelectedHandleColor: (CssVariables) -> Color = { it.surface }
     val DisabledSelectedHandleOpacity = 1.0f
-    val DisabledSelectedIconColor = ColorSchemeKeyTokens.OnSurface
+    val DisabledSelectedIconColor: (CssVariables) -> Color = { it.cardForeground }
     val DisabledSelectedIconOpacity = 0.38f
-    val DisabledSelectedTrackColor = ColorSchemeKeyTokens.OnSurface
+    val DisabledSelectedTrackColor: (CssVariables) -> Color = { it.cardForeground }
     val DisabledTrackOpacity = 0.12f
-    val DisabledUnselectedHandleColor = ColorSchemeKeyTokens.OnSurface
+    val DisabledUnselectedHandleColor: (CssVariables) -> Color = { it.cardForeground }
     val DisabledUnselectedHandleOpacity = 0.38f
-    val DisabledUnselectedIconColor = ColorSchemeKeyTokens.SurfaceContainerHighest
+    val DisabledUnselectedIconColor: (CssVariables) -> Color = { it.surfaceContainerHighest }
     val DisabledUnselectedIconOpacity = 0.38f
-    val DisabledUnselectedTrackColor = ColorSchemeKeyTokens.SurfaceContainerHighest
-    val DisabledUnselectedTrackOutlineColor = ColorSchemeKeyTokens.OnSurface
+    val DisabledUnselectedTrackColor: (CssVariables) -> Color = { it.surfaceContainerHighest }
+    val DisabledUnselectedTrackOutlineColor: (CssVariables) -> Color = { it.cardForeground }
     val HandleShape = ShapeKeyTokens.CornerFull
-    val SelectedHandleColor = ColorSchemeKeyTokens.OnPrimary
+    val SelectedHandleColor: (CssVariables) -> Color = { it.primaryForeground }
     val SelectedHandleWidth = 24.0.dp
-    val SelectedIconColor = ColorSchemeKeyTokens.OnPrimaryContainer
-    val SelectedTrackColor = ColorSchemeKeyTokens.Primary
+    val SelectedIconColor: (CssVariables) -> Color = { it.onPrimaryContainer }
+    val SelectedTrackColor: (CssVariables) -> Color = { it.primary }
     val TrackHeight = 32.0.dp
     val TrackOutlineWidth = 2.0.dp
     val TrackShape = ShapeKeyTokens.CornerFull
     val TrackWidth = 52.0.dp
-    val UnselectedFocusTrackOutlineColor = ColorSchemeKeyTokens.Outline
-    val UnselectedHandleColor = ColorSchemeKeyTokens.Outline
+    val UnselectedFocusTrackOutlineColor: (CssVariables) -> Color = { it.border }
+    val UnselectedHandleColor: (CssVariables) -> Color = { it.border }
     val UnselectedHandleWidth = 16.0.dp
-    val UnselectedIconColor = ColorSchemeKeyTokens.SurfaceContainerHighest
-    val UnselectedTrackColor = ColorSchemeKeyTokens.SurfaceContainerHighest
+    val UnselectedIconColor: (CssVariables) -> Color = { it.surfaceContainerHighest }
+    val UnselectedTrackColor: (CssVariables) -> Color = { it.surfaceContainerHighest }
 }

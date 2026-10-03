@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +20,8 @@
 
 package com.lhzkml.jasmine.core.widgets.tabs
 
+import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
+
 import androidx.compose.animation.animateColor
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.interaction.Interaction
@@ -35,7 +37,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.selection.selectable
-import com.lhzkml.jasmine.core.widgets.tokens.MotionSchemeKeyTokens
 import com.lhzkml.jasmine.core.widgets.tokens.PrimaryNavigationTabTokens
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -62,9 +63,6 @@ import com.lhzkml.jasmine.core.widgets.ripple.ripple
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import com.lhzkml.jasmine.core.widgets.navigation.badgeBounds
-import com.lhzkml.jasmine.core.widgets.motion.value
-import com.lhzkml.jasmine.core.widgets.tokens.value
-import com.lhzkml.jasmine.core.widgets.tokens.fromToken
 
 /*
  * Copyright 2022 The Android Open Source Project
@@ -311,10 +309,10 @@ private fun TabTransition(
             transitionSpec = {
                 if (false isTransitioningTo true) {
                     // Fade-in
-                    MotionSchemeKeyTokens.DefaultEffects.value()
+                    LocalMotionScheme.current.defaultEffectsSpec()
                 } else {
                     // Fade-out
-                    MotionSchemeKeyTokens.FastEffects.value()
+                    LocalMotionScheme.current.fastEffectsSpec()
                 }
             }
         ) {

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,16 +19,19 @@
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
+import androidx.compose.ui.graphics.Color
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+
 import com.lhzkml.jasmine.core.ui.theme.AppTypography
 
 internal object DialogTokens {
-    val ActionLabelTextColor = ColorSchemeKeyTokens.Primary
+    val ActionLabelTextColor: (CssVariables) -> Color = { it.primary }
     val ActionLabelTextFont = AppTypography.labelLarge
-    val ContainerColor = ColorSchemeKeyTokens.SurfaceContainerHigh
+    val ContainerColor: (CssVariables) -> Color = { it.surfaceContainerHigh }
     val ContainerShape = ShapeKeyTokens.CornerExtraLarge
-    val HeadlineColor = ColorSchemeKeyTokens.OnSurface
+    val HeadlineColor: (CssVariables) -> Color = { it.cardForeground }
     val HeadlineFont = AppTypography.headlineSmall
-    val IconColor = ColorSchemeKeyTokens.Secondary
-    val SupportingTextColor = ColorSchemeKeyTokens.OnSurfaceVariant
+    val IconColor: (CssVariables) -> Color = { it.secondary }
+    val SupportingTextColor: (CssVariables) -> Color = { it.mutedForeground }
     val SupportingTextFont = AppTypography.bodyMedium
 }

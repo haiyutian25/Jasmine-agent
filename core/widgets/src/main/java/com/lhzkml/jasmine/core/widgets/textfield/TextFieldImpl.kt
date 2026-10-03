@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,10 +33,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
 import com.lhzkml.jasmine.core.widgets.interactive.LocalMinimumInteractiveComponentSize
 import com.lhzkml.jasmine.core.ui.theme.AppTypography
-import com.lhzkml.jasmine.core.widgets.tokens.MotionSchemeKeyTokens
+import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
 import com.lhzkml.jasmine.core.widgets.tokens.SmallIconButtonTokens
 import com.lhzkml.jasmine.core.widgets.tokens.TypeScaleTokens
-import com.lhzkml.jasmine.core.widgets.motion.value
 import com.lhzkml.jasmine.core.widgets.tokens.value
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -74,7 +73,6 @@ import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSize
 import com.lhzkml.jasmine.core.widgets.internal.ProvideContentColorTextStyle
-import com.lhzkml.jasmine.core.widgets.tokens.fromToken
 
 internal enum class TextFieldType {
     Filled,
@@ -393,7 +391,7 @@ private inline fun TextFieldTransitionScope(
     val transition = updateTransition(inputState, label = "TextFieldInputState")
 
     // TODO Load the motionScheme tokens from the component tokens file
-    val labelTransitionSpec = MotionSchemeKeyTokens.FastSpatial.value<Float>()
+    val labelTransitionSpec = LocalMotionScheme.current.fastSpatialSpec<Float>()
     val labelProgress =
         transition.animateFloat(label = "LabelProgress", transitionSpec = { labelTransitionSpec }) {
             when (it) {
@@ -403,8 +401,8 @@ private inline fun TextFieldTransitionScope(
             }
         }
 
-    val fastOpacityTransitionSpec = MotionSchemeKeyTokens.FastEffects.value<Float>()
-    val slowOpacityTransitionSpec = MotionSchemeKeyTokens.SlowEffects.value<Float>()
+    val fastOpacityTransitionSpec = LocalMotionScheme.current.fastEffectsSpec<Float>()
+    val slowOpacityTransitionSpec = LocalMotionScheme.current.slowEffectsSpec<Float>()
     val placeholderOpacity =
         transition.animateFloat(
             label = "PlaceholderOpacity",
@@ -440,7 +438,7 @@ private inline fun TextFieldTransitionScope(
             }
         }
 
-    val colorTransitionSpec = MotionSchemeKeyTokens.FastEffects.value<Color>()
+    val colorTransitionSpec = LocalMotionScheme.current.fastEffectsSpec<Color>()
     val labelTextStyleColor =
         transition.animateColor(
             transitionSpec = { colorTransitionSpec },
@@ -480,7 +478,7 @@ internal fun animateBorderStrokeAsState(
 ): State<BorderStroke> {
     // TODO Load the motionScheme tokens from the component tokens file
     val targetColor = colors.indicatorColor(enabled, isError, focused)
-    val colorAnimationSpec = MotionSchemeKeyTokens.FastEffects.value<Color>()
+    val colorAnimationSpec = LocalMotionScheme.current.fastEffectsSpec<Color>()
     val indicatorColor =
         if (enabled) {
             animateColorAsState(targetColor, colorAnimationSpec)
@@ -488,7 +486,7 @@ internal fun animateBorderStrokeAsState(
             rememberUpdatedState(targetColor)
         }
 
-    val thicknessAnimationSpec = MotionSchemeKeyTokens.FastSpatial.value<Dp>()
+    val thicknessAnimationSpec = LocalMotionScheme.current.fastSpatialSpec<Dp>()
     val thickness =
         if (enabled) {
             val targetThickness = if (focused) focusedBorderThickness else unfocusedBorderThickness

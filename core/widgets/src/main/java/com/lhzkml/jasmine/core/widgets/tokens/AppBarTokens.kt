@@ -18,11 +18,13 @@
 //
 // 与上游的差别：上游这里是 M3 的 **颜色角色键**（`ColorSchemeKeyTokens.Surface` 等），再由
 // `ColorScheme.fromToken` 映射到 M3 主题；本库不再做这层「角色键 → 主题」映射 ——
-// 槽位直接在**自有主题** `CssVariables` 上实现，取值与之前逐槽一致（观感不变）：
-//   ContainerColor Surface        -> CssVariables.card
-//   OnScrollContainerColor SurfaceContainer -> CssVariables.card
-//   LeadingIconColor / TitleColor OnSurface -> CssVariables.cardForeground
-//   TrailingIconColor / SubtitleColor OnSurfaceVariant -> CssVariables.mutedForeground
+// 槽位直接在**自有主题** `CssVariables` 上实现，且**逐键对应**上游，取值与之前逐槽一致：
+//   ContainerColor          Surface           -> CssVariables.surface
+//   OnScrollContainerColor  SurfaceContainer  -> CssVariables.surfaceContainer
+//   LeadingIconColor        OnSurface         -> CssVariables.cardForeground
+//   TitleColor              OnSurface         -> CssVariables.cardForeground
+//   SubtitleColor           OnSurfaceVariant  -> CssVariables.mutedForeground
+//   TrailingIconColor       OnSurfaceVariant  -> CssVariables.mutedForeground
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
@@ -30,9 +32,9 @@ import androidx.compose.ui.graphics.Color
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 
 internal object AppBarTokens {
-    val ContainerColor: (CssVariables) -> Color = { it.card }
+    val ContainerColor: (CssVariables) -> Color = { it.surface }
     val LeadingIconColor: (CssVariables) -> Color = { it.cardForeground }
-    val OnScrollContainerColor: (CssVariables) -> Color = { it.card }
+    val OnScrollContainerColor: (CssVariables) -> Color = { it.surfaceContainer }
     val SubtitleColor: (CssVariables) -> Color = { it.mutedForeground }
     val TitleColor: (CssVariables) -> Color = { it.cardForeground }
     val TrailingIconColor: (CssVariables) -> Color = { it.mutedForeground }

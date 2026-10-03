@@ -26,10 +26,10 @@ import androidx.compose.ui.graphics.Color
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 
 internal object ElevatedCardTokens {
-    val ContainerColor: (CssVariables) -> Color = { it.card }
+    val ContainerColor: (CssVariables) -> Color = { it.surfaceContainerLow }
     val ContainerElevation = ElevationTokens.Level1
     val ContainerShape = ShapeKeyTokens.CornerMedium
-    val DisabledContainerColor: (CssVariables) -> Color = { it.card }
+    val DisabledContainerColor: (CssVariables) -> Color = { it.surface }
     val DisabledContainerElevation = ElevationTokens.Level1
     val DisabledContainerOpacity = 0.38f
     val DraggedContainerElevation = ElevationTokens.Level4

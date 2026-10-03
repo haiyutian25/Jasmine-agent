@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,13 +18,13 @@
 
 package com.lhzkml.jasmine.core.widgets.switch
 
+import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
+
 import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 
 import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
 import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSize
-import com.lhzkml.jasmine.core.widgets.motion.value
-import com.lhzkml.jasmine.core.widgets.tokens.fromToken
 import com.lhzkml.jasmine.core.widgets.tokens.value
 
 import androidx.compose.animation.core.Animatable
@@ -40,7 +40,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.selection.toggleable
-import com.lhzkml.jasmine.core.widgets.tokens.MotionSchemeKeyTokens
 import com.lhzkml.jasmine.core.widgets.tokens.SwitchTokens
 import com.lhzkml.jasmine.core.widgets.tokens.SwitchTokens.TrackOutlineWidth
 import androidx.compose.runtime.Composable
@@ -161,7 +160,7 @@ private fun SwitchImpl(
                         ThumbElement(
                             checked = checked,
                             // TODO Load the motionScheme tokens from the component tokens file
-                            animationSpec = MotionSchemeKeyTokens.FastSpatial.value(),
+                            animationSpec = LocalMotionScheme.current.fastSpatialSpec(),
                         )
                     )
                     .background(resolvedThumbColor, thumbShape),
@@ -293,41 +292,41 @@ object SwitchDefaults {
      */
     @Composable
     fun colors(
-        checkedThumbColor: Color = SwitchTokens.SelectedHandleColor.value,
-        checkedTrackColor: Color = SwitchTokens.SelectedTrackColor.value,
+        checkedThumbColor: Color = SwitchTokens.SelectedHandleColor(LocalCssVariables.current),
+        checkedTrackColor: Color = SwitchTokens.SelectedTrackColor(LocalCssVariables.current),
         checkedBorderColor: Color = Color.Transparent,
-        checkedIconColor: Color = SwitchTokens.SelectedIconColor.value,
-        uncheckedThumbColor: Color = SwitchTokens.UnselectedHandleColor.value,
-        uncheckedTrackColor: Color = SwitchTokens.UnselectedTrackColor.value,
-        uncheckedBorderColor: Color = SwitchTokens.UnselectedFocusTrackOutlineColor.value,
-        uncheckedIconColor: Color = SwitchTokens.UnselectedIconColor.value,
+        checkedIconColor: Color = SwitchTokens.SelectedIconColor(LocalCssVariables.current),
+        uncheckedThumbColor: Color = SwitchTokens.UnselectedHandleColor(LocalCssVariables.current),
+        uncheckedTrackColor: Color = SwitchTokens.UnselectedTrackColor(LocalCssVariables.current),
+        uncheckedBorderColor: Color = SwitchTokens.UnselectedFocusTrackOutlineColor(LocalCssVariables.current),
+        uncheckedIconColor: Color = SwitchTokens.UnselectedIconColor(LocalCssVariables.current),
         disabledCheckedThumbColor: Color =
-            SwitchTokens.DisabledSelectedHandleColor.value
+            SwitchTokens.DisabledSelectedHandleColor(LocalCssVariables.current)
                 .copy(alpha = SwitchTokens.DisabledSelectedHandleOpacity)
                 .compositeOver(LocalCssVariables.current.card),
         disabledCheckedTrackColor: Color =
-            SwitchTokens.DisabledSelectedTrackColor.value
+            SwitchTokens.DisabledSelectedTrackColor(LocalCssVariables.current)
                 .copy(alpha = SwitchTokens.DisabledTrackOpacity)
                 .compositeOver(LocalCssVariables.current.card),
         disabledCheckedBorderColor: Color = Color.Transparent,
         disabledCheckedIconColor: Color =
-            SwitchTokens.DisabledSelectedIconColor.value
+            SwitchTokens.DisabledSelectedIconColor(LocalCssVariables.current)
                 .copy(alpha = SwitchTokens.DisabledSelectedIconOpacity)
                 .compositeOver(LocalCssVariables.current.card),
         disabledUncheckedThumbColor: Color =
-            SwitchTokens.DisabledUnselectedHandleColor.value
+            SwitchTokens.DisabledUnselectedHandleColor(LocalCssVariables.current)
                 .copy(alpha = SwitchTokens.DisabledUnselectedHandleOpacity)
                 .compositeOver(LocalCssVariables.current.card),
         disabledUncheckedTrackColor: Color =
-            SwitchTokens.DisabledUnselectedTrackColor.value
+            SwitchTokens.DisabledUnselectedTrackColor(LocalCssVariables.current)
                 .copy(alpha = SwitchTokens.DisabledTrackOpacity)
                 .compositeOver(LocalCssVariables.current.card),
         disabledUncheckedBorderColor: Color =
-            SwitchTokens.DisabledUnselectedTrackOutlineColor.value
+            SwitchTokens.DisabledUnselectedTrackOutlineColor(LocalCssVariables.current)
                 .copy(alpha = SwitchTokens.DisabledTrackOpacity)
                 .compositeOver(LocalCssVariables.current.card),
         disabledUncheckedIconColor: Color =
-            SwitchTokens.DisabledUnselectedIconColor.value
+            SwitchTokens.DisabledUnselectedIconColor(LocalCssVariables.current)
                 .copy(alpha = SwitchTokens.DisabledUnselectedIconOpacity)
                 .compositeOver(LocalCssVariables.current.card),
     ): SwitchColors =
@@ -354,42 +353,42 @@ object SwitchDefaults {
         @Composable
         get() =
             SwitchColors(
-                        checkedThumbColor = fromToken(SwitchTokens.SelectedHandleColor),
-                        checkedTrackColor = fromToken(SwitchTokens.SelectedTrackColor),
+                        checkedThumbColor = SwitchTokens.SelectedHandleColor(this),
+                        checkedTrackColor = SwitchTokens.SelectedTrackColor(this),
                         checkedBorderColor = Color.Transparent,
-                        checkedIconColor = fromToken(SwitchTokens.SelectedIconColor),
-                        uncheckedThumbColor = fromToken(SwitchTokens.UnselectedHandleColor),
-                        uncheckedTrackColor = fromToken(SwitchTokens.UnselectedTrackColor),
+                        checkedIconColor = SwitchTokens.SelectedIconColor(this),
+                        uncheckedThumbColor = SwitchTokens.UnselectedHandleColor(this),
+                        uncheckedTrackColor = SwitchTokens.UnselectedTrackColor(this),
                         uncheckedBorderColor =
-                            fromToken(SwitchTokens.UnselectedFocusTrackOutlineColor),
-                        uncheckedIconColor = fromToken(SwitchTokens.UnselectedIconColor),
+                            SwitchTokens.UnselectedFocusTrackOutlineColor(this),
+                        uncheckedIconColor = SwitchTokens.UnselectedIconColor(this),
                         disabledCheckedThumbColor =
-                            fromToken(SwitchTokens.DisabledSelectedHandleColor)
+                            SwitchTokens.DisabledSelectedHandleColor(this)
                                 .copy(alpha = SwitchTokens.DisabledSelectedHandleOpacity)
                                 .compositeOver(card),
                         disabledCheckedTrackColor =
-                            fromToken(SwitchTokens.DisabledSelectedTrackColor)
+                            SwitchTokens.DisabledSelectedTrackColor(this)
                                 .copy(alpha = SwitchTokens.DisabledTrackOpacity)
                                 .compositeOver(card),
                         disabledCheckedBorderColor = Color.Transparent,
                         disabledCheckedIconColor =
-                            fromToken(SwitchTokens.DisabledSelectedIconColor)
+                            SwitchTokens.DisabledSelectedIconColor(this)
                                 .copy(alpha = SwitchTokens.DisabledSelectedIconOpacity)
                                 .compositeOver(card),
                         disabledUncheckedThumbColor =
-                            fromToken(SwitchTokens.DisabledUnselectedHandleColor)
+                            SwitchTokens.DisabledUnselectedHandleColor(this)
                                 .copy(alpha = SwitchTokens.DisabledUnselectedHandleOpacity)
                                 .compositeOver(card),
                         disabledUncheckedTrackColor =
-                            fromToken(SwitchTokens.DisabledUnselectedTrackColor)
+                            SwitchTokens.DisabledUnselectedTrackColor(this)
                                 .copy(alpha = SwitchTokens.DisabledTrackOpacity)
                                 .compositeOver(card),
                         disabledUncheckedBorderColor =
-                            fromToken(SwitchTokens.DisabledUnselectedTrackOutlineColor)
+                            SwitchTokens.DisabledUnselectedTrackOutlineColor(this)
                                 .copy(alpha = SwitchTokens.DisabledTrackOpacity)
                                 .compositeOver(card),
                         disabledUncheckedIconColor =
-                            fromToken(SwitchTokens.DisabledUnselectedIconColor)
+                            SwitchTokens.DisabledUnselectedIconColor(this)
                                 .copy(alpha = SwitchTokens.DisabledUnselectedIconOpacity)
                                 .compositeOver(card),
                     )

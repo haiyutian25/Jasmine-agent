@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,7 +33,6 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.window.PopupPositionProvider
-import com.lhzkml.jasmine.core.widgets.tokens.value
 
 /*
  * Copyright 2023 The Android Open Source Project

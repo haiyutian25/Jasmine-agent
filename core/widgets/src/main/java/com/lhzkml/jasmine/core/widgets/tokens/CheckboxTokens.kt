@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,15 +20,18 @@
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
+import androidx.compose.ui.graphics.Color
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+
 import androidx.compose.ui.unit.dp
 
 internal object CheckboxTokens {
-    val SelectedContainerColor = ColorSchemeKeyTokens.Primary
-    val SelectedDisabledContainerColor = ColorSchemeKeyTokens.OnSurface
+    val SelectedContainerColor: (CssVariables) -> Color = { it.primary }
+    val SelectedDisabledContainerColor: (CssVariables) -> Color = { it.cardForeground }
     const val SelectedDisabledContainerOpacity = 0.38f
-    val SelectedIconColor = ColorSchemeKeyTokens.OnPrimary
+    val SelectedIconColor: (CssVariables) -> Color = { it.primaryForeground }
     val StateLayerSize = 40.0.dp
     const val UnselectedDisabledContainerOpacity = 0.38f
-    val UnselectedDisabledOutlineColor = ColorSchemeKeyTokens.OnSurface
-    val UnselectedOutlineColor = ColorSchemeKeyTokens.OnSurfaceVariant
+    val UnselectedDisabledOutlineColor: (CssVariables) -> Color = { it.cardForeground }
+    val UnselectedOutlineColor: (CssVariables) -> Color = { it.mutedForeground }
 }

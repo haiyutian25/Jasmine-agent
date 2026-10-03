@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -198,7 +198,7 @@ fun Badge(
 object BadgeDefaults {
     /** Default container color for a badge. */
     val containerColor: Color
-        @Composable get() = BadgeTokens.Color.value
+        @Composable get() = BadgeTokens.Color(LocalCssVariables.current)
 }
 
 // Leading and trailing text padding when a badge is displaying text that is too long to fit in

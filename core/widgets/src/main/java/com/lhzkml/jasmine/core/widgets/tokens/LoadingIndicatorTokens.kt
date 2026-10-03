@@ -27,8 +27,8 @@ import com.lhzkml.jasmine.core.ui.theme.CssVariables
 internal object LoadingIndicatorTokens {
     val ActiveIndicatorColor: (CssVariables) -> Color = { it.primary }
     val ActiveSize = 38.0.dp
-    val ContainedActiveColor: (CssVariables) -> Color = { it.accentForeground }
-    val ContainedContainerColor: (CssVariables) -> Color = { it.accent }
+    val ContainedActiveColor: (CssVariables) -> Color = { it.onPrimaryContainer }
+    val ContainedContainerColor: (CssVariables) -> Color = { it.primaryContainer }
     val ContainerHeight = 48.0.dp
     val ContainerShape = ShapeKeyTokens.CornerFull
     val ContainerWidth = 48.0.dp

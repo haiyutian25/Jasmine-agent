@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,36 +18,39 @@
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
+import androidx.compose.ui.graphics.Color
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+
 internal object OutlinedAutocompleteTokens {
-    val TextFieldCaretColor = ColorSchemeKeyTokens.Primary
-    val FieldDisabledInputTextColor = ColorSchemeKeyTokens.OnSurface
+    val TextFieldCaretColor: (CssVariables) -> Color = { it.primary }
+    val FieldDisabledInputTextColor: (CssVariables) -> Color = { it.cardForeground }
     val FieldDisabledInputTextOpacity = 0.38f
-    val FieldDisabledLabelTextColor = ColorSchemeKeyTokens.OnSurface
+    val FieldDisabledLabelTextColor: (CssVariables) -> Color = { it.cardForeground }
     val FieldDisabledLabelTextOpacity = 0.38f
-    val TextFieldDisabledLeadingIconColor = ColorSchemeKeyTokens.OnSurface
+    val TextFieldDisabledLeadingIconColor: (CssVariables) -> Color = { it.cardForeground }
     val TextFieldDisabledLeadingIconOpacity = 0.38f
-    val TextFieldDisabledOutlineColor = ColorSchemeKeyTokens.OnSurface
+    val TextFieldDisabledOutlineColor: (CssVariables) -> Color = { it.cardForeground }
     val TextFieldDisabledOutlineOpacity = 0.12f
-    val FieldDisabledSupportingTextColor = ColorSchemeKeyTokens.OnSurface
+    val FieldDisabledSupportingTextColor: (CssVariables) -> Color = { it.cardForeground }
     val FieldDisabledSupportingTextOpacity = 0.38f
-    val TextFieldDisabledTrailingIconColor = ColorSchemeKeyTokens.OnSurface
+    val TextFieldDisabledTrailingIconColor: (CssVariables) -> Color = { it.cardForeground }
     val TextFieldDisabledTrailingIconOpacity = 0.38f
-    val TextFieldErrorFocusCaretColor = ColorSchemeKeyTokens.Error
-    val FieldErrorInputTextColor = ColorSchemeKeyTokens.OnSurface
-    val FieldErrorLabelTextColor = ColorSchemeKeyTokens.Error
-    val TextFieldErrorLeadingIconColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val TextFieldErrorOutlineColor = ColorSchemeKeyTokens.Error
-    val TextFieldErrorTrailingIconColor = ColorSchemeKeyTokens.Error
-    val FieldFocusInputTextColor = ColorSchemeKeyTokens.OnSurface
-    val FieldFocusLabelTextColor = ColorSchemeKeyTokens.Primary
-    val TextFieldFocusLeadingIconColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val TextFieldFocusOutlineColor = ColorSchemeKeyTokens.Primary
-    val TextFieldFocusTrailingIconColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val FieldInputTextColor = ColorSchemeKeyTokens.OnSurface
-    val FieldLabelTextColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val TextFieldLeadingIconColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val TextFieldOutlineColor = ColorSchemeKeyTokens.Outline
-    val FieldSupportingTextColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val TextFieldTrailingIconColor = ColorSchemeKeyTokens.OnSurfaceVariant
+    val TextFieldErrorFocusCaretColor: (CssVariables) -> Color = { it.error }
+    val FieldErrorInputTextColor: (CssVariables) -> Color = { it.cardForeground }
+    val FieldErrorLabelTextColor: (CssVariables) -> Color = { it.error }
+    val TextFieldErrorLeadingIconColor: (CssVariables) -> Color = { it.mutedForeground }
+    val TextFieldErrorOutlineColor: (CssVariables) -> Color = { it.error }
+    val TextFieldErrorTrailingIconColor: (CssVariables) -> Color = { it.error }
+    val FieldFocusInputTextColor: (CssVariables) -> Color = { it.cardForeground }
+    val FieldFocusLabelTextColor: (CssVariables) -> Color = { it.primary }
+    val TextFieldFocusLeadingIconColor: (CssVariables) -> Color = { it.mutedForeground }
+    val TextFieldFocusOutlineColor: (CssVariables) -> Color = { it.primary }
+    val TextFieldFocusTrailingIconColor: (CssVariables) -> Color = { it.mutedForeground }
+    val FieldInputTextColor: (CssVariables) -> Color = { it.cardForeground }
+    val FieldLabelTextColor: (CssVariables) -> Color = { it.mutedForeground }
+    val TextFieldLeadingIconColor: (CssVariables) -> Color = { it.mutedForeground }
+    val TextFieldOutlineColor: (CssVariables) -> Color = { it.border }
+    val FieldSupportingTextColor: (CssVariables) -> Color = { it.mutedForeground }
+    val TextFieldTrailingIconColor: (CssVariables) -> Color = { it.mutedForeground }
 }
 

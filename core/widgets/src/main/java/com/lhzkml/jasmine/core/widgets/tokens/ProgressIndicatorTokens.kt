@@ -26,5 +26,5 @@ import com.lhzkml.jasmine.core.ui.theme.CssVariables
 
 internal object ProgressIndicatorTokens {
     val ActiveIndicatorColor: (CssVariables) -> Color = { it.primary }
-    val TrackColor: (CssVariables) -> Color = { it.subtleSurface }
+    val TrackColor: (CssVariables) -> Color = { it.secondaryContainer }
 }

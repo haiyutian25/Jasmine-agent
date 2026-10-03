@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,10 +17,13 @@
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
+import androidx.compose.ui.graphics.Color
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+
 import androidx.compose.ui.unit.dp
 
 internal object SheetBottomTokens {
-    val DockedContainerColor = ColorSchemeKeyTokens.SurfaceContainerLow
+    val DockedContainerColor: (CssVariables) -> Color = { it.surfaceContainerLow }
     val DockedContainerShape = ShapeKeyTokens.CornerExtraLargeTop
     val DockedModalContainerElevation = ElevationTokens.Level1
 }

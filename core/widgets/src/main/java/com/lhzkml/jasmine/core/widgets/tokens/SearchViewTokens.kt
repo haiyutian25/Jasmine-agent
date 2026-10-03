@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,11 +16,15 @@
 // 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
 // 只留本组件库真正用到的槽位（展开态的分隔线与两种形状）；上游那份里的容器色/高度/字体等槽位
 // 没有任何组件在用，已随裁剪删掉 —— 要加就照这里补一行。
+// 分隔线颜色直读自有主题 `CssVariables`（Outline -> border），取值与之前一致。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
+import androidx.compose.ui.graphics.Color
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+
 internal object SearchViewTokens {
-    val DividerColor = ColorSchemeKeyTokens.Outline
+    val DividerColor: (CssVariables) -> Color = { it.border }
     val DockedContainerShape = ShapeKeyTokens.CornerExtraLarge
     val FullScreenContainerShape = ShapeKeyTokens.CornerNone
 }

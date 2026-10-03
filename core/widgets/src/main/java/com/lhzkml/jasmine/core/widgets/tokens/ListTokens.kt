@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,19 +19,22 @@
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
+import androidx.compose.ui.graphics.Color
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+
 import androidx.compose.ui.unit.dp
 
 internal object ListTokens {
-    val ListItemDisabledLabelTextColor = ColorSchemeKeyTokens.OnSurface
+    val ListItemDisabledLabelTextColor: (CssVariables) -> Color = { it.cardForeground }
     val ListItemDisabledLabelTextOpacity = 0.38f
-    val ListItemDisabledLeadingIconColor = ColorSchemeKeyTokens.OnSurface
+    val ListItemDisabledLeadingIconColor: (CssVariables) -> Color = { it.cardForeground }
     val ListItemDisabledLeadingIconOpacity = 0.38f
-    val ListItemDisabledTrailingIconColor = ColorSchemeKeyTokens.OnSurface
+    val ListItemDisabledTrailingIconColor: (CssVariables) -> Color = { it.cardForeground }
     val ListItemDisabledTrailingIconOpacity = 0.38f
-    val ListItemLabelTextColor = ColorSchemeKeyTokens.OnSurface
-    val ListItemLeadingIconColor = ColorSchemeKeyTokens.OnSurfaceVariant
+    val ListItemLabelTextColor: (CssVariables) -> Color = { it.cardForeground }
+    val ListItemLeadingIconColor: (CssVariables) -> Color = { it.mutedForeground }
     val ListItemLeadingIconSize = 24.0.dp
-    val ListItemTrailingIconColor = ColorSchemeKeyTokens.OnSurfaceVariant
+    val ListItemTrailingIconColor: (CssVariables) -> Color = { it.mutedForeground }
     val ListItemTrailingIconSize = 24.0.dp
 }
 

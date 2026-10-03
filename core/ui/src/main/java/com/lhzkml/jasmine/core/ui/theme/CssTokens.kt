@@ -2,6 +2,7 @@ package com.lhzkml.jasmine.core.ui.theme
 
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -9,12 +10,22 @@ import androidx.compose.ui.unit.dp
  * Production-grade CSS Variables model with Editorial Aesthetic tokens:
  * --bg, --text/--fg, --surface/--card, --border,
  * --primary/--accent, --muted, --radius
+ *
+ * 除下面这 13 个基础槽（各调色板逐个手写取值）外，还**按上游 M3 的角色键逐键**补了
+ * 一组容器/次级色槽（[surface] … [error]）：上游 `ColorSchemeKeyTokens` 里本库用到的
+ * 21 个键现在**一一对应**到自有槽，不再把多个键折到同一个槽上。
+ *
+ * 这些是**派生槽**（`get()`）：值仍由各调色板自己的 [background] / [card] / [muted] /
+ * [accent] / [foreground] 按 M3 基线的层次关系推出来，所以 12 套调色板自动各自成立，
+ * 且不引入任何新色值。层次口径（浅色下由亮到暗）与 M3 基线一致：
+ * `Surface(≈[background]) → SurfaceContainerLow → SurfaceContainer(= [card]) →
+ * SurfaceContainerHigh → SurfaceContainerHighest(≈[muted])`。
  */
 data class CssVariables(
     val themeId: String,
     val name: String,
     val isDark: Boolean,
-    
+
     // Core CSS Color Variables
     val background: Color,
     val foreground: Color,
@@ -29,9 +40,76 @@ data class CssVariables(
     val accentForeground: Color,
     val ring: Color,
     val subtleSurface: Color,
-    
-    // Radius Tokens (Editorial: 24px primary radius)
-)
+) {
+    // ── 上游 ColorSchemeKeyTokens 一一对应的容器 / 次级色槽 ──────────────────
+
+    /** 上游 `Surface`：基准面（= 卡片底色）。 */
+    val surface: Color get() = card
+
+    /** 上游 `SurfaceContainerLow`：比 [card] 浅半档的一层。 */
+    val surfaceContainerLow: Color get() = lerp(background, card, 0.5f)
+
+    /** 上游 `SurfaceContainer`：常规容器层（= [card]）。 */
+    val surfaceContainer: Color get() = card
+
+    /**
+     * 上游 `SurfaceContainerHigh`：比 [card] 深一档。搜索栏折叠态的容器用的就是它 ——
+     * 之前折到 [subtleSurface]（与页面底只差几阶）才导致轮廓看不清。
+     */
+    val surfaceContainerHigh: Color get() = lerp(card, muted, 0.5f)
+
+    /** 上游 `SurfaceContainerHighest`：容器层里最深的一档（= [muted]）。 */
+    val surfaceContainerHighest: Color get() = muted
+
+    /** 上游 `SurfaceVariant`：与容器高亮层同级，用于次级面。 */
+    val surfaceVariant: Color get() = lerp(card, muted, 0.5f)
+
+    /**
+     * 上游 `PrimaryContainer`：主色的容器调。M3 基线里它比面**浅、带主色相**
+     * （`#EADDFF`），所以取主色向面靠拢的淡色调。
+     */
+    val primaryContainer: Color get() = lerp(primary, card, 0.85f)
+
+    /**
+     * 上游 `OnPrimaryContainer`：主色容器上的前景色。M3 基线里它**很深**
+     * （`#21005D`），取主色本身（在容器淡底上对比充足）。
+     */
+    val onPrimaryContainer: Color get() = primary
+
+    /** 上游 `Secondary`：次要色（M3 基线 `#625B71`，中深灰 ⇒ 取 [mutedForeground]）。 */
+    val secondary: Color get() = mutedForeground
+
+    /** 上游 `OnSecondary`：次要面上的前景色（M3 基线为白 ⇒ 取 [background]）。 */
+    val onSecondary: Color get() = background
+
+    /**
+     * 上游 `SecondaryContainer`：次要容器面。M3 基线 `#E8DEF8` 比面**深一档**、
+     * 需要能当"选中药丸"的底 ⇒ 取本调色板最深的面 [muted]（不能折到 [subtleSurface]，
+     * 那与 [card] 只差几阶，选中指示条会看不见）。
+     */
+    val secondaryContainer: Color get() = muted
+
+    /**
+     * 上游 `OnSecondaryContainer`：次要容器上的前景色。M3 基线 `#1D192B` 是**近黑**，
+     * 用作选中项图标/文字 ⇒ 取 [foreground]（不能折到 [mutedForeground]，那样与未选中的
+     * `OnSurfaceVariant` 同色，选中态就看不出来了）。
+     */
+    val onSecondaryContainer: Color get() = foreground
+
+    /** 上游 `InverseSurface`：反色面（= [foreground]）。 */
+    val inverseSurface: Color get() = foreground
+
+    /** 上游 `InverseOnSurface`：反色面上的前景色（= [background]）。 */
+    val inverseOnSurface: Color get() = background
+
+    /**
+     * 上游 `Error`：错误色。现有 12 套调色板都还没有自己的错误色，沿用 M3 基线值
+     * （深浅两套分开），与 `tokens/TokenResolvers.kt` 的既有取值完全一致。
+     */
+    val error: Color get() = if (isDark) Color(0xFFF2B8B5) else Color(0xFFB3261E)
+}
+
+// Radius Tokens (Editorial: 24px primary radius)
 
 /**
  * Editorial Aesthetic and Top Industry Minimalist Color Palettes

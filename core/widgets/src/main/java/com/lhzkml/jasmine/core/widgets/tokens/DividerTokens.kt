@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,9 +18,12 @@
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
+import androidx.compose.ui.graphics.Color
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+
 import androidx.compose.ui.unit.dp
 
 internal object DividerTokens {
-    val Color = ColorSchemeKeyTokens.OutlineVariant
+    val Color: (CssVariables) -> Color = { it.muted }
     val Thickness = 1.0.dp
 }

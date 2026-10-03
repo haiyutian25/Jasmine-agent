@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,17 +19,20 @@
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
+import androidx.compose.ui.graphics.Color
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import com.lhzkml.jasmine.core.ui.theme.AppTypography
 
 internal object PrimaryNavigationTabTokens {
-    val ActiveIndicatorColor = ColorSchemeKeyTokens.Primary
+    val ActiveIndicatorColor: (CssVariables) -> Color = { it.primary }
     val ActiveIndicatorHeight = 3.0.dp
     val ActiveIndicatorShape = RoundedCornerShape(3.0.dp)
-    val ContainerColor = ColorSchemeKeyTokens.Surface
+    val ContainerColor: (CssVariables) -> Color = { it.surface }
     val ContainerHeight = 48.0.dp
-    val ActiveLabelTextColor = ColorSchemeKeyTokens.Primary
+    val ActiveLabelTextColor: (CssVariables) -> Color = { it.primary }
     val LabelTextFont = AppTypography.titleSmall
 }
 

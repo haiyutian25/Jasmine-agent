@@ -19,13 +19,14 @@
 //
 // 与上游的差别：上游这里是 M3 的**颜色角色键**（`ColorSchemeKeyTokens.*`）与字体键
 // （`TypographyKeyTokens.*`），再由 `fromToken` 映射到 M3 主题；本库不再做这层「键 → 主题」映射 ——
-// 颜色槽位直接在**自有主题** `CssVariables` 上实现、字体直接取自有排版档，取值与之前逐槽一致：
-//   ContainerColor            SurfaceContainer   -> CssVariables.card
-//   ItemActiveIconColor       OnSecondaryContainer -> CssVariables.mutedForeground
-//   ItemActiveIndicatorColor  SecondaryContainer -> CssVariables.subtleSurface
-//   ItemActiveLabelTextColor  Secondary          -> CssVariables.mutedForeground
-//   ItemInactive*Color        OnSurfaceVariant -> CssVariables.mutedForeground
-//   LabelTextFont             LabelMedium        -> AppTypography.labelMedium
+// 颜色槽位直接在**自有主题** `CssVariables` 上实现、字体直接取自有排版档，且**逐键对应**上游：
+//   ContainerColor            SurfaceContainer     -> CssVariables.surfaceContainer
+//   ItemActiveIconColor       OnSecondaryContainer -> CssVariables.onSecondaryContainer
+//   ItemActiveIndicatorColor  SecondaryContainer   -> CssVariables.secondaryContainer
+//   ItemActiveLabelTextColor  Secondary            -> CssVariables.secondary
+//   ItemInactiveIconColor     OnSurfaceVariant     -> CssVariables.mutedForeground
+//   ItemInactiveLabelTextColor OnSurfaceVariant    -> CssVariables.mutedForeground
+//   LabelTextFont             LabelMedium          -> AppTypography.labelMedium
 // 形状与高度仍是纯令牌（形状走 `ShapeKeyTokens` → `LocalWidgetsShapes`，高度是 dp）。
 
 package com.lhzkml.jasmine.core.widgets.tokens
@@ -39,11 +40,11 @@ import com.lhzkml.jasmine.core.ui.theme.AppTypography
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 
 internal object NavigationBarTokens {
-    val ContainerColor: (CssVariables) -> Color = { it.card }
-    val ItemActiveIconColor: (CssVariables) -> Color = { it.mutedForeground }
-    val ItemActiveIndicatorColor: (CssVariables) -> Color = { it.subtleSurface }
+    val ContainerColor: (CssVariables) -> Color = { it.surfaceContainer }
+    val ItemActiveIconColor: (CssVariables) -> Color = { it.onSecondaryContainer }
+    val ItemActiveIndicatorColor: (CssVariables) -> Color = { it.secondaryContainer }
     val ItemActiveIndicatorShape = ShapeKeyTokens.CornerFull
-    val ItemActiveLabelTextColor: (CssVariables) -> Color = { it.mutedForeground }
+    val ItemActiveLabelTextColor: (CssVariables) -> Color = { it.secondary }
     val ItemInactiveIconColor: (CssVariables) -> Color = { it.mutedForeground }
     val ItemInactiveLabelTextColor: (CssVariables) -> Color = { it.mutedForeground }
     val TallContainerHeight = 80.0.dp

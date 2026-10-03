@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,11 +19,14 @@
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
+import androidx.compose.ui.graphics.Color
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+
 import androidx.compose.ui.unit.dp
 import com.lhzkml.jasmine.core.ui.theme.AppTypography
 
 internal object BadgeTokens {
-    val Color = ColorSchemeKeyTokens.Error
+    val Color: (CssVariables) -> Color = { it.error }
     val LargeLabelTextFont = AppTypography.labelSmall
     val LargeShape = ShapeKeyTokens.CornerFull
     val LargeSize = 16.0.dp

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,8 @@
 
 package com.lhzkml.jasmine.core.widgets.divider
 
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,7 +32,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import com.lhzkml.jasmine.core.widgets.tokens.DividerTokens
-import com.lhzkml.jasmine.core.widgets.tokens.value
 
 /**
  * [Material Design divider](https://m3.material.io/components/divider/overview)
@@ -88,5 +89,5 @@ object DividerDefaults {
 
     /** 默认颜色（= 本应用主题的 `muted`，与上游 `OutlineVariant` 对应）。 */
     val color: Color
-        @Composable get() = DividerTokens.Color.value
+        @Composable get() = DividerTokens.Color(LocalCssVariables.current)
 }

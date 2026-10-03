@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,15 +20,18 @@
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
+import androidx.compose.ui.graphics.Color
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+
 import androidx.compose.ui.unit.dp
 
 internal object RadioButtonTokens {
-    val DisabledSelectedIconColor = ColorSchemeKeyTokens.OnSurface
+    val DisabledSelectedIconColor: (CssVariables) -> Color = { it.cardForeground }
     const val DisabledSelectedIconOpacity = 0.38f
-    val DisabledUnselectedIconColor = ColorSchemeKeyTokens.OnSurface
+    val DisabledUnselectedIconColor: (CssVariables) -> Color = { it.cardForeground }
     const val DisabledUnselectedIconOpacity = 0.38f
     val IconSize = 20.0.dp
-    val SelectedIconColor = ColorSchemeKeyTokens.Primary
+    val SelectedIconColor: (CssVariables) -> Color = { it.primary }
     val StateLayerSize = 40.0.dp
-    val UnselectedIconColor = ColorSchemeKeyTokens.OnSurfaceVariant
+    val UnselectedIconColor: (CssVariables) -> Color = { it.mutedForeground }
 }

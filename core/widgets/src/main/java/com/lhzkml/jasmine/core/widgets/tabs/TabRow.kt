@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,10 @@
 // 以及内部的指示条节点与滚动数据；上游 8 处 @Deprecated 已剔掉 6 处（含 2 个 HIDDEN 的滚动版重载）。
 
 package com.lhzkml.jasmine.core.widgets.tabs
+
+import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
+
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 
 import androidx.collection.mutableIntListOf
 import androidx.compose.animation.core.Animatable
@@ -42,7 +46,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.dp
-import com.lhzkml.jasmine.core.widgets.tokens.MotionSchemeKeyTokens
 import com.lhzkml.jasmine.core.widgets.tokens.PrimaryNavigationTabTokens
 import com.lhzkml.jasmine.core.widgets.tokens.SecondaryNavigationTabTokens
 import androidx.compose.runtime.Composable
@@ -89,9 +92,6 @@ import com.lhzkml.jasmine.core.widgets.surface.Surface
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import com.lhzkml.jasmine.core.widgets.navigation.badgeBounds
-import com.lhzkml.jasmine.core.widgets.motion.value
-import com.lhzkml.jasmine.core.widgets.tokens.value
-import com.lhzkml.jasmine.core.widgets.tokens.fromToken
 
 /*
  * Copyright 2022 The Android Open Source Project
@@ -426,7 +426,7 @@ private fun TabRowImpl(
         contentColor = contentColor,
     ) {
         // TODO Load the motionScheme tokens from the component tokens file
-        val tabIndicatorAnimationSpec = MotionSchemeKeyTokens.DefaultSpatial.value<Dp>()
+        val tabIndicatorAnimationSpec = LocalMotionScheme.current.defaultSpatialSpec<Dp>()
         val scope = remember {
             object : TabIndicatorScope, TabPositionsHolder {
 
@@ -545,9 +545,9 @@ private fun ScrollableTabRowImpl(
     Surface(modifier = modifier, color = containerColor, contentColor = contentColor) {
         val coroutineScope = rememberCoroutineScope()
         // TODO Load the motionScheme tokens from the component tokens file
-        val scrollAnimationSpec = MotionSchemeKeyTokens.DefaultSpatial.value<Float>()
+        val scrollAnimationSpec = LocalMotionScheme.current.defaultSpatialSpec<Float>()
         val tabIndicatorAnimationSpec: FiniteAnimationSpec<Dp> =
-            MotionSchemeKeyTokens.DefaultSpatial.value()
+            LocalMotionScheme.current.defaultSpatialSpec()
         val scrollableTabData =
             remember(scrollState, coroutineScope) {
                 ScrollableTabData(
@@ -830,19 +830,19 @@ object TabRowDefaults {
 
     /** Default container color of a tab row. */
     val primaryContainerColor: Color
-        @Composable get() = PrimaryNavigationTabTokens.ContainerColor.value
+        @Composable get() = PrimaryNavigationTabTokens.ContainerColor(LocalCssVariables.current)
 
     /** Default container color of a [SecondaryTabRow]. */
     val secondaryContainerColor: Color
-        @Composable get() = SecondaryNavigationTabTokens.ContainerColor.value
+        @Composable get() = SecondaryNavigationTabTokens.ContainerColor(LocalCssVariables.current)
 
     /** Default content color of a tab row. */
     val primaryContentColor: Color
-        @Composable get() = PrimaryNavigationTabTokens.ActiveLabelTextColor.value
+        @Composable get() = PrimaryNavigationTabTokens.ActiveLabelTextColor(LocalCssVariables.current)
 
     /** Default content color of a [SecondaryTabRow]. */
     val secondaryContentColor: Color
-        @Composable get() = SecondaryNavigationTabTokens.ActiveLabelTextColor.value
+        @Composable get() = SecondaryNavigationTabTokens.ActiveLabelTextColor(LocalCssVariables.current)
 
     /**
      * Default indicator, which will be positioned at the bottom of the [TabRow], on top of the
@@ -857,7 +857,7 @@ object TabRowDefaults {
         modifier: Modifier = Modifier,
         width: Dp = 24.dp,
         height: Dp = PrimaryNavigationTabTokens.ActiveIndicatorHeight,
-        color: Color = PrimaryNavigationTabTokens.ActiveIndicatorColor.value,
+        color: Color = PrimaryNavigationTabTokens.ActiveIndicatorColor(LocalCssVariables.current),
         shape: Shape = PrimaryNavigationTabTokens.ActiveIndicatorShape,
     ) {
         Spacer(
@@ -880,7 +880,7 @@ object TabRowDefaults {
     fun SecondaryIndicator(
         modifier: Modifier = Modifier,
         height: Dp = PrimaryNavigationTabTokens.ActiveIndicatorHeight,
-        color: Color = PrimaryNavigationTabTokens.ActiveIndicatorColor.value,
+        color: Color = PrimaryNavigationTabTokens.ActiveIndicatorColor(LocalCssVariables.current),
     ) {
         Box(modifier.fillMaxWidth().height(height).background(color = color))
     }

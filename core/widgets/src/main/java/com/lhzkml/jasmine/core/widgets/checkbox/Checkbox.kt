@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +20,8 @@
 
 package com.lhzkml.jasmine.core.widgets.checkbox
 
+import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.animateFloat
@@ -33,7 +35,6 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.selection.triStateToggleable
 import com.lhzkml.jasmine.core.widgets.tokens.CheckboxTokens
-import com.lhzkml.jasmine.core.widgets.tokens.MotionSchemeKeyTokens
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.State
@@ -63,9 +64,6 @@ import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSize
 import com.lhzkml.jasmine.core.widgets.ripple.ripple
-import com.lhzkml.jasmine.core.widgets.motion.value
-import com.lhzkml.jasmine.core.widgets.tokens.fromToken
-import com.lhzkml.jasmine.core.widgets.tokens.value
 
 /**
  * [Material Design checkbox](https://m3.material.io/components/checkbox/overview)
@@ -365,27 +363,27 @@ object CheckboxDefaults {
         get() =
             remember(this) {
                 CheckboxColors(
-                    checkedCheckmarkColor = fromToken(CheckboxTokens.SelectedIconColor),
+                    checkedCheckmarkColor = CheckboxTokens.SelectedIconColor(this),
                     uncheckedCheckmarkColor = Color.Transparent,
-                    checkedBoxColor = fromToken(CheckboxTokens.SelectedContainerColor),
+                    checkedBoxColor = CheckboxTokens.SelectedContainerColor(this),
                     uncheckedBoxColor = Color.Transparent,
                     disabledCheckedBoxColor =
-                        fromToken(CheckboxTokens.SelectedDisabledContainerColor)
+                        CheckboxTokens.SelectedDisabledContainerColor(this)
                             .copy(alpha = CheckboxTokens.SelectedDisabledContainerOpacity),
                     disabledUncheckedBoxColor = Color.Transparent,
                     disabledIndeterminateBoxColor =
-                        fromToken(CheckboxTokens.SelectedDisabledContainerColor)
+                        CheckboxTokens.SelectedDisabledContainerColor(this)
                             .copy(alpha = CheckboxTokens.SelectedDisabledContainerOpacity),
-                    checkedBorderColor = fromToken(CheckboxTokens.SelectedContainerColor),
-                    uncheckedBorderColor = fromToken(CheckboxTokens.UnselectedOutlineColor),
+                    checkedBorderColor = CheckboxTokens.SelectedContainerColor(this),
+                    uncheckedBorderColor = CheckboxTokens.UnselectedOutlineColor(this),
                     disabledBorderColor =
-                        fromToken(CheckboxTokens.SelectedDisabledContainerColor)
+                        CheckboxTokens.SelectedDisabledContainerColor(this)
                             .copy(alpha = CheckboxTokens.SelectedDisabledContainerOpacity),
                     disabledUncheckedBorderColor =
-                        fromToken(CheckboxTokens.UnselectedDisabledOutlineColor)
+                        CheckboxTokens.UnselectedDisabledOutlineColor(this)
                             .copy(alpha = CheckboxTokens.UnselectedDisabledContainerOpacity),
                     disabledIndeterminateBorderColor =
-                        fromToken(CheckboxTokens.SelectedDisabledContainerColor)
+                        CheckboxTokens.SelectedDisabledContainerColor(this)
                             .copy(alpha = CheckboxTokens.SelectedDisabledContainerOpacity),
                 )
             }
@@ -407,7 +405,7 @@ private fun CheckboxImpl(
     outlineStroke: Stroke,
 ) {
     val transition = updateTransition(value)
-    val defaultAnimationSpec = MotionSchemeKeyTokens.DefaultSpatial.value<Float>()
+    val defaultAnimationSpec = LocalMotionScheme.current.defaultSpatialSpec<Float>()
     val checkDrawFraction =
         transition.animateFloat(
             transitionSpec = {
@@ -692,10 +690,10 @@ constructor(
         // TODO Load the motionScheme tokens from the component tokens file
         return if (state == ToggleableState.Off) {
             // Box out
-            MotionSchemeKeyTokens.FastEffects.value()
+            LocalMotionScheme.current.fastEffectsSpec()
         } else {
             // Box in
-            MotionSchemeKeyTokens.DefaultEffects.value()
+            LocalMotionScheme.current.defaultEffectsSpec()
         }
     }
 

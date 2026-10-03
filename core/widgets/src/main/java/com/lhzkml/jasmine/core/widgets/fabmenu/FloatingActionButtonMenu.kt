@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2024 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,8 @@
  */
 
 package com.lhzkml.jasmine.core.widgets.fabmenu
+
+import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
@@ -38,7 +40,6 @@ import com.lhzkml.jasmine.core.widgets.tokens.FabLargeTokens
 import com.lhzkml.jasmine.core.widgets.tokens.FabMediumTokens
 import com.lhzkml.jasmine.core.widgets.tokens.FabMenuBaselineTokens
 import com.lhzkml.jasmine.core.widgets.tokens.FabPrimaryContainerTokens
-import com.lhzkml.jasmine.core.widgets.tokens.MotionSchemeKeyTokens
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Stable
@@ -101,7 +102,6 @@ import com.lhzkml.jasmine.core.ui.theme.contentColorFor
 import com.lhzkml.jasmine.core.widgets.interactive.LocalMinimumInteractiveComponentSize
 import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTextStyle
 import com.lhzkml.jasmine.core.widgets.ripple.ripple
-import com.lhzkml.jasmine.core.widgets.motion.value
 import com.lhzkml.jasmine.core.widgets.surface.Surface
 import com.lhzkml.jasmine.core.widgets.tokens.value
 
@@ -211,7 +211,7 @@ private fun FloatingActionButtonMenuItemColumn(
     var staggerAnim by remember { mutableStateOf<Animatable<Int, AnimationVector1D>?>(null) }
     val coroutineScope = rememberCoroutineScope()
     // TODO Load the motionScheme tokens from the component tokens file
-    var staggerAnimSpec: FiniteAnimationSpec<Int> = MotionSchemeKeyTokens.SlowEffects.value()
+    var staggerAnimSpec: FiniteAnimationSpec<Int> = LocalMotionScheme.current.slowEffectsSpec()
     if (staggerAnimSpec is SpringSpec<Int>) {
         // Apply a small visibilityThreshold to the provided SpringSpec to avoid a delay in the
         // appearance of the last item when the list is populated.
@@ -343,8 +343,8 @@ fun FloatingActionButtonMenuScope.FloatingActionButtonMenuItem(
     var widthAnim by remember { mutableStateOf<Animatable<Float, AnimationVector1D>?>(null) }
     var alphaAnim by remember { mutableStateOf<Animatable<Float, AnimationVector1D>?>(null) }
     // TODO Load the motionScheme tokens from the component tokens file
-    val widthSpring: FiniteAnimationSpec<Float> = MotionSchemeKeyTokens.FastSpatial.value()
-    val alphaSpring: FiniteAnimationSpec<Float> = MotionSchemeKeyTokens.FastEffects.value()
+    val widthSpring: FiniteAnimationSpec<Float> = LocalMotionScheme.current.fastSpatialSpec()
+    val alphaSpring: FiniteAnimationSpec<Float> = LocalMotionScheme.current.fastEffectsSpec()
     val coroutineScope = rememberCoroutineScope()
 
     var isVisible by remember { mutableStateOf(false) }
@@ -458,7 +458,7 @@ fun ToggleFloatingActionButton(
         animateFloatAsState(
             targetValue = if (checked) 1f else 0f,
             // TODO Load the motionScheme tokens from the component tokens file
-            animationSpec = MotionSchemeKeyTokens.FastSpatial.value(),
+            animationSpec = LocalMotionScheme.current.fastSpatialSpec(),
         )
     ToggleFloatingActionButton(
         checked,

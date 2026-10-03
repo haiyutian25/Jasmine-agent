@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2024 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -81,7 +81,7 @@ import com.lhzkml.jasmine.core.widgets.bottomsheet.SwipeEdge
 import com.lhzkml.jasmine.core.widgets.textfield.getString
 import com.lhzkml.jasmine.core.widgets.textfield.textFieldBackground
 import com.lhzkml.jasmine.core.widgets.tokens.FilledTextFieldTokens
-import com.lhzkml.jasmine.core.widgets.tokens.MotionSchemeKeyTokens
+import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
 import com.lhzkml.jasmine.core.widgets.tokens.MotionTokens
 import com.lhzkml.jasmine.core.widgets.tokens.SearchBarTokens
 import com.lhzkml.jasmine.core.widgets.tokens.SearchViewTokens
@@ -165,7 +165,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
-import com.lhzkml.jasmine.core.widgets.motion.value
 import com.lhzkml.jasmine.core.widgets.surface.Surface
 import com.lhzkml.jasmine.core.widgets.tokens.ElevationTokens
 import com.lhzkml.jasmine.core.widgets.textfield.TextFieldColors
@@ -525,8 +524,8 @@ private constructor(
 @Composable
 fun rememberSearchBarState(
     initialValue: SearchBarValue = SearchBarValue.Collapsed,
-    animationSpecForExpand: AnimationSpec<Float> = MotionSchemeKeyTokens.SlowSpatial.value(),
-    animationSpecForCollapse: AnimationSpec<Float> = MotionSchemeKeyTokens.DefaultSpatial.value(),
+    animationSpecForExpand: AnimationSpec<Float> = LocalMotionScheme.current.slowSpatialSpec(),
+    animationSpecForCollapse: AnimationSpec<Float> = LocalMotionScheme.current.defaultSpatialSpec(),
 ): SearchBarState {
     return rememberSaveable(
         initialValue,
@@ -588,8 +587,8 @@ object SearchBarDefaults {
      */
     @Composable
     fun colors(
-        containerColor: Color = SearchBarTokens.ContainerColor.value,
-        dividerColor: Color = SearchViewTokens.DividerColor.value,
+        containerColor: Color = SearchBarTokens.ContainerColor(LocalCssVariables.current),
+        dividerColor: Color = SearchViewTokens.DividerColor(LocalCssVariables.current),
         inputFieldColors: TextFieldColors =
             inputFieldColors(
                 focusedContainerColor = containerColor,
@@ -638,47 +637,47 @@ object SearchBarDefaults {
      */
     @Composable
     fun inputFieldColors(
-        focusedTextColor: Color = SearchBarTokens.InputTextColor.value,
-        unfocusedTextColor: Color = SearchBarTokens.InputTextColor.value,
+        focusedTextColor: Color = SearchBarTokens.InputTextColor(LocalCssVariables.current),
+        unfocusedTextColor: Color = SearchBarTokens.InputTextColor(LocalCssVariables.current),
         disabledTextColor: Color =
-            FilledTextFieldTokens.DisabledInputColor.value.copy(
+            FilledTextFieldTokens.DisabledInputColor(LocalCssVariables.current).copy(
                 alpha = FilledTextFieldTokens.DisabledInputOpacity
             ),
-        cursorColor: Color = FilledTextFieldTokens.CaretColor.value,
+        cursorColor: Color = FilledTextFieldTokens.CaretColor(LocalCssVariables.current),
         selectionColors: TextSelectionColors = LocalTextSelectionColors.current,
-        focusedLeadingIconColor: Color = SearchBarTokens.LeadingIconColor.value,
-        unfocusedLeadingIconColor: Color = SearchBarTokens.LeadingIconColor.value,
+        focusedLeadingIconColor: Color = SearchBarTokens.LeadingIconColor(LocalCssVariables.current),
+        unfocusedLeadingIconColor: Color = SearchBarTokens.LeadingIconColor(LocalCssVariables.current),
         disabledLeadingIconColor: Color =
-            FilledTextFieldTokens.DisabledLeadingIconColor.value.copy(
+            FilledTextFieldTokens.DisabledLeadingIconColor(LocalCssVariables.current).copy(
                 alpha = FilledTextFieldTokens.DisabledLeadingIconOpacity
             ),
-        focusedTrailingIconColor: Color = SearchBarTokens.TrailingIconColor.value,
-        unfocusedTrailingIconColor: Color = SearchBarTokens.TrailingIconColor.value,
+        focusedTrailingIconColor: Color = SearchBarTokens.TrailingIconColor(LocalCssVariables.current),
+        unfocusedTrailingIconColor: Color = SearchBarTokens.TrailingIconColor(LocalCssVariables.current),
         disabledTrailingIconColor: Color =
-            FilledTextFieldTokens.DisabledTrailingIconColor.value.copy(
+            FilledTextFieldTokens.DisabledTrailingIconColor(LocalCssVariables.current).copy(
                 alpha = FilledTextFieldTokens.DisabledTrailingIconOpacity
             ),
-        focusedPlaceholderColor: Color = SearchBarTokens.SupportingTextColor.value,
-        unfocusedPlaceholderColor: Color = SearchBarTokens.SupportingTextColor.value,
+        focusedPlaceholderColor: Color = SearchBarTokens.SupportingTextColor(LocalCssVariables.current),
+        unfocusedPlaceholderColor: Color = SearchBarTokens.SupportingTextColor(LocalCssVariables.current),
         disabledPlaceholderColor: Color =
-            FilledTextFieldTokens.DisabledInputColor.value.copy(
+            FilledTextFieldTokens.DisabledInputColor(LocalCssVariables.current).copy(
                 alpha = FilledTextFieldTokens.DisabledInputOpacity
             ),
-        focusedPrefixColor: Color = FilledTextFieldTokens.InputPrefixColor.value,
-        unfocusedPrefixColor: Color = FilledTextFieldTokens.InputPrefixColor.value,
+        focusedPrefixColor: Color = FilledTextFieldTokens.InputPrefixColor(LocalCssVariables.current),
+        unfocusedPrefixColor: Color = FilledTextFieldTokens.InputPrefixColor(LocalCssVariables.current),
         disabledPrefixColor: Color =
-            FilledTextFieldTokens.InputPrefixColor.value.copy(
+            FilledTextFieldTokens.InputPrefixColor(LocalCssVariables.current).copy(
                 alpha = FilledTextFieldTokens.DisabledInputOpacity
             ),
-        focusedSuffixColor: Color = FilledTextFieldTokens.InputSuffixColor.value,
-        unfocusedSuffixColor: Color = FilledTextFieldTokens.InputSuffixColor.value,
+        focusedSuffixColor: Color = FilledTextFieldTokens.InputSuffixColor(LocalCssVariables.current),
+        unfocusedSuffixColor: Color = FilledTextFieldTokens.InputSuffixColor(LocalCssVariables.current),
         disabledSuffixColor: Color =
-            FilledTextFieldTokens.InputSuffixColor.value.copy(
+            FilledTextFieldTokens.InputSuffixColor(LocalCssVariables.current).copy(
                 alpha = FilledTextFieldTokens.DisabledInputOpacity
             ),
-        focusedContainerColor: Color = SearchBarTokens.ContainerColor.value,
-        unfocusedContainerColor: Color = SearchBarTokens.ContainerColor.value,
-        disabledContainerColor: Color = SearchBarTokens.ContainerColor.value,
+        focusedContainerColor: Color = SearchBarTokens.ContainerColor(LocalCssVariables.current),
+        unfocusedContainerColor: Color = SearchBarTokens.ContainerColor(LocalCssVariables.current),
+        disabledContainerColor: Color = SearchBarTokens.ContainerColor(LocalCssVariables.current),
     ): TextFieldColors =
         TextFieldDefaults.colors(
             focusedTextColor = focusedTextColor,
@@ -870,7 +869,7 @@ object SearchBarDefaults {
                                         isError = false,
                                         focused = focused,
                                     ),
-                                animationSpec = MotionSchemeKeyTokens.FastEffects.value(),
+                                animationSpec = LocalMotionScheme.current.fastEffectsSpec(),
                             )
                         Box(Modifier.textFieldBackground(containerColor::value, shape))
                     },

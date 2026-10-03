@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +18,8 @@
 // 上游那个已废弃的 4 参 AlertDialog 重载、以及依赖 DatePicker/TimePicker 的 DatePickerDialog/TimePickerDialog 都没搬。
 
 package com.lhzkml.jasmine.core.widgets.dialog
+
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -219,19 +221,19 @@ object AlertDialogDefaults {
 
     /** The default container color for alert dialogs */
     val containerColor: Color
-        @Composable get() = DialogTokens.ContainerColor.value
+        @Composable get() = DialogTokens.ContainerColor(LocalCssVariables.current)
 
     /** The default icon color for alert dialogs */
     val iconContentColor: Color
-        @Composable get() = DialogTokens.IconColor.value
+        @Composable get() = DialogTokens.IconColor(LocalCssVariables.current)
 
     /** The default title color for alert dialogs */
     val titleContentColor: Color
-        @Composable get() = DialogTokens.HeadlineColor.value
+        @Composable get() = DialogTokens.HeadlineColor(LocalCssVariables.current)
 
     /** The default text color for alert dialogs */
     val textContentColor: Color
-        @Composable get() = DialogTokens.SupportingTextColor.value
+        @Composable get() = DialogTokens.SupportingTextColor(LocalCssVariables.current)
 
     /** The default tonal elevation for alert dialogs */
     val TonalElevation: Dp = 0.dp
@@ -279,7 +281,7 @@ internal fun AlertDialogImpl(
             // most cases, TextButtons should be used for dismiss and confirm buttons. TextButtons
             // will not consume this provided content color value, and will used their own defined
             // or default colors.
-            buttonContentColor = DialogTokens.ActionLabelTextColor.value,
+            buttonContentColor = DialogTokens.ActionLabelTextColor(LocalCssVariables.current),
             iconContentColor = iconContentColor,
             titleContentColor = titleContentColor,
             textContentColor = textContentColor,

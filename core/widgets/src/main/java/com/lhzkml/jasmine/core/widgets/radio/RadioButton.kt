@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,8 @@
 // ColorScheme.defaultRadioButtonColors（用 remember(this) 缓存，与搬 Checkbox 时的做法保持一致）。
 
 package com.lhzkml.jasmine.core.widgets.radio
+
+import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -48,10 +50,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import com.lhzkml.jasmine.core.widgets.motion.value
-import com.lhzkml.jasmine.core.widgets.tokens.MotionSchemeKeyTokens
 import com.lhzkml.jasmine.core.widgets.tokens.RadioButtonTokens
-import com.lhzkml.jasmine.core.widgets.tokens.fromToken
 
 /**
  * [Material Design radio button](https://m3.material.io/components/radio-button/overview)
@@ -88,7 +87,7 @@ fun RadioButton(
         animateDpAsState(
             targetValue = if (selected) RadioButtonDotSize / 2 else 0.dp,
             // TODO Load the motionScheme tokens from the component tokens file
-            animationSpec = MotionSchemeKeyTokens.FastSpatial.value(),
+            animationSpec = LocalMotionScheme.current.fastSpatialSpec(),
         )
     val radioColor = colors.radioColor(enabled, selected)
     val selectableModifier =
@@ -170,13 +169,13 @@ object RadioButtonDefaults {
         get() =
             remember(this) {
                 RadioButtonColors(
-                    selectedColor = fromToken(RadioButtonTokens.SelectedIconColor),
-                    unselectedColor = fromToken(RadioButtonTokens.UnselectedIconColor),
+                    selectedColor = RadioButtonTokens.SelectedIconColor(this),
+                    unselectedColor = RadioButtonTokens.UnselectedIconColor(this),
                     disabledSelectedColor =
-                        fromToken(RadioButtonTokens.DisabledSelectedIconColor)
+                        RadioButtonTokens.DisabledSelectedIconColor(this)
                             .copy(alpha = RadioButtonTokens.DisabledSelectedIconOpacity),
                     disabledUnselectedColor =
-                        fromToken(RadioButtonTokens.DisabledUnselectedIconColor)
+                        RadioButtonTokens.DisabledUnselectedIconColor(this)
                             .copy(alpha = RadioButtonTokens.DisabledUnselectedIconOpacity),
                 )
             }
@@ -239,7 +238,7 @@ constructor(
         // enabled / disabled.
         return if (enabled) {
             // TODO Load the motionScheme tokens from the component tokens file
-            animateColorAsState(target, MotionSchemeKeyTokens.DefaultEffects.value())
+            animateColorAsState(target, LocalMotionScheme.current.defaultEffectsSpec())
         } else {
             rememberUpdatedState(target)
         }

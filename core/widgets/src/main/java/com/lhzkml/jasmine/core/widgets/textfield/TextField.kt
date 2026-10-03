@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -79,7 +79,8 @@ import com.lhzkml.jasmine.core.widgets.textfield.textFieldHorizontalIconPadding
 import com.lhzkml.jasmine.core.widgets.textfield.textFieldLabelMinHeight
 import com.lhzkml.jasmine.core.widgets.textfield.widthOrZero
 import com.lhzkml.jasmine.core.widgets.tokens.FilledTextFieldTokens
-import com.lhzkml.jasmine.core.widgets.tokens.MotionSchemeKeyTokens
+
+
 import com.lhzkml.jasmine.core.widgets.tokens.MotionTokens.EasingEmphasizedAccelerateCubicBezier
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -142,7 +143,6 @@ import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsColorScheme
 import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsShapes
 import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
 import com.lhzkml.jasmine.core.widgets.textfield.TextFieldDefaults.defaultTextFieldColors
-import com.lhzkml.jasmine.core.widgets.motion.fromToken
 import com.lhzkml.jasmine.core.widgets.tokens.fromToken
 import com.lhzkml.jasmine.core.widgets.tokens.value
 
@@ -1461,7 +1461,7 @@ internal class IndicatorLineNode(
                 ?: currentValueOf(LocalCssVariables)
                     .defaultTextFieldColors(currentValueOf(LocalTextSelectionColors))
 
-    // Must be initialized in `onAttach` so `colors` can read from the `MaterialTheme`
+    // Must be initialized in `onAttach` so `colors` can read from the theme
     private var colorAnimatable: Animatable<Color, AnimationVector4D>? = null
 
     private var _shape: Shape? = textFieldShape
@@ -1576,8 +1576,7 @@ internal class IndicatorLineNode(
                 targetValue = colors.indicatorColor(enabled, isError, focused),
                 animationSpec =
                     if (enabled) {
-                        currentValueOf(LocalMotionScheme)
-                            .fromToken(MotionSchemeKeyTokens.FastEffects)
+                        currentValueOf(LocalMotionScheme).fastEffectsSpec()
                     } else {
                         snap()
                     },
@@ -1589,8 +1588,7 @@ internal class IndicatorLineNode(
                     if (focused && enabled) focusedIndicatorWidth else unfocusedIndicatorWidth,
                 animationSpec =
                     if (enabled) {
-                        currentValueOf(LocalMotionScheme)
-                            .fromToken(MotionSchemeKeyTokens.FastSpatial)
+                        currentValueOf(LocalMotionScheme).fastSpatialSpec()
                     } else {
                         snap()
                     },

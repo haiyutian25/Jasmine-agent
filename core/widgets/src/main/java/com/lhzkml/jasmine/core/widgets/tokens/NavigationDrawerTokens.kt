@@ -17,8 +17,15 @@
 // 只留本组件库真正用到的槽位（选中/未选中的图标与标签颜色、指示条的颜色尺寸形状、抽屉两种容器的
 // 颜色与高度）；上游那份里的 Focus/Hover/Pressed 三态、宽轨时代的 Headline/Badge/图标尺寸/宽度百分比等
 // 槽位没有任何组件在用，已随裁剪删掉 —— 要加就照这里补一行。
-// 颜色槽位一律写成 `(CssVariables) -> Color`，直接读**自有主题**的槽位；形状与高度是纯令牌
-// （形状走 `ShapeKeyTokens` → `LocalWidgetsShapes`，高度是 dp）。
+// 颜色槽位一律写成 `(CssVariables) -> Color`，直接读**自有主题**的槽位，且**逐键对应**上游角色键：
+//   ActiveIconColor           OnSecondaryContainer   -> CssVariables.onSecondaryContainer
+//   ActiveIndicatorColor      SecondaryContainer     -> CssVariables.secondaryContainer
+//   ActiveLabelTextColor      OnSecondaryContainer   -> CssVariables.onSecondaryContainer
+//   InactiveIconColor         OnSurfaceVariant       -> CssVariables.mutedForeground
+//   InactiveLabelTextColor    OnSurfaceVariant       -> CssVariables.mutedForeground
+//   ModalContainerColor       SurfaceContainerLow    -> CssVariables.surfaceContainerLow
+//   StandardContainerColor    Surface                -> CssVariables.surface
+// 形状与高度是纯令牌（形状走 `ShapeKeyTokens` → `LocalWidgetsShapes`，高度是 dp）。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
@@ -27,16 +34,16 @@ import androidx.compose.ui.unit.dp
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 
 internal object NavigationDrawerTokens {
-    val ActiveIconColor: (CssVariables) -> Color = { it.mutedForeground }
-    val ActiveIndicatorColor: (CssVariables) -> Color = { it.subtleSurface }
+    val ActiveIconColor: (CssVariables) -> Color = { it.onSecondaryContainer }
+    val ActiveIndicatorColor: (CssVariables) -> Color = { it.secondaryContainer }
     val ActiveIndicatorHeight = 56.0.dp
     val ActiveIndicatorShape = ShapeKeyTokens.CornerFull
-    val ActiveLabelTextColor: (CssVariables) -> Color = { it.mutedForeground }
+    val ActiveLabelTextColor: (CssVariables) -> Color = { it.onSecondaryContainer }
     val ContainerShape = ShapeKeyTokens.CornerLargeEnd
     val ContainerWidth = 295.0.dp
     val InactiveIconColor: (CssVariables) -> Color = { it.mutedForeground }
     val InactiveLabelTextColor: (CssVariables) -> Color = { it.mutedForeground }
-    val ModalContainerColor: (CssVariables) -> Color = { it.card }
-    val StandardContainerColor: (CssVariables) -> Color = { it.card }
+    val ModalContainerColor: (CssVariables) -> Color = { it.surfaceContainerLow }
+    val StandardContainerColor: (CssVariables) -> Color = { it.surface }
     val StandardContainerElevation = ElevationTokens.Level0
 }

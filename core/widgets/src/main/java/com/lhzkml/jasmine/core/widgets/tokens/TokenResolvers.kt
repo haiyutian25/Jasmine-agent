@@ -52,32 +52,38 @@ import kotlin.math.ln
 @Stable
 internal fun CssVariables.fromToken(value: ColorSchemeKeyTokens): Color {
     return when (value) {
-        // 错误色：现有 12 套调色板都还没有自己的槽位，暂用 M3 基线值（与改造前取到的值一致，
-        // 深浅两套分开）。将来若要给每套调色板单独的 error，给 CssVariables 加槽后改这行即可。
-        // （遮罩色原先也走这里，现已收进 `ScrimTokens` 直接写死，`Scrim` 角色键随之下线。）
-        ColorSchemeKeyTokens.Error -> if (isDark) M3DarkError else M3LightError
+        ColorSchemeKeyTokens.Error -> error
+        ColorSchemeKeyTokens.InverseOnSurface -> inverseOnSurface
+        ColorSchemeKeyTokens.InverseSurface -> inverseSurface
         ColorSchemeKeyTokens.OnPrimary -> primaryForeground
-        ColorSchemeKeyTokens.OnPrimaryContainer -> accentForeground
-        ColorSchemeKeyTokens.OnSecondaryContainer -> mutedForeground
+        ColorSchemeKeyTokens.OnPrimaryContainer -> onPrimaryContainer
+        ColorSchemeKeyTokens.OnSecondary -> onSecondary
+        ColorSchemeKeyTokens.OnSecondaryContainer -> onSecondaryContainer
         ColorSchemeKeyTokens.OnSurface -> cardForeground
-        ColorSchemeKeyTokens.OnSecondary -> foreground
-        ColorSchemeKeyTokens.InverseSurface -> foreground
-        ColorSchemeKeyTokens.InverseOnSurface -> background
         ColorSchemeKeyTokens.OnSurfaceVariant -> mutedForeground
         ColorSchemeKeyTokens.Outline -> border
         ColorSchemeKeyTokens.OutlineVariant -> muted
         ColorSchemeKeyTokens.Primary -> primary
-        ColorSchemeKeyTokens.PrimaryContainer -> accent
-        ColorSchemeKeyTokens.Secondary -> mutedForeground
-        ColorSchemeKeyTokens.SecondaryContainer -> subtleSurface
-        ColorSchemeKeyTokens.Surface -> card
-        ColorSchemeKeyTokens.SurfaceContainer -> card
-        ColorSchemeKeyTokens.SurfaceContainerHigh -> subtleSurface
-        ColorSchemeKeyTokens.SurfaceContainerHighest -> subtleSurface
-        ColorSchemeKeyTokens.SurfaceContainerLow -> card
-        ColorSchemeKeyTokens.SurfaceVariant -> subtleSurface
+        ColorSchemeKeyTokens.PrimaryContainer -> primaryContainer
+        ColorSchemeKeyTokens.Secondary -> secondary
+        ColorSchemeKeyTokens.SecondaryContainer -> secondaryContainer
+        ColorSchemeKeyTokens.Surface -> surface
+        ColorSchemeKeyTokens.SurfaceContainer -> surfaceContainer
+        ColorSchemeKeyTokens.SurfaceContainerHigh -> surfaceContainerHigh
+        ColorSchemeKeyTokens.SurfaceContainerHighest -> surfaceContainerHighest
+        ColorSchemeKeyTokens.SurfaceContainerLow -> surfaceContainerLow
+        ColorSchemeKeyTokens.SurfaceVariant -> surfaceVariant
     }
 }
+
+/**
+ * 错误色的解析器，供各组件令牌表直读用（类型与其它颜色槽的 `(CssVariables) -> Color` 一致）。
+ *
+ * 值来自自有主题的 `CssVariables.error` 槽（现有 12 套调色板都还没给它单独配色，槽内沿用
+ * M3 基线值，深浅两套分开）——与改造前经 `ColorSchemeKeyTokens.Error` 取到的值完全一致。
+ * 将来若要给每套调色板单独配色，只改 `CssVariables.error` 一处即可。
+ */
+internal val ErrorColorResolver: (CssVariables) -> Color = { it.error }
 
 /** M3 浅色基线错误色（= `lightColorScheme().error`）。 */
 private val M3LightError = Color(0xFFB3261E)

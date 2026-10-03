@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import com.lhzkml.jasmine.core.widgets.bottomsheet.AnchoredDraggableState
 import com.lhzkml.jasmine.core.widgets.bottomsheet.animateTo
 import com.lhzkml.jasmine.core.widgets.bottomsheet.snapTo
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import com.lhzkml.jasmine.core.widgets.tokens.ScrimTokens
 import com.lhzkml.jasmine.core.widgets.tokens.SheetBottomTokens
 import androidx.compose.runtime.Composable
@@ -367,7 +368,7 @@ object BottomSheetDefaults {
 
     /** The default container color for a bottom sheet. */
     val ContainerColor: Color
-        @Composable get() = SheetBottomTokens.DockedContainerColor.value
+        @Composable get() = SheetBottomTokens.DockedContainerColor(LocalCssVariables.current)
 
     /** The default elevation for a bottom sheet. */
     val Elevation = SheetBottomTokens.DockedModalContainerElevation

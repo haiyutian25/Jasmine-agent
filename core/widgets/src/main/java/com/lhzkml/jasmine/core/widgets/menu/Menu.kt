@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,8 @@
 // 只保留正式入口 DropdownMenu / DropdownMenuItem；两个只为二进制兼容的 HIDDEN 重载都没搬。
 
 package com.lhzkml.jasmine.core.widgets.menu
+
+import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
 
 import android.graphics.Rect as ViewRect
 import androidx.compose.animation.core.animateFloat
@@ -78,12 +80,9 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import com.lhzkml.jasmine.core.widgets.menu.DropdownMenuPositionProvider
-import com.lhzkml.jasmine.core.widgets.motion.value
 import com.lhzkml.jasmine.core.widgets.tokens.ElevationTokens
-import com.lhzkml.jasmine.core.widgets.tokens.fromToken
 import com.lhzkml.jasmine.core.widgets.tokens.ListTokens
 import com.lhzkml.jasmine.core.widgets.tokens.MenuTokens
-import com.lhzkml.jasmine.core.widgets.tokens.MotionSchemeKeyTokens
 import com.lhzkml.jasmine.core.widgets.tokens.value
 import kotlin.math.max
 import kotlin.math.min
@@ -257,7 +256,7 @@ object MenuDefaults {
 
     /** The default container color for a menu. */
     val containerColor
-        @Composable get() = MenuTokens.ContainerColor.value
+        @Composable get() = MenuTokens.ContainerColor(LocalCssVariables.current)
 
     /**
      * Creates a [MenuItemColors] that represents the default text and icon colors used in a
@@ -302,17 +301,17 @@ object MenuDefaults {
         get() =
             remember(this) {
                 MenuItemColors(
-                    textColor = fromToken(ListTokens.ListItemLabelTextColor),
-                    leadingIconColor = fromToken(ListTokens.ListItemLeadingIconColor),
-                    trailingIconColor = fromToken(ListTokens.ListItemTrailingIconColor),
+                    textColor = ListTokens.ListItemLabelTextColor(this),
+                    leadingIconColor = ListTokens.ListItemLeadingIconColor(this),
+                    trailingIconColor = ListTokens.ListItemTrailingIconColor(this),
                     disabledTextColor =
-                        fromToken(ListTokens.ListItemDisabledLabelTextColor)
+                        ListTokens.ListItemDisabledLabelTextColor(this)
                             .copy(alpha = ListTokens.ListItemDisabledLabelTextOpacity),
                     disabledLeadingIconColor =
-                        fromToken(ListTokens.ListItemDisabledLeadingIconColor)
+                        ListTokens.ListItemDisabledLeadingIconColor(this)
                             .copy(alpha = ListTokens.ListItemDisabledLeadingIconOpacity),
                     disabledTrailingIconColor =
-                        fromToken(ListTokens.ListItemDisabledTrailingIconColor)
+                        ListTokens.ListItemDisabledTrailingIconColor(this)
                             .copy(alpha = ListTokens.ListItemDisabledTrailingIconOpacity),
                 )
             }
@@ -437,8 +436,8 @@ internal fun DropdownMenuContent(
     // Menu open/close animation.
     @Suppress("DEPRECATION") val transition = updateTransition(expandedState, "DropDownMenu")
     // TODO Load the motionScheme tokens from the component tokens file
-    val scaleAnimationSpec = MotionSchemeKeyTokens.FastSpatial.value<Float>()
-    val alphaAnimationSpec = MotionSchemeKeyTokens.FastEffects.value<Float>()
+    val scaleAnimationSpec = LocalMotionScheme.current.fastSpatialSpec<Float>()
+    val alphaAnimationSpec = LocalMotionScheme.current.fastEffectsSpec<Float>()
     val scale by
         transition.animateFloat(transitionSpec = { scaleAnimationSpec }) { expanded ->
             if (expanded) ExpandedScaleTarget else ClosedScaleTarget

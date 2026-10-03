@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,43 +17,45 @@
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+
 
 internal object OutlinedTextFieldTokens {
-    val CaretColor = ColorSchemeKeyTokens.Primary
+    val CaretColor: (CssVariables) -> Color = { it.primary }
     val ContainerShape = ShapeKeyTokens.CornerExtraSmall
-    val DisabledInputColor = ColorSchemeKeyTokens.OnSurface
+    val DisabledInputColor: (CssVariables) -> Color = { it.cardForeground }
     const val DisabledInputOpacity = 0.38f
-    val DisabledLabelColor = ColorSchemeKeyTokens.OnSurface
+    val DisabledLabelColor: (CssVariables) -> Color = { it.cardForeground }
     const val DisabledLabelOpacity = 0.38f
-    val DisabledLeadingIconColor = ColorSchemeKeyTokens.OnSurface
+    val DisabledLeadingIconColor: (CssVariables) -> Color = { it.cardForeground }
     const val DisabledLeadingIconOpacity = 0.38f
-    val DisabledOutlineColor = ColorSchemeKeyTokens.OnSurface
+    val DisabledOutlineColor: (CssVariables) -> Color = { it.cardForeground }
     const val DisabledOutlineOpacity = 0.12f
-    val DisabledSupportingColor = ColorSchemeKeyTokens.OnSurface
+    val DisabledSupportingColor: (CssVariables) -> Color = { it.cardForeground }
     const val DisabledSupportingOpacity = 0.38f
-    val DisabledTrailingIconColor = ColorSchemeKeyTokens.OnSurface
+    val DisabledTrailingIconColor: (CssVariables) -> Color = { it.cardForeground }
     const val DisabledTrailingIconOpacity = 0.38f
-    val ErrorFocusCaretColor = ColorSchemeKeyTokens.Error
-    val ErrorInputColor = ColorSchemeKeyTokens.OnSurface
-    val ErrorLabelColor = ColorSchemeKeyTokens.Error
-    val ErrorLeadingIconColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val ErrorOutlineColor = ColorSchemeKeyTokens.Error
-    val ErrorSupportingColor = ColorSchemeKeyTokens.Error
-    val ErrorTrailingIconColor = ColorSchemeKeyTokens.Error
-    val FocusInputColor = ColorSchemeKeyTokens.OnSurface
-    val FocusLabelColor = ColorSchemeKeyTokens.Primary
-    val FocusLeadingIconColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val FocusOutlineColor = ColorSchemeKeyTokens.Primary
-    val FocusSupportingColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val FocusTrailingIconColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val InputColor = ColorSchemeKeyTokens.OnSurface
-    val InputPlaceholderColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val InputPrefixColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val InputSuffixColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val LabelColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val LeadingIconColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val OutlineColor = ColorSchemeKeyTokens.Outline
-    val SupportingColor = ColorSchemeKeyTokens.OnSurfaceVariant
-    val TrailingIconColor = ColorSchemeKeyTokens.OnSurfaceVariant
+    val ErrorFocusCaretColor: (CssVariables) -> Color = ErrorColorResolver
+    val ErrorInputColor: (CssVariables) -> Color = { it.cardForeground }
+    val ErrorLabelColor: (CssVariables) -> Color = ErrorColorResolver
+    val ErrorLeadingIconColor: (CssVariables) -> Color = { it.mutedForeground }
+    val ErrorOutlineColor: (CssVariables) -> Color = ErrorColorResolver
+    val ErrorSupportingColor: (CssVariables) -> Color = ErrorColorResolver
+    val ErrorTrailingIconColor: (CssVariables) -> Color = ErrorColorResolver
+    val FocusInputColor: (CssVariables) -> Color = { it.cardForeground }
+    val FocusLabelColor: (CssVariables) -> Color = { it.primary }
+    val FocusLeadingIconColor: (CssVariables) -> Color = { it.mutedForeground }
+    val FocusOutlineColor: (CssVariables) -> Color = { it.primary }
+    val FocusSupportingColor: (CssVariables) -> Color = { it.mutedForeground }
+    val FocusTrailingIconColor: (CssVariables) -> Color = { it.mutedForeground }
+    val InputColor: (CssVariables) -> Color = { it.cardForeground }
+    val InputPlaceholderColor: (CssVariables) -> Color = { it.mutedForeground }
+    val InputPrefixColor: (CssVariables) -> Color = { it.mutedForeground }
+    val InputSuffixColor: (CssVariables) -> Color = { it.mutedForeground }
+    val LabelColor: (CssVariables) -> Color = { it.mutedForeground }
+    val LeadingIconColor: (CssVariables) -> Color = { it.mutedForeground }
+    val OutlineColor: (CssVariables) -> Color = { it.border }
+    val SupportingColor: (CssVariables) -> Color = { it.mutedForeground }
+    val TrailingIconColor: (CssVariables) -> Color = { it.mutedForeground }
 }
