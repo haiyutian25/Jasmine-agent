@@ -5,7 +5,6 @@
     <string name="sidebar_new_conversation">New chat</string>
     <string name="sidebar_history_empty">No conversations yet.</string>
     <string name="sidebar_cd_delete_conversation">Delete conversation</string>
-    <string name="bottom_sheet_cd_close">Close</string>
 
     <!-- 排版选择的文案（随 AppTypographyChoice 从 feature:settings:impl 上移到 core:ui） -->
     <string name="settings_typography_editorial_title">Editorial Serif</string>

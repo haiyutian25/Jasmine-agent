@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -49,13 +48,12 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lhzkml.jasmine.core.data.model.ModelConfig
 import com.lhzkml.jasmine.core.data.model.ProviderApiType
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
-import com.lhzkml.jasmine.core.ui.components.BottomSheet
+import com.lhzkml.jasmine.core.widgets.bottomsheet.BottomSheet
 import com.lhzkml.jasmine.core.ui.components.Button
 import com.lhzkml.jasmine.core.ui.components.ReasoningEffort
 import com.lhzkml.jasmine.core.widgets.button.Button as WidgetsButton
@@ -895,37 +893,22 @@ private fun ModelEditorSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(
+                // 用自有 Button 的默认外观（primary 填充），不做任何外观定制。
+                WidgetsButton(
                     onClick = { onAction(ProviderAction.ModelCancelClicked) },
-                    modifier = Modifier.weight(1f),
-                    currentTheme = currentTheme,
-                    fillWidth = true,
-                    contentAlignment = Alignment.Center,
-                    testTag = "provider_model_cancel_btn"
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("provider_model_cancel_btn")
                 ) {
-                    Text(
-                        text = stringResource(R.string.provider_cancel),
-                        fontSize = ProviderRowNameFontSize,
-                        fontWeight = FontWeight.Medium,
-                        color = currentTheme.foreground
-                    )
+                    WidgetsText(text = stringResource(R.string.provider_cancel))
                 }
-                Button(
+                WidgetsButton(
                     onClick = { onAction(ProviderAction.ModelSaveClicked) },
-                    modifier = Modifier.weight(1f),
-                    currentTheme = currentTheme,
-                    fillWidth = true,
-                    containerColor = currentTheme.primary,
-                    border = null,
-                    contentAlignment = Alignment.Center,
-                    testTag = "provider_model_save_btn"
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("provider_model_save_btn")
                 ) {
-                    Text(
-                        text = stringResource(R.string.provider_save),
-                        fontSize = ProviderRowNameFontSize,
-                        fontWeight = FontWeight.SemiBold,
-                        color = currentTheme.primaryForeground
-                    )
+                    WidgetsText(text = stringResource(R.string.provider_save))
                 }
             }
         }

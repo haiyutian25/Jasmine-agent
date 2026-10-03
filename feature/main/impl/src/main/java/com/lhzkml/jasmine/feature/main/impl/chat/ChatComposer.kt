@@ -38,7 +38,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.lhzkml.jasmine.core.ui.components.BottomSheet
+import com.lhzkml.jasmine.core.widgets.bottomsheet.BottomSheet
 import com.lhzkml.jasmine.core.ui.components.Button
 import com.lhzkml.jasmine.core.ui.components.ReasoningEffort
 import com.lhzkml.jasmine.core.ui.components.ReasoningEffortOption

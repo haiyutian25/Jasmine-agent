@@ -5,7 +5,7 @@ import android.icu.text.CompactDecimalFormat
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,7 +41,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -51,7 +50,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lhzkml.jasmine.core.agent.ContextUsage
 import com.lhzkml.jasmine.core.agent.ContextUsageSource
-import com.lhzkml.jasmine.core.ui.components.BottomSheet
+import com.lhzkml.jasmine.core.widgets.bottomsheet.BottomSheet
+import com.lhzkml.jasmine.core.widgets.button.Button as WidgetsButton
+import com.lhzkml.jasmine.core.widgets.text.Text as WidgetsText
 import com.lhzkml.jasmine.core.ui.components.Button
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.feature.main.impl.R
@@ -67,10 +68,9 @@ private val ChatPickerListMaxHeight = 380.dp
 /** 档位之间的间距。 */
 private val ChatContextStepGap = 8.dp
 
-/** 档位小按钮的内边距与最小高度（宽度由标签自己撑开）。 */
+/** 自定义输入框的内边距。 */
 private val ChatContextStepPaddingHorizontal = 12.dp
 private val ChatContextStepPaddingVertical = 8.dp
-private val ChatContextStepMinHeight = 38.dp
 
 /** 可选档位，第一个是核心的默认值。 */
 private val ChatContextWindowSteps = listOf(
@@ -223,15 +223,16 @@ private fun ContextWindowSection(
         }
         Spacer(modifier = Modifier.height(10.dp))
 
+        // 五个档位一行排开、按钮宽度由标签自己撑开；默认外观的按钮比较宽，整行放不下时
+        // 直接横向滚动，不折行也不裁字。
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(ChatContextStepGap),
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
         ) {
             ChatContextWindowSteps.forEach { (tokens, label) ->
                 ContextWindowStep(
                     label = label,
-                    isSelected = window == tokens,
-                    currentTheme = currentTheme,
                     onClick = { onSelect(tokens) },
                 )
             }
@@ -279,8 +280,6 @@ private fun ContextWindowSection(
             val customTokens = custom.toLongOrNull()?.times(1000)
             ContextWindowStep(
                 label = stringResource(R.string.chat_context_window_custom_apply),
-                isSelected = customTokens != null && customTokens == window,
-                currentTheme = currentTheme,
                 enabled = customTokens != null,
                 onClick = { customTokens?.let(onSelect) },
             )
@@ -295,50 +294,23 @@ private fun ContextWindowSection(
 }
 
 /**
- * 一个档位：**由内容撑开**的长方形胶囊，选中的用主色描边。
+ * 一个档位：直接用自有 [WidgetsButton] 的默认外观（primary 填充），不做任何外观定制。
  *
- * 刻意不用共享的 [Button]：它自带 `sizeIn(minWidth = 48dp, minHeight = 48dp)` 的**触摸**尺寸
- * （发送键那边是靠显式给尺寸把它夹住的），套在「1M」这种短标签上会变成一个正方形，四周留一大块
- * 空白。这里自己量：内容 + 内边距决定宽度，高度只保底 [ChatContextStepMinHeight]。
+ * 内容是自有的 [WidgetsText]，这样文字才吃得到按钮下发的内容色与字型。宽度由标签自己撑开；
+ * 一行放不下时整行横向滚动（见调用处）。
  */
 @Composable
 private fun ContextWindowStep(
     label: String,
-    isSelected: Boolean,
-    currentTheme: CssVariables,
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
-    val shape = AppShapes.small
-    Box(
-        modifier = Modifier
-            .clip(shape)
-            .background(
-                if (isSelected) currentTheme.primary.copy(alpha = 0.14f) else currentTheme.subtleSurface
-            )
-            .border(
-                width = ChatDividerHeight,
-                color = if (isSelected) currentTheme.primary else currentTheme.border,
-                shape = shape
-            )
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-            .heightIn(min = ChatContextStepMinHeight)
-            .padding(
-                horizontal = ChatContextStepPaddingHorizontal,
-                vertical = ChatContextStepPaddingVertical,
-            )
-            .testTag("chat_context_window_$label"),
-        contentAlignment = Alignment.Center,
+    WidgetsButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.testTag("chat_context_window_$label"),
     ) {
-        Text(
-            text = label,
-            fontSize = ChatMetaFontSize,
-            color = when {
-                isSelected -> currentTheme.primary
-                enabled -> currentTheme.foreground
-                else -> currentTheme.mutedForeground
-            }
-        )
+        WidgetsText(text = label)
     }
 }
 
