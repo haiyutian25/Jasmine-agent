@@ -55,7 +55,6 @@ import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSi
 import com.lhzkml.jasmine.core.widgets.ripple.ripple
 import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
 import com.lhzkml.jasmine.core.widgets.motion.value
-import com.lhzkml.jasmine.core.widgets.tokens.fromToken
 import com.lhzkml.jasmine.core.widgets.tokens.value
 import com.lhzkml.jasmine.core.widgets.slider.IncreaseHorizontalSemanticsBounds
 import com.lhzkml.jasmine.core.widgets.slider.IncreaseVerticalSemanticsBounds
@@ -628,26 +627,26 @@ object SliderDefaults {
         get() =
             remember(this) {
                 SliderColors(
-                    thumbColor = fromToken(SliderTokens.HandleColor),
-                    activeTrackColor = fromToken(SliderTokens.ActiveTrackColor),
-                    activeTickColor = fromToken(SliderTokens.InactiveTrackColor),
-                    inactiveTrackColor = fromToken(SliderTokens.InactiveTrackColor),
-                    inactiveTickColor = fromToken(SliderTokens.ActiveTrackColor),
+                    thumbColor = SliderTokens.HandleColor(this),
+                    activeTrackColor = SliderTokens.ActiveTrackColor(this),
+                    activeTickColor = SliderTokens.InactiveTrackColor(this),
+                    inactiveTrackColor = SliderTokens.InactiveTrackColor(this),
+                    inactiveTickColor = SliderTokens.ActiveTrackColor(this),
                     disabledThumbColor =
-                        fromToken(SliderTokens.DisabledHandleColor)
+                        SliderTokens.DisabledHandleColor(this)
                             .copy(alpha = SliderTokens.DisabledHandleOpacity)
                             .compositeOver(card),
                     disabledActiveTrackColor =
-                        fromToken(SliderTokens.DisabledActiveTrackColor)
+                        SliderTokens.DisabledActiveTrackColor(this)
                             .copy(alpha = SliderTokens.DisabledActiveTrackOpacity),
                     disabledActiveTickColor =
-                        fromToken(SliderTokens.DisabledInactiveTrackColor)
+                        SliderTokens.DisabledInactiveTrackColor(this)
                             .copy(alpha = SliderTokens.DisabledInactiveTrackOpacity),
                     disabledInactiveTrackColor =
-                        fromToken(SliderTokens.DisabledInactiveTrackColor)
+                        SliderTokens.DisabledInactiveTrackColor(this)
                             .copy(alpha = SliderTokens.DisabledInactiveTrackOpacity),
                     disabledInactiveTickColor =
-                        fromToken(SliderTokens.DisabledActiveTrackColor)
+                        SliderTokens.DisabledActiveTrackColor(this)
                             .copy(alpha = SliderTokens.DisabledActiveTrackOpacity),
                 )
             }

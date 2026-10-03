@@ -59,8 +59,8 @@ private val CardButtonDefaultContentPadding = PaddingValues(14.dp)
  *   Width wraps the content by default; set [fillWidth] to true for
  *   full-width row/card buttons.
  *
- * Note: this is the feature's own button, distinct from Material 3's
- * `androidx.compose.material3.Button` (import with an alias where both meet).
+ * Note: this is the feature's own button，与 `core:widgets` 里那个移植自设计规范的
+ * 自有 `Button` 是两回事（两者同处一个文件里时用别名区分）。
  *
  * @param shape         clip shape so the press ripple follows rounded corners
  * @param rippleEnabled set false to suppress press feedback entirely

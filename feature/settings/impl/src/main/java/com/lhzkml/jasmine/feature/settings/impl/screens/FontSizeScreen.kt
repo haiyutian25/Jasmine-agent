@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
@@ -40,8 +41,13 @@ import androidx.compose.ui.unit.sp
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.feature.settings.impl.R
 import com.lhzkml.jasmine.core.widgets.button.Button
-import com.lhzkml.jasmine.core.ui.components.Slider
+import com.lhzkml.jasmine.core.widgets.slider.Slider
+import com.lhzkml.jasmine.core.widgets.slider.SliderDefaults
 import kotlin.math.roundToInt
+
+/** 滑杆标题行的排版（数值照旧件，观感不变）。 */
+private val FontSizeSliderLabelFontSize = 12.5.sp
+private val FontSizeSliderValueFontSize = 11.5.sp
 
 /**
  * Font-size adjustment page with live preview and explicit save.
@@ -144,13 +150,37 @@ fun FontSizeScreen(
                     .border(1.dp, currentTheme.border, AppShapes.large)
                     .padding(horizontal = 16.dp, vertical = 14.dp)
             ) {
+                // 标题行（标签 + 实时值）留在这里：它是设置页的排版，不进组件库。
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_font_size_label),
+                        fontSize = FontSizeSliderLabelFontSize,
+                        fontWeight = FontWeight.Medium,
+                        color = currentTheme.foreground
+                    )
+                    Text(
+                        text = "${(draftScale * 100).roundToInt()}%",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = FontSizeSliderValueFontSize,
+                        fontWeight = FontWeight.Bold,
+                        color = currentTheme.primary
+                    )
+                }
+
+                // 滑杆用自有的 core:widgets 版（不再经 M3 的 Slider）。
                 Slider(
                     value = draftScale,
                     onValueChange = { draftScale = it },
-                    label = stringResource(R.string.settings_font_size_label),
-                    valueText = "${(draftScale * 100).roundToInt()}%",
                     valueRange = 0.8f..1.6f,
-                    currentTheme = currentTheme,
+                    colors = SliderDefaults.colors(
+                        thumbColor = currentTheme.primary,
+                        activeTrackColor = currentTheme.primary,
+                        inactiveTrackColor = currentTheme.border
+                    ),
                     modifier = Modifier.testTag("font_size_slider")
                 )
             }

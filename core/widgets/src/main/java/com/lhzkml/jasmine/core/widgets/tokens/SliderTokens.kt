@@ -16,27 +16,33 @@
 // 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
 // 只留本组件库真正用到的槽位（单值滑块的轨道/把手颜色与尺寸、禁用态透明度、刻度点尺寸）；
 // 上游那份里的 Active*/Focus*/Hover*/Pressed*/Stop*/ValueIndicator*/Label* 等槽位没有任何组件在用，
-// 已随裁剪删掉 —— 要加就照这里补一行（若引用了 ColorScheme/Shape/Typography/Elevation 的键，
-// 也要在 TokenResolvers.kt 里补对应分支）。
+// 已随裁剪删掉 —— 要加就照这里补一行。
+//
+// 与上游的差别：颜色槽不再走 M3 角色键（`Primary` / `OnSurface` / `SecondaryContainer`），
+// 改成 `(CssVariables) -> Color` 直读自有主题（Primary -> primary、OnSurface -> cardForeground、
+// SecondaryContainer -> subtleSurface，与 `TokenResolvers` 的镜像表逐条一致，取值不变）。
+// 形状（`ShapeKeyTokens.CornerFull`）仍是形状令牌，照旧。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
 
 internal object SliderTokens {
     val ActiveHandleLeadingSpace = 6.0.dp
-    val ActiveTrackColor = ColorSchemeKeyTokens.Primary
-    val DisabledActiveTrackColor = ColorSchemeKeyTokens.OnSurface
+    val ActiveTrackColor: (CssVariables) -> Color = { it.primary }
+    val DisabledActiveTrackColor: (CssVariables) -> Color = { it.cardForeground }
     val DisabledActiveTrackOpacity = 0.38f
-    val DisabledHandleColor = ColorSchemeKeyTokens.OnSurface
+    val DisabledHandleColor: (CssVariables) -> Color = { it.cardForeground }
     val DisabledHandleOpacity = 0.38f
-    val DisabledInactiveTrackColor = ColorSchemeKeyTokens.OnSurface
+    val DisabledInactiveTrackColor: (CssVariables) -> Color = { it.cardForeground }
     val DisabledInactiveTrackOpacity = 0.12f
-    val HandleColor = ColorSchemeKeyTokens.Primary
+    val HandleColor: (CssVariables) -> Color = { it.primary }
     val HandleHeight = 44.0.dp
     val HandleShape = ShapeKeyTokens.CornerFull
     val HandleWidth = 4.0.dp
-    val InactiveTrackColor = ColorSchemeKeyTokens.SecondaryContainer
+    val InactiveTrackColor: (CssVariables) -> Color = { it.subtleSurface }
     val InactiveTrackHeight = 16.0.dp
     val StopIndicatorSize = 4.0.dp
 }
