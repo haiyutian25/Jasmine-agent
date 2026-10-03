@@ -18,7 +18,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import com.lhzkml.jasmine.core.ui.icons.LucideIcons
 import com.lhzkml.jasmine.core.widgets.icon.Icon
 import com.lhzkml.jasmine.core.widgets.text.Text
 import androidx.compose.runtime.Composable
@@ -36,12 +35,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lhzkml.jasmine.core.agent.AppUsage
 import com.lhzkml.jasmine.core.agent.ModelUsage
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.ui.platform.testTag
-import com.lhzkml.jasmine.core.ui.theme.AppShapes
-import com.lhzkml.jasmine.core.widgets.button.Button as WidgetsButton
-import com.lhzkml.jasmine.core.widgets.button.ButtonDefaults
+import com.lhzkml.jasmine.core.widgets.pulltorefresh.PullToRefreshBox
+import com.lhzkml.jasmine.core.widgets.pulltorefresh.PullToRefreshDefaults
+import com.lhzkml.jasmine.core.widgets.pulltorefresh.rememberPullToRefreshState
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.feature.settings.impl.R
 import java.text.NumberFormat
@@ -147,50 +143,33 @@ fun UsageStatsScreen(
     currentTheme: CssVariables,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(UsageCardSpacing),
+    // 刷新入口改成下拉刷新（形状变换指示器 PullToRefreshDefaults.LoadingIndicator）：
+    // 原来的「刷新」按钮已删掉，页面内容整体交给 PullToRefreshBox，下拉过阈值即触发 onRefresh。
+    val pullState = rememberPullToRefreshState()
+    PullToRefreshBox(
+        isRefreshing = isLoading,
+        onRefresh = onRefresh,
+        modifier = modifier.fillMaxWidth(),
+        state = pullState,
+        indicator = {
+            PullToRefreshDefaults.LoadingIndicator(
+                state = pullState,
+                isRefreshing = isLoading,
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
+        },
     ) {
-        UsageSummaryCard(usage = usage, currentTheme = currentTheme)
-        UsageHeatmapCard(usage = usage, currentTheme = currentTheme)
-
-        UsageModelsCard(usage = usage, isLoading = isLoading, currentTheme = currentTheme)
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(UsageCardSpacing),
         ) {
-            // 保留原有定制外观：subtleSurface 底 + 1dp 描边 + small 圆角 + 14x10 内边距，
-            // 只把行为容器换成 core:widgets 的自有 Button。
-            WidgetsButton(
-                onClick = onRefresh,
-                modifier = Modifier.testTag("usage_stats_refresh"),
-                shape = AppShapes.small,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = currentTheme.subtleSurface,
-                    contentColor = currentTheme.foreground
-                ),
-                border = BorderStroke(1.dp, currentTheme.border),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = LucideIcons.Refresh,
-                        contentDescription = null,
-                        tint = currentTheme.foreground,
-                        modifier = Modifier.width(14.dp).height(14.dp),
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = stringResource(R.string.usage_stats_refresh),
-                        fontSize = UsageBodyFontSize,
-                        color = currentTheme.foreground,
-                    )
-                }
-            }
+            UsageSummaryCard(usage = usage, currentTheme = currentTheme)
+            UsageHeatmapCard(usage = usage, currentTheme = currentTheme)
+
+            UsageModelsCard(usage = usage, isLoading = isLoading, currentTheme = currentTheme)
         }
     }
 }

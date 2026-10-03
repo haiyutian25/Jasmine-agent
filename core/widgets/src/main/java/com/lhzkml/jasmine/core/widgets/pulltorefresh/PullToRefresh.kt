@@ -43,7 +43,7 @@ import com.lhzkml.jasmine.core.widgets.pulltorefresh.PullToRefreshDefaults.Indic
 import com.lhzkml.jasmine.core.widgets.pulltorefresh.PullToRefreshDefaults.IndicatorBox
 import com.lhzkml.jasmine.core.widgets.pulltorefresh.PullToRefreshDefaults.LoadingIndicator
 import com.lhzkml.jasmine.core.widgets.tokens.ElevationTokens
-import com.lhzkml.jasmine.core.widgets.tokens.MotionSchemeKeyTokens
+import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
@@ -90,7 +90,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
 import kotlinx.coroutines.launch
-import com.lhzkml.jasmine.core.widgets.motion.value import com.lhzkml.jasmine.core.widgets.progress.ContainedLoadingIndicator
+ import com.lhzkml.jasmine.core.widgets.progress.ContainedLoadingIndicator
 
 
 // TODO: Link to Material design specs when available.
@@ -548,10 +548,10 @@ public object PullToRefreshDefaults {
             containerColor = containerColor,
             maxDistance = maxDistance,
         ) {
-            // TODO Load the motionScheme tokens from the component tokens file
+            // 动效规格直读自有 MotionScheme（与底部弹层同一做法），不再经令牌键映射。
             Crossfade(
                 targetState = isRefreshing,
-                animationSpec = MotionSchemeKeyTokens.DefaultEffects.value(),
+                animationSpec = LocalMotionScheme.current.defaultEffectsSpec<Float>(),
             ) { refreshing ->
                 if (refreshing) {
                     CircularProgressIndicator(
@@ -602,10 +602,9 @@ public object PullToRefreshDefaults {
             elevation = elevation,
             maxDistance = maxDistance,
         ) {
-            // TODO Load the motionScheme tokens from the component tokens file
             Crossfade(
                 targetState = isRefreshing,
-                animationSpec = MotionSchemeKeyTokens.DefaultEffects.value(),
+                animationSpec = LocalMotionScheme.current.defaultEffectsSpec<Float>(),
             ) { refreshing ->
                 if (refreshing) {
                     ContainedLoadingIndicator(
@@ -740,11 +739,10 @@ private fun CircularArrowProgressIndicator(progress: FloatProducer, color: Color
     val path = remember { Path().apply { fillType = PathFillType.EvenOdd } }
     // TODO: Consider refactoring this sub-component utilizing Modifier.Node
     val targetAlpha by remember { derivedStateOf { if (progress() >= 1f) MaxAlpha else MinAlpha } }
-    // TODO Load the motionScheme tokens from the component tokens file
     val alphaState =
         animateFloatAsState(
             targetValue = targetAlpha,
-            animationSpec = MotionSchemeKeyTokens.DefaultEffects.value(),
+            animationSpec = LocalMotionScheme.current.defaultEffectsSpec<Float>(),
         )
 
     Canvas(

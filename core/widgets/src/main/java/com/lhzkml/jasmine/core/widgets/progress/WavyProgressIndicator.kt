@@ -51,7 +51,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastCoerceIn
-import com.lhzkml.jasmine.core.widgets.tokens.value
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 
 
 // TODO Update the docs images to point to the expressive (wavy) versions of the progress indicators
@@ -391,11 +391,11 @@ public object WavyProgressIndicatorDefaults {
 
     /** A default active indicator [Color]. */
     public val indicatorColor: Color
-        @Composable get() = ProgressIndicatorTokens.ActiveIndicatorColor.value
+        @Composable get() = ProgressIndicatorTokens.ActiveIndicatorColor(LocalCssVariables.current)
 
     /** A default track [Color]. */
     public val trackColor: Color
-        @Composable get() = ProgressIndicatorTokens.TrackColor.value
+        @Composable get() = ProgressIndicatorTokens.TrackColor(LocalCssVariables.current)
 
     /** A default linear progress indicator active indicator [Stroke]. */
     public val linearIndicatorStroke: Stroke

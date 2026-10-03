@@ -60,7 +60,7 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
-import com.lhzkml.jasmine.core.widgets.tokens.value
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 
 /**
  * [Material Design determinate linear progress
@@ -542,19 +542,19 @@ private fun DrawScope.drawIndeterminateCircularIndicator(
 object ProgressIndicatorDefaults {
     /** Default color for a linear progress indicator. */
     val linearColor: Color
-        @Composable get() = ProgressIndicatorTokens.ActiveIndicatorColor.value
+        @Composable get() = ProgressIndicatorTokens.ActiveIndicatorColor(LocalCssVariables.current)
 
     /** Default color for a circular progress indicator. */
     val circularColor: Color
-        @Composable get() = ProgressIndicatorTokens.ActiveIndicatorColor.value
+        @Composable get() = ProgressIndicatorTokens.ActiveIndicatorColor(LocalCssVariables.current)
 
     /** Default track color for a linear progress indicator. */
     val linearTrackColor: Color
-        @Composable get() = ProgressIndicatorTokens.TrackColor.value
+        @Composable get() = ProgressIndicatorTokens.TrackColor(LocalCssVariables.current)
 
     /** Default track color for a circular determinate progress indicator. */
     val circularDeterminateTrackColor: Color
-        @Composable get() = ProgressIndicatorTokens.TrackColor.value
+        @Composable get() = ProgressIndicatorTokens.TrackColor(LocalCssVariables.current)
 
     /** Default track color for a circular indeterminate progress indicator. */
     val circularIndeterminateTrackColor: Color

@@ -15,16 +15,20 @@
  */
 // 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
 // 加载指示器（形状变换型）用到的全部 7 个槽位；上游这份里没有未使用的槽位。
+// 颜色槽位直读自有主题 `CssVariables`（Primary -> primary、OnPrimaryContainer -> accentForeground、
+// PrimaryContainer -> accent），取值与之前逐槽一致，只是不再经 M3 角色键映射。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
 
 internal object LoadingIndicatorTokens {
-    val ActiveIndicatorColor = ColorSchemeKeyTokens.Primary
+    val ActiveIndicatorColor: (CssVariables) -> Color = { it.primary }
     val ActiveSize = 38.0.dp
-    val ContainedActiveColor = ColorSchemeKeyTokens.OnPrimaryContainer
-    val ContainedContainerColor = ColorSchemeKeyTokens.PrimaryContainer
+    val ContainedActiveColor: (CssVariables) -> Color = { it.accentForeground }
+    val ContainedContainerColor: (CssVariables) -> Color = { it.accent }
     val ContainerHeight = 48.0.dp
     val ContainerShape = ShapeKeyTokens.CornerFull
     val ContainerWidth = 48.0.dp

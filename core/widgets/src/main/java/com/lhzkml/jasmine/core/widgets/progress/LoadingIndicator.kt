@@ -52,6 +52,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.center
 import androidx.compose.ui.graphics.Color
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
@@ -517,18 +518,18 @@ public object LoadingIndicatorDefaults {
      * [LoadingIndicator].
      */
     public val indicatorColor: Color
-        @Composable get() = LoadingIndicatorTokens.ActiveIndicatorColor.value
+        @Composable get() = LoadingIndicatorTokens.ActiveIndicatorColor(LocalCssVariables.current)
 
     /**
      * A [LoadingIndicator] default active indicator [Color] when using a
      * [ContainedLoadingIndicator].
      */
     public val containedIndicatorColor: Color
-        @Composable get() = LoadingIndicatorTokens.ContainedActiveColor.value
+        @Composable get() = LoadingIndicatorTokens.ContainedActiveColor(LocalCssVariables.current)
 
     /** A [LoadingIndicator] default container [Color] when using a [ContainedLoadingIndicator]. */
     public val containedContainerColor: Color
-        @Composable get() = LoadingIndicatorTokens.ContainedContainerColor.value
+        @Composable get() = LoadingIndicatorTokens.ContainedContainerColor(LocalCssVariables.current)
 
     /**
      * The sequence of [RoundedPolygon]s that the indeterminate [LoadingIndicator] will morph
