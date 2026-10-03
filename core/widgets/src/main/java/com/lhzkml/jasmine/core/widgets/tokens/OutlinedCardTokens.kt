@@ -17,20 +17,24 @@
 // 只保留 Card.kt 真正引用到的槽位（容器色 / 海拔 / 形状，描边色与宽度，
 // 禁用态描边色 / 不透明度 / 海拔，以及拖拽态海拔）；上游那份里的 Focus / Hover / Pressed /
 // Dragged 描边色与图标相关槽位本组件库没用到，已随裁剪删掉。
+// 颜色槽位直读自有主题 `CssVariables`（Surface -> card、Outline -> border、
+// OutlineVariant -> muted），取值与之前逐槽一致，只是不再经 M3 角色键映射。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
 
 internal object OutlinedCardTokens {
-    val ContainerColor = ColorSchemeKeyTokens.Surface
+    val ContainerColor: (CssVariables) -> Color = { it.card }
     val ContainerElevation = ElevationTokens.Level0
     val ContainerShape = ShapeKeyTokens.CornerMedium
     val DisabledContainerElevation = ElevationTokens.Level0
-    val DisabledOutlineColor = ColorSchemeKeyTokens.Outline
+    val DisabledOutlineColor: (CssVariables) -> Color = { it.border }
     const val DisabledOutlineOpacity = 0.12f
     val DraggedContainerElevation = ElevationTokens.Level3
-    val OutlineColor = ColorSchemeKeyTokens.OutlineVariant
+    val OutlineColor: (CssVariables) -> Color = { it.muted }
     val OutlineWidth = 1.0.dp
 }
 

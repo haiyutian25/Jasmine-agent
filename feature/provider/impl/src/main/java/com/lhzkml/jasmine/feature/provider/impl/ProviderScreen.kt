@@ -54,9 +54,12 @@ import com.lhzkml.jasmine.core.data.model.ModelConfig
 import com.lhzkml.jasmine.core.data.model.ProviderApiType
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
 import com.lhzkml.jasmine.core.widgets.bottomsheet.BottomSheet
-import com.lhzkml.jasmine.core.ui.components.Button
 import com.lhzkml.jasmine.core.ui.components.ReasoningEffort
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.graphics.Color
 import com.lhzkml.jasmine.core.widgets.button.Button as WidgetsButton
+import com.lhzkml.jasmine.core.widgets.button.ButtonDefaults as WidgetsButtonDefaults
 import com.lhzkml.jasmine.core.widgets.text.Text as WidgetsText
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 
@@ -210,10 +213,16 @@ private fun ProviderListContent(
     Spacer(modifier = Modifier.height(12.dp))
 
     // Add-provider entry (same card chrome as the list above).
-    Button(
+    // 换成自有的 WidgetsButton，外观照旧：按钮本身透明，卡片样式仍由内容自绘。
+    WidgetsButton(
         onClick = { onAction(ProviderAction.AddClicked) },
-        modifier = Modifier.fillMaxWidth(),
-        testTag = "provider_add_entry"
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("provider_add_entry"),
+        colors = WidgetsButtonDefaults.buttonColors(containerColor = Color.Transparent),
+        elevation = null,
+        border = null,
+        contentPadding = PaddingValues(0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -289,10 +298,16 @@ private fun ProviderRow(
             )
         }
 
-        Button(
+        // 换成自有的 WidgetsButton，外观照旧：透明底、无边框、48dp 触控盒、内容只有一个图标。
+        WidgetsButton(
             onClick = onEdit,
-            rippleEnabled = false,
-            testTag = "provider_edit_${provider.id}"
+            modifier = Modifier
+                .size(48.dp)
+                .testTag("provider_edit_${provider.id}"),
+            colors = WidgetsButtonDefaults.buttonColors(containerColor = Color.Transparent),
+            elevation = null,
+            border = null,
+            contentPadding = PaddingValues(0.dp)
         ) {
             Icon(
                 imageVector = LucideIcons.Pencil,
@@ -305,10 +320,15 @@ private fun ProviderRow(
         }
 
         if (!provider.isBuiltIn) {
-            Button(
+            WidgetsButton(
                 onClick = onDelete,
-                rippleEnabled = false,
-                testTag = "provider_delete_${provider.id}"
+                modifier = Modifier
+                    .size(48.dp)
+                    .testTag("provider_delete_${provider.id}"),
+                colors = WidgetsButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                elevation = null,
+                border = null,
+                contentPadding = PaddingValues(0.dp)
             ) {
                 Icon(
                     imageVector = LucideIcons.Trash,
@@ -379,10 +399,15 @@ private fun ProviderEditorContent(
     ) {
         ProviderApiType.entries.forEachIndexed { index, type ->
             val isSelected = editor.apiType == type
-            Button(
+            WidgetsButton(
                 onClick = { onAction(ProviderAction.ApiTypeSelected(type)) },
-                modifier = Modifier.fillMaxWidth(),
-                testTag = "provider_api_type_${type.name}"
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("provider_api_type_${type.name}"),
+                colors = WidgetsButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                elevation = null,
+                border = null,
+                contentPadding = PaddingValues(0.dp)
             ) {
                 Row(
                     modifier = Modifier
@@ -568,10 +593,15 @@ private fun ModelRow(
             }
         }
 
-        Button(
+        WidgetsButton(
             onClick = onEdit,
-            rippleEnabled = false,
-            testTag = "provider_model_edit_${model.id}"
+            modifier = Modifier
+                .size(48.dp)
+                .testTag("provider_model_edit_${model.id}"),
+            colors = WidgetsButtonDefaults.buttonColors(containerColor = Color.Transparent),
+            elevation = null,
+            border = null,
+            contentPadding = PaddingValues(0.dp)
         ) {
             Icon(
                 imageVector = LucideIcons.Pencil,
@@ -582,10 +612,15 @@ private fun ModelRow(
                     .size(ProviderRowActionIconSize)
             )
         }
-        Button(
+        WidgetsButton(
             onClick = onDelete,
-            rippleEnabled = false,
-            testTag = "provider_model_delete_${model.id}"
+            modifier = Modifier
+                .size(48.dp)
+                .testTag("provider_model_delete_${model.id}"),
+            colors = WidgetsButtonDefaults.buttonColors(containerColor = Color.Transparent),
+            elevation = null,
+            border = null,
+            contentPadding = PaddingValues(0.dp)
         ) {
             Icon(
                 imageVector = LucideIcons.Trash,
@@ -663,13 +698,20 @@ private fun ModelPickerSheet(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
+                        // 换成自有 WidgetsButton，外观照旧：subtleSurface 底 + 1dp 边 + foreground 文字。
+                        WidgetsButton(
                             onClick = { onAction(ProviderAction.FetchModelsClicked) },
-                            currentTheme = currentTheme,
-                            fillWidth = true,
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.weight(1f),
-                            testTag = "provider_model_retry_btn"
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("provider_model_retry_btn"),
+                            shape = AppShapes.small,
+                            colors = WidgetsButtonDefaults.buttonColors(
+                                containerColor = currentTheme.subtleSurface,
+                                contentColor = currentTheme.foreground
+                            ),
+                            elevation = null,
+                            border = BorderStroke(1.dp, currentTheme.border),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
                         ) {
                             Text(
                                 text = stringResource(R.string.provider_retry),
@@ -678,13 +720,19 @@ private fun ModelPickerSheet(
                                 color = currentTheme.foreground
                             )
                         }
-                        Button(
+                        WidgetsButton(
                             onClick = { onAction(ProviderAction.CustomModelClicked) },
-                            currentTheme = currentTheme,
-                            fillWidth = true,
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.weight(1f),
-                            testTag = "provider_model_custom_btn"
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("provider_model_custom_btn"),
+                            shape = AppShapes.small,
+                            colors = WidgetsButtonDefaults.buttonColors(
+                                containerColor = currentTheme.subtleSurface,
+                                contentColor = currentTheme.foreground
+                            ),
+                            elevation = null,
+                            border = BorderStroke(1.dp, currentTheme.border),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
                         ) {
                             Text(
                                 text = stringResource(R.string.provider_custom_model),
@@ -717,10 +765,15 @@ private fun ModelPickerSheet(
                     Spacer(modifier = Modifier.height(ProviderFieldLabelSpacing))
 
                     // Always-available custom entry on top of the catalog.
-                    Button(
+                    WidgetsButton(
                         onClick = { onAction(ProviderAction.CustomModelClicked) },
-                        modifier = Modifier.fillMaxWidth(),
-                        testTag = "provider_model_custom_entry"
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("provider_model_custom_entry"),
+                        colors = WidgetsButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                        elevation = null,
+                        border = null,
+                        contentPadding = PaddingValues(0.dp)
                     ) {
                         Row(
                             modifier = Modifier
@@ -768,10 +821,15 @@ private fun ModelPickerSheet(
                                 .verticalScroll(rememberScrollState())
                         ) {
                             matches.forEach { item ->
-                                Button(
+                                WidgetsButton(
                                     onClick = { onAction(ProviderAction.ModelSelected(item.modelId)) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    testTag = "provider_model_pick_${item.modelId}"
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("provider_model_pick_${item.modelId}"),
+                                    colors = WidgetsButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                                    elevation = null,
+                                    border = null,
+                                    contentPadding = PaddingValues(0.dp)
                                 ) {
                                     Row(
                                         modifier = Modifier

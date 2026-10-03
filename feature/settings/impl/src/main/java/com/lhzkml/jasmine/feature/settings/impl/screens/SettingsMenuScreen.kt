@@ -30,7 +30,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.lhzkml.jasmine.core.ui.components.Button
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import com.lhzkml.jasmine.core.widgets.button.Button as WidgetsButton
+import com.lhzkml.jasmine.core.widgets.button.ButtonDefaults
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.feature.settings.impl.R
 
@@ -196,10 +201,17 @@ private fun SettingsMenuRow(
     currentTheme: CssVariables,
     testTag: String
 ) {
-    Button(
+    // 保留原有的“无外观”定制（透明底 / 无边框 / 无阴影 / 零内边距，外观由 Row 自绘），
+    // 只把行为容器换成 core:widgets 的自有 Button。
+    WidgetsButton(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        testTag = testTag
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(testTag),
+        shape = RectangleShape,
+        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+        elevation = null,
+        contentPadding = PaddingValues(0.dp)
     ) {
         Row(
             modifier = Modifier

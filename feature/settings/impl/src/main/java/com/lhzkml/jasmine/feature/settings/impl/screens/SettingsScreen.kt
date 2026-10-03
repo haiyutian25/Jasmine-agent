@@ -40,8 +40,10 @@ import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.core.ui.theme.ThemeResolver
 import com.lhzkml.jasmine.core.ui.theme.isBraun
 import com.lhzkml.jasmine.feature.settings.impl.R
-import com.lhzkml.jasmine.core.ui.components.Button
-import com.lhzkml.jasmine.core.ui.components.CardButton
+import androidx.compose.ui.graphics.RectangleShape
+import com.lhzkml.jasmine.core.widgets.button.Button as WidgetsButton
+import com.lhzkml.jasmine.core.widgets.button.ButtonDefaults
+import androidx.compose.foundation.BorderStroke
 
 private data class PaletteEntry(
     val family: ThemeResolver.PaletteFamily,
@@ -164,10 +166,17 @@ fun SettingsScreen(
                     val isSelected = currentFamilyKey == entry.family.key
                     val targetTheme = entry.family.variant(currentTheme.isDark)
 
-                    Button(
+                    // 保留原有的“无外观”定制（透明底 / 无边框 / 无阴影 / 零内边距，外观由 Row 自绘），
+                    // 只把行为容器换成 core:widgets 的自有 Button。
+                    WidgetsButton(
                         onClick = { onThemeChange(targetTheme) },
-                        modifier = Modifier.fillMaxWidth(),
-                        testTag = "settings_palette_item_${entry.family.key}"
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("settings_palette_item_${entry.family.key}"),
+                        shape = RectangleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                        elevation = null,
+                        contentPadding = PaddingValues(0.dp)
                     ) {
                     Row(
                         modifier = Modifier
@@ -277,6 +286,10 @@ private fun SettingsSectionHeader(
     }
 }
 
+/** 选中 / 未选中时那张卡片的描边宽度（与原 CardButton 的 2dp / 1dp 一致）。 */
+private val ColorModeCardSelectedBorderWidth = 2.dp
+private val ColorModeCardUnselectedBorderWidth = 1.dp
+
 @Composable
 private fun ColorModeCard(
     icon: ImageVector,
@@ -287,27 +300,36 @@ private fun ColorModeCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    CardButton(
+    // 换成 core:widgets 的自有 Button（可带图标 + 文字的普通按钮），
+    // 外观按原卡片逐项定制：容器色 / 选中描边 / medium 圆角 / 14×6 内边距全部照旧，
+    // 三张仍是 Row 里各 weight(1f) 的等宽并排。
+    WidgetsButton(
         onClick = onClick,
-        isSelected = isSelected,
-        currentTheme = currentTheme,
-        modifier = modifier,
+        modifier = modifier.testTag(testTag),
         shape = AppShapes.medium,
-        // Selected card gets an elevated surface (white in light / muted in dark)
-        // instead of staying the same gray as the unselected cards. Braun (Dieter
-        // Rams) keeps its original restrained card surface instead.
-        containerColor = if (isSelected) {
-            when {
-                currentTheme.isBraun -> currentTheme.card
-                currentTheme.isDark -> currentTheme.muted
-                else -> Color.White
+        colors = ButtonDefaults.buttonColors(
+            // Selected card gets an elevated surface (white in light / muted in dark)
+            // instead of staying the same gray as the unselected cards. Braun (Dieter
+            // Rams) keeps its original restrained card surface instead.
+            containerColor = if (isSelected) {
+                when {
+                    currentTheme.isBraun -> currentTheme.card
+                    currentTheme.isDark -> currentTheme.muted
+                    else -> Color.White
+                }
+            } else {
+                currentTheme.card
             }
-        } else {
-            currentTheme.card
-        },
-        contentPadding = PaddingValues(vertical = 14.dp, horizontal = 6.dp),
-        contentAlignment = Alignment.Center,
-        testTag = testTag
+        ),
+        border = BorderStroke(
+            width = if (isSelected) {
+                ColorModeCardSelectedBorderWidth
+            } else {
+                ColorModeCardUnselectedBorderWidth
+            },
+            color = if (isSelected) currentTheme.primary else currentTheme.border
+        ),
+        contentPadding = PaddingValues(vertical = 14.dp, horizontal = 6.dp)
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(

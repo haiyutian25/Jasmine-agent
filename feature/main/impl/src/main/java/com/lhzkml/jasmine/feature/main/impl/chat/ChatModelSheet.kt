@@ -51,9 +51,11 @@ import androidx.compose.ui.unit.sp
 import com.lhzkml.jasmine.core.agent.ContextUsage
 import com.lhzkml.jasmine.core.agent.ContextUsageSource
 import com.lhzkml.jasmine.core.widgets.bottomsheet.BottomSheet
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.graphics.RectangleShape
 import com.lhzkml.jasmine.core.widgets.button.Button as WidgetsButton
+import com.lhzkml.jasmine.core.widgets.button.ButtonDefaults
 import com.lhzkml.jasmine.core.widgets.text.Text as WidgetsText
-import com.lhzkml.jasmine.core.ui.components.Button
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.feature.main.impl.R
 import java.text.NumberFormat
@@ -336,10 +338,17 @@ private fun ModelRow(
     currentTheme: CssVariables,
     onSelect: () -> Unit,
 ) {
-    Button(
+    // 保留原有的“无外观”定制（透明底 / 无边框 / 无阴影 / 零内边距），
+    // 只把行为容器换成 core:widgets 的自有 Button。
+    WidgetsButton(
         onClick = onSelect,
-        modifier = Modifier.fillMaxWidth(),
-        testTag = "chat_model_${providerId}_$modelId"
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("chat_model_${providerId}_$modelId"),
+        shape = RectangleShape,
+        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+        elevation = null,
+        contentPadding = PaddingValues(0.dp)
     ) {
         Column(
             modifier = Modifier
@@ -390,11 +399,15 @@ internal fun ContextUsageRing(
     val trackColor = currentTheme.mutedForeground.copy(alpha = 0.25f)
     val progressColor = currentTheme.mutedForeground.copy(alpha = 0.7f)
 
-    Button(
+    WidgetsButton(
         onClick = onClick,
-        rippleEnabled = false,
-        modifier = Modifier.size(ChatSendButtonSize),
-        testTag = "chat_context_usage_btn",
+        modifier = Modifier
+            .size(ChatSendButtonSize)
+            .testTag("chat_context_usage_btn"),
+        shape = RectangleShape,
+        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+        elevation = null,
+        contentPadding = PaddingValues(0.dp)
     ) {
         Canvas(modifier = Modifier.size(ChatContextRingSize)) {
             // 线宽取 ZCode 那个环的比例（24 的 viewBox 里 stroke 是 4），跟着尺寸缩放。

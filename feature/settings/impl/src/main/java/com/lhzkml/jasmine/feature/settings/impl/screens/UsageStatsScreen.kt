@@ -36,7 +36,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lhzkml.jasmine.core.agent.AppUsage
 import com.lhzkml.jasmine.core.agent.ModelUsage
-import com.lhzkml.jasmine.core.ui.components.Button
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.platform.testTag
+import com.lhzkml.jasmine.core.ui.theme.AppShapes
+import com.lhzkml.jasmine.core.widgets.button.Button as WidgetsButton
+import com.lhzkml.jasmine.core.widgets.button.ButtonDefaults
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.feature.settings.impl.R
 import java.text.NumberFormat
@@ -158,14 +163,18 @@ fun UsageStatsScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End,
         ) {
-            Button(
+            // 保留原有定制外观：subtleSurface 底 + 1dp 描边 + small 圆角 + 14x10 内边距，
+            // 只把行为容器换成 core:widgets 的自有 Button。
+            WidgetsButton(
                 onClick = onRefresh,
-                testTag = "usage_stats_refresh",
-                currentTheme = currentTheme,
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                    horizontal = 14.dp,
-                    vertical = 10.dp
+                modifier = Modifier.testTag("usage_stats_refresh"),
+                shape = AppShapes.small,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = currentTheme.subtleSurface,
+                    contentColor = currentTheme.foreground
                 ),
+                border = BorderStroke(1.dp, currentTheme.border),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(

@@ -61,9 +61,7 @@ import androidx.compose.ui.semantics.Role
 import com.lhzkml.jasmine.core.widgets.surface.Surface
 import com.lhzkml.jasmine.core.widgets.tokens.value
 import com.lhzkml.jasmine.core.widgets.elevation.animateElevation
-import com.lhzkml.jasmine.core.widgets.motion.value
 import com.lhzkml.jasmine.core.widgets.navigation.DisabledAlpha
-import com.lhzkml.jasmine.core.widgets.tokens.fromToken
 
 /**
  * [Material Design filled card](https://m3.material.io/components/cards/overview)
@@ -511,14 +509,14 @@ object CardDefaults {
         get() =
             remember(this) {
                 CardColors(
-                    containerColor = fromToken(FilledCardTokens.ContainerColor),
-                    contentColor = contentColorFor(fromToken(FilledCardTokens.ContainerColor)),
+                    containerColor = FilledCardTokens.ContainerColor(this),
+                    contentColor = contentColorFor(FilledCardTokens.ContainerColor(this)),
                     disabledContainerColor =
-                        fromToken(FilledCardTokens.DisabledContainerColor)
+                        FilledCardTokens.DisabledContainerColor(this)
                             .copy(alpha = FilledCardTokens.DisabledContainerOpacity)
-                            .compositeOver(fromToken(FilledCardTokens.ContainerColor)),
+                            .compositeOver(FilledCardTokens.ContainerColor(this)),
                     disabledContentColor =
-                        contentColorFor(fromToken(FilledCardTokens.ContainerColor))
+                        contentColorFor(FilledCardTokens.ContainerColor(this))
                             .copy(DisabledAlpha),
                 )
             }
@@ -557,17 +555,17 @@ object CardDefaults {
         get() =
             remember(this) {
                 CardColors(
-                    containerColor = fromToken(ElevatedCardTokens.ContainerColor),
+                    containerColor = ElevatedCardTokens.ContainerColor(this),
                     contentColor =
-                        contentColorFor(fromToken(ElevatedCardTokens.ContainerColor)),
+                        contentColorFor(ElevatedCardTokens.ContainerColor(this)),
                     disabledContainerColor =
-                        fromToken(ElevatedCardTokens.DisabledContainerColor)
+                        ElevatedCardTokens.DisabledContainerColor(this)
                             .copy(alpha = ElevatedCardTokens.DisabledContainerOpacity)
                             .compositeOver(
-                                fromToken(ElevatedCardTokens.DisabledContainerColor)
+                                ElevatedCardTokens.DisabledContainerColor(this)
                             ),
                     disabledContentColor =
-                        contentColorFor(fromToken(ElevatedCardTokens.ContainerColor))
+                        contentColorFor(ElevatedCardTokens.ContainerColor(this))
                             .copy(DisabledAlpha),
                 )
             }
@@ -607,12 +605,12 @@ object CardDefaults {
         get() =
             remember(this) {
                 CardColors(
-                    containerColor = fromToken(OutlinedCardTokens.ContainerColor),
+                    containerColor = OutlinedCardTokens.ContainerColor(this),
                     contentColor =
-                        contentColorFor(fromToken(OutlinedCardTokens.ContainerColor)),
-                    disabledContainerColor = fromToken(OutlinedCardTokens.ContainerColor),
+                        contentColorFor(OutlinedCardTokens.ContainerColor(this)),
+                    disabledContainerColor = OutlinedCardTokens.ContainerColor(this),
                     disabledContentColor =
-                        contentColorFor(fromToken(OutlinedCardTokens.ContainerColor))
+                        contentColorFor(OutlinedCardTokens.ContainerColor(this))
                             .copy(DisabledAlpha),
                 )
             }
@@ -624,13 +622,14 @@ object CardDefaults {
      */
     @Composable
     fun outlinedCardBorder(enabled: Boolean = true): BorderStroke {
+        val theme = LocalCssVariables.current
         val color =
             if (enabled) {
-                OutlinedCardTokens.OutlineColor.value
+                OutlinedCardTokens.OutlineColor(theme)
             } else {
-                OutlinedCardTokens.DisabledOutlineColor.value
+                OutlinedCardTokens.DisabledOutlineColor(theme)
                     .copy(alpha = OutlinedCardTokens.DisabledOutlineOpacity)
-                    .compositeOver(ElevatedCardTokens.ContainerColor.value)
+                    .compositeOver(ElevatedCardTokens.ContainerColor(theme))
             }
         return remember(color) { BorderStroke(OutlinedCardTokens.OutlineWidth, color) }
     }

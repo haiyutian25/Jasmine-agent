@@ -17,16 +17,19 @@
 // 只保留 Card.kt 真正引用到的槽位（容器色 / 海拔 / 形状，禁用态色 / 海拔 / 不透明度，
 // 以及拖拽 / 聚焦 / 悬停 / 按下四态海拔）；上游那份里的 FocusIndicatorColor 与图标相关槽位
 // 本组件库没用到，已随裁剪删掉。
+// 颜色槽位直读自有主题 `CssVariables`（SurfaceContainerLow / Surface -> card），
+// 取值与之前逐槽一致，只是不再经 M3 角色键映射。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
 
 internal object ElevatedCardTokens {
-    val ContainerColor = ColorSchemeKeyTokens.SurfaceContainerLow
+    val ContainerColor: (CssVariables) -> Color = { it.card }
     val ContainerElevation = ElevationTokens.Level1
     val ContainerShape = ShapeKeyTokens.CornerMedium
-    val DisabledContainerColor = ColorSchemeKeyTokens.Surface
+    val DisabledContainerColor: (CssVariables) -> Color = { it.card }
     val DisabledContainerElevation = ElevationTokens.Level1
     val DisabledContainerOpacity = 0.38f
     val DraggedContainerElevation = ElevationTokens.Level4

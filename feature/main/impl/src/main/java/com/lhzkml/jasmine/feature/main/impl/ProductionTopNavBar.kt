@@ -16,7 +16,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.lhzkml.jasmine.core.ui.components.Button
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.platform.testTag
+import com.lhzkml.jasmine.core.widgets.button.Button as WidgetsButton
+import com.lhzkml.jasmine.core.widgets.button.ButtonDefaults
 import com.lhzkml.jasmine.core.ui.icons.LucideIcons
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.core.widgets.appbar.CenterAlignedTopAppBar
@@ -41,6 +46,9 @@ private val WidgetsAppBarNavigationIconInset = 4.dp
 
 /** Icon size of the leading action (menu / back). */
 private val ProductionTopNavActionIconSize = 28.dp
+
+/** 顶栏两个动作按钮的触控盒边长：与旧容器的最小触控尺寸同值（48.dp）。 */
+private val TopNavActionButtonSize = 48.dp
 
 // 标题字型不在这里定：交给组件下发（`AppBarSmallTokens.TitleFont` = 自有主题的
 // `AppTypography.titleLarge`，22sp / Regular / 字距 0），与「设置 → 调试 → 顶部导航栏」
@@ -94,10 +102,18 @@ internal fun ProductionTopNavBar(
                 )
             ) {
                 if (pageTitle != null) {
-                    Button(
+                    // 保留原有的“无外观”定制：透明底 / 无边框 / 无阴影 / 零内边距，
+                    // 并固定 48dp 触控盒（与旧容器的 ButtonMinTouchTarget 同值），
+                    // 只把行为容器换成 core:widgets 的自有 Button。
+                    WidgetsButton(
                         onClick = { onBack() },
-                        rippleEnabled = false,
-                        testTag = "top_nav_back_btn"
+                        modifier = Modifier
+                            .size(TopNavActionButtonSize)
+                            .testTag("top_nav_back_btn"),
+                        shape = RectangleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                        elevation = null,
+                        contentPadding = PaddingValues(0.dp)
                     ) {
                         Icon(
                             imageVector = LucideIcons.ArrowLeft,
@@ -107,10 +123,15 @@ internal fun ProductionTopNavBar(
                         )
                     }
                 } else {
-                    Button(
+                    WidgetsButton(
                         onClick = { onOpenSidebar() },
-                        rippleEnabled = false,
-                        testTag = "top_nav_sidebar_btn"
+                        modifier = Modifier
+                            .size(TopNavActionButtonSize)
+                            .testTag("top_nav_sidebar_btn"),
+                        shape = RectangleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                        elevation = null,
+                        contentPadding = PaddingValues(0.dp)
                     ) {
                         Icon(
                             imageVector = LucideIcons.Menu,

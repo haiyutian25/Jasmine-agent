@@ -47,7 +47,9 @@ import com.lhzkml.jasmine.core.data.model.PresetFontCatalog
 import com.lhzkml.jasmine.core.ui.theme.AppTypographyChoice
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.feature.settings.impl.R
-import com.lhzkml.jasmine.core.ui.components.Button
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Color
 import com.lhzkml.jasmine.core.widgets.button.Button as WidgetsButton
 import com.lhzkml.jasmine.core.widgets.button.ButtonDefaults
 import java.util.Locale
@@ -126,10 +128,17 @@ fun FontScreen(
                 // A system engine reads as selected only while no custom font overrides it.
                 val isSelected = activeCustomFontId.isEmpty() && selectedTypography == style
 
-                Button(
+                // 保留原有的“无外观”定制（透明底 / 无边框 / 无阴影 / 零内边距，外观由 Row 自绘），
+                // 只把行为容器换成 core:widgets 的自有 Button。
+                WidgetsButton(
                     onClick = { onTypographyChange(style) },
-                    modifier = Modifier.fillMaxWidth(),
-                    testTag = "settings_typography_${style.name}"
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("settings_typography_${style.name}"),
+                    shape = RectangleShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                    elevation = null,
+                    contentPadding = PaddingValues(0.dp)
                 ) {
                     Row(
                         modifier = Modifier
@@ -191,11 +200,17 @@ fun FontScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // Upload entry: opens the system document picker for a .ttf / .otf file.
-        Button(
+        // 保留原有的“无外观”定制（透明底 / 无边框 / 无阴影 / 零内边距，外观由 Row 自绘），
+        // 形状仍用 medium 圆角，只把行为容器换成 core:widgets 的自有 Button。
+        WidgetsButton(
             onClick = { fontPickerLauncher.launch(FontPickerMimeTypes) },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("font_upload_entry"),
             shape = AppShapes.medium,
-            testTag = "font_upload_entry"
+            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+            elevation = null,
+            contentPadding = PaddingValues(0.dp)
         ) {
             Row(
                 modifier = Modifier
@@ -453,11 +468,17 @@ fun FontScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Button(
+        // 保留原有的“无外观”定制（透明底 / 无边框 / 无阴影 / 零内边距，外观由 Row 自绘），
+        // 形状仍用 medium 圆角，只把行为容器换成 core:widgets 的自有 Button。
+        WidgetsButton(
             onClick = { onOpenFontSize() },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("font_size_entry"),
             shape = AppShapes.medium,
-            testTag = "font_size_entry"
+            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+            elevation = null,
+            contentPadding = PaddingValues(0.dp)
         ) {
             Row(
                 modifier = Modifier

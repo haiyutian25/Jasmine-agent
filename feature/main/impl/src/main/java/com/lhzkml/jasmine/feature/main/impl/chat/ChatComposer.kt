@@ -38,8 +38,12 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import com.lhzkml.jasmine.core.widgets.bottomsheet.BottomSheet
-import com.lhzkml.jasmine.core.ui.components.Button
+import com.lhzkml.jasmine.core.widgets.button.Button as WidgetsButton
+import com.lhzkml.jasmine.core.widgets.button.ButtonDefaults
 import com.lhzkml.jasmine.core.ui.components.ReasoningEffort
 import com.lhzkml.jasmine.core.ui.components.ReasoningEffortOption
 import com.lhzkml.jasmine.core.ui.icons.LucideIcons
@@ -218,10 +222,15 @@ internal fun Composer(
             // 模型入口，点击打开模型选择。有激活模型时显示模型名；没有时以前是空串，
             // 按钮虽然存在却完全看不见，看起来就像「没有选择模型的按钮」。这里给个占位文案，
             // 让它始终可见。
-            Button(
+            // 保留原有的“无外观”定制（透明底 / 无边框 / 无阴影 / 零内边距），
+            // 只把行为容器换成 core:widgets 的自有 Button。
+            WidgetsButton(
                 onClick = { onAction(ChatAction.ModelPickerOpened) },
-                rippleEnabled = false,
-                testTag = "chat_active_model_btn"
+                modifier = Modifier.testTag("chat_active_model_btn"),
+                shape = RectangleShape,
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                elevation = null,
+                contentPadding = PaddingValues(0.dp)
             ) {
                 val modelLabel = state.activeModel?.modelId?.takeIf { it.isNotEmpty() }
                     ?: stringResource(R.string.chat_choose_model)
@@ -274,7 +283,7 @@ internal fun Composer(
             // Button 基类 `disabled:opacity-50`）；配色不走它的 `variant="secondary"` 灰底 ——
             // 这里三副面孔统一"品牌色底 + 反色图标"，停止那副把箭头换成 `<SquareIcon fill-current>`
             // 那样的**实心方块**即可。
-            Button(
+            WidgetsButton(
                 onClick = {
                     when {
                         // 回复中它是「停止」：让核心收手，见 handleStopClicked。
@@ -285,9 +294,13 @@ internal fun Composer(
                         canSend -> onAction(ChatAction.SendClicked)
                     }
                 },
-                rippleEnabled = false,
-                modifier = Modifier.size(ChatSendButtonSize),
-                testTag = "chat_send_btn"
+                modifier = Modifier
+                    .size(ChatSendButtonSize)
+                    .testTag("chat_send_btn"),
+                shape = RectangleShape,
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                elevation = null,
+                contentPadding = PaddingValues(0.dp)
             ) {
                 Box(
                     modifier = Modifier
@@ -396,10 +409,17 @@ internal fun PromptPanel(
             FreeTextAnswer(currentTheme = currentTheme, onAnswer = onAnswer)
         } else {
             prompt.options.forEach { option ->
-                Button(
+                // 保留原有的“无外观”定制（透明底 / 无边框 / 无阴影 / 零内边距），
+                // 只把行为容器换成 core:widgets 的自有 Button。
+                WidgetsButton(
                     onClick = { onAnswer(option) },
-                    modifier = Modifier.fillMaxWidth(),
-                    testTag = "chat_prompt_option_$option"
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("chat_prompt_option_$option"),
+                    shape = RectangleShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                    elevation = null,
+                    contentPadding = PaddingValues(0.dp)
                 ) {
                     Text(
                         text = option,
@@ -451,11 +471,15 @@ private fun FreeTextAnswer(currentTheme: CssVariables, onAnswer: (String) -> Uni
             }
         )
         Spacer(modifier = Modifier.width(8.dp))
-        Button(
+        WidgetsButton(
             onClick = { if (canSend) onAnswer(answer.trim()) },
-            rippleEnabled = false,
-            modifier = Modifier.size(ChatSendButtonSize),
-            testTag = "chat_prompt_send_btn"
+            modifier = Modifier
+                .size(ChatSendButtonSize)
+                .testTag("chat_prompt_send_btn"),
+            shape = RectangleShape,
+            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+            elevation = null,
+            contentPadding = PaddingValues(0.dp)
         ) {
             // 与主输入行那只是同一套外观：圆角方、品牌色底；发不出去时只是整体变淡。
             Box(
@@ -578,11 +602,15 @@ private fun ChatReasoningEffortControl(
         (position + 1).toFloat() / thinking.size
     }
 
-    Button(
+    WidgetsButton(
         onClick = onClick,
-        rippleEnabled = false,
-        testTag = "chat_reasoning_effort_btn",
-        modifier = Modifier.height(ChatSendButtonSize)
+        modifier = Modifier
+            .height(ChatSendButtonSize)
+            .testTag("chat_reasoning_effort_btn"),
+        shape = RectangleShape,
+        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+        elevation = null,
+        contentPadding = PaddingValues(0.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
