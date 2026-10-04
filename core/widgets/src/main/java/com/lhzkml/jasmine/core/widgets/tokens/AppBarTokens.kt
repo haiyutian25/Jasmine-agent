@@ -1,41 +1,27 @@
-/*
- * Copyright 2024 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
-//
-// 与上游的差别：上游这里是 M3 的 **颜色角色键**（`ColorSchemeKeyTokens.Surface` 等），再由
-// `ColorScheme.fromToken` 映射到 M3 主题；本库不再做这层「角色键 → 主题」映射 ——
-// 槽位直接在**自有主题** `CssVariables` 上实现，且**逐键对应**上游，取值与之前逐槽一致：
-//   ContainerColor          Surface           -> CssVariables.surface
-//   OnScrollContainerColor  SurfaceContainer  -> CssVariables.surfaceContainer
-//   LeadingIconColor        OnSurface         -> CssVariables.cardForeground
-//   TitleColor              OnSurface         -> CssVariables.cardForeground
-//   SubtitleColor           OnSurfaceVariant  -> CssVariables.mutedForeground
-//   TrailingIconColor       OnSurfaceVariant  -> CssVariables.mutedForeground
+﻿// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
+// 上游位置：androidx/compose/material3/tokens/AppBarTokens.kt —— **完整保留上游的全量槽位**（不裁剪）。
+// 颜色槽位写成 `(CssVariables) -> Color`，直读自有主题（与 TokenResolvers.fromToken 一一对应）；
+// 形状（ShapeKeyTokens -> LocalWidgetsShapes）、尺寸（dp）、字体（AppTypography）照上游取值。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 
 internal object AppBarTokens {
+    val AvatarSize = 32.0.dp
     val ContainerColor: (CssVariables) -> Color = { it.surface }
+    val ContainerElevation = ElevationTokens.Level0
+    val ContainerShape = ShapeKeyTokens.CornerNone
+    val IconButtonSpace = 0.0.dp
+    val IconSize = 24.0.dp
     val LeadingIconColor: (CssVariables) -> Color = { it.cardForeground }
+    val LeadingSpace = 4.0.dp
     val OnScrollContainerColor: (CssVariables) -> Color = { it.surfaceContainer }
+    val OnScrollContainerElevation = ElevationTokens.Level2
     val SubtitleColor: (CssVariables) -> Color = { it.mutedForeground }
     val TitleColor: (CssVariables) -> Color = { it.cardForeground }
     val TrailingIconColor: (CssVariables) -> Color = { it.mutedForeground }
+    val TrailingSpace = 4.0.dp
 }

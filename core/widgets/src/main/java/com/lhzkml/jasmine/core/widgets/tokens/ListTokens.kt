@@ -1,40 +1,70 @@
-﻿/*
- * Copyright 2022 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
-// 只为菜单家族保留（Menu.kt 的 DropdownMenuItem 取色用）：标签/前后图标色、禁用态的两组色与不透明度、图标尺寸；
-// 上游那份还有 Avatar/Dragged/Focus/Hover/Pressed/Selected 以及各种尺寸排版槽位，本组件库都没用到，已随裁剪删掉。
+﻿// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
+// 上游位置：androidx/compose/material3/tokens/ListTokens.kt —— **完整保留上游的全量槽位**（不裁剪）。
+// 颜色槽位写成 `(CssVariables) -> Color`，直读自有主题（与 TokenResolvers.fromToken 一一对应）；
+// 形状（ShapeKeyTokens -> LocalWidgetsShapes）、尺寸（dp）、字体（AppTypography）照上游取值。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
 import androidx.compose.ui.graphics.Color
-import com.lhzkml.jasmine.core.ui.theme.CssVariables
-
 import androidx.compose.ui.unit.dp
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
+import com.lhzkml.jasmine.core.ui.theme.AppTypography
 
 internal object ListTokens {
+    val DividerLeadingSpace = 16.0.dp
+    val DividerTrailingSpace = 16.0.dp
+    val FocusIndicatorColor: (CssVariables) -> Color = { it.secondary }
+    val ListItemContainerColor: (CssVariables) -> Color = { it.surface }
+    val ListItemContainerElevation = ElevationTokens.Level0
+    val ListItemContainerShape = ShapeKeyTokens.CornerNone
     val ListItemDisabledLabelTextColor: (CssVariables) -> Color = { it.cardForeground }
     val ListItemDisabledLabelTextOpacity = 0.38f
     val ListItemDisabledLeadingIconColor: (CssVariables) -> Color = { it.cardForeground }
     val ListItemDisabledLeadingIconOpacity = 0.38f
     val ListItemDisabledTrailingIconColor: (CssVariables) -> Color = { it.cardForeground }
     val ListItemDisabledTrailingIconOpacity = 0.38f
+    val ListItemDraggedContainerElevation = ElevationTokens.Level4
+    val ListItemDraggedLabelTextColor: (CssVariables) -> Color = { it.cardForeground }
+    val ListItemDraggedLeadingIconColor: (CssVariables) -> Color = { it.mutedForeground }
+    val ListItemDraggedTrailingIconColor: (CssVariables) -> Color = { it.mutedForeground }
+    val ListItemFocusLabelTextColor: (CssVariables) -> Color = { it.cardForeground }
+    val ListItemFocusLeadingIconColor: (CssVariables) -> Color = { it.mutedForeground }
+    val ListItemFocusTrailingIconColor: (CssVariables) -> Color = { it.mutedForeground }
+    val ListItemHoverLabelTextColor: (CssVariables) -> Color = { it.cardForeground }
+    val ListItemHoverLeadingIconColor: (CssVariables) -> Color = { it.mutedForeground }
+    val ListItemHoverTrailingIconColor: (CssVariables) -> Color = { it.mutedForeground }
     val ListItemLabelTextColor: (CssVariables) -> Color = { it.cardForeground }
+    val ListItemLabelTextFont = AppTypography.bodyLarge
+    val ListItemLargeLeadingVideoHeight = 69.0.dp
+    val ListItemLeadingAvatarColor: (CssVariables) -> Color = { it.primaryContainer }
+    val ListItemLeadingAvatarLabelColor: (CssVariables) -> Color = { it.onPrimaryContainer }
+    val ListItemLeadingAvatarLabelFont = AppTypography.titleMedium
+    val ListItemLeadingAvatarShape = ShapeKeyTokens.CornerFull
+    val ListItemLeadingAvatarSize = 40.0.dp
     val ListItemLeadingIconColor: (CssVariables) -> Color = { it.mutedForeground }
     val ListItemLeadingIconSize = 24.0.dp
+    val ListItemLeadingImageHeight = 56.0.dp
+    val ListItemLeadingImageShape = ShapeKeyTokens.CornerNone
+    val ListItemLeadingImageWidth = 56.0.dp
+    val ListItemLeadingSpace = 16.0.dp
+    val ListItemLeadingVideoShape = ShapeKeyTokens.CornerNone
+    val ListItemLeadingVideoWidth = 100.0.dp
+    val ListItemOneLineContainerHeight = 56.0.dp
+    val ListItemOverlineColor: (CssVariables) -> Color = { it.mutedForeground }
+    val ListItemOverlineFont = AppTypography.labelSmall
+    val ListItemPressedLabelTextColor: (CssVariables) -> Color = { it.cardForeground }
+    val ListItemPressedLeadingIconColor: (CssVariables) -> Color = { it.mutedForeground }
+    val ListItemPressedTrailingIconColor: (CssVariables) -> Color = { it.mutedForeground }
+    val ListItemSelectedTrailingIconColor: (CssVariables) -> Color = { it.primary }
+    val ListItemSmallLeadingVideoHeight = 56.0.dp
+    val ListItemSupportingTextColor: (CssVariables) -> Color = { it.mutedForeground }
+    val ListItemSupportingTextFont = AppTypography.bodyMedium
+    val ListItemThreeLineContainerHeight = 88.0.dp
     val ListItemTrailingIconColor: (CssVariables) -> Color = { it.mutedForeground }
     val ListItemTrailingIconSize = 24.0.dp
+    val ListItemTrailingSpace = 16.0.dp
+    val ListItemTrailingSupportingTextColor: (CssVariables) -> Color = { it.mutedForeground }
+    val ListItemTrailingSupportingTextFont = AppTypography.labelSmall
+    val ListItemTwoLineContainerHeight = 72.0.dp
+    val ListItemUnselectedTrailingIconColor: (CssVariables) -> Color = { it.cardForeground }
 }
-

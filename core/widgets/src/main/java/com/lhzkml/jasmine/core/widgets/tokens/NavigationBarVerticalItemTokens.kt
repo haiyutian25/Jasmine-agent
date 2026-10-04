@@ -1,21 +1,7 @@
-/*
- * Copyright 2024 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
-// 只留本组件库真正用到的槽位（指示条尺寸与图标尺寸）；上游那份里的条目间距没有任何组件在用，
-// 已随裁剪删掉 —— 要加就照这里补一行。
+﻿// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
+// 上游位置：androidx/compose/material3/tokens/NavigationBarVerticalItemTokens.kt —— **完整保留上游的全量槽位**（不裁剪）。
+// 颜色槽位写成 `(CssVariables) -> Color`，直读自有主题（与 TokenResolvers.fromToken 一一对应）；
+// 形状（ShapeKeyTokens -> LocalWidgetsShapes）、尺寸（dp）、字体（AppTypography）照上游取值。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
@@ -24,5 +10,6 @@ import androidx.compose.ui.unit.dp
 internal object NavigationBarVerticalItemTokens {
     val ActiveIndicatorHeight = 32.0.dp
     val ActiveIndicatorWidth = 56.0.dp
+    val ContainerBetweenSpace = 6.0.dp
     val IconSize = 24.0.dp
 }

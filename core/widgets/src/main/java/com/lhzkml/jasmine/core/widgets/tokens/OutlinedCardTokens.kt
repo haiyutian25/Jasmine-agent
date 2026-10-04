@@ -1,24 +1,7 @@
-/*
- * Copyright 2022 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
-// 只保留 Card.kt 真正引用到的槽位（容器色 / 海拔 / 形状，描边色与宽度，
-// 禁用态描边色 / 不透明度 / 海拔，以及拖拽态海拔）；上游那份里的 Focus / Hover / Pressed /
-// Dragged 描边色与图标相关槽位本组件库没用到，已随裁剪删掉。
-// 颜色槽位直读自有主题 `CssVariables`（Surface -> card、Outline -> border、
-// OutlineVariant -> muted），取值与之前逐槽一致，只是不再经 M3 角色键映射。
+﻿// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
+// 上游位置：androidx/compose/material3/tokens/OutlinedCardTokens.kt —— **完整保留上游的全量槽位**（不裁剪）。
+// 颜色槽位写成 `(CssVariables) -> Color`，直读自有主题（与 TokenResolvers.fromToken 一一对应）；
+// 形状（ShapeKeyTokens -> LocalWidgetsShapes）、尺寸（dp）、字体（AppTypography）照上游取值。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
@@ -34,7 +17,15 @@ internal object OutlinedCardTokens {
     val DisabledOutlineColor: (CssVariables) -> Color = { it.border }
     const val DisabledOutlineOpacity = 0.12f
     val DraggedContainerElevation = ElevationTokens.Level3
+    val DraggedOutlineColor: (CssVariables) -> Color = { it.muted }
+    val FocusContainerElevation = ElevationTokens.Level0
+    val FocusOutlineColor: (CssVariables) -> Color = { it.cardForeground }
+    val HoverContainerElevation = ElevationTokens.Level1
+    val HoverOutlineColor: (CssVariables) -> Color = { it.muted }
+    val IconColor: (CssVariables) -> Color = { it.primary }
+    val IconSize = 24.0.dp
     val OutlineColor: (CssVariables) -> Color = { it.muted }
     val OutlineWidth = 1.0.dp
+    val PressedContainerElevation = ElevationTokens.Level0
+    val PressedOutlineColor: (CssVariables) -> Color = { it.muted }
 }
-

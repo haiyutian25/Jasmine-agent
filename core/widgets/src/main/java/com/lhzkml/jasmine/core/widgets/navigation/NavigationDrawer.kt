@@ -795,7 +795,9 @@ object DrawerDefaults {
 
     /** Default color of the scrim that obscures content when the drawer is open */
     val scrimColor: Color
-        @Composable get() = ScrimTokens.ContainerColor.copy(ScrimTokens.ContainerOpacity)
+        @Composable
+        get() = ScrimTokens.ContainerColor(LocalCssVariables.current)
+            .copy(ScrimTokens.ContainerOpacity)
 
     /** Default container color for a navigation drawer */
     @Deprecated(

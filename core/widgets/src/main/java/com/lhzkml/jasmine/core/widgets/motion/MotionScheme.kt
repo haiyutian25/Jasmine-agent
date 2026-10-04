@@ -23,6 +23,8 @@ import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.TwoWayConverter
 import androidx.compose.animation.core.spring
 import com.lhzkml.jasmine.core.widgets.tokens.ExpressiveMotionTokens
+
+
 import com.lhzkml.jasmine.core.widgets.tokens.MotionSchemeKeyTokens
 import com.lhzkml.jasmine.core.widgets.tokens.StandardMotionTokens
 import androidx.compose.runtime.Composable
@@ -266,11 +268,12 @@ internal interface MotionScheme {
  * Here is an example on how to use component motion tokens:
  * ``LocalMotionScheme.current.fromToken(ExtendedFabBranded.ExpandMotion)``
  *
- * The returned [FiniteAnimationSpec] is remembered across compositions.
+ * 上游的**全部 6 个**动效键（`MotionSchemeKeyTokens`）都在这里有对应分支（不裁剪），
+ * 逐一解析成自有 [MotionScheme] 的六条规格；组件也可直接调
+ * `LocalMotionScheme.current.xxxSpec()` 绕过这一层。
  *
  * @param value the token's value
  */
-
 @Stable
 internal fun <T> MotionScheme.fromToken(value: MotionSchemeKeyTokens): FiniteAnimationSpec<T> {
     return when (value) {
@@ -287,7 +290,6 @@ internal fun <T> MotionScheme.fromToken(value: MotionSchemeKeyTokens): FiniteAni
  * Converts a [MotionSchemeKeyTokens] key to the [FiniteAnimationSpec] provided by the
  * [MotionScheme].
  */
-
 @Composable
 @ReadOnlyComposable
 internal fun <T> MotionSchemeKeyTokens.value(): FiniteAnimationSpec<T> =

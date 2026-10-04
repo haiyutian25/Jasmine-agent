@@ -14,29 +14,59 @@
  * limitations under the License.
  */
 // 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
+// 上游位置：androidx/compose/material3/tokens/ColorSchemeKeyTokens.kt。
+// **完整保留上游的全量角色键**（48 个，与上游逐一对应，不做裁剪），
+// 由 TokenResolvers.kt 的 `CssVariables.fromToken` 逐键解析到自有主题的槽位。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
 internal enum class ColorSchemeKeyTokens {
+    Background,
     Error,
+    ErrorContainer,
     InverseOnSurface,
+    InversePrimary,
     InverseSurface,
+    OnBackground,
+    OnError,
+    OnErrorContainer,
     OnPrimary,
     OnPrimaryContainer,
+    OnPrimaryFixed,
+    OnPrimaryFixedVariant,
     OnSecondary,
     OnSecondaryContainer,
+    OnSecondaryFixed,
+    OnSecondaryFixedVariant,
     OnSurface,
     OnSurfaceVariant,
+    OnTertiary,
+    OnTertiaryContainer,
+    OnTertiaryFixed,
+    OnTertiaryFixedVariant,
     Outline,
     OutlineVariant,
     Primary,
     PrimaryContainer,
+    PrimaryFixed,
+    PrimaryFixedDim,
+    Scrim,
     Secondary,
     SecondaryContainer,
+    SecondaryFixed,
+    SecondaryFixedDim,
     Surface,
+    SurfaceBright,
     SurfaceContainer,
     SurfaceContainerHigh,
     SurfaceContainerHighest,
     SurfaceContainerLow,
+    SurfaceContainerLowest,
+    SurfaceDim,
+    SurfaceTint,
     SurfaceVariant,
+    Tertiary,
+    TertiaryContainer,
+    TertiaryFixed,
+    TertiaryFixedDim,
 }

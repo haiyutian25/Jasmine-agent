@@ -21,7 +21,7 @@ package com.lhzkml.jasmine.core.widgets.tokens
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.CornerSize
-import androidx.compose.material3.ColorScheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.Stable
@@ -41,90 +41,63 @@ import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTonalElevationEnabled
 import kotlin.math.ln
 
 /**
- * 组件颜色令牌 → **本应用现有主题**（[CssVariables]，即 `JasmineTheme` 注入的那份调色板）的取值表。
+ * 组件颜色令牌 → **自有主题**（[CssVariables]，即 `JasmineTheme` 注入的那份调色板）的取值表。
  *
- * 这张表是 `core/ui/theme/Theme.kt` 里「[CssVariables] → M3 `ColorScheme`」那份映射的**镜像**，
- * 逐条对齐（`PrimaryContainer -> accent`、`SurfaceContainerHighest -> subtleSurface`、
- * `Outline -> border`、`OutlineVariant -> muted` …），所以取值与"经 M3 主题取"完全一致；
- * 区别只在于组件**不再借 M3 主题**，而是直接读我们自己的主题。
+ * 上游 `ColorSchemeKeyTokens` 的**全部 48 个角色键**都在这里有对应分支（不裁剪），
+ * 每个键指向 `CssVariables` 上一个**独立**的槽（槽与槽之间取值互不重合）；
  * 6 个家族 × 明暗共 12 套调色板因此自动生效 —— 它们换的就是 [CssVariables]。
  */
 @Stable
 internal fun CssVariables.fromToken(value: ColorSchemeKeyTokens): Color {
     return when (value) {
+        ColorSchemeKeyTokens.Background -> background
         ColorSchemeKeyTokens.Error -> error
+        ColorSchemeKeyTokens.ErrorContainer -> errorContainer
         ColorSchemeKeyTokens.InverseOnSurface -> inverseOnSurface
+        ColorSchemeKeyTokens.InversePrimary -> inversePrimary
         ColorSchemeKeyTokens.InverseSurface -> inverseSurface
+        ColorSchemeKeyTokens.OnBackground -> foreground
+        ColorSchemeKeyTokens.OnError -> onError
+        ColorSchemeKeyTokens.OnErrorContainer -> onErrorContainer
         ColorSchemeKeyTokens.OnPrimary -> primaryForeground
         ColorSchemeKeyTokens.OnPrimaryContainer -> onPrimaryContainer
+        ColorSchemeKeyTokens.OnPrimaryFixed -> onPrimaryFixed
+        ColorSchemeKeyTokens.OnPrimaryFixedVariant -> onPrimaryFixedVariant
         ColorSchemeKeyTokens.OnSecondary -> onSecondary
         ColorSchemeKeyTokens.OnSecondaryContainer -> onSecondaryContainer
+        ColorSchemeKeyTokens.OnSecondaryFixed -> onSecondaryFixed
+        ColorSchemeKeyTokens.OnSecondaryFixedVariant -> onSecondaryFixedVariant
         ColorSchemeKeyTokens.OnSurface -> cardForeground
         ColorSchemeKeyTokens.OnSurfaceVariant -> mutedForeground
+        ColorSchemeKeyTokens.OnTertiary -> onTertiary
+        ColorSchemeKeyTokens.OnTertiaryContainer -> onTertiaryContainer
+        ColorSchemeKeyTokens.OnTertiaryFixed -> onTertiaryFixed
+        ColorSchemeKeyTokens.OnTertiaryFixedVariant -> onTertiaryFixedVariant
         ColorSchemeKeyTokens.Outline -> border
         ColorSchemeKeyTokens.OutlineVariant -> muted
         ColorSchemeKeyTokens.Primary -> primary
         ColorSchemeKeyTokens.PrimaryContainer -> primaryContainer
+        ColorSchemeKeyTokens.PrimaryFixed -> primaryFixed
+        ColorSchemeKeyTokens.PrimaryFixedDim -> primaryFixedDim
+        ColorSchemeKeyTokens.Scrim -> scrim
         ColorSchemeKeyTokens.Secondary -> secondary
         ColorSchemeKeyTokens.SecondaryContainer -> secondaryContainer
+        ColorSchemeKeyTokens.SecondaryFixed -> secondaryFixed
+        ColorSchemeKeyTokens.SecondaryFixedDim -> secondaryFixedDim
         ColorSchemeKeyTokens.Surface -> surface
+        ColorSchemeKeyTokens.SurfaceBright -> surfaceBright
         ColorSchemeKeyTokens.SurfaceContainer -> surfaceContainer
         ColorSchemeKeyTokens.SurfaceContainerHigh -> surfaceContainerHigh
         ColorSchemeKeyTokens.SurfaceContainerHighest -> surfaceContainerHighest
         ColorSchemeKeyTokens.SurfaceContainerLow -> surfaceContainerLow
+        ColorSchemeKeyTokens.SurfaceContainerLowest -> surfaceContainerLowest
+        ColorSchemeKeyTokens.SurfaceDim -> surfaceDim
+        ColorSchemeKeyTokens.SurfaceTint -> surfaceTint
         ColorSchemeKeyTokens.SurfaceVariant -> surfaceVariant
-    }
-}
-
-/**
- * 错误色的解析器，供各组件令牌表直读用（类型与其它颜色槽的 `(CssVariables) -> Color` 一致）。
- *
- * 值来自自有主题的 `CssVariables.error` 槽（现有 12 套调色板都还没给它单独配色，槽内沿用
- * M3 基线值，深浅两套分开）——与改造前经 `ColorSchemeKeyTokens.Error` 取到的值完全一致。
- * 将来若要给每套调色板单独配色，只改 `CssVariables.error` 一处即可。
- */
-internal val ErrorColorResolver: (CssVariables) -> Color = { it.error }
-
-/** M3 浅色基线错误色（= `lightColorScheme().error`）。 */
-private val M3LightError = Color(0xFFB3261E)
-
-/** M3 深色基线错误色（= `darkColorScheme().error`）。 */
-private val M3DarkError = Color(0xFFF2B8B5)
-
-/**
- * **过渡用的旧入口**：仍是"从 M3 `ColorScheme` 的角色取"。
- *
- * 只服务于那些自己声明了 `internal val CssVariables.defaultXxxColors` 的组件文件
- *（`TopAppBar` / `Button` / `Card` / `Switch` …）—— 它们还没改成读我们的主题。
- * 因为 `Theme.kt` 的映射与上面 [CssVariables.fromToken] 逐条对齐，两条路取到的值完全一致。
- *
- * 组件侧（`ColorSchemeKeyTokens.value`）已经走 [CssVariables.fromToken]；
- * 等那批构造器也改成 `CssVariables` 之后，本函数即可删除（见 `CORE_WIDGETS_M3_AUDIT.md` §8）。
- */
-@Stable
-internal fun ColorScheme.fromToken(value: ColorSchemeKeyTokens): Color {
-    return when (value) {
-        ColorSchemeKeyTokens.Error -> error
-        ColorSchemeKeyTokens.OnPrimary -> onPrimary
-        ColorSchemeKeyTokens.OnPrimaryContainer -> onPrimaryContainer
-        ColorSchemeKeyTokens.OnSecondaryContainer -> onSecondaryContainer
-        ColorSchemeKeyTokens.OnSurface -> onSurface
-        ColorSchemeKeyTokens.OnSecondary -> onSecondary
-        ColorSchemeKeyTokens.InverseSurface -> inverseSurface
-        ColorSchemeKeyTokens.InverseOnSurface -> inverseOnSurface
-        ColorSchemeKeyTokens.OnSurfaceVariant -> onSurfaceVariant
-        ColorSchemeKeyTokens.Outline -> outline
-        ColorSchemeKeyTokens.OutlineVariant -> outlineVariant
-        ColorSchemeKeyTokens.Primary -> primary
-        ColorSchemeKeyTokens.PrimaryContainer -> primaryContainer
-        ColorSchemeKeyTokens.Secondary -> secondary
-        ColorSchemeKeyTokens.SecondaryContainer -> secondaryContainer
-        ColorSchemeKeyTokens.Surface -> surface
-        ColorSchemeKeyTokens.SurfaceContainer -> surfaceContainer
-        ColorSchemeKeyTokens.SurfaceContainerHigh -> surfaceContainerHigh
-        ColorSchemeKeyTokens.SurfaceContainerHighest -> surfaceContainerHighest
-        ColorSchemeKeyTokens.SurfaceContainerLow -> surfaceContainerLow
-        ColorSchemeKeyTokens.SurfaceVariant -> surfaceVariant
+        ColorSchemeKeyTokens.Tertiary -> tertiary
+        ColorSchemeKeyTokens.TertiaryContainer -> tertiaryContainer
+        ColorSchemeKeyTokens.TertiaryFixed -> tertiaryFixed
+        ColorSchemeKeyTokens.TertiaryFixedDim -> tertiaryFixedDim
     }
 }
 
@@ -172,15 +145,23 @@ internal fun CornerBasedShape.end(
  */
 internal fun AppShapes.fromToken(value: ShapeKeyTokens): Shape {
     return when (value) {
+        // 与 AppShapes 中已有的档位对应
         ShapeKeyTokens.CornerExtraLarge -> extraLarge
         ShapeKeyTokens.CornerExtraLargeTop -> extraLarge.top()
         ShapeKeyTokens.CornerExtraSmall -> extraSmall
         ShapeKeyTokens.CornerExtraSmallTop -> extraSmall.top()
         ShapeKeyTokens.CornerFull -> CircleShape
+        ShapeKeyTokens.CornerLarge -> large
         ShapeKeyTokens.CornerLargeEnd -> large.end()
+        ShapeKeyTokens.CornerLargeStart -> large.start()
+        ShapeKeyTokens.CornerLargeTop -> large.top()
         ShapeKeyTokens.CornerMedium -> medium
         ShapeKeyTokens.CornerNone -> RectangleShape
         ShapeKeyTokens.CornerSmall -> small
+        // AppShapes 没有的档位：照上游 ShapeTokens 的取值直接构造（48dp / 32dp / 20dp）
+        ShapeKeyTokens.CornerExtraExtraLarge -> RoundedCornerShape(48.0.dp)
+        ShapeKeyTokens.CornerExtraLargeIncreased -> RoundedCornerShape(32.0.dp)
+        ShapeKeyTokens.CornerLargeIncreased -> RoundedCornerShape(20.0.dp)
     }
 }
 

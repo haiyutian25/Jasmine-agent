@@ -14,16 +14,23 @@
  * limitations under the License.
  */
 // 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
+// 上游位置：androidx/compose/material3/tokens/ShapeKeyTokens.kt —— **完整保留上游的全量形状键**（15 个，不裁剪）。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
 internal enum class ShapeKeyTokens {
+    CornerExtraExtraLarge,
     CornerExtraLarge,
+    CornerExtraLargeIncreased,
     CornerExtraLargeTop,
     CornerExtraSmall,
     CornerExtraSmallTop,
     CornerFull,
+    CornerLarge,
     CornerLargeEnd,
+    CornerLargeIncreased,
+    CornerLargeStart,
+    CornerLargeTop,
     CornerMedium,
     CornerNone,
     CornerSmall

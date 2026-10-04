@@ -54,7 +54,6 @@ import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSize
 import com.lhzkml.jasmine.core.widgets.ripple.ripple
 import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
-import com.lhzkml.jasmine.core.widgets.motion.value
 import com.lhzkml.jasmine.core.widgets.tokens.value
 import com.lhzkml.jasmine.core.widgets.slider.IncreaseHorizontalSemanticsBounds
 import com.lhzkml.jasmine.core.widgets.slider.IncreaseVerticalSemanticsBounds

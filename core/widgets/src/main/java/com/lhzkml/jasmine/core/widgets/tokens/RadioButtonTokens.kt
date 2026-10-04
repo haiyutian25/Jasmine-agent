@@ -1,29 +1,13 @@
-﻿/*
- * Copyright 2021 The Android Open Source Project
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
-// 只留本组件库真正用到的槽位（选中/未选中的图标色、禁用态的两组色与不透明度、图标尺寸与状态层尺寸）；
-// 上游那份里的 Selected/Unselected 各三种交互态色（Focus*/Hover*/Pressed* 共 6 槽）没有任何组件在用
-// （绘制里用的是基色 + 动画），已随裁剪删掉。
+﻿// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
+// 上游位置：androidx/compose/material3/tokens/RadioButtonTokens.kt —— **完整保留上游的全量槽位**（不裁剪）。
+// 颜色槽位写成 `(CssVariables) -> Color`，直读自有主题（与 TokenResolvers.fromToken 一一对应）；
+// 形状（ShapeKeyTokens -> LocalWidgetsShapes）、尺寸（dp）、字体（AppTypography）照上游取值。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
 import androidx.compose.ui.graphics.Color
-import com.lhzkml.jasmine.core.ui.theme.CssVariables
-
 import androidx.compose.ui.unit.dp
+import com.lhzkml.jasmine.core.ui.theme.CssVariables
 
 internal object RadioButtonTokens {
     val DisabledSelectedIconColor: (CssVariables) -> Color = { it.cardForeground }
@@ -31,7 +15,13 @@ internal object RadioButtonTokens {
     val DisabledUnselectedIconColor: (CssVariables) -> Color = { it.cardForeground }
     const val DisabledUnselectedIconOpacity = 0.38f
     val IconSize = 20.0.dp
+    val SelectedFocusIconColor: (CssVariables) -> Color = { it.primary }
+    val SelectedHoverIconColor: (CssVariables) -> Color = { it.primary }
     val SelectedIconColor: (CssVariables) -> Color = { it.primary }
+    val SelectedPressedIconColor: (CssVariables) -> Color = { it.primary }
     val StateLayerSize = 40.0.dp
+    val UnselectedFocusIconColor: (CssVariables) -> Color = { it.cardForeground }
+    val UnselectedHoverIconColor: (CssVariables) -> Color = { it.cardForeground }
     val UnselectedIconColor: (CssVariables) -> Color = { it.mutedForeground }
+    val UnselectedPressedIconColor: (CssVariables) -> Color = { it.cardForeground }
 }

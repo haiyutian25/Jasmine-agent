@@ -13,8 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-// 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
+// 上游位置：androidx/compose/material3/tokens/MotionSchemeKeyTokens.kt。
+// **完整保留上游的全量动效键**（6 个，不做裁剪），由 MotionScheme.fromToken 逐键解析成
+// 自有 MotionScheme 的六条规格（Default/Fast/Slow × Spatial/Effects）。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 

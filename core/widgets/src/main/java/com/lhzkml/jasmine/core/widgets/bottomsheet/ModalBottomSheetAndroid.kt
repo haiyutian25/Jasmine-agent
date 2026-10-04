@@ -21,7 +21,6 @@ package com.lhzkml.jasmine.core.widgets.bottomsheet
 import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
 import com.lhzkml.jasmine.core.ui.theme.contentColorFor
 import com.lhzkml.jasmine.core.widgets.bottomsheet.SheetValue.*
-import com.lhzkml.jasmine.core.widgets.motion.value
 
 import android.content.Context
 import android.graphics.Outline

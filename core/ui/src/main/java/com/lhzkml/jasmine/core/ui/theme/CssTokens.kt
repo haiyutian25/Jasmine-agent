@@ -43,8 +43,11 @@ data class CssVariables(
 ) {
     // ── 上游 ColorSchemeKeyTokens 一一对应的容器 / 次级色槽 ──────────────────
 
-    /** 上游 `Surface`：基准面（= 卡片底色）。 */
-    val surface: Color get() = card
+    /**
+     * 上游 `Surface`：基准面。M3 基线里它比容器层更贴近页面底（`#FEF7FF` vs `#F3EDF7`），
+     * 所以往 [background] 外侧推，与 [surfaceContainer]（= [card]）**不同值**。
+     */
+    val surface: Color get() = lerp(background, card, 0.25f)
 
     /** 上游 `SurfaceContainerLow`：比 [card] 浅半档的一层。 */
     val surfaceContainerLow: Color get() = lerp(background, card, 0.5f)
@@ -61,8 +64,12 @@ data class CssVariables(
     /** 上游 `SurfaceContainerHighest`：容器层里最深的一档（= [muted]）。 */
     val surfaceContainerHighest: Color get() = muted
 
-    /** 上游 `SurfaceVariant`：与容器高亮层同级，用于次级面。 */
-    val surfaceVariant: Color get() = lerp(card, muted, 0.5f)
+    /**
+     * 上游 `SurfaceVariant`：次级面。M3 基线里它与 `SurfaceContainerHigh` 同档但**不同色**
+     * （`#E7E0EC` vs `#ECE6F0`），所以取「High 与 Highest 之间」的那一档，避免与
+     * [surfaceContainerHigh] 折平。
+     */
+    val surfaceVariant: Color get() = lerp(card, muted, 0.75f)
 
     /**
      * 上游 `PrimaryContainer`：主色的容器调。M3 基线里它比面**浅、带主色相**
@@ -72,29 +79,35 @@ data class CssVariables(
 
     /**
      * 上游 `OnPrimaryContainer`：主色容器上的前景色。M3 基线里它**很深**
-     * （`#21005D`），取主色本身（在容器淡底上对比充足）。
+     * （`#21005D`）但**不等于**主色本身，所以取"主色再往前景压一档"，
+     * 与 `SurfaceTint`（= [primary]）区分开。
      */
-    val onPrimaryContainer: Color get() = primary
+    val onPrimaryContainer: Color get() = lerp(primary, foreground, 0.30f)
 
     /** 上游 `Secondary`：次要色（M3 基线 `#625B71`，中深灰 ⇒ 取 [mutedForeground]）。 */
     val secondary: Color get() = mutedForeground
 
-    /** 上游 `OnSecondary`：次要面上的前景色（M3 基线为白 ⇒ 取 [background]）。 */
-    val onSecondary: Color get() = background
+    /**
+     * 上游 `OnSecondary`：次要面上的前景色（M3 基线为白）。取"从 [card] 往 [background] 方向"
+     * 的那一档，与 `SurfaceBright`/`SurfaceContainerLowest` 等同方向档位区分开。
+     */
+    val onSecondary: Color get() = lerp(card, background, 0.30f)
 
     /**
-     * 上游 `SecondaryContainer`：次要容器面。M3 基线 `#E8DEF8` 比面**深一档**、
-     * 需要能当"选中药丸"的底 ⇒ 取本调色板最深的面 [muted]（不能折到 [subtleSurface]，
-     * 那与 [card] 只差几阶，选中指示条会看不见）。
+     * 上游 `SecondaryContainer`：次要容器面。M3 基线 `#E8DEF8` 比面**深一档且带主色相**，
+     * 用作底栏/抽屉"选中药丸"的底 ⇒ 取主色向 [card] 靠拢的淡色调（不能取 [muted]，
+     * 那与 `SurfaceContainerHighest` 同值；也不能取 [subtleSurface]，那与 [card] 只差几阶、
+     * 选中指示条会隐形）。
      */
-    val secondaryContainer: Color get() = muted
+    val secondaryContainer: Color get() = lerp(card, primary, 0.12f)
 
     /**
-     * 上游 `OnSecondaryContainer`：次要容器上的前景色。M3 基线 `#1D192B` 是**近黑**，
-     * 用作选中项图标/文字 ⇒ 取 [foreground]（不能折到 [mutedForeground]，那样与未选中的
-     * `OnSurfaceVariant` 同色，选中态就看不出来了）。
+     * 上游 `OnSecondaryContainer`：次要容器上的前景色。M3 基线 `#1D192B` 是**近黑但带主色相**，
+     * 用作选中项图标/文字 ⇒ 取"前景再掺一档主色"，与 `InverseSurface`（= [foreground]）
+     * 区分开（也不能折到 [mutedForeground]，那样与未选中的 `OnSurfaceVariant` 同色、
+     * 选中态就看不出来了）。
      */
-    val onSecondaryContainer: Color get() = foreground
+    val onSecondaryContainer: Color get() = lerp(foreground, primary, 0.15f)
 
     /** 上游 `InverseSurface`：反色面（= [foreground]）。 */
     val inverseSurface: Color get() = foreground
@@ -107,6 +120,85 @@ data class CssVariables(
      * （深浅两套分开），与 `tokens/TokenResolvers.kt` 的既有取值完全一致。
      */
     val error: Color get() = if (isDark) Color(0xFFF2B8B5) else Color(0xFFB3261E)
+
+    // ── 上游 ColorScheme 的其余角色（按 M3 基线台阶逐槽派生，各槽取值互不重合）────
+    // 说明：M3 自身这些角色也是由 tonal palette 算出来的；这里让每条都落在**不同**的
+    // 插值档上，从而既有各自的位置、又不会互相折平。
+
+    /** 上游 `OnError`：错误面上的前景色（M3 基线深/浅各一，与 [error] 成对）。 */
+    val onError: Color get() = if (isDark) Color(0xFF601410) else Color(0xFFFFFFFF)
+
+    /** 上游 `ErrorContainer`：错误色容器（比 [error] 淡一档）。 */
+    val errorContainer: Color get() = lerp(error, card, 0.78f)
+
+    /** 上游 `OnErrorContainer`：错误容器上的前景色。 */
+    val onErrorContainer: Color get() = lerp(error, foreground, 0.30f)
+
+    /** 上游 `InversePrimary`：主色的反色版（往反色面 [inverseSurface] 靠）。 */
+    val inversePrimary: Color get() = lerp(primary, background, 0.55f)
+
+    /** 上游 `OnPrimaryFixed`：主色固定组的最深前景。 */
+    val onPrimaryFixed: Color get() = lerp(primary, foreground, 0.25f)
+
+    /** 上游 `OnPrimaryFixedVariant`：主色固定组的次深前景。 */
+    val onPrimaryFixedVariant: Color get() = lerp(primary, foreground, 0.55f)
+
+    /** 上游 `PrimaryFixed`：主色固定组容器（浅、带主色相）。 */
+    val primaryFixed: Color get() = lerp(primary, card, 0.88f)
+
+    /** 上游 `PrimaryFixedDim`：主色固定组容器的暗版。 */
+    val primaryFixedDim: Color get() = lerp(primary, card, 0.72f)
+
+    /** 上游 `SecondaryFixed`：次要固定组容器。 */
+    val secondaryFixed: Color get() = lerp(secondary, card, 0.88f)
+
+    /** 上游 `SecondaryFixedDim`：次要固定组容器的暗版。 */
+    val secondaryFixedDim: Color get() = lerp(secondary, card, 0.72f)
+
+    /** 上游 `OnSecondaryFixed`：次要固定组的最深前景。 */
+    val onSecondaryFixed: Color get() = lerp(secondary, foreground, 0.25f)
+
+    /** 上游 `OnSecondaryFixedVariant`：次要固定组的次深前景。 */
+    val onSecondaryFixedVariant: Color get() = lerp(secondary, foreground, 0.55f)
+
+    /** 上游 `Tertiary`：第三色（本库调色板以 [accent] 充当第三强调）。 */
+    val tertiary: Color get() = accent
+
+    /** 上游 `OnTertiary`：第三色面上的前景色。 */
+    val onTertiary: Color get() = accentForeground
+
+    /** 上游 `TertiaryContainer`：第三色容器（浅、带强调色相）。 */
+    val tertiaryContainer: Color get() = lerp(accent, card, 0.80f)
+
+    /** 上游 `OnTertiaryContainer`：第三色容器上的前景色。 */
+    val onTertiaryContainer: Color get() = lerp(accent, foreground, 0.28f)
+
+    /** 上游 `TertiaryFixed`：第三固定组容器。 */
+    val tertiaryFixed: Color get() = lerp(accent, card, 0.88f)
+
+    /** 上游 `TertiaryFixedDim`：第三固定组容器的暗版。 */
+    val tertiaryFixedDim: Color get() = lerp(accent, card, 0.72f)
+
+    /** 上游 `OnTertiaryFixed`：第三固定组的最深前景。 */
+    val onTertiaryFixed: Color get() = lerp(accent, foreground, 0.25f)
+
+    /** 上游 `OnTertiaryFixedVariant`：第三固定组的次深前景。 */
+    val onTertiaryFixedVariant: Color get() = lerp(accent, foreground, 0.55f)
+
+    /** 上游 `Scrim`：遮罩色（M3 基线浅深两套都是纯黑）。 */
+    val scrim: Color get() = Color(0xFF000000)
+
+    /** 上游 `SurfaceBright`：比基准面更亮的一档（往 [background] 外侧推）。 */
+    val surfaceBright: Color get() = lerp(surface, background, 0.60f)
+
+    /** 上游 `SurfaceDim`：比 [card] 更暗的一档（往 [muted] 外侧推）。 */
+    val surfaceDim: Color get() = lerp(muted, foreground, 0.12f)
+
+    /** 上游 `SurfaceTint`：面的染色源（本库取主色）。 */
+    val surfaceTint: Color get() = primary
+
+    /** 上游 `SurfaceContainerLowest`：容器阶梯里最亮的一档。 */
+    val surfaceContainerLowest: Color get() = lerp(background, card, 0.15f)
 }
 
 // Radius Tokens (Editorial: 24px primary radius)
