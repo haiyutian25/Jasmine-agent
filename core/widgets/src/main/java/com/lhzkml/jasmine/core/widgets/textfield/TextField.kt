@@ -139,7 +139,6 @@ import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTextStyle
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSize
 import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
-import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsColorScheme
 import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsShapes
 import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
 import com.lhzkml.jasmine.core.widgets.textfield.TextFieldDefaults.defaultTextFieldColors

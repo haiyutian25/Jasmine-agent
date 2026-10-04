@@ -1,7 +1,7 @@
-package com.lhzkml.jasmine.core.ui.theme
+﻿package com.lhzkml.jasmine.core.ui.theme
 
 import androidx.annotation.StringRes
-import androidx.compose.material3.Typography
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -41,87 +41,127 @@ enum class AppTypographyChoice(
     MONO(R.string.settings_typography_mono_title, R.string.font_label_mono, FontFamily.Monospace)
 }
 
-val AppTypography = Typography(
-    displayLarge = TextStyle(
+/**
+ * 本应用的排版表 —— **自有类型**（不再拿 M3 的 `Typography` 当载体，形态与 [AppShapes] 一致）。
+ * 属性名与上游逐字一致，所以调用点（各组件里的 `AppTypography.labelLarge` / `titleMedium` …）不用动；
+ * 取值也逐档照抄，观感与之前完全一致。
+ *
+ * 只保留本库真正用到的档位（上游 `Typography` 里没被引用过的档位没有收进来）。
+ */
+@Immutable
+object AppTypography {
+    val displayLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Light,
         fontSize = 46.sp,
         lineHeight = 52.sp,
         letterSpacing = (-1.2).sp
-    ),
-    displayMedium = TextStyle(
+    )
+    val displayMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,
         fontSize = 36.sp,
         lineHeight = 44.sp,
         letterSpacing = (-0.8).sp
-    ),
-    displaySmall = TextStyle(
+    )
+    val displaySmall = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Medium,
         fontSize = 28.sp,
         lineHeight = 36.sp,
         letterSpacing = (-0.5).sp
-    ),
-    headlineMedium = TextStyle(
+    )
+    // 下面这几档没有定制值，照 M3 基线（= tokens/TypeScaleTokens 的取值）收进来，
+    // 与改造前由 M3 Typography 默认兜底时的观感一致。
+    val headlineLarge = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Normal,
+        fontSize = 32.sp,
+        lineHeight = 40.sp,
+        letterSpacing = 0.sp
+    )
+    val headlineMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 22.sp,
         lineHeight = 28.sp,
         letterSpacing = (-0.2).sp
-    ),
-    titleMedium = TextStyle(
+    )
+    val headlineSmall = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Normal,
+        fontSize = 24.sp,
+        lineHeight = 32.sp,
+        letterSpacing = 0.sp
+    )
+    val titleMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Medium,
         fontSize = 16.sp,
         lineHeight = 22.sp,
         letterSpacing = 0.sp
-    ),
+    )
     // 顶部栏标题那一档。上游标题栏用的是 M3 基线的 TitleLarge（22sp / 行高 28sp / 字距 0 /
     // 字重 Regular / FontFamily.SansSerif），本库把它收进自有主题、数值逐项照抄，观感与之前完全一致。
-    titleLarge = TextStyle(
+    val titleLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,
         fontSize = 22.sp,
         lineHeight = 28.sp,
         letterSpacing = 0.sp
-    ),
-    bodyLarge = TextStyle(
+    )
+    // 同 headlineLarge：无定制值，照 M3 基线。
+    val titleSmall = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Medium,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.1.sp
+    )
+    val bodyLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,
         fontSize = 15.sp,
         lineHeight = 23.sp,
         letterSpacing = 0.15.sp
-    ),
-    bodyMedium = TextStyle(
+    )
+    val bodyMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,
         fontSize = 13.sp,
         lineHeight = 19.sp,
         letterSpacing = 0.1.sp
-    ),
+    )
     // Tooltip 正文那一档。上游 PlainTooltip 用 M3 基线的 BodySmall（12sp / 行高 16sp /
     // 字距 0.4sp / 字重 Regular），本库把它收进自有主题、数值逐项照抄，观感不变。
-    bodySmall = TextStyle(
+    val bodySmall = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
         lineHeight = 16.sp,
         letterSpacing = 0.4.sp
-    ),
-    labelLarge = TextStyle(
+    )
+    val labelLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Medium,
         fontSize = 13.sp,
         lineHeight = 18.sp,
         letterSpacing = 0.2.sp
-    ),
-    labelSmall = TextStyle(
+    )
+    // 同 headlineLarge：无定制值，照 M3 基线。
+    val labelMedium = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.5.sp
+    )
+    val labelSmall = TextStyle(
         fontFamily = FontFamily.Monospace,
         fontWeight = FontWeight.Normal,
         fontSize = 11.sp,
         lineHeight = 15.sp,
         letterSpacing = 0.5.sp
     )
-)
+}
 

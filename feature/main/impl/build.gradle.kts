@@ -1,4 +1,4 @@
-plugins {
+﻿plugins {
   alias(libs.plugins.android.library)
   alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.google.devtools.ksp)
@@ -47,8 +47,8 @@ dependencies {
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.appcompat)
   implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.foundation)
   implementation(libs.androidx.compose.ui.graphics)
-  implementation(libs.androidx.compose.material3)
   implementation(libs.androidx.lifecycle.viewmodel.ktx)
   implementation(libs.androidx.lifecycle.runtime.compose)
   // NavHost 内获取 provider 特性的 ViewModel（条目作用域）

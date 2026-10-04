@@ -32,7 +32,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
 import com.lhzkml.jasmine.core.widgets.interactive.LocalMinimumInteractiveComponentSize
-import com.lhzkml.jasmine.core.ui.theme.AppTypography
 import com.lhzkml.jasmine.core.widgets.motion.LocalMotionScheme
 import com.lhzkml.jasmine.core.widgets.tokens.SmallIconButtonTokens
 import com.lhzkml.jasmine.core.widgets.tokens.TypeScaleTokens

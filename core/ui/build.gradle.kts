@@ -1,4 +1,4 @@
-plugins {
+﻿plugins {
   alias(libs.plugins.android.library)
   alias(libs.plugins.kotlin.compose)
 }
@@ -26,8 +26,8 @@ dependencies {
   implementation(platform(libs.androidx.compose.bom))
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.foundation)
   implementation(libs.androidx.compose.ui.graphics)
-  implementation(libs.androidx.compose.material3)
   // 图标是自带的 LucideIcons（不依赖 material-icons-extended）。
   // UDF base: BaseViewModel (stateFlow/eventFlow/actionChannel) + EffectRunner + EventsEffect
   implementation(libs.androidx.lifecycle.viewmodel.ktx)

@@ -1,159 +1,46 @@
 package com.lhzkml.jasmine.core.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Shapes
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
+/**
+ * 本应用的主题入口。只下发**自有**的 CompositionLocal：
+ *
+ * * 颜色：[LocalCssVariables]（各组件与令牌表都直读它）
+ * * 形状：[LocalWidgetsShapes]（注入自有 [AppShapes]）
+ * * 内容色：[LocalWidgetsContentColor]
+ * * 文字样式：[LocalWidgetsTextStyle]（= [AppTypography.bodyLarge] + 用户选择的字体）
+ *
+ * 这里**不再包一层 M3 的 `MaterialTheme`**：全 App 的组件都已改读自有 local，上游那套
+ * `ColorScheme` / `Shapes` / `Typography` / `LocalContentColor` / `LocalTextStyle` 已无任何读取方。
+ * 观感与改造前一致 —— 原先把值灌进 M3 角色只是为了喂 M3 组件，而那些组件现在都换成自有实现了。
+ */
 @Composable
 fun JasmineTheme(
     cssVars: CssVariables = ProductionPalettes.GeistDark,
     content: @Composable () -> Unit
 ) {
-    val m3ColorScheme = if (cssVars.isDark) {
-        darkColorScheme(
-            primary = cssVars.primary,
-            onPrimary = cssVars.primaryForeground,
-            primaryContainer = cssVars.accent,
-            onPrimaryContainer = cssVars.accentForeground,
-            secondary = cssVars.mutedForeground,
-            onSecondary = cssVars.foreground,
-            // 侧边栏（core:widgets 的抽屉）选中态的指示条取的就是 secondaryContainer，
-            // 不映射它会回落到 M3 基线的紫调。
-            secondaryContainer = cssVars.subtleSurface,
-            onSecondaryContainer = cssVars.mutedForeground,
-            background = cssVars.background,
-            onBackground = cssVars.foreground,
-            surface = cssVars.surface,
-            onSurface = cssVars.cardForeground,
-            surfaceVariant = cssVars.surfaceVariant,
-            onSurfaceVariant = cssVars.mutedForeground,
-            outline = cssVars.border,
-            outlineVariant = cssVars.muted,
-            // 下面这些角色是 core:widgets 的令牌会引用到的（Filled 输入框的底色就是
-            // surfaceContainerHighest）：不映射就会回落到 M3 基线的紫调色。
-            surfaceContainerLowest = cssVars.background,
-            surfaceContainerLow = cssVars.surfaceContainerLow,
-            surfaceContainer = cssVars.surfaceContainer,
-            surfaceContainerHigh = cssVars.surfaceContainerHigh,
-            surfaceContainerHighest = cssVars.surfaceContainerHighest,
-            surfaceDim = cssVars.muted,
-            surfaceBright = cssVars.background,
-            surfaceTint = cssVars.primary,
-            inverseSurface = cssVars.foreground,
-            inverseOnSurface = cssVars.background,
-            inversePrimary = cssVars.accent,
-            tertiary = cssVars.accent,
-            onTertiary = cssVars.accentForeground,
-            tertiaryContainer = cssVars.subtleSurface,
-            onTertiaryContainer = cssVars.mutedForeground,
-            tertiaryFixed = cssVars.accent,
-            tertiaryFixedDim = cssVars.muted,
-            onTertiaryFixed = cssVars.accentForeground,
-            onTertiaryFixedVariant = cssVars.accentForeground,
-            primaryFixed = cssVars.primary,
-            primaryFixedDim = cssVars.muted,
-            onPrimaryFixed = cssVars.primaryForeground,
-            onPrimaryFixedVariant = cssVars.primaryForeground,
-            secondaryFixed = cssVars.muted,
-            secondaryFixedDim = cssVars.subtleSurface,
-            onSecondaryFixed = cssVars.mutedForeground,
-            onSecondaryFixedVariant = cssVars.mutedForeground
-        )
-    } else {
-        lightColorScheme(
-            primary = cssVars.primary,
-            onPrimary = cssVars.primaryForeground,
-            primaryContainer = cssVars.accent,
-            onPrimaryContainer = cssVars.accentForeground,
-            secondary = cssVars.mutedForeground,
-            onSecondary = cssVars.foreground,
-            // 同 dark：抽屉选中态指示条用的是 secondaryContainer。
-            secondaryContainer = cssVars.subtleSurface,
-            onSecondaryContainer = cssVars.mutedForeground,
-            background = cssVars.background,
-            onBackground = cssVars.foreground,
-            surface = cssVars.surface,
-            onSurface = cssVars.cardForeground,
-            surfaceVariant = cssVars.surfaceVariant,
-            onSurfaceVariant = cssVars.mutedForeground,
-            outline = cssVars.border,
-            outlineVariant = cssVars.muted,
-            // 同 dark：把 core:widgets 令牌会引用的角色都映射到本调色板。
-            surfaceContainerLowest = cssVars.background,
-            surfaceContainerLow = cssVars.surfaceContainerLow,
-            surfaceContainer = cssVars.surfaceContainer,
-            surfaceContainerHigh = cssVars.surfaceContainerHigh,
-            surfaceContainerHighest = cssVars.surfaceContainerHighest,
-            surfaceDim = cssVars.muted,
-            surfaceBright = cssVars.background,
-            surfaceTint = cssVars.primary,
-            inverseSurface = cssVars.foreground,
-            inverseOnSurface = cssVars.background,
-            inversePrimary = cssVars.accent,
-            tertiary = cssVars.accent,
-            onTertiary = cssVars.accentForeground,
-            tertiaryContainer = cssVars.subtleSurface,
-            onTertiaryContainer = cssVars.mutedForeground,
-            tertiaryFixed = cssVars.accent,
-            tertiaryFixedDim = cssVars.muted,
-            onTertiaryFixed = cssVars.accentForeground,
-            onTertiaryFixedVariant = cssVars.accentForeground,
-            primaryFixed = cssVars.primary,
-            primaryFixedDim = cssVars.muted,
-            onPrimaryFixed = cssVars.primaryForeground,
-            onPrimaryFixedVariant = cssVars.primaryForeground,
-            secondaryFixed = cssVars.muted,
-            secondaryFixedDim = cssVars.subtleSurface,
-            onSecondaryFixed = cssVars.mutedForeground,
-            onSecondaryFixedVariant = cssVars.mutedForeground
-        )
-    }
-
     val contentFont = LocalContentFontFamily.current
 
-    CompositionLocalProvider(LocalCssVariables provides cssVars) {
-        MaterialTheme(
-            colorScheme = m3ColorScheme,
-            // 接缝：MaterialTheme 只收 M3 的 Shapes，这里把自有形状表转换一次。
-            shapes = AppShapes.toM3Shapes(),
-            typography = AppTypography
-        ) {
-            // The default text style follows the user's chosen content font, so
-            // any Text that does not pin its own fontFamily inherits it. Text
-            // that explicitly sets fontFamily (code, font previews, decorative
-            // letters) keeps its own and is unaffected.
-            //
-            // LocalWidgets* 是给 core:widgets 里那些 ModifierNode 用的：它们不在组合
-            // 环境里，读不到 MaterialTheme，只能通过 CompositionLocal 拿到同一份值。
-            CompositionLocalProvider(
-                LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = contentFont),
-                LocalWidgetsColorScheme provides m3ColorScheme,
-                LocalWidgetsShapes provides AppShapes,
-                // 自有 local：值与本层级的 M3 对应 local 原样一致，组件逐个切过来时观感不变。
-                LocalWidgetsContentColor provides LocalContentColor.current,
-                LocalWidgetsTextStyle provides LocalTextStyle.current.copy(fontFamily = contentFont),
-            ) {
-                content()
-            }
-        }
+    CompositionLocalProvider(
+        LocalCssVariables provides cssVars,
+        // LocalWidgets* 是给 core:widgets 里那些不在组合环境中的结点（ModifierNode）用的：
+        // 它们读不到组合局部，只能通过 CompositionLocal 拿到同一份值。
+        LocalWidgetsShapes provides AppShapes,
+        // 默认内容色取主题前景色。语义与原先 MaterialTheme 下的 M3 LocalContentColor 相同
+        // （M3 那边会解析成 colorScheme.onBackground，正是 cssVars.foreground）。
+        LocalWidgetsContentColor provides cssVars.foreground,
+        // 默认文字样式 = bodyLarge + 用户选择的字体：没自己钉字体的 Text 都继承它；
+        // 显式设了 fontFamily 的（代码、字体预览、装饰字母）用各自的，不受影响。
+        LocalWidgetsTextStyle provides AppTypography.bodyLarge.copy(fontFamily = contentFont),
+    ) {
+        content()
     }
 }
 
-/**
- * 供 `core:widgets` 里不在组合环境中的结点（ModifierNode）读取当前主题的配色与形状：
- * 由 [JasmineTheme] 注入；没有宿主提供时退回 M3 基线值。
- */
-val LocalWidgetsColorScheme = staticCompositionLocalOf<ColorScheme> { lightColorScheme() }
-
+/** 由 [JasmineTheme] 注入的自有形状表（对应上游 `MaterialTheme.shapes`）。 */
 val LocalWidgetsShapes = staticCompositionLocalOf { AppShapes }
 
 /**
@@ -169,7 +56,7 @@ val LocalWidgetsTonalElevationEnabled = staticCompositionLocalOf { true }
  * 不去问 M3 主题，所以在 `remember {}` 这类**非组合上下文**里也能调用。
  * 匹配不到时返回 [Color.Unspecified]，调用方照旧回落 `LocalContentColor`。
  *
- * 槽位对应关系与 [JasmineTheme] 里的映射逐条一致：`primaryContainer -> accent`、
+ * 槽位对应关系与原 `JasmineTheme` 里灌进 M3 角色的映射逐条一致：`primaryContainer -> accent`、
  * `surfaceVariant -> subtleSurface`、`inverseSurface -> foreground` …
  */
 fun CssVariables.contentColorFor(backgroundColor: Color): Color =
@@ -182,4 +69,3 @@ fun CssVariables.contentColorFor(backgroundColor: Color): Color =
         foreground -> background
         else -> Color.Unspecified
     }
-

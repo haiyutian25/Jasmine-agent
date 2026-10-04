@@ -1,4 +1,4 @@
-plugins {
+﻿plugins {
   alias(libs.plugins.android.library)
   alias(libs.plugins.kotlin.compose)
 }
@@ -25,11 +25,10 @@ dependencies {
   implementation(libs.androidx.compose.ui)
   implementation(libs.androidx.compose.ui.graphics)
   implementation(libs.androidx.compose.foundation)
-  implementation(libs.androidx.compose.material3)
   // 形状变换型加载指示器与波形进度条：Morph / RoundedPolygon（自带形状库，与 Compose 版本无关）。
   implementation(libs.androidx.graphics.shapes)
   // BottomSheet 的 Android 实现直接用到了这几个库的扩展（返回手势、Dialog、ViewTree 属主）：
-  // material3 在这是 implementation，它的传递依赖不会自动上来。
+  // 本模块已不再依赖 material3，用到的库都显式声明。
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.viewmodel.ktx)
