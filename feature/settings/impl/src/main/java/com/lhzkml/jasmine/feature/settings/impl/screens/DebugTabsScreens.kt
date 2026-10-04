@@ -1,4 +1,4 @@
-package com.lhzkml.jasmine.feature.settings.impl.screens
+﻿package com.lhzkml.jasmine.feature.settings.impl.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import com.lhzkml.jasmine.core.widgets.icon.Icon
 import com.lhzkml.jasmine.core.widgets.button.IconButton
 import com.lhzkml.jasmine.core.widgets.text.Text
@@ -53,7 +52,6 @@ private const val DebugTabsScrollableCount = 8
  * 只有一条细分割线 ✓）、带图标的标签页（[Tab] 同时给 icon 与 text ✓）、可滚动标签页
  *（[PrimaryScrollableTabRow] ✓ 8 个标签 ✓ 带 edgePadding ✓）。切换后下方内容区会显示当前档号 ✓。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugTabsScreen(
     variant: String,

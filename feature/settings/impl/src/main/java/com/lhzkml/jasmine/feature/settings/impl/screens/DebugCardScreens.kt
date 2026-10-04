@@ -1,4 +1,4 @@
-package com.lhzkml.jasmine.feature.settings.impl.screens
+﻿package com.lhzkml.jasmine.feature.settings.impl.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -11,10 +11,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import com.lhzkml.jasmine.core.widgets.icon.Icon
 import com.lhzkml.jasmine.core.widgets.button.IconButton
-import androidx.compose.material3.MaterialTheme
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import com.lhzkml.jasmine.core.widgets.text.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -50,7 +49,6 @@ private val DebugCardBodySize = 14.sp
  * 描边卡片（[OutlinedCard] ✓ 一圈 1dp 描边 ✓）、以及可点击 / 禁用 / 自定义底色
  *（走 `Card(onClick = …)`、`enabled = false` 与 [CardDefaults.cardColors]）✓。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugCardScreen(
     variant: String,
@@ -126,7 +124,7 @@ fun DebugCardScreen(
                             modifier = Modifier.fillMaxWidth(),
                             colors =
                                 CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                                    containerColor = LocalCssVariables.current.primaryContainer
                                 )
                         ) {
                             DebugCardBody(title = stringResource(R.string.debug_card_custom))
@@ -154,12 +152,12 @@ private fun DebugCardBody(
         Text(
             text = title,
             fontSize = DebugCardTitleSize,
-            color = MaterialTheme.colorScheme.onSurface
+            color = LocalCssVariables.current.cardForeground
         )
         Text(
             text = body,
             fontSize = DebugCardBodySize,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = LocalCssVariables.current.mutedForeground,
             modifier = Modifier.padding(top = 6.dp)
         )
     }

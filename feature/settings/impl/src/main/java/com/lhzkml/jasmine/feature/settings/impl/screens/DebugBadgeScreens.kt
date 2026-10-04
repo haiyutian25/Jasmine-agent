@@ -1,4 +1,4 @@
-package com.lhzkml.jasmine.feature.settings.impl.screens
+﻿package com.lhzkml.jasmine.feature.settings.impl.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import com.lhzkml.jasmine.core.widgets.icon.Icon
 import com.lhzkml.jasmine.core.widgets.button.IconButton
 import com.lhzkml.jasmine.core.widgets.text.Text
@@ -42,7 +41,6 @@ private val DebugBadgeTopSpacing = 36.dp
  * [Badge]（只是内容有无/长短不同），由 [BadgedBox] 挂到锚点图标的右上角 —— 徽标自己不接收点击，
  * 所以这一页只看位置与尺寸。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugBadgeScreen(
     variant: String,

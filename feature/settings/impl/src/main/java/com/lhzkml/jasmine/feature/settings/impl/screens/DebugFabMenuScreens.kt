@@ -1,4 +1,4 @@
-package com.lhzkml.jasmine.feature.settings.impl.screens
+﻿package com.lhzkml.jasmine.feature.settings.impl.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import com.lhzkml.jasmine.core.widgets.icon.Icon
 import com.lhzkml.jasmine.core.widgets.button.IconButton
 import com.lhzkml.jasmine.core.widgets.text.Text
@@ -57,7 +56,6 @@ private val DebugFabMenuIconSize = 24.dp
  * `FloatingActionButtonMenu` 的条目走 `FabMenuBaselineTokens`，只有 `ToggleFloatingActionButton`
  * 跟着 FAB 的 baseline / medium / large 三档走。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugFabMenuScreen(
     variant: String,

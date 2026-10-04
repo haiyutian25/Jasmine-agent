@@ -1,4 +1,4 @@
-package com.lhzkml.jasmine.feature.settings.impl.screens
+﻿package com.lhzkml.jasmine.feature.settings.impl.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import com.lhzkml.jasmine.core.widgets.icon.Icon
 import com.lhzkml.jasmine.core.widgets.button.IconButton
 import com.lhzkml.jasmine.core.widgets.text.Text
@@ -56,7 +55,6 @@ private val DebugDialogActionGap = 24.dp
  * 拼一个），另两档用稳定的 [AlertDialog]（图标 + 标题 + 正文 + 两个按钮），最后一档故意把标题/
  * 正文/按钮文案都拉长，用来看按钮**自动换行**（内部是自带的小号 FlowRow）。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugDialogScreen(
     variant: String,

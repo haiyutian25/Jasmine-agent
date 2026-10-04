@@ -1,4 +1,4 @@
-package com.lhzkml.jasmine.feature.settings.impl.screens
+﻿package com.lhzkml.jasmine.feature.settings.impl.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import com.lhzkml.jasmine.core.widgets.icon.Icon
 import com.lhzkml.jasmine.core.widgets.button.IconButton
 import com.lhzkml.jasmine.core.widgets.text.Text
@@ -51,7 +50,6 @@ private val DebugCheckboxLabelGap = 12.dp
  * 两态（勾选 / 未勾选 / 禁用 / 禁用+勾选）、三态（父项 + 三个子项：点父项全开或全关，点子项会
  * 回到"部分选中"）、自定义配色（[CheckboxDefaults.colors]）。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugCheckboxScreen(
     variant: String,

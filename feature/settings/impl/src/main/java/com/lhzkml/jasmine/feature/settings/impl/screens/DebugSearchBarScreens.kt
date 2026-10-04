@@ -1,4 +1,4 @@
-package com.lhzkml.jasmine.feature.settings.impl.screens
+﻿package com.lhzkml.jasmine.feature.settings.impl.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import com.lhzkml.jasmine.core.widgets.icon.Icon
 import com.lhzkml.jasmine.core.widgets.button.IconButton
 import com.lhzkml.jasmine.core.widgets.text.Text
@@ -54,7 +53,6 @@ private val DebugSearchBarIconSize = 24.dp
  * （[ExpandedFullScreenSearchBar] 走 Dialog + 预测返回 / [ExpandedDockedSearchBar] 走 Popup，
  * 进来就是展开状态）。三档底下都垫着一份可滚动的长列表。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugSearchBarScreen(
     variant: String,

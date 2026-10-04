@@ -24,7 +24,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import com.lhzkml.jasmine.core.ui.icons.LucideIcons
-import androidx.compose.material3.CircularProgressIndicator
+import com.lhzkml.jasmine.core.widgets.progress.CircularProgressIndicator
 import com.lhzkml.jasmine.core.widgets.icon.Icon
 import com.lhzkml.jasmine.core.widgets.text.Text
 import androidx.compose.runtime.Composable

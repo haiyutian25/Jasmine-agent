@@ -1,4 +1,4 @@
-package com.lhzkml.jasmine.feature.settings.impl.screens
+﻿package com.lhzkml.jasmine.feature.settings.impl.screens
 
 import com.lhzkml.jasmine.core.ui.theme.AppShapes
 import androidx.compose.foundation.BorderStroke
@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import com.lhzkml.jasmine.core.widgets.icon.Icon
 import com.lhzkml.jasmine.core.widgets.button.IconButton
 import com.lhzkml.jasmine.core.widgets.text.Text
@@ -63,7 +62,6 @@ private const val DebugMenuScrollRowCount = 24
  * 长菜单（配 `scrollState`）、Exposed 下拉（只读锚点 + 可编辑锚点，走 `menuAnchor` 与
  * [ExposedDropdownMenuAnchorType]）、自定义外观（形状 / 描边 / 底色 / 偏移）。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugMenuScreen(
     variant: String,

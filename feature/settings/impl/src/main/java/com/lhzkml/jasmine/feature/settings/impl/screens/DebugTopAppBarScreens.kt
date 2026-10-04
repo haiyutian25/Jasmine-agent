@@ -1,4 +1,4 @@
-package com.lhzkml.jasmine.feature.settings.impl.screens
+﻿package com.lhzkml.jasmine.feature.settings.impl.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import com.lhzkml.jasmine.core.widgets.icon.Icon
 import com.lhzkml.jasmine.core.widgets.button.IconButton
 import com.lhzkml.jasmine.core.widgets.text.Text
@@ -45,7 +44,6 @@ private val DebugTopAppBarIconSize = 24.dp
  * 那套 `SettingsPage` 顶栏 —— 这一页只属于组件调试，不参与 app 现有的顶部导航。用的是常驻的
  * `pinned` 滚动行为：列表滚动时顶栏留在原位。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugTopAppBarScreen(
     variant: String,

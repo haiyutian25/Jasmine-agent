@@ -1,4 +1,4 @@
-package com.lhzkml.jasmine.feature.settings.impl.screens
+﻿package com.lhzkml.jasmine.feature.settings.impl.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import com.lhzkml.jasmine.core.widgets.icon.Icon
 import com.lhzkml.jasmine.core.widgets.button.IconButton
 import com.lhzkml.jasmine.core.widgets.text.Text
@@ -62,7 +61,6 @@ private const val DebugProgressRowCount = 24
  * 线性（确定 / 不确定 + 一个"推进"按钮）、圆形（确定 / 不确定）、下拉刷新（[PullToRefreshBox]
  * 包着一个可滚列表，松手后转 1.5 秒）。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugProgressScreen(
     variant: String,

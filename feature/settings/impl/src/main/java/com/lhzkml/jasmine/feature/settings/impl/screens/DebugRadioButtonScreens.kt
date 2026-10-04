@@ -1,4 +1,4 @@
-package com.lhzkml.jasmine.feature.settings.impl.screens
+﻿package com.lhzkml.jasmine.feature.settings.impl.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -15,7 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import com.lhzkml.jasmine.core.widgets.icon.Icon
 import com.lhzkml.jasmine.core.widgets.button.IconButton
 import com.lhzkml.jasmine.core.widgets.text.Text
@@ -55,7 +54,6 @@ private const val DebugRadioOptionCount = 3
  * 基本（单个可切换）、单选组（照官方 `RadioGroupSample`：整行可点 + `selectableGroup`）、
  * 启用 / 禁用矩阵、自定义配色（[RadioButtonDefaults.colors]）。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugRadioButtonScreen(
     variant: String,

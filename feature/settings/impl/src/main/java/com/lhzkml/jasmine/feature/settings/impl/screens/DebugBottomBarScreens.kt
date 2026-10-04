@@ -1,4 +1,4 @@
-package com.lhzkml.jasmine.feature.settings.impl.screens
+﻿package com.lhzkml.jasmine.feature.settings.impl.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import com.lhzkml.jasmine.core.widgets.icon.Icon
 import com.lhzkml.jasmine.core.widgets.button.IconButton
 import com.lhzkml.jasmine.core.widgets.text.Text
@@ -66,7 +65,6 @@ private val DebugBottomBarBodySpacing = 14.dp
  * `core:widgets` 的 [TopAppBar]；底栏用的是 `NavigationBar` 本体，固定在底部（自带系统栏内边距），
  * 点条目可切换选中态，上面那个按钮能在 **3 项 / 5 项** 之间切换。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugBottomBarScreen(
     currentTheme: CssVariables,

@@ -27,7 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import com.lhzkml.jasmine.core.ui.icons.LucideIcons
 import com.lhzkml.jasmine.core.widgets.icon.Icon
-import androidx.compose.material3.LinearProgressIndicator
+import com.lhzkml.jasmine.core.widgets.progress.LinearProgressIndicator
 import com.lhzkml.jasmine.core.widgets.text.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment

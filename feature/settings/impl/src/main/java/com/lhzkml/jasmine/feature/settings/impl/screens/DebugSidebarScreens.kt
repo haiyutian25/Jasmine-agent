@@ -1,4 +1,4 @@
-package com.lhzkml.jasmine.feature.settings.impl.screens
+﻿package com.lhzkml.jasmine.feature.settings.impl.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import com.lhzkml.jasmine.core.widgets.icon.Icon
 import com.lhzkml.jasmine.core.widgets.button.IconButton
 import com.lhzkml.jasmine.core.widgets.text.Text
@@ -64,7 +63,6 @@ private val DebugSidebarBodySpacing = 14.dp
  * 和顶部栏那几页一样：整页**刻意不套**设置流那套 `SettingsPage` 顶栏，页面自己的顶栏就是
  * `core:widgets` 的 [TopAppBar]；页内列表可滚动，侧边栏点得动、能开合。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugSidebarScreen(
     variant: String,
@@ -112,7 +110,6 @@ fun DebugSidebarScreen(
 }
 
 /** 页面主体：我们自己的小号顶栏 + 一段可滚动的内容（和顶部栏那几页同一个形状）。 */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DebugSidebarBody(
     title: String,

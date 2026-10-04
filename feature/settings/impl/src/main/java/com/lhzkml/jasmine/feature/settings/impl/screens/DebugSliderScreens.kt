@@ -1,4 +1,4 @@
-package com.lhzkml.jasmine.feature.settings.impl.screens
+﻿package com.lhzkml.jasmine.feature.settings.impl.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -10,10 +10,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import com.lhzkml.jasmine.core.widgets.icon.Icon
 import com.lhzkml.jasmine.core.widgets.button.IconButton
-import androidx.compose.material3.MaterialTheme
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import com.lhzkml.jasmine.core.widgets.text.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,7 +41,6 @@ private val DebugSliderLabelFontSize = 12.sp
  *
  * 照旧不套设置流那套 `SettingsPage` 顶栏：页内顶栏就是 `core:widgets` 的 [TopAppBar]。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugSliderScreen(
     currentTheme: CssVariables,
@@ -135,9 +133,9 @@ fun DebugSliderScreen(
                     value = tinted,
                     onValueChange = { tinted = it },
                     colors = SliderDefaults.colors(
-                        thumbColor = MaterialTheme.colorScheme.tertiary,
-                        activeTrackColor = MaterialTheme.colorScheme.tertiary,
-                        activeTickColor = MaterialTheme.colorScheme.onTertiary
+                        thumbColor = LocalCssVariables.current.tertiary,
+                        activeTrackColor = LocalCssVariables.current.tertiary,
+                        activeTickColor = LocalCssVariables.current.onTertiary
                     )
                 )
             }

@@ -17,9 +17,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
+
 import com.lhzkml.jasmine.core.widgets.icon.Icon
-import androidx.compose.material3.MaterialTheme
+import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 import com.lhzkml.jasmine.core.widgets.text.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -304,7 +304,6 @@ private fun DebugStateGroup(
 }
 
 /** 底部弹层：点「打开」从底部弹出（带遮罩）。 */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DebugSheetGroup(
     currentTheme: CssVariables,
@@ -345,13 +344,13 @@ private fun DebugSheetGroup(
             Text(
                 text = "Modal bottom sheet",
                 fontSize = 16.sp,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = LocalCssVariables.current.cardForeground,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
             )
             Text(
                 text = "下拉、点遮罩、按返回键都能关",
                 fontSize = DebugTitleFontSize,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = LocalCssVariables.current.mutedForeground,
                 modifier = Modifier
                     .padding(horizontal = 24.dp)
                     .padding(bottom = 32.dp)

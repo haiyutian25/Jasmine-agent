@@ -36,7 +36,7 @@ import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import com.lhzkml.jasmine.core.ui.icons.LucideIcons
 import com.lhzkml.jasmine.core.widgets.icon.Icon
-import androidx.compose.material3.LocalTextStyle
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTextStyle
 import com.lhzkml.jasmine.core.widgets.text.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -756,13 +756,13 @@ private fun TableBlock(
 ) {
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
-    val baseStyle = LocalTextStyle.current
+    val baseStyle = LocalWidgetsTextStyle.current
     val cellFontSize = (bodyFontSize.value * 0.92f).sp
 
     // 每列取所有行里最宽的那一格，全表共用这一组列宽。
     // 逐行各自算的话，表头（"类型"两个字）和内容（长文本）会各占各的宽度，列就对不齐。
     //
-    // 测量样式必须和下面 Text 实际用的样式一致：Text 会拿 LocalTextStyle 兜底（字体、字距…），
+    // 测量样式必须和下面 Text 实际用的样式一致：Text 会拿 LocalWidgetsTextStyle 兜底（字体、字距…），
     // 只按 fontSize/fontWeight 去量会偏窄，末字被挤到下一行。
     val columnWidths = remember(block.table, cellFontSize, currentTheme, measurer, density, baseStyle) {
         val columns = block.table.maxOfOrNull { it.cells.size } ?: 0
