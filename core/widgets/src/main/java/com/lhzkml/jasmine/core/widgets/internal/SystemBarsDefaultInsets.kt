@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-// 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
-// 上游位置：androidx/compose/material3/internal/SystemBarsDefaultInsets.kt —— 它是 M3 的 **internal 共享件**，
+// 本项目自有的组件代码（移植自上游对应源码后自行维护），不再跟随上游生成，可直接改。
+// 上游位置：internal/SystemBarsDefaultInsets.kt —— 它是 上游的 **internal 共享件**，
 // 顶栏 / 底栏 / 导航栏 / 抽屉 / 宽导航轨都用它取「系统栏 + 刘海」的 insets，所以放在同一个 internal 包里，
 // 而不是挂在某个具体组件目录下。符号名与上游一致（`WindowInsets.Companion.systemBarsForVisualComponents`）。
 

@@ -1,4 +1,4 @@
-﻿package com.lhzkml.jasmine
+package com.lhzkml.jasmine
 
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot

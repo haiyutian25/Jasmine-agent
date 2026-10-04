@@ -514,7 +514,7 @@ private fun FreeTextAnswer(currentTheme: CssVariables, onAnswer: (String) -> Uni
  * 「推理强度」的选择面板：可选档位各一行，当前档用品牌色 + 一个对勾。
  *
  * 复用我们自己的 [BottomSheet]（与同页的模型面板、上下文面板同一个做法）—— 供应商页那个原本是
- * M3 的 `DropdownMenu`，这次也一起换成了它。
+ * 上游的 `DropdownMenu`，这次也一起换成了它。
  */
 @Composable
 private fun ChatReasoningEffortSheet(

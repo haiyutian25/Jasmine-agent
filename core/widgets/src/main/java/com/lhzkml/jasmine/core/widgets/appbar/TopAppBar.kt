@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游对应源码后自行维护），不再跟随上游生成，可直接改。
 //
 // 取值链路（现有变体：TopAppBar 小号 / CenterAlignedTopAppBar）已全部自有，且**不经任何映射**：
 //   颜色   AppBarTokens 直接取自有主题 CssVariables 的槽位（card / cardForeground / mutedForeground）
@@ -23,7 +23,7 @@
 //   insets systemBarsForVisualComponents（internal 包，foundation 的 systemBars ∪ displayCutout）
 //   尺寸   字面量 dp；形状   顶栏没有 shape 参数
 //
-// 本文件 **不再有任何 M3 引用，也不经任何映射**（M3 import 0、fromToken / *KeyTokens / MaterialTheme 0）。
+// 本文件 **不再有任何上游引用，也不经任何映射**（上游 import 0、fromToken / *KeyTokens / 主题 0）。
 // 槽位的颜色与字型由**自有** local 下发（`LocalWidgetsContentColor` / `LocalWidgetsTextStyle`，见 Theme.kt 注入），
 // 而槽位里的内容件（标题的 Text、图标的 Icon）也已是**自有**实现（core/widgets/text、core/widgets/icon），
 // 两边配对一致，所以字号与色调与移植前完全相同。
@@ -121,14 +121,11 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * [Material Design small top app bar](https://m3.material.io/components/top-app-bar/overview)
  *
  * Top app bars display information and actions at the top of a screen.
  *
  * This small TopAppBar has slots for a title, navigation icon, and actions.
  *
- * ![Small top app bar
- * image](https://developer.android.com/images/reference/androidx/compose/material3/small-top-app-bar.png)
  *
  * @param title the title to be displayed in the top app bar
  * @param modifier the [Modifier] to be applied to this top app bar
@@ -181,14 +178,11 @@ fun TopAppBar(
 
 /**
  * [Material Design center-aligned small top app
- * bar](https://m3.material.io/components/top-app-bar/overview)
  *
  * Top app bars display information and actions at the top of a screen.
  *
  * This small top app bar has a header title that is horizontally aligned to the center.
  *
- * ![Center-aligned top app bar
- * image](https://developer.android.com/images/reference/androidx/compose/material3/center-aligned-top-app-bar.png)
  *
  * This CenterAlignedTopAppBar has slots for a title, navigation icon, and actions.
  *
@@ -576,7 +570,7 @@ class TopAppBarState(
  * @param actionIconContentColor the content color used for actions
  * @param subtitleContentColor the content color used for a subtitle
  * @constructor create an instance with arbitrary colors, see [TopAppBarColors] for a factory method
- *   using the default material3 spec
+ *   using the default 上游 spec
  */
 @Stable
 class TopAppBarColors(
@@ -900,7 +894,7 @@ private fun Modifier.adjustHeightOffsetLimit(scrollBehavior: TopAppBarScrollBeha
  */
 /**
  * 与 internal 的 `ProvideContentColorTextStyle` 同语义，但下发的是**我们自己的** local
- * （`LocalWidgetsContentColor` / `LocalWidgetsTextStyle`），使本文件不依赖 M3。
+ * （`LocalWidgetsContentColor` / `LocalWidgetsTextStyle`），使本文件不依赖上游。
  */
 @Composable
 private fun ProvideWidgetsContentColorTextStyle(

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的组件代码（移植自 AndroidX Material3 1.5.0-alpha29 的 WavyProgressIndicator.kt 后自行维护），
+// 本项目自有的组件代码（移植自上游 1.5.0-alpha29 的 WavyProgressIndicator.kt 后自行维护），
 // 不再跟随上游生成，可直接改。波形进度条 4 个入口：LinearWavyProgressIndicator ×2（确定 / 不确定）、
 // CircularWavyProgressIndicator ×2，外加 WavyProgressIndicatorDefaults。
 // 绘制核在同目录的 LinearWavyProgressModifiers.kt / CircularWavyProgressModifiers.kt（形状变换用
@@ -57,12 +57,9 @@ import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 // TODO Update the docs images to point to the expressive (wavy) versions of the progress indicators
 /**
  * [Material Design determinate wavy linear progress
- * indicator](https://m3.material.io/components/progress-indicators/overview)
  *
  * Progress indicators express an unspecified wait time or display the duration of a process.
  *
- * ![Linear wavy progress indicator
- * image](https://developer.android.com/images/reference/androidx/compose/material3/linear-wavy-progress-indicator.png)
  *
  * This version of a linear progress indicator accepts arguments, such as [amplitude], [wavelength],
  * and [waveSpeed] to render the progress as a waveform.
@@ -144,12 +141,9 @@ public fun LinearWavyProgressIndicator(
 // TODO Update the docs images to point to the expressive (wavy) versions of the progress indicators
 /**
  * [Material Design indeterminate linear wavy progress
- * indicator](https://m3.material.io/components/progress-indicators/overview)
  *
  * Progress indicators express an unspecified wait time or display the duration of a process.
  *
- * ![Indeterminate linear wavy progress indicator
- * image](https://developer.android.com/images/reference/androidx/compose/material3/indeterminate-linear-wavy-progress-indicator.png)
  *
  * @param modifier the [Modifier] to be applied to this progress indicator
  * @param color the progress indicator color
@@ -238,12 +232,9 @@ public fun LinearWavyProgressIndicator(
 // TODO Update the docs images to point to the expressive (wavy) versions of the progress indicators
 /**
  * [Material Design determinate circular progress
- * indicator](https://m3.material.io/components/progress-indicators/overview)
  *
  * Progress indicators express an unspecified wait time or display the duration of a process.
  *
- * ![Circular wavy progress indicator
- * image](https://developer.android.com/images/reference/androidx/compose/material3/circular-wavy-progress-indicator.png)
  *
  * By default there is no animation between [progress] values. You can use
  * [ProgressIndicatorDefaults.ProgressAnimationSpec] as the default recommended [AnimationSpec] when
@@ -317,12 +308,9 @@ public fun CircularWavyProgressIndicator(
 // TODO Update the docs images to point to the expressive (wavy) versions of the progress indicators
 /**
  * [Material Design indeterminate circular progress
- * indicator](https://m3.material.io/components/progress-indicators/overview)
  *
  * Progress indicators express an unspecified wait time or display the duration of a process.
  *
- * ![Indeterminate circular wavy progress indicator
- * image](https://developer.android.com/images/reference/androidx/compose/material3/indeterminate-circular-wavy-progress-indicator.png)
  *
  * @param modifier the [Modifier] to be applied to this progress indicator
  * @param color the progress indicator color

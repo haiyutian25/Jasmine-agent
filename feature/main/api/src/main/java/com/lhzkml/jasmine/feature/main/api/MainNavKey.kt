@@ -1,4 +1,4 @@
-﻿package com.lhzkml.jasmine.feature.main.api
+package com.lhzkml.jasmine.feature.main.api
 
 import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable

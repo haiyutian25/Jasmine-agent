@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的组件代码（移植自 AndroidX Material3 1.4.0 的 Tab.kt 后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游的 Tab.kt 后自行维护），不再跟随上游生成，可直接改。
 // 两个入口：Tab（文字 + 可选图标，含选中时的基线布局切换）与 LeadingIconTab；
 // 外加私有的 TabTransition / TabBaselineLayout 与几个尺寸常量。上游这份没有废弃声明，
 // 也没有用到图标资源或滚动条（只额外用到 badge/ 里的 badgeBounds 来对齐徽标）。
@@ -83,13 +83,10 @@ import com.lhzkml.jasmine.core.widgets.navigation.badgeBounds
 
 
 /**
- * [Material Design tab](https://m3.material.io/components/tabs/overview)
  *
  * A default Tab, also known as a Primary Navigation Tab. Tabs organize content across different
  * screens, data sets, and other interactions.
  *
- * ![Tabs
- * image](https://developer.android.com/images/reference/androidx/compose/material3/secondary-tabs.png)
  *
  * A Tab represents a single page of content using a text label and/or icon. It represents its
  * selected state by tinting the text label and/or image with [selectedContentColor].
@@ -153,7 +150,6 @@ fun Tab(
 }
 
 /**
- * [Material Design tab](https://m3.material.io/components/tabs/overview)
  *
  * Tabs organize content across different screens, data sets, and other interactions.
  *
@@ -226,12 +222,9 @@ fun LeadingIconTab(
 }
 
 /**
- * [Material Design tab](https://m3.material.io/components/tabs/overview)
  *
  * Tabs organize content across different screens, data sets, and other interactions.
  *
- * ![Tabs
- * image](https://developer.android.com/images/reference/androidx/compose/material3/secondary-tabs.png)
  *
  * Generic [Tab] overload that is not opinionated about content / color. See the other overload for
  * a Tab that has specific slots for text and / or an icon, as well as providing the correct colors

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的组件代码（移植自 AndroidX Material3 1.5.0-alpha29 的 pulltorefresh/PullToRefresh.kt 后
+// 本项目自有的组件代码（移植自上游 1.5.0-alpha29 的 pulltorefresh/PullToRefresh.kt 后
 // 自行维护），不再跟随上游生成，可直接改。含：PullToRefreshBox、Modifier.pullToRefresh、
 // PullToRefreshDefaults（去掉两个已废弃的 shape / containerColor）、PullToRefreshState 家族、
 // 经典箭头指示器 Indicator，以及 1.5.0 新增的「形状变换」指示器 LoadingIndicator
@@ -422,7 +422,6 @@ public object PullToRefreshDefaults {
     /**
      * The default container color for the loading indicator that appears when pulling to refresh.
      *
-     * @material3expressive
      */
     public val loadingIndicatorContainerColor: Color
         @Composable get() = LoadingIndicatorDefaults.containedContainerColor
@@ -435,7 +434,6 @@ public object PullToRefreshDefaults {
      * The default active indicator color for the loading indicator that appears when pulling to
      * refresh.
      *
-     * @material3expressive
      */
     public val loadingIndicatorColor: Color
         @Composable get() = LoadingIndicatorDefaults.containedIndicatorColor
@@ -582,7 +580,6 @@ public object PullToRefreshDefaults {
      * @param maxDistance the max distance the indicator can be pulled down before a refresh is
      *   triggered on release
      *
-     * @material3expressive
      */
     @Composable
     public fun LoadingIndicator(

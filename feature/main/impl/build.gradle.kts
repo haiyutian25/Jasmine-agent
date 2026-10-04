@@ -1,4 +1,4 @@
-﻿plugins {
+plugins {
   alias(libs.plugins.android.library)
   alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.google.devtools.ksp)
@@ -29,7 +29,7 @@ dependencies {
   // Chat surface: the shell hosts the conversation, so it owns the AgentChat facade.
   implementation(project(":core:agent"))
   implementation(project(":core:ui"))
-  // 顶栏等界面外壳改用 core:widgets 的自有组件（不再用 M3 的 MaterialTheme）。
+  // 顶栏等界面外壳改用 core:widgets 的自有组件。
   implementation(project(":core:widgets"))
   implementation(project(":core:data"))
   implementation(project(":core:navigation"))

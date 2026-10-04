@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的组件代码（移植自 AndroidX Material3 的 RadioButton.kt 后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游的 RadioButton.kt 后自行维护），不再跟随上游生成，可直接改。
 // 上游这个文件本来就是稳定 API（没有实验注解），只有 1 个入口 + RadioButtonDefaults + RadioButtonColors。
 // 唯一的结构改动：上游把默认色缓存在 ColorScheme.kt 的包级 internal var 里，我们改成同文件内的
 // ColorScheme.defaultRadioButtonColors（用 remember(this) 缓存，与搬 Checkbox 时的做法保持一致）。
@@ -53,7 +53,6 @@ import androidx.compose.ui.unit.dp
 import com.lhzkml.jasmine.core.widgets.tokens.RadioButtonTokens
 
 /**
- * [Material Design radio button](https://m3.material.io/components/radio-button/overview)
  *
  * Radio buttons allow users to select one option from a set.
  *

@@ -1,6 +1,6 @@
 // 本项目自有的组件代码（移植自 Compose Material 的 material-ripple 1.12.0 后自行维护），不再跟随上游生成，可直接改。
 // 上游位置：androidx/compose/material/ripple/RippleTheme.kt —— RippleTheme / RippleAlpha / LocalRippleTheme /
-// defaultRippleAlpha 等；M3 的 ripple() 也复用这里的 RippleAlpha。
+// defaultRippleAlpha 等；上游的 ripple() 也复用这里的 RippleAlpha。
 /*
  * Copyright 2019 The Android Open Source Project
  *
@@ -67,10 +67,10 @@ public interface RippleTheme {
         @Deprecated(
             "The default ripple color varies between design system versions: this " +
                 "function technically implements the default used by the material library, but " +
-                "is not used by the material3 library. To remove confusion and link the " +
+                "is not used by the 上游 library. To remove confusion and link the " +
                 "defaults more strongly to the design system library, these default values have " +
-                "been moved to the material and material3 libraries. For material, use " +
-                "RippleDefaults#rippleColor. For material3, use content color " +
+                "been moved to the material and 上游 libraries. For material, use " +
+                "RippleDefaults#rippleColor. For 上游, use content color " +
                 "directly.",
             level = DeprecationLevel.WARNING,
         )
@@ -97,10 +97,10 @@ public interface RippleTheme {
         @Deprecated(
             "The default ripple alpha varies between design system versions: this " +
                 "function technically implements the default used by the material library, but " +
-                "is not used by the material3 library. To remove confusion and link the " +
+                "is not used by the 上游 library. To remove confusion and link the " +
                 "defaults more strongly to the design system library, these default values have " +
-                "been moved to the material and material3 libraries. For material, use " +
-                "RippleDefaults#rippleAlpha. For material3, use " +
+                "been moved to the material and 上游 libraries. For material, use " +
+                "RippleDefaults#rippleAlpha. For 上游, use " +
                 "RippleDefaults#RippleAlpha.",
             level = DeprecationLevel.WARNING,
         )

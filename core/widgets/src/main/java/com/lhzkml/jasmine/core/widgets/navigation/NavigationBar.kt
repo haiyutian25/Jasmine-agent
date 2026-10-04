@@ -85,13 +85,10 @@ import kotlin.math.roundToInt
 
 /**
  * [Material Design bottom navigation
- * bar](https://m3.material.io/components/navigation-bar/overview)
  *
  * Navigation bars offer a persistent and convenient way to switch between primary destinations in
  * an app.
  *
- * ![Navigation bar
- * image](https://developer.android.com/images/reference/androidx/compose/material3/navigation-bar.png)
  *
  * [NavigationBar] should contain three to five [NavigationBarItem]s, each representing a singular
  * destination.

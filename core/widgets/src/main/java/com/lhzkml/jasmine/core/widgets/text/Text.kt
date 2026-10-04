@@ -1,5 +1,5 @@
-// 本项目自有的组件代码（移植自 AndroidX Material3 1.4.0 的 Text.kt 后自行维护），不再跟随上游生成，可直接改。
-// 上游位置：androidx/compose/material3/Text.kt。它唯一的 M3 依赖是 tokens/DefaultTextStyle，已换成
+// 本项目自有的组件代码（移植自上游的 Text.kt 后自行维护），不再跟随上游生成，可直接改。
+// 上游位置：Text.kt。它唯一的 上游依赖是 tokens/DefaultTextStyle，已换成
 // 本库 tokens/DefaultTextStyle.kt（同名同位置，取值逐项一致）；LocalTextStyle / LocalContentColor
 // 换成自有的 LocalWidgetsTextStyle / LocalWidgetsContentColor；链接色改读 LocalCssVariables.primary。
 /*

@@ -1,4 +1,4 @@
-﻿package com.lhzkml.jasmine.feature.main.impl.fonts
+package com.lhzkml.jasmine.feature.main.impl.fonts
 
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily

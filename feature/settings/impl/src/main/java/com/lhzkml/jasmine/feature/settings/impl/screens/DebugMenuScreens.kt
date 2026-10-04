@@ -1,4 +1,4 @@
-﻿package com.lhzkml.jasmine.feature.settings.impl.screens
+package com.lhzkml.jasmine.feature.settings.impl.screens
 
 import com.lhzkml.jasmine.core.ui.theme.AppShapes
 import androidx.compose.foundation.BorderStroke

@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-// 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游对应源码后自行维护），不再跟随上游生成，可直接改。
 
 package com.lhzkml.jasmine.core.widgets.motion
 
 import androidx.compose.runtime.staticCompositionLocalOf
 
 /**
- * 本层级的 [MotionScheme]。上游把它放在 `MaterialTheme` 里且是 private/internal，跨模块取不到，
- * 所以这里自己声明一份：没有宿主提供时用 M3 的 standard 动效。
+ * 本层级的 [MotionScheme]。上游把它放在主题里且是 private/internal，跨模块取不到，
+ * 所以这里自己声明一份：没有宿主提供时用 上游的 standard 动效。
  */
 internal val LocalMotionScheme = staticCompositionLocalOf { MotionScheme.standard() }

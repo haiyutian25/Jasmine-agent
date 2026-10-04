@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的组件代码（移植自 AndroidX Material3 1.4.0 的 Menu.kt + AndroidMenu.android.kt 后自行维护），
+// 本项目自有的组件代码（移植自上游的 Menu.kt + AndroidMenu.android.kt 后自行维护），
 // 不再跟随上游生成，可直接改。上游是 expect/actual 结构（公共面在 commonMain、实现在 androidMain），
 // 本项目只跑 Android，故按惯例把两半合并到本文件：签名与**默认参数**取 common 那份，函数体取 android 那份。
 // 只保留正式入口 DropdownMenu / DropdownMenuItem；两个只为二进制兼容的 HIDDEN 重载都没搬。
@@ -88,13 +88,10 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * [Material Design dropdown menu](https://m3.material.io/components/menus/overview)
  *
  * Menus display a list of choices on a temporary surface. They appear when users interact with a
  * button, action, or other control.
  *
- * ![Dropdown menu
- * image](https://developer.android.com/images/reference/androidx/compose/material3/menu.png)
  *
  * A [DropdownMenu] behaves similarly to a [Popup], and will use the position of the parent layout
  * to position itself on screen. Commonly a [DropdownMenu] will be placed in a [Box] with a sibling
@@ -190,13 +187,10 @@ fun DropdownMenu(
 }
 
 /**
- * [Material Design dropdown menu](https://m3.material.io/components/menus/overview)
  *
  * Menus display a list of choices on a temporary surface. They appear when users interact with a
  * button, action, or other control.
  *
- * ![Dropdown menu
- * image](https://developer.android.com/images/reference/androidx/compose/material3/menu.png)
  *
  * Example usage:
  *

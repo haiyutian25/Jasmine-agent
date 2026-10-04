@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  本组件库自有的对话框主题（对应上游 material3 的 EdgeToEdgeFloatingDialogWindowTheme /
-  EdgeToEdgeFloatingDialogTheme），属性逐条照抄，边到边弹层的观感不变 —— 于是组件库不再引用
-  `androidx.compose.material3.R.style.*`。
+  本组件库自有的对话框主题（对应上游的 EdgeToEdgeFloatingDialogWindowTheme /
+  EdgeToEdgeFloatingDialogTheme），  属性逐条照抄，边到边弹层的观感不变 —— 于是组件库不再引用上游的样式资源。
 -->
 <resources xmlns:tools="http://schemas.android.com/tools">
     <style name="WidgetsEdgeToEdgeFloatingDialogWindowTheme">

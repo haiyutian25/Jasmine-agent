@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游对应源码后自行维护），不再跟随上游生成，可直接改。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 
@@ -167,7 +167,7 @@ internal fun AppShapes.fromToken(value: ShapeKeyTokens): Shape {
 
 /**
  * 形状令牌 → 当前主题的形状；随 [LocalWidgetsShapes] 变化自动重组。
- * （注入的是**自有**的 [AppShapes] 类型，不再经 M3 的 `Shapes`；改形状口径只需改 `AppShapes`。）
+ * （注入的是**自有**的 [AppShapes] 类型，不再经 上游的 `Shapes`；改形状口径只需改 `AppShapes`。）
  */
 internal val ShapeKeyTokens.value: Shape
     @Composable @ReadOnlyComposable get() = LocalWidgetsShapes.current.fromToken(this)
@@ -205,6 +205,6 @@ private fun CssVariables.surfaceColorAtElevation(elevation: Dp): Color {
     return primary.copy(alpha = alpha).compositeOver(card)
 }
 
-// 排版槽位不再经过"字体令牌键 → M3 Typography"这层映射：各令牌表（AppBarSmallTokens /
+// 排版槽位不再经过"字体令牌键 → 上游字体表"这层映射：各令牌表（AppBarSmallTokens /
 // NavigationBarTokens / DialogTokens / BadgeTokens / PrimaryNavigationTabTokens）直接指向
 // 自有排版档 `AppTypography.*`，所以 `Typography.fromToken` 与 `TypographyKeyTokens` 已删除。

@@ -39,7 +39,7 @@ private val ProductionTopNavBarPaddingHorizontal = 10.dp
 
 /**
  * Left inset the app bar component already applies to its navigation slot
- * (upstream M3's `TopAppBarHorizontalPadding`). Only the difference is added
+ * (upstream's `TopAppBarHorizontalPadding`). Only the difference is added
  * back below, so the action icon keeps its original 10.dp offset.
  */
 private val WidgetsAppBarNavigationIconInset = 4.dp
@@ -64,7 +64,7 @@ private val ProductionTopNavDividerHeight = 1.dp
  *   the left + centered page title.
  * Always finished with the 1px bottom divider rule.
  *
- * 容器是 `core:widgets` 的自有 [TopAppBar] / [CenterAlignedTopAppBar]（它的 `MaterialTheme`
+ * 容器是 `core:widgets` 的自有 [TopAppBar] / [CenterAlignedTopAppBar]（它的主题
  * 与令牌映射都已清零），高度按原实现钉死为 [ProductionTopNavBarHeight]（47.dp）；颜色、
  * 图标、文案与底部细线照旧；唯一有意偏离原样的地方是**标题字型改由组件下发**
  * （22sp，与「设置 → 调试 → 顶部导航栏」演示页一致，原先是写死的 14.5sp Bold）。

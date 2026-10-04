@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-// 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游对应源码后自行维护），不再跟随上游生成，可直接改。
 //
-// 与上游的差别：上游这个 `Strings` 枚举整份指向 **M3 自己的资源**（`material3.R.string.m3c_*`）
+// 与上游的差别：上游这个 `Strings` 枚举整份指向 **上游自己的字符串资源**（`m3c_*`）
 // 与少数 compose-ui 资源（`androidx.compose.ui.R.string.*`）；本库改成指向**自己的**
 // `core/widgets/src/main/res/values(-zh-rCN)/strings.xml`（`widgets_*`），于是组件库不再借
 // 任何外部模块的文案资源。枚举只保留组件库里真正被引用的 14 条（上游 70 余条里其余零引用，

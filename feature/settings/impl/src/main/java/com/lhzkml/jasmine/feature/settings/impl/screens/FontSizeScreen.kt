@@ -171,7 +171,7 @@ fun FontSizeScreen(
                     )
                 }
 
-                // 滑杆用自有的 core:widgets 版（不再经 M3 的 Slider）。
+                // 滑杆用自有的 core:widgets 版（不再经 上游的 Slider）。
                 Slider(
                     value = draftScale,
                     onValueChange = { draftScale = it },

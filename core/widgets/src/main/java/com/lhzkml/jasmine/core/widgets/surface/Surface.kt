@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游对应源码后自行维护），不再跟随上游生成，可直接改。
 
 package com.lhzkml.jasmine.core.widgets.surface
 
@@ -317,7 +317,7 @@ fun Surface(
 
 
 /**
- * 上游（M3 1.4.0）的 `Surface` 有四个重载：无色 / onClick / selected / checked。本库此前只搬了前三个，
+ * 上游（1.4.0）的 `Surface` 有四个重载：无色 / onClick / selected / checked。本库此前只搬了前三个，
  * 为照搬 IconButton 家族（`IconToggleButton` 用的是 checked 版）补上第四个，实现与 selected 版逐行一致。
  */
 @Composable

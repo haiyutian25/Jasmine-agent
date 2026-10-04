@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-// 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游对应源码后自行维护），不再跟随上游生成，可直接改。
 
 package com.lhzkml.jasmine.core.widgets.bottomsheet
 
 /**
  * Material-specific anchor layout logic which considers lookahead. This internal code is expected
- * to remain in the library after 上游 M3 的 AnchoredDraggable.kt is
+ * to remain in the library after upstream's AnchoredDraggable.kt is
  * removed.
  */
 import androidx.compose.foundation.gestures.AnchoredDraggableState as AnchoredDraggableStateV2

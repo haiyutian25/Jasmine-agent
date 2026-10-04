@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-// 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
-// 上游位置：androidx/compose/material3/InteractiveComponentSize.kt。本库不再调用 M3 的
+// 本项目自有的组件代码（移植自上游对应源码后自行维护），不再跟随上游生成，可直接改。
+// 上游位置：InteractiveComponentSize.kt。本库不再调用上游的
 // `Modifier.minimumInteractiveComponentSize()` / `LocalMinimumInteractiveComponentSize`，改由本文件提供，
 // 行为与取值逐项照抄（最小触控目标 48.dp；未启用时不做扩张；对齐线缓存逻辑一致）。
-// 差异：① 上游那个 `identityHashCode` 来自 material3.internal（跨模块取不到），这里直接用 JVM 的
+// 差异：① 上游那个 `identityHashCode` 来自 上游 internal（跨模块取不到），这里直接用 JVM 的
 // `System.identityHashCode`，语义相同；② 上游的 `LocalMinimumInteractiveComponentEnforcement` 已废弃
 // （WARNING 级，官方让改用 `LocalMinimumInteractiveComponentSize`），按本库惯例不搬。
 

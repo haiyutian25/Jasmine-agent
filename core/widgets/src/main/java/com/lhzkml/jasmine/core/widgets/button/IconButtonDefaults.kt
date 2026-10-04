@@ -1,5 +1,5 @@
-// 本项目自有的组件代码（移植自 AndroidX Material3 1.4.0 的 IconButtonDefaults.kt 后自行维护），不再跟随上游生成，可直接改。
-// 上游位置：androidx/compose/material3/IconButtonDefaults.kt —— 各变体的默认色 / 边框 / 形状 / 尺寸。
+// 本项目自有的组件代码（移植自上游的 IconButtonDefaults.kt 后自行维护），不再跟随上游生成，可直接改。
+// 上游位置：IconButtonDefaults.kt —— 各变体的默认色 / 边框 / 形状 / 尺寸。
 // 差异：默认色 / 边框 / 形状 / 尺寸都直接读自有主题（`CssVariables`）与自有令牌表（不再经角色键映射）；
 // 上游那套包级 `…Cached` 缓存按本库惯例去掉（直接返回，行为一致）。
 /*

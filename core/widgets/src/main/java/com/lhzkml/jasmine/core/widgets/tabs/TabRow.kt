@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的组件代码（移植自 AndroidX Material3 1.4.0 的 TabRow.kt 后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游的 TabRow.kt 后自行维护），不再跟随上游生成，可直接改。
 // 保留：PrimaryTabRow / SecondaryTabRow / PrimaryScrollableTabRow / SecondaryScrollableTabRow、
 // TabRowDefaults（含 tabIndicatorOffset 与 Indicator）、TabPosition、TabIndicatorScope，
 // 以及内部的指示条节点与滚动数据；上游 8 处 @Deprecated 已剔掉 6 处（含 2 个 HIDDEN 的滚动版重载）。
@@ -112,7 +112,6 @@ import com.lhzkml.jasmine.core.widgets.navigation.badgeBounds
 
 
 /**
- * [Material Design fixed primary tabs](https://m3.material.io/components/tabs/overview)
  *
  * Primary tabs are placed at the top of the content pane under a top app bar. They display the main
  * content destinations. Fixed tabs display all tabs in a set simultaneously. They are best for
@@ -191,7 +190,6 @@ fun PrimaryTabRow(
 }
 
 /**
- * [Material Design fixed secondary tabs](https://m3.material.io/components/tabs/overview)
  *
  * Secondary tabs are used within a content area to further separate related content and establish
  * hierarchy. Fixed tabs display all tabs in a set simultaneously. To navigate between fixed tabs,
@@ -241,7 +239,6 @@ fun SecondaryTabRow(
 }
 
 /**
- * [Material Design scrollable primary tabs](https://m3.material.io/components/tabs/overview)
  *
  * Primary tabs are placed at the top of the content pane under a top app bar. They display the main
  * content destinations. When a set of tabs cannot fit on screen, use scrollable tabs. Scrollable
@@ -308,7 +305,6 @@ fun PrimaryScrollableTabRow(
 }
 
 /**
- * [Material Design scrollable secondary tabs](https://m3.material.io/components/tabs/overview)
  *
  * Material Design scrollable tabs.
  *

@@ -11,13 +11,13 @@ import androidx.compose.ui.unit.dp
  * --bg, --text/--fg, --surface/--card, --border,
  * --primary/--accent, --muted, --radius
  *
- * 除下面这 13 个基础槽（各调色板逐个手写取值）外，还**按上游 M3 的角色键逐键**补了
+ * 除下面这 13 个基础槽（各调色板逐个手写取值）外，还**按上游的角色键逐键**补了
  * 一组容器/次级色槽（[surface] … [error]）：上游 `ColorSchemeKeyTokens` 里本库用到的
  * 21 个键现在**一一对应**到自有槽，不再把多个键折到同一个槽上。
  *
  * 这些是**派生槽**（`get()`）：值仍由各调色板自己的 [background] / [card] / [muted] /
- * [accent] / [foreground] 按 M3 基线的层次关系推出来，所以 12 套调色板自动各自成立，
- * 且不引入任何新色值。层次口径（浅色下由亮到暗）与 M3 基线一致：
+ * [accent] / [foreground] 按 上游基线的层次关系推出来，所以 12 套调色板自动各自成立，
+ * 且不引入任何新色值。层次口径（浅色下由亮到暗）与 上游基线一致：
  * `Surface(≈[background]) → SurfaceContainerLow → SurfaceContainer(= [card]) →
  * SurfaceContainerHigh → SurfaceContainerHighest(≈[muted])`。
  */
@@ -44,7 +44,7 @@ data class CssVariables(
     // ── 上游 ColorSchemeKeyTokens 一一对应的容器 / 次级色槽 ──────────────────
 
     /**
-     * 上游 `Surface`：基准面。M3 基线里它比容器层更贴近页面底（`#FEF7FF` vs `#F3EDF7`），
+     * 上游 `Surface`：基准面。上游基线里它比容器层更贴近页面底（`#FEF7FF` vs `#F3EDF7`），
      * 所以往 [background] 外侧推，与 [surfaceContainer]（= [card]）**不同值**。
      */
     val surface: Color get() = lerp(background, card, 0.25f)
@@ -65,36 +65,36 @@ data class CssVariables(
     val surfaceContainerHighest: Color get() = muted
 
     /**
-     * 上游 `SurfaceVariant`：次级面。M3 基线里它与 `SurfaceContainerHigh` 同档但**不同色**
+     * 上游 `SurfaceVariant`：次级面。上游基线里它与 `SurfaceContainerHigh` 同档但**不同色**
      * （`#E7E0EC` vs `#ECE6F0`），所以取「High 与 Highest 之间」的那一档，避免与
      * [surfaceContainerHigh] 折平。
      */
     val surfaceVariant: Color get() = lerp(card, muted, 0.75f)
 
     /**
-     * 上游 `PrimaryContainer`：主色的容器调。M3 基线里它比面**浅、带主色相**
+     * 上游 `PrimaryContainer`：主色的容器调。上游基线里它比面**浅、带主色相**
      * （`#EADDFF`），所以取主色向面靠拢的淡色调。
      */
     val primaryContainer: Color get() = lerp(primary, card, 0.85f)
 
     /**
-     * 上游 `OnPrimaryContainer`：主色容器上的前景色。M3 基线里它**很深**
+     * 上游 `OnPrimaryContainer`：主色容器上的前景色。上游基线里它**很深**
      * （`#21005D`）但**不等于**主色本身，所以取"主色再往前景压一档"，
      * 与 `SurfaceTint`（= [primary]）区分开。
      */
     val onPrimaryContainer: Color get() = lerp(primary, foreground, 0.30f)
 
-    /** 上游 `Secondary`：次要色（M3 基线 `#625B71`，中深灰 ⇒ 取 [mutedForeground]）。 */
+    /** 上游 `Secondary`：次要色（上游基线 `#625B71`，中深灰 ⇒ 取 [mutedForeground]）。 */
     val secondary: Color get() = mutedForeground
 
     /**
-     * 上游 `OnSecondary`：次要面上的前景色（M3 基线为白）。取"从 [card] 往 [background] 方向"
+     * 上游 `OnSecondary`：次要面上的前景色（上游基线为白）。取"从 [card] 往 [background] 方向"
      * 的那一档，与 `SurfaceBright`/`SurfaceContainerLowest` 等同方向档位区分开。
      */
     val onSecondary: Color get() = lerp(card, background, 0.30f)
 
     /**
-     * 上游 `SecondaryContainer`：次要容器面。M3 基线 `#E8DEF8` 比面**深一档且带主色相**，
+     * 上游 `SecondaryContainer`：次要容器面。上游基线 `#E8DEF8` 比面**深一档且带主色相**，
      * 用作底栏/抽屉"选中药丸"的底 ⇒ 取主色向 [card] 靠拢的淡色调（不能取 [muted]，
      * 那与 `SurfaceContainerHighest` 同值；也不能取 [subtleSurface]，那与 [card] 只差几阶、
      * 选中指示条会隐形）。
@@ -102,7 +102,7 @@ data class CssVariables(
     val secondaryContainer: Color get() = lerp(card, primary, 0.12f)
 
     /**
-     * 上游 `OnSecondaryContainer`：次要容器上的前景色。M3 基线 `#1D192B` 是**近黑但带主色相**，
+     * 上游 `OnSecondaryContainer`：次要容器上的前景色。上游基线 `#1D192B` 是**近黑但带主色相**，
      * 用作选中项图标/文字 ⇒ 取"前景再掺一档主色"，与 `InverseSurface`（= [foreground]）
      * 区分开（也不能折到 [mutedForeground]，那样与未选中的 `OnSurfaceVariant` 同色、
      * 选中态就看不出来了）。
@@ -116,16 +116,16 @@ data class CssVariables(
     val inverseOnSurface: Color get() = background
 
     /**
-     * 上游 `Error`：错误色。现有 12 套调色板都还没有自己的错误色，沿用 M3 基线值
+     * 上游 `Error`：错误色。现有 12 套调色板都还没有自己的错误色，沿用 上游基线值
      * （深浅两套分开），与 `tokens/TokenResolvers.kt` 的既有取值完全一致。
      */
     val error: Color get() = if (isDark) Color(0xFFF2B8B5) else Color(0xFFB3261E)
 
-    // ── 上游 ColorScheme 的其余角色（按 M3 基线台阶逐槽派生，各槽取值互不重合）────
-    // 说明：M3 自身这些角色也是由 tonal palette 算出来的；这里让每条都落在**不同**的
+    // ── 上游 ColorScheme 的其余角色（按 上游基线台阶逐槽派生，各槽取值互不重合）────
+    // 说明：上游这些角色也是由 tonal palette 算出来的；这里让每条都落在**不同**的
     // 插值档上，从而既有各自的位置、又不会互相折平。
 
-    /** 上游 `OnError`：错误面上的前景色（M3 基线深/浅各一，与 [error] 成对）。 */
+    /** 上游 `OnError`：错误面上的前景色（上游基线深/浅各一，与 [error] 成对）。 */
     val onError: Color get() = if (isDark) Color(0xFF601410) else Color(0xFFFFFFFF)
 
     /** 上游 `ErrorContainer`：错误色容器（比 [error] 淡一档）。 */
@@ -185,7 +185,7 @@ data class CssVariables(
     /** 上游 `OnTertiaryFixedVariant`：第三固定组的次深前景。 */
     val onTertiaryFixedVariant: Color get() = lerp(accent, foreground, 0.55f)
 
-    /** 上游 `Scrim`：遮罩色（M3 基线浅深两套都是纯黑）。 */
+    /** 上游 `Scrim`：遮罩色（上游基线浅深两套都是纯黑）。 */
     val scrim: Color get() = Color(0xFF000000)
 
     /** 上游 `SurfaceBright`：比基准面更亮的一档（往 [background] 外侧推）。 */

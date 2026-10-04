@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的组件代码（移植自 AndroidX Material3 1.5.0-alpha29 的 internal/CircularWavyProgressModifiers.kt
+// 本项目自有的组件代码（移植自上游 1.5.0-alpha29 的 internal/CircularWavyProgressModifiers.kt
 // 后自行维护），不再跟随上游生成，可直接改。圆形波形的 Modifier.Node 实现与绘制缓存（含形状序列
 // CircularShapes），只被 WavyProgressIndicator.kt 使用。
 

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-// 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
-// 上游位置：androidx/compose/material3/internal/TextFieldImpl.kt（M3 的 internal 共享件）——
+// 本项目自有的组件代码（移植自上游对应源码后自行维护），不再跟随上游生成，可直接改。
+// 上游位置：internal/TextFieldImpl.kt（上游的 internal 共享件）——
 // 输入框 / 顶部栏 / 侧边栏 / 下拉刷新都在用它，所以从 textfield 包挪到 internal 包。
 // 符号名与上游一致（FloatProducer）。
 

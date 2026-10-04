@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的组件代码（移植自 AndroidX Material3 1.4.0 的 internal/AccessibilityServiceStateProvider.kt
+// 本项目自有的组件代码（移植自上游的 internal/AccessibilityServiceStateProvider.kt
 // 及其 android 实现后自行维护），不再跟随上游生成，可直接改。把 expect/actual 合并到本文件：
 // 监听 TalkBack（TouchExploration）/ Switch Access / Voice Access 的开关状态，
 // 菜单用它决定弹出时要不要抢焦点（开着无障碍服务时不抢，交给服务去播报）。

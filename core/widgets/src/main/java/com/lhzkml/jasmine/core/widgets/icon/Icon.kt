@@ -1,5 +1,5 @@
-// 本项目自有的组件代码（移植自 AndroidX Material3 1.4.0 的 Icon.kt 后自行维护），不再跟随上游生成，可直接改。
-// 上游位置：androidx/compose/material3/Icon.kt。它唯一的 M3 依赖是 tokens/SmallIconButtonTokens，
+// 本项目自有的组件代码（移植自上游的 Icon.kt 后自行维护），不再跟随上游生成，可直接改。
+// 上游位置：Icon.kt。它唯一的 上游依赖是 tokens/SmallIconButtonTokens，
 // 已换成本库 tokens/SmallIconButtonTokens.kt（同名同位置，取值逐项一致）；LocalContentColor
 // 换成自有的 LocalWidgetsContentColor。
 /*
@@ -55,7 +55,6 @@ import androidx.compose.ui.semantics.semantics
  * [androidx.compose.foundation.Image] instead. For a clickable icon, see [IconButton].
  *
  * To learn more about icons, see
- * [Material Design icons](https://m3.material.io/styles/icons/overview)
  *
  * @param imageVector [ImageVector] to draw inside this icon
  * @param contentDescription text used by accessibility services to describe what this icon
@@ -91,7 +90,6 @@ fun Icon(
  * [androidx.compose.foundation.Image] instead. For a clickable icon, see [IconButton].
  *
  * To learn more about icons, see
- * [Material Design icons](https://m3.material.io/styles/icons/overview)
  *
  * @param bitmap [ImageBitmap] to draw inside this icon
  * @param contentDescription text used by accessibility services to describe what this icon
@@ -128,7 +126,6 @@ fun Icon(
  * [androidx.compose.foundation.Image] instead. For a clickable icon, see [IconButton].
  *
  * To learn more about icons, see
- * [Material Design icons](https://m3.material.io/styles/icons/overview)
  *
  * @param painter [Painter] to draw inside this icon
  * @param contentDescription text used by accessibility services to describe what this icon
@@ -176,7 +173,6 @@ fun Icon(
  * [IconButton].
  *
  * To learn more about icons, see
- * [Material Design icons](https://m3.material.io/styles/icons/overview)
  *
  * @param painter [Painter] to draw inside this icon
  * @param tint tint to be applied to [painter]. If null, then no tint is applied.

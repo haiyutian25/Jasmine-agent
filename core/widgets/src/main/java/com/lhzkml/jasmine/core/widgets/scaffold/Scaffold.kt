@@ -1,10 +1,10 @@
-// 本项目自有的组件代码（移植自 AndroidX Material3 1.4.0 的 Scaffold.kt 后自行维护），不再跟随上游生成，可直接改。
-// 上游位置：androidx/compose/material3/Scaffold.kt
+// 本项目自有的组件代码（移植自上游的 Scaffold.kt 后自行维护），不再跟随上游生成，可直接改。
+// 上游位置：Scaffold.kt
 // 与上游的差异（其余逐行一致）：
-//   * 默认 containerColor：MaterialTheme.colorScheme.background -> LocalCssVariables.current.background
+//   * 默认 containerColor：上游主题的背景色 -> LocalCssVariables.current.background
 //   * 默认 contentColor：contentColorFor(...) -> 自有的 CssVariables.contentColorFor(...)
-//   * 容器：自有的 Surface（不再经 M3 的 Surface）
-//   * MutableWindowInsets：上游取自 material3.internal（foundation 里那份是 experimental），
+//   * 容器：自有的 Surface（不再经 上游的 Surface）
+//   * MutableWindowInsets：上游取自 上游 internal（foundation 里那份是 experimental），
 //     这里在本文件内自带一份同名实现（逐行一致）。
 //   * ScaffoldDefaults.contentWindowInsets：上游是 expect/actual，Android 侧为
 //     `systemBars.union(displayCutout)`，这里直接取同一个值。
@@ -349,7 +349,7 @@ private enum class ScaffoldLayoutContent {
 /**
  * 取值可变的 [WindowInsets]，且实例本身不变，从而避免 [WindowInsets] 变化引起重组。
  *
- * 上游取自 material3.internal 的同名实现（foundation 里那份被标为 experimental，不能跨模块使用），
+ * 上游取自 上游 internal 的同名实现（foundation 里那份被标为 experimental，不能跨模块使用），
  * 这里自带一份，逐行一致。
  */
 private class MutableWindowInsets(initialInsets: WindowInsets = WindowInsets(0, 0, 0, 0)) :

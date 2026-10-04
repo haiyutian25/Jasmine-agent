@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的组件代码（移植自 AndroidX Material3 1.4.0 的 internal/Icons.kt 后自行维护），
+// 本项目自有的组件代码（移植自上游的 internal/Icons.kt 后自行维护），
 // 不再跟随上游生成，可直接改。上游那份 419 行、几十个图标；本组件库目前只用到 Filled.ArrowDropDown
 // 一个（ExposedDropdownMenuDefaults.TrailingIcon 的下拉箭头），故按可达性只留它，绘制改用标准的
 // ImageVector.Builder（等价字形，路径数据照抄上游）。以后要用别的图标，照上游各补一个即可。

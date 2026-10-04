@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游对应源码后自行维护），不再跟随上游生成，可直接改。
 // 上游把这两个扩展声明在 BottomSheetScaffold.kt 里（模态也要用）；我们删掉非模态后把它们挪到这个文件。
 
 package com.lhzkml.jasmine.core.widgets.bottomsheet

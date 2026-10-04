@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的组件代码（移植自 AndroidX Material3 1.5.0-alpha29 的 MaterialShapes.kt 后自行维护），
+// 本项目自有的组件代码（移植自上游 1.5.0-alpha29 的 MaterialShapes.kt 后自行维护），
 // 不再跟随上游生成，可直接改。整份保留上游那 30 个形状 —— 它是「形状图库」型 API，不是可裁的令牌表；
 // 本次真正用到的是 Circle / SoftBurst / Cookie9Sided / Pentagon / Pill / Sunny / Cookie4Sided / Oval。
-// 上游的 @ExperimentalMaterial3ExpressiveApi 标记已去掉（我们依赖的稳定版 material3 里它是 internal，引用不了）。
+// 上游的 @Experimental上游ExpressiveApi 标记已去掉（我们依赖的稳定版 上游 里它是 internal，引用不了）。
 
 package com.lhzkml.jasmine.core.widgets.shapes
 
@@ -55,7 +55,6 @@ import kotlin.math.sin
  * @param startAngle the angle (in degrees) from which to begin drawing the generated path. By
  *   default, it is set to 0 degrees, meaning the [Path] begins drawing at the 3 o'clock position.
  *
- * @material3expressive
  */
 public fun Morph.toPath(progress: Float, path: Path = Path(), startAngle: Int = 0): Path {
     return this.toPath(path = path, progress = progress, startAngle = startAngle)
@@ -69,7 +68,6 @@ public fun Morph.toPath(progress: Float, path: Path = Path(), startAngle: Int = 
  *   The returned path is rotated by this angle around the [RoundedPolygon]'s centroid (centerX,
  *   centerY).
  *
- * @material3expressive
  */
 @Composable
 public fun RoundedPolygon.toPath(startAngle: Int = 0): Path {
@@ -87,7 +85,6 @@ public fun RoundedPolygon.toPath(startAngle: Int = 0): Path {
  *   position. The returned path is rotated by this angle around the [RoundedPolygon]'s centroid
  *   (centerX, centerY).
  *
- * @material3expressive
  */
 @Composable
 public fun RoundedPolygon.toShape(startAngle: Int = 0): Shape {
@@ -129,14 +126,11 @@ public fun RoundedPolygon.toShape(startAngle: Int = 0): Shape {
  * Holds predefined Material Design shapes as [RoundedPolygon]s that can be used at various
  * components as they are, or as part of a [Morph].
  *
- * ![Shapes
- * image](https://developer.android.com/images/reference/androidx/compose/material3/shapes.png)
  *
  * Note that each [RoundedPolygon] in this class is normalized.
  *
  * @see RoundedPolygon.normalized
  *
- * @material3expressive
  */
 public sealed class MaterialShapes {
 

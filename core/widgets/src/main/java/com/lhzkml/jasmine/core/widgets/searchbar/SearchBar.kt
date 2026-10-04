@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2024 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的组件代码（移植自 AndroidX Material3 的 SearchBar.kt 后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游的 SearchBar.kt 后自行维护），不再跟随上游生成，可直接改。
 // 只保留了新版「state 版」的搜索框入口：SearchBar(state) / TopSearchBar / ExpandedFullScreenSearchBar /
 // ExpandedDockedSearchBar + SearchBarState 家族；上游那套「一体版」（SearchBar/DockedSearchBar 的
 // inputField + expanded 重载）与已废弃的 query 版重载、以及只为二进制兼容的 HIDDEN 重载都没搬。
@@ -174,13 +174,10 @@ import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 
 
 /**
- * [Material Design search](https://m3.material.io/components/search/overview)
  *
  * A search bar represents a field that allows users to enter a keyword or phrase and get relevant
  * information. It can be used as a way to navigate through an app via search queries.
  *
- * ![Search bar
- * image](https://developer.android.com/images/reference/androidx/compose/material3/search-bar.png)
  *
  * The [SearchBar] component represents a search bar in the collapsed state. It should be used in
  * conjunction with an [ExpandedFullScreenSearchBar] or [ExpandedDockedSearchBar] to display search

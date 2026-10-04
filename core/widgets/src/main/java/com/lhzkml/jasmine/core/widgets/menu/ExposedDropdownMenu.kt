@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的组件代码（移植自 AndroidX Material3 1.4.0 的 ExposedDropdownMenu.kt +
+// 本项目自有的组件代码（移植自上游的 ExposedDropdownMenu.kt +
 // ExposedDropdownMenu.android.kt 后自行维护），不再跟随上游生成，可直接改。同样把 expect/actual 两半
 // 合并到本文件（签名与默认参数取 common，实现取 android）。保留：ExposedDropdownMenuBox、
 // ExposedDropdownMenuAnchorType（3 个值）、ExposedDropdownMenuDefaults 的 4 个正式成员
@@ -122,7 +122,6 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * [Material Design exposed dropdown menu](https://m3.material.io/components/menus/overview)
  *
  * Menus display a list of choices on a temporary surface. They appear when users interact with a
  * button, action, or other control.
@@ -132,8 +131,6 @@ import kotlin.math.roundToInt
  * display user input (whether or not it’s listed as a menu choice), in which case it may be used to
  * implement autocomplete.
  *
- * ![Exposed dropdown menu
- * image](https://developer.android.com/images/reference/androidx/compose/material3/exposed-dropdown-menu.png)
  *
  * The [ExposedDropdownMenuBox] is expected to contain a [TextField] (or [OutlinedTextField]) and
  * [ExposedDropdownMenu][ExposedDropdownMenuBoxScope.ExposedDropdownMenu] as content. The

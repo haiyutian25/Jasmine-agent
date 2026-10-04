@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的组件代码（移植自 AndroidX Material3 1.4.0 的 Card.kt 后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游的 Card.kt 后自行维护），不再跟随上游生成，可直接改。
 // 三个入口、各两个重载：Card（填充态）/ ElevatedCard（抬升态）/ OutlinedCard（描边态），
 // 每对为「不带 colors / elevation」与「带 colors / elevation」两版；外加 CardDefaults、
 // CardColors（颜色状态机）与 CardElevation（海拔状态机）。
@@ -64,7 +64,6 @@ import com.lhzkml.jasmine.core.widgets.elevation.animateElevation
 import com.lhzkml.jasmine.core.widgets.navigation.DisabledAlpha
 
 /**
- * [Material Design filled card](https://m3.material.io/components/cards/overview)
  *
  * Cards contain contain content and actions that relate information about a subject. Filled cards
  * provide subtle separation from the background. This has less emphasis than elevated or outlined
@@ -73,8 +72,6 @@ import com.lhzkml.jasmine.core.widgets.navigation.DisabledAlpha
  * This Card does not handle input events - see the other Card overloads if you want a clickable or
  * selectable Card.
  *
- * ![Filled card
- * image](https://developer.android.com/images/reference/androidx/compose/material3/filled-card.png)
  *
  * Card sample:
  *
@@ -112,7 +109,6 @@ fun Card(
 }
 
 /**
- * [Material Design filled card](https://m3.material.io/components/cards/overview)
  *
  * Cards contain contain content and actions that relate information about a subject. Filled cards
  * provide subtle separation from the background. This has less emphasis than elevated or outlined
@@ -120,8 +116,6 @@ fun Card(
  *
  * This Card handles click events, calling its [onClick] lambda.
  *
- * ![Filled card
- * image](https://developer.android.com/images/reference/androidx/compose/material3/filled-card.png)
  *
  * Clickable card sample:
  *
@@ -175,7 +169,6 @@ fun Card(
 }
 
 /**
- * [Material Design elevated card](https://m3.material.io/components/cards/overview)
  *
  * Elevated cards contain content and actions that relate information about a subject. They have a
  * drop shadow, providing more separation from the background than filled cards, but less than
@@ -184,8 +177,6 @@ fun Card(
  * This ElevatedCard does not handle input events - see the other ElevatedCard overloads if you want
  * a clickable or selectable ElevatedCard.
  *
- * ![Elevated card
- * image](https://developer.android.com/images/reference/androidx/compose/material3/elevated-card.png)
  *
  * Elevated card sample:
  *
@@ -217,7 +208,6 @@ fun ElevatedCard(
     )
 
 /**
- * [Material Design elevated card](https://m3.material.io/components/cards/overview)
  *
  * Elevated cards contain content and actions that relate information about a subject. They have a
  * drop shadow, providing more separation from the background than filled cards, but less than
@@ -225,8 +215,6 @@ fun ElevatedCard(
  *
  * This ElevatedCard handles click events, calling its [onClick] lambda.
  *
- * ![Elevated card
- * image](https://developer.android.com/images/reference/androidx/compose/material3/elevated-card.png)
  *
  * Clickable elevated card sample:
  *
@@ -272,7 +260,6 @@ fun ElevatedCard(
     )
 
 /**
- * [Material Design outlined card](https://m3.material.io/components/cards/overview)
  *
  * Outlined cards contain content and actions that relate information about a subject. They have a
  * visual boundary around the container. This can provide greater emphasis than the other types.
@@ -280,8 +267,6 @@ fun ElevatedCard(
  * This OutlinedCard does not handle input events - see the other OutlinedCard overloads if you want
  * a clickable or selectable OutlinedCard.
  *
- * ![Outlined card
- * image](https://developer.android.com/images/reference/androidx/compose/material3/outlined-card.png)
  *
  * Outlined card sample:
  *
@@ -316,15 +301,12 @@ fun OutlinedCard(
     )
 
 /**
- * [Material Design outlined card](https://m3.material.io/components/cards/overview)
  *
  * Outlined cards contain content and actions that relate information about a subject. They have a
  * visual boundary around the container. This can provide greater emphasis than the other types.
  *
  * This OutlinedCard handles click events, calling its [onClick] lambda.
  *
- * ![Outlined card
- * image](https://developer.android.com/images/reference/androidx/compose/material3/outlined-card.png)
  *
  * Clickable outlined card sample:
  *

@@ -1,4 +1,4 @@
-﻿package com.lhzkml.jasmine.feature.settings.impl.screens
+package com.lhzkml.jasmine.feature.settings.impl.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box

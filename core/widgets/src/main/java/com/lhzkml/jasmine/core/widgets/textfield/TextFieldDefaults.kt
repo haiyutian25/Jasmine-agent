@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游对应源码后自行维护），不再跟随上游生成，可直接改。
 
 package com.lhzkml.jasmine.core.widgets.textfield
 
@@ -98,7 +98,6 @@ object TextFieldDefaults {
 
     /**
      * A decorator used to create custom text fields based on
-     * [Material Design filled text field](https://m3.material.io/components/text-fields/overview).
      *
      * If your text field requires customising elements that aren't exposed by [TextField], such as
      * the indicator line thickness, consider using this decorator to achieve the desired design.
@@ -312,7 +311,6 @@ object TextFieldDefaults {
 
     /**
      * A decoration box used to create custom text fields based on
-     * [Material Design filled text field](https://m3.material.io/components/text-fields/overview).
      *
      * If your text field requires customising elements that aren't exposed by [TextField], consider
      * using this decoration box to achieve the desired design.
@@ -900,7 +898,6 @@ object OutlinedTextFieldDefaults {
 
     /**
      * A decorator used to create custom text fields based on
-     * [Material Design outlined text field](https://m3.material.io/components/text-fields/overview).
      *
      * If your text field requires customising elements that aren't exposed by [OutlinedTextField],
      * such as the border thickness, consider using this decorator to achieve the desired design.
@@ -1068,7 +1065,6 @@ object OutlinedTextFieldDefaults {
 
     /**
      * A decoration box used to create custom text fields based on
-     * [Material Design outlined text field](https://m3.material.io/components/text-fields/overview).
      *
      * If your text field requires customising elements that aren't exposed by [OutlinedTextField],
      * consider using this decoration box to achieve the desired design.

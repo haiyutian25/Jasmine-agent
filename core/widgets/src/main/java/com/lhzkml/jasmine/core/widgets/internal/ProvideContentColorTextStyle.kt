@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-// 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
-// 上游位置：androidx/compose/material3/internal/TextFieldImpl.kt（M3 把它声明在 internal 共享文件里，
+// 本项目自有的组件代码（移植自上游对应源码后自行维护），不再跟随上游生成，可直接改。
+// 上游位置：internal/TextFieldImpl.kt（上游把它声明在 internal 共享文件里，
 // 组件侧只是 internal 调用），顶栏 / 底栏 / 徽标 / 对话框 / 输入框都在用，所以挪到 internal 包。
 // 符号名与上游一致（`ProvideContentColorTextStyle`）。
 //
 // 这里下发的是**自有**的 local：`LocalWidgetsContentColor` / `LocalWidgetsTextStyle`（core/ui/theme，
-// 由 JasmineTheme 注入）—— 下游内容件（Text / Icon）也已是自有实现，两边配对一致，本文件无 M3 依赖。
+// 由 JasmineTheme 注入）—— 下游内容件（Text / Icon）也已是自有实现，两边配对一致，本文件无 上游依赖。
 
 package com.lhzkml.jasmine.core.widgets.internal
 

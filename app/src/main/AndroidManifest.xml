@@ -55,15 +55,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!--
-          A2UI 渲染器冒烟页：只验证"依赖能不能加、硬编码的 A2UI JSON 能不能渲成卡片"。
-          不导出（用 su -c am start 拉起），与聊天链路完全无关。
-        -->
-        <activity
-            android:name=".a2ui.A2uiSmokeActivity"
-            android:exported="false"
-            android:theme="@style/Theme.MyApplication" />
     </application>
 
 </manifest>

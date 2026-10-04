@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游对应源码后自行维护），不再跟随上游生成，可直接改。
 
 package com.lhzkml.jasmine.core.widgets.switch
 
@@ -66,12 +66,9 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
 /**
- * [Material Design switch](https://m3.material.io/components/switch)
  *
  * Switches toggle the state of a single item on or off.
  *
- * ![Switch
- * image](https://developer.android.com/images/reference/androidx/compose/material3/switch.png)
  * @param checked whether or not this switch is checked
  * @param onCheckedChange called when this switch is clicked. If `null`, then this switch will not
  *   be interactable, unless something else handles its input events and updates its state.

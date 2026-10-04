@@ -15,7 +15,7 @@
  */
 
 // 本项目自有的组件代码（照 core:ui 的 `components/BottomSheet.kt` 搬过来，改用自有的
-// `ModalBottomSheet`，于是 App 里所有弹层都不再经过 M3 的 ModalBottomSheet）。
+// `ModalBottomSheet`，于是 App 里所有弹层都不再经过 上游的 ModalBottomSheet）。
 
 package com.lhzkml.jasmine.core.widgets.bottomsheet
 

@@ -1,5 +1,5 @@
-// 本项目自有的组件代码（移植自 AndroidX Material3 1.4.0 的 Ripple.kt 后自行维护），不再跟随上游生成，可直接改。
-// 上游位置：androidx/compose/material3/Ripple.kt —— 公开面：ripple / RippleDefaults / RippleConfiguration /
+// 本项目自有的组件代码（移植自上游的 Ripple.kt 后自行维护），不再跟随上游生成，可直接改。
+// 上游位置：Ripple.kt —— 公开面：ripple / RippleDefaults / RippleConfiguration /
 // LocalRippleConfiguration。它自己并不画涟漪：真正的实现在同目录的几个文件里（RippleNodes.kt / CommonRipple.kt /
 // RippleAnimation.kt / RippleTheme.kt / *Android.kt，移植自 Compose Material 的 material-ripple 1.12.0）。
 // 差异：LocalWidgetsContentColor 换成自有 LocalWidgetsContentColor；StateTokens 用自有 tokens。
@@ -55,7 +55,7 @@ import androidx.compose.ui.unit.Dp
  * other [Interaction]s by showing a fixed state layer with varying alpha values depending on the
  * [Interaction].
  *
- * [MaterialTheme] provides Ripples using [androidx.compose.foundation.LocalIndication], so a Ripple
+ * A theme provides Ripples using [androidx.compose.foundation.LocalIndication], so a Ripple
  * will be used as the default [Indication] inside components such as
  * [androidx.compose.foundation.clickable] and [androidx.compose.foundation.indication], in addition
  * to Material provided components that use a Ripple as well.
@@ -99,7 +99,7 @@ fun ripple(
  * other [Interaction]s by showing a fixed state layer with varying alpha values depending on the
  * [Interaction].
  *
- * [MaterialTheme] provides Ripples using [androidx.compose.foundation.LocalIndication], so a Ripple
+ * A theme provides Ripples using [androidx.compose.foundation.LocalIndication], so a Ripple
  * will be used as the default [Indication] inside components such as
  * [androidx.compose.foundation.clickable] and [androidx.compose.foundation.indication], in addition
  * to Material provided components that use a Ripple as well.

@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的组件代码（移植自 AndroidX Material3 1.4.0 的 Divider.kt 后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游的 Divider.kt 后自行维护），不再跟随上游生成，可直接改。
 // 只保留两个正式入口：HorizontalDivider 与 VerticalDivider —— 上游那个已废弃的 `Divider`（重命名前的旧名）没搬。
 // 默认值走 tokens/DividerTokens：Thickness = 1dp、Color = OutlineVariant → 本应用主题的 muted。
 
@@ -34,7 +34,6 @@ import androidx.compose.ui.unit.Dp
 import com.lhzkml.jasmine.core.widgets.tokens.DividerTokens
 
 /**
- * [Material Design divider](https://m3.material.io/components/divider/overview)
  *
  * 一条横向细线，用于在列表与布局里分组内容。`TabRow` 的默认分隔线与 `SearchBar` 里
  * 输入框与结果之间的那条线用的都是它。
@@ -59,7 +58,6 @@ fun HorizontalDivider(
     }
 
 /**
- * [Material Design divider](https://m3.material.io/components/divider/overview)
  *
  * 一条纵向细线，用法同 [HorizontalDivider]，只是方向不同。
  *

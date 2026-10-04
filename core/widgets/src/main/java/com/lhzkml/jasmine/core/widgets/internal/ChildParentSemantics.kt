@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-// 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
-// 上游位置：androidx/compose/material3/internal/ChildParentSemantics.kt（M3 的 internal 共享件，
+// 本项目自有的组件代码（移植自上游对应源码后自行维护），不再跟随上游生成，可直接改。
+// 上游位置：internal/ChildParentSemantics.kt（上游的 internal 共享件，
 // 被 IconButton 等用 `Modifier.childSemantics { … }` 给子内容挂语义）。内容逐行照抄，只改包名。
 
 package com.lhzkml.jasmine.core.widgets.internal

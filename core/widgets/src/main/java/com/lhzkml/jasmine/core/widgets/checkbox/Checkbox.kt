@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的组件代码（移植自 AndroidX Material3 1.4.0 的 Checkbox.kt 后自行维护），不再跟随上游生成，可直接改。
-// 上游位置：androidx/compose/material3/Checkbox.kt —— Checkbox / TriStateCheckbox / CheckboxDefaults /
+// 本项目自有的组件代码（移植自上游的 Checkbox.kt 后自行维护），不再跟随上游生成，可直接改。
+// 上游位置：Checkbox.kt —— Checkbox / TriStateCheckbox / CheckboxDefaults /
 // CheckboxColors 与私有绘制。差异：默认色缓存改成 `@Composable get() = remember(this) { … }`；
 // 涟漪、最小触控尺寸、内容色分别走本库自有的 ripple / minimumInteractiveComponentSize / LocalWidgetsContentColor。
 
@@ -66,13 +66,10 @@ import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSi
 import com.lhzkml.jasmine.core.widgets.ripple.ripple
 
 /**
- * [Material Design checkbox](https://m3.material.io/components/checkbox/overview)
  *
  * Checkboxes allow users to select one or more items from a set. Checkboxes can turn an option on
  * or off.
  *
- * ![Checkbox
- * image](https://developer.android.com/images/reference/androidx/compose/material3/checkbox.png)
  *
  * Simple Checkbox sample:
  *
@@ -122,13 +119,10 @@ fun Checkbox(
 }
 
 /**
- * [Material Design checkbox](https://m3.material.io/components/checkbox/overview)
  *
  * Checkboxes allow users to select one or more items from a set. Checkboxes can turn an option on
  * or off.
  *
- * ![Checkbox
- * image](https://developer.android.com/images/reference/androidx/compose/material3/checkbox.png)
  *
  * This Checkbox function offers greater flexibility in visual customization. Using the [Stroke]
  * parameters, you can control the appearance of both the checkmark and the box that surrounds it.
@@ -184,15 +178,12 @@ fun Checkbox(
 }
 
 /**
- * [Material Design checkbox](https://m3.material.io/components/checkbox/guidelines)
  *
  * Checkboxes can have a parent-child relationship with other checkboxes. When the parent checkbox
  * is checked, all child checkboxes are checked. If a parent checkbox is unchecked, all child
  * checkboxes are unchecked. If some, but not all, child checkboxes are checked, the parent checkbox
  * becomes an indeterminate checkbox.
  *
- * ![Checkbox
- * image](https://developer.android.com/images/reference/androidx/compose/material3/indeterminate-checkbox.png)
  *
  * @param state whether this checkbox is checked, unchecked, or in an indeterminate state
  * @param onClick called when this checkbox is clicked. If `null`, then this checkbox will not be
@@ -232,15 +223,12 @@ fun TriStateCheckbox(
 }
 
 /**
- * [Material Design checkbox](https://m3.material.io/components/checkbox/guidelines)
  *
  * Checkboxes can have a parent-child relationship with other checkboxes. When the parent checkbox
  * is checked, all child checkboxes are checked. If a parent checkbox is unchecked, all child
  * checkboxes are unchecked. If some, but not all, child checkboxes are checked, the parent checkbox
  * becomes an indeterminate checkbox.
  *
- * ![Checkbox
- * image](https://developer.android.com/images/reference/androidx/compose/material3/indeterminate-checkbox.png)
  *
  * This Checkbox function offers greater flexibility in visual customization. Using the [Stroke]
  * parameters, you can control the appearance of both the checkmark and the box that surrounds it.

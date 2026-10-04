@@ -6,7 +6,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.unit.dp
 
 /**
- * 本应用的形状表 —— **自有类型**（不再拿 M3 的 `Shapes` 当载体），值照抄 Material3 的默认形状
+ * 本应用的形状表 —— **自有类型**（不再拿 上游的 `Shapes` 当载体），值照抄 上游的默认形状
  * （上游 `tokens/ShapeTokens.kt`）：extraSmall = 4dp、small = 8dp、medium = 12dp、large = 16dp、
  * extraLarge = 28dp —— **一个都没改**，观感与之前完全一致。
  *

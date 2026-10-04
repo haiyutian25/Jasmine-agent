@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游对应源码后自行维护），不再跟随上游生成，可直接改。
 
 package com.lhzkml.jasmine.core.widgets.button
 
@@ -68,13 +68,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * [Material Design button](https://m3.material.io/components/buttons/overview)
  *
  * Buttons help people initiate actions, from sending an email, to sharing a document, to liking a
  * post.
  *
- * ![Filled button
- * image](https://developer.android.com/images/reference/androidx/compose/material3/filled-button.png)
  *
  * Filled buttons are high-emphasis buttons. Filled buttons have the most visual impact after the
  * [FloatingActionButton], and should be used for important, final actions that complete a flow,
@@ -156,13 +153,10 @@ fun Button(
 }
 
 /**
- * [Material Design text button](https://m3.material.io/components/buttons/overview)
  *
  * Buttons help people initiate actions, from sending an email, to sharing a document, to liking a
  * post.
  *
- * ![Text button
- * image](https://developer.android.com/images/reference/androidx/compose/material3/text-button.png)
  *
  * Choose the best button for an action based on the amount of emphasis it needs. The more important
  * an action is, the higher emphasis its button should be.

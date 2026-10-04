@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游对应源码后自行维护），不再跟随上游生成，可直接改。
 
 package com.lhzkml.jasmine.core.widgets.motion
 
@@ -33,14 +33,14 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.Stable
 
 /**
- * A motion scheme provides all the [FiniteAnimationSpec]s for a [MaterialTheme].
+ * A motion scheme provides all the [FiniteAnimationSpec]s for a theme.
  *
  * Motion schemes are designed to create a harmonious motion for components in the app.
  *
  * There are two built-in schemes, a standard and an expressive, that can be used as-is or
  * customized.
  *
- * You can customize the motion scheme for all components in the [MaterialTheme].
+ * You can customize the motion scheme for all components in the theme.
  */
 
 @Immutable

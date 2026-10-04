@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的组件代码（移植自 AndroidX Material3 的 AlertDialog.kt 后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游的 AlertDialog.kt 后自行维护），不再跟随上游生成，可直接改。
 // 只搬两个入口：稳定的 AlertDialog（图标/标题/正文/两个按钮）与实验性的 BasicAlertDialog（容器 + 调用方自定内容）；
 // 上游那个已废弃的 4 参 AlertDialog 重载、以及依赖 DatePicker/TimePicker 的 DatePickerDialog/TimePickerDialog 都没搬。
 
@@ -55,13 +55,10 @@ import com.lhzkml.jasmine.core.widgets.surface.Surface
 import com.lhzkml.jasmine.core.widgets.tokens.value
 
 /**
- * [Material Design basic dialog](https://m3.material.io/components/dialogs/overview)
  *
  * Dialogs provide important prompts in a user flow. They can require an action, communicate
  * information, or help users accomplish a task.
  *
- * ![Basic dialog
- * image](https://developer.android.com/images/reference/androidx/compose/material3/basic-dialog.png)
  *
  * The dialog will position its buttons, typically [TextButton]s, based on the available space. By
  * default it will try to place them horizontally next to each other and fallback to horizontal
@@ -149,13 +146,10 @@ fun AlertDialog(
 
     )
 /**
- * [Basic alert dialog dialog](https://m3.material.io/components/dialogs/overview)
  *
  * Dialogs provide important prompts in a user flow. They can require an action, communicate
  * information, or help users accomplish a task.
  *
- * ![Basic dialog
- * image](https://developer.android.com/images/reference/androidx/compose/material3/basic-dialog.png)
  *
  * This basic alert dialog expects an arbitrary content that is defined by the caller. Note that
  * your content will need to define its own styling.

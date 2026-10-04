@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游对应源码后自行维护），不再跟随上游生成，可直接改。
 
 package com.lhzkml.jasmine.core.widgets.textfield
 
@@ -146,14 +146,11 @@ import com.lhzkml.jasmine.core.widgets.tokens.fromToken
 import com.lhzkml.jasmine.core.widgets.tokens.value
 
 /**
- * [Material Design filled text field](https://m3.material.io/components/text-fields/overview)
  *
  * Text fields allow users to enter text into a UI. They typically appear in forms and dialogs.
  * Filled text fields have more visual emphasis than outlined text fields, making them stand out
  * when surrounded by other content and components.
  *
- * ![Filled text field
- * image](https://developer.android.com/images/reference/androidx/compose/material3/filled-text-field.png)
  *
  * If you are looking for an outlined version, see [OutlinedTextField]. For a text field
  * specifically designed for passwords or other secure content, see [SecureTextField].
@@ -324,14 +321,11 @@ fun TextField(
 }
 
 /**
- * [Material Design filled text field](https://m3.material.io/components/text-fields/overview)
  *
  * Text fields allow users to enter text into a UI. They typically appear in forms and dialogs.
  * Filled text fields have more visual emphasis than outlined text fields, making them stand out
  * when surrounded by other content and components.
  *
- * ![Filled text field
- * image](https://developer.android.com/images/reference/androidx/compose/material3/filled-text-field.png)
  *
  * If you are looking for an outlined version, see [OutlinedTextField].
  *
@@ -473,14 +467,11 @@ fun TextField(
 }
 
 /**
- * [Material Design filled text field](https://m3.material.io/components/text-fields/overview)
  *
  * Text fields allow users to enter text into a UI. They typically appear in forms and dialogs.
  * Filled text fields have more visual emphasis than outlined text fields, making them stand out
  * when surrounded by other content and components.
  *
- * ![Filled text field
- * image](https://developer.android.com/images/reference/androidx/compose/material3/filled-text-field.png)
  *
  * If you are looking for an outlined version, see [OutlinedTextField].
  *
@@ -1440,7 +1431,7 @@ internal data class IndicatorLineElement(
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(Experimental上游ExpressiveApi::class)
 internal class IndicatorLineNode(
     private var enabled: Boolean,
     private var isError: Boolean,

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游对应源码后自行维护），不再跟随上游生成，可直接改。
 
 package com.lhzkml.jasmine.core.widgets.textfield
 
@@ -121,15 +121,12 @@ import com.lhzkml.jasmine.core.widgets.interactive.minimumInteractiveComponentSi
 import com.lhzkml.jasmine.core.widgets.tokens.value
 
 /**
- * [Material Design outlined text field](https://m3.material.io/components/text-fields/overview)
  *
  * Text fields allow users to enter text into a UI. They typically appear in forms and dialogs.
  * Outlined text fields have less visual emphasis than filled text fields. When they appear in
  * places like forms, where many text fields are placed together, their reduced emphasis helps
  * simplify the layout.
  *
- * ![Outlined text field
- * image](https://developer.android.com/images/reference/androidx/compose/material3/outlined-text-field.png)
  *
  * If you are looking for a filled version, see [TextField]. For a text field specifically designed
  * for passwords or other secure content, see [OutlinedSecureTextField].
@@ -306,15 +303,12 @@ fun OutlinedTextField(
 }
 
 /**
- * [Material Design outlined text field](https://m3.material.io/components/text-fields/overview)
  *
  * Text fields allow users to enter text into a UI. They typically appear in forms and dialogs.
  * Outlined text fields have less visual emphasis than filled text fields. When they appear in
  * places like forms, where many text fields are placed together, their reduced emphasis helps
  * simplify the layout.
  *
- * ![Outlined text field
- * image](https://developer.android.com/images/reference/androidx/compose/material3/outlined-text-field.png)
  *
  * If apart from input text change you also want to observe the cursor location, selection range, or
  * IME composition use the OutlinedTextField overload with the [TextFieldValue] parameter instead.
@@ -472,15 +466,12 @@ fun OutlinedTextField(
 }
 
 /**
- * [Material Design outlined text field](https://m3.material.io/components/text-fields/overview)
  *
  * Text fields allow users to enter text into a UI. They typically appear in forms and dialogs.
  * Outlined text fields have less visual emphasis than filled text fields. When they appear in
  * places like forms, where many text fields are placed together, their reduced emphasis helps
  * simplify the layout.
  *
- * ![Outlined text field
- * image](https://developer.android.com/images/reference/androidx/compose/material3/outlined-text-field.png)
  *
  * This overload provides access to the input text, cursor position and selection range and IME
  * composition. If you only want to observe an input text change, use the OutlinedTextField overload

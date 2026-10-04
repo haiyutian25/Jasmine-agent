@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-// 本项目自有的组件代码（移植自 AndroidX Material3 对应源码后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游对应源码后自行维护），不再跟随上游生成，可直接改。
 
 package com.lhzkml.jasmine.core.widgets.textfield
 
 @RequiresOptIn(
-    "This material3 API is experimental and is likely to change or to be removed in the" +
+    "This 上游 API is experimental and is likely to change or to be removed in the" +
         " future."
 )
 @Retention(AnnotationRetention.BINARY)
-internal annotation class ExperimentalMaterial3ExpressiveApi
+internal annotation class Experimental上游ExpressiveApi

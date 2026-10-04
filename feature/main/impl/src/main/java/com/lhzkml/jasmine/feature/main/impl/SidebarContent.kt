@@ -75,7 +75,7 @@ data class SidebarConversation(
  *
  * 抽屉容器（推挤式 + 手势）由 core:widgets 的 `DismissibleNavigationDrawer` 提供，这里只负责
  * 「内容长什么样」。按钮一律用 core:widgets 的自有组件（`Button` / `TextButton` / `IconButton`），
- * 不再用 core:ui 的旧 Button，所以历史行的按下涟漪是 M3 `TextButton` 自带的整行涟漪。
+ * 不再用 core:ui 的旧 Button，所以历史行的按下涟漪是上游 `TextButton` 自带的整行涟漪。
  *
  * The former workspace/brand header was intentionally removed.
  */

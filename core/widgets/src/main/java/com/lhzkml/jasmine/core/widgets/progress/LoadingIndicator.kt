@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的组件代码（移植自 AndroidX Material3 1.5.0-alpha29 的 LoadingIndicator.kt 后自行维护），
+// 本项目自有的组件代码（移植自上游 1.5.0-alpha29 的 LoadingIndicator.kt 后自行维护），
 // 不再跟随上游生成，可直接改。这就是「形状变换型」加载指示器：不确定态在默认 7 个形状之间来回变形，
 // 确定态按 progress 从圆形变成软爆形；容器 48dp / CornerFull / PrimaryContainer（见 LoadingIndicatorTokens）。
-// 上游把它标为 @ExperimentalMaterial3ExpressiveApi，我们依赖的稳定版 material3 里该注解是 internal
+// 上游把它标为 @Experimental上游ExpressiveApi，我们依赖的稳定版 上游 里该注解是 internal
 // 引用不了，故未标注。
 
 package com.lhzkml.jasmine.core.widgets.progress
@@ -82,8 +82,6 @@ import com.lhzkml.jasmine.core.widgets.shapes.MaterialShapes import com.lhzkml.j
  * This version of the loading indicator morphs between its [polygons] shapes by the value of its
  * [progress].
  *
- * ![Loading indicator
- * image](https://developer.android.com/images/reference/androidx/compose/material3/loading-indicator.png)
  *
  * It can be created like this:
  *
@@ -98,7 +96,6 @@ import com.lhzkml.jasmine.core.widgets.shapes.MaterialShapes import com.lhzkml.j
  *   items in that list.
  * @throws IllegalArgumentException if the [polygons] list holds less than two items
  *
- * @material3expressive
  */
 @Composable
 public fun LoadingIndicator(
@@ -123,8 +120,6 @@ public fun LoadingIndicator(
  * This version of the loading indicator animates and morphs between various shapes as long as the
  * loading indicator is visible.
  *
- * ![Loading indicator
- * image](https://developer.android.com/images/reference/androidx/compose/material3/loading-indicator.png)
  *
  * It can be created like this:
  *
@@ -134,7 +129,6 @@ public fun LoadingIndicator(
  *   will morph between. The loading indicator expects at least two items in that list.
  * @throws IllegalArgumentException if the [polygons] list holds less than two items
  *
- * @material3expressive
  */
 @Composable
 public fun LoadingIndicator(
@@ -157,8 +151,6 @@ public fun LoadingIndicator(
  * This version of the loading indicator morphs between its [polygons] shapes by the value of its
  * [progress]. The shapes in this variation are contained within a colored [containerShape].
  *
- * ![Contained loading indicator
- * image](https://developer.android.com/images/reference/androidx/compose/material3/contained-loading-indicator.png)
  *
  * It can be created like this:
  *
@@ -179,7 +171,6 @@ public fun LoadingIndicator(
  *   items in that list.
  * @throws IllegalArgumentException if the [polygons] list holds less than two items
  *
- * @material3expressive
  */
 @Composable
 public fun ContainedLoadingIndicator(
@@ -207,8 +198,6 @@ public fun ContainedLoadingIndicator(
  * loading indicator is visible. The shapes in this variation are contained within a colored
  * [containerShape].
  *
- * ![Contained loading indicator
- * image](https://developer.android.com/images/reference/androidx/compose/material3/contained-loading-indicator.png)
  *
  * It can be created like this:
  *
@@ -220,7 +209,6 @@ public fun ContainedLoadingIndicator(
  *   will morph between. The loading indicator expects at least two items in that list.
  * @throws IllegalArgumentException if the [polygons] list holds less than two items
  *
- * @material3expressive
  */
 @Composable
 public fun ContainedLoadingIndicator(
@@ -496,7 +484,6 @@ private fun LoadingIndicatorImpl(
 /**
  * Contains default values by the [LoadingIndicator].
  *
- * @material3expressive
  */
 public object LoadingIndicatorDefaults {
 

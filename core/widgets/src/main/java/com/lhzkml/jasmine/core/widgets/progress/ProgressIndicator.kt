@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的组件代码（移植自 AndroidX Material3 的 ProgressIndicator.kt 后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游的 ProgressIndicator.kt 后自行维护），不再跟随上游生成，可直接改。
 // 只保留了 4 个没被废弃的入口：LinearProgressIndicator ×2（确定值 / 进度 lambda）与
 // CircularProgressIndicator ×2；上游那 10 个已废弃重载（含 4 个只为二进制兼容的 HIDDEN 重载、
 // 以及 6 个老参数形状的 WARNING 级重载）都没搬。波形的 Wavy 系列本来就不在 1.4.0 这份源码里。
@@ -64,7 +64,6 @@ import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
 
 /**
  * [Material Design determinate linear progress
- * indicator](https://m3.material.io/components/progress-indicators/overview)
  *
  * Progress indicators express an unspecified wait time or display the duration of a process.
  *
@@ -139,7 +138,6 @@ fun LinearProgressIndicator(
 
 /**
  * [Material Design indeterminate linear progress
- * indicator](https://m3.material.io/components/progress-indicators/overview)
  *
  * Progress indicators express an unspecified wait time or display the duration of a process.
  *
@@ -285,7 +283,6 @@ private fun DrawScope.drawLinearIndicator(
 
 /**
  * [Material Design determinate circular progress
- * indicator](https://m3.material.io/components/progress-indicators/overview)
  *
  * Progress indicators express an unspecified wait time or display the duration of a process.
  *
@@ -338,7 +335,6 @@ fun CircularProgressIndicator(
 
 /**
  * [Material Design determinate circular progress
- * indicator](https://m3.material.io/components/progress-indicators/overview)
  *
  * Progress indicators express an unspecified wait time or display the duration of a process.
  *
@@ -403,7 +399,6 @@ fun CircularProgressIndicator(
 
 /**
  * [Material Design determinate circular progress
- * indicator](https://m3.material.io/components/progress-indicators/overview)
  *
  * Progress indicators express an unspecified wait time or display the duration of a process.
  *

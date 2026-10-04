@@ -1118,7 +1118,7 @@ private fun ProviderReasoningEffortField(
                 )
             }
             if (open) {
-                // 用我们自己的 BottomSheet（与同页的模型列表、供应商表单同一个做法），不用 M3 的
+                // 用我们自己的 BottomSheet（与同页的模型列表、供应商表单同一个做法），不用上游的
                 // DropdownMenu —— 全仓最后一处 Material 菜单早先也是这样换掉的。
                 BottomSheet(
                     onDismiss = { open = false },

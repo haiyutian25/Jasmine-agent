@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的组件代码（移植自 AndroidX Material3 1.4.0 的 internal/MenuPosition.kt 后自行维护），
+// 本项目自有的组件代码（移植自上游的 internal/MenuPosition.kt 后自行维护），
 // 不再跟随上游生成，可直接改。菜单定位的 6 个方向策略（Horizontal / Vertical 各三种）
 // 与 DropdownMenuPositionProvider，只被菜单家族使用。
 

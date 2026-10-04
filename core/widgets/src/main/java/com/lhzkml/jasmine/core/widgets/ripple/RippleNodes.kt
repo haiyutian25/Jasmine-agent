@@ -1,5 +1,5 @@
 // 本项目自有的组件代码（移植自 Compose Material 的 material-ripple 1.12.0 后自行维护），不再跟随上游生成，可直接改。
-// 上游位置：Compose Material 的 material-ripple（M3 1.5 起改为独立产物）。
+// 上游位置：Compose Material 的 material-ripple（1.5 起改为独立产物）。
 // 提供 createRippleModifierNode / StateLayer / Ripple 接口等；expect/actual 已合并，android 实现在同目录的
 // RippleAndroid.kt（上游两个 expect 声明已删，actual 关键字已去）。
 /*
@@ -71,7 +71,7 @@ import kotlinx.coroutines.launch
  * the [Interaction].
  *
  * This Ripple node is a low level building block for building IndicationNodeFactory implementations
- * that use a Ripple - higher level design system libraries such as material and material3 provide
+ * that use a Ripple - higher level design system libraries such as material and 上游 provide
  * [Indication] implementations using this node internally. In most cases you should use those
  * factories directly: this node exists for design system libraries to delegate their Ripple
  * implementation to, after querying any required theme values for customizing the Ripple.
@@ -112,11 +112,11 @@ public fun createRippleModifierNode(
  * to other [Interaction]s by showing a fixed [StateLayer] with varying alpha values depending on
  * the [Interaction].
  *
- * If you are using MaterialTheme in your hierarchy, a Ripple will be used as the default
+ * If you are using a theme in your hierarchy, a Ripple will be used as the default
  * [Indication] inside components such as [androidx.compose.foundation.clickable] and
  * [androidx.compose.foundation.indication]. You can also manually provide Ripples through
  * [androidx.compose.foundation.LocalIndication] for the same effect if you are not using
- * MaterialTheme.
+ * the theme.
  *
  * You can also explicitly create a Ripple and provide it to components in order to change the
  * parameters from the default, such as to create an unbounded ripple with a fixed size.
@@ -134,7 +134,7 @@ public fun createRippleModifierNode(
     "rememberRipple has been deprecated - it returns an old Indication " +
         "implementation that is not compatible with the new Indication APIs that provide notable " +
         "performance improvements. Instead, use the new ripple APIs provided by design system " +
-        "libraries, such as material and material3. If you are implementing your own design " +
+        "libraries, such as material and 上游. If you are implementing your own design " +
         "system library, use createRippleNode to create your own custom ripple implementation " +
         "that queries your own theme values. For a migration guide and background " +
         "information, please visit developer.android.com",
@@ -161,11 +161,11 @@ public fun rememberRipple(
  * to other [Interaction]s by showing a fixed [StateLayer] with varying alpha values depending on
  * the [Interaction].
  *
- * If you are using MaterialTheme in your hierarchy, a Ripple will be used as the default
+ * If you are using a theme in your hierarchy, a Ripple will be used as the default
  * [Indication] inside components such as [androidx.compose.foundation.clickable] and
  * [androidx.compose.foundation.indication]. You can also manually provide Ripples through
  * [androidx.compose.foundation.LocalIndication] for the same effect if you are not using
- * MaterialTheme.
+ * the theme.
  *
  * You can also explicitly create a Ripple and provide it to components in order to change the
  * parameters from the default, such as to create an unbounded ripple with a fixed size.

@@ -138,7 +138,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 /**
- * [Material Design slider](https://m3.material.io/components/sliders/overview)
  *
  * Sliders allow users to make selections from a range of values.
  *
@@ -209,7 +208,6 @@ fun Slider(
 }
 
 /**
- * [Material Design slider](https://m3.material.io/components/sliders/overview)
  *
  * Sliders allow users to make selections from a range of values.
  *
@@ -285,7 +283,6 @@ fun Slider(
 }
 
 /**
- * [Material Design slider](https://m3.material.io/components/sliders/overview)
  *
  * Sliders allow users to make selections from a range of values.
  *

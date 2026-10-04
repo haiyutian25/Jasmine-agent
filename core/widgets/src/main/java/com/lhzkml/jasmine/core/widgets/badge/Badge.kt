@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的组件代码（移植自 AndroidX Material3 的 Badge.kt 后自行维护），不再跟随上游生成，可直接改。
+// 本项目自有的组件代码（移植自上游的 Badge.kt 后自行维护），不再跟随上游生成，可直接改。
 // 只搬三个公开件：BadgedBox（把徽标挂到图标/文字右上角）、Badge（小圆点或带短文字的胶囊）、
 // BadgeDefaults；上游同一份文件里那两个 ruler 与 badgeBounds() 我们底栏那批已经重建过（在
 // navigation/NavigationInternals.kt），这里直接复用、不再重复一份。
@@ -54,11 +54,8 @@ import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
  *
  * Badges can be icon only or contain short text.
  *
- * ![Badge
- * image](https://developer.android.com/images/reference/androidx/compose/material3/badge.png)
  *
  * A common use case is to display a badge with navigation bar items. For more information, see
- * [Navigation Bar](https://m3.material.io/components/navigation-bar/overview)
  *
  * Simple icons with badge examples look like:
  *
@@ -140,8 +137,6 @@ fun BadgedBox(
  *
  * Badges can be icon only or contain short text.
  *
- * ![Badge
- * image](https://developer.android.com/images/reference/androidx/compose/material3/badge.png)
  *
  * See [BadgedBox] for a top level layout that will properly place the badge relative to content
  * such as text or an icon.

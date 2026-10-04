@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// 本项目自有的组件代码（移植自 AndroidX Material3 1.5.0-alpha29 的 internal/ShapeUtil.kt 后自行维护），
+// 本项目自有的组件代码（移植自上游 1.5.0-alpha29 的 internal/ShapeUtil.kt 后自行维护），
 // 不再跟随上游生成，可直接改。提供 RoundedPolygon / Morph 到 Path 的转换与矩阵变换，
 // 供形状图库（shapes/MaterialShapes.kt）与加载指示器（LoadingIndicator.kt）使用。
 

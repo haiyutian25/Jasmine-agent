@@ -1,4 +1,4 @@
-﻿plugins {
+plugins {
   alias(libs.plugins.android.library)
   alias(libs.plugins.kotlin.compose)
 }
@@ -72,7 +72,7 @@ dependencies {
 
   // 渲染层取色/圆角一律走设计系统令牌（CssVariables），与 core:ui 的组件同一约定。
   api(project(":core:ui"))
-  // 文本与图标改用 core:widgets 的自有 Text / Icon（不再用 M3 的）。
+  // 文本与图标改用 core:widgets 的自有 Text / Icon。
   implementation(project(":core:widgets"))
 
   // 解析核心是 native，纯 JVM 单测跑不到 .so；
