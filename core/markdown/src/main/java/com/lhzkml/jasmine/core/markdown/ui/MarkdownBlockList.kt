@@ -53,6 +53,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.compositeOver
+import com.lhzkml.jasmine.core.widgets.motion.streamTextIn
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -134,16 +135,23 @@ fun MarkdownBlockList(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        blocks.forEach { block ->
+        blocks.forEachIndexed { index, block ->
             // key 用块 id —— native 侧保证同一个源码块在各次增量中 id 不变，
             // 所以这里可以让 Compose 复用节点，只重绘真正变化的块。
             androidx.compose.runtime.key(block.id) {
-                MarkdownBlockView(
-                    block = block,
-                    currentTheme = currentTheme,
-                    bodyFontSize = bodyFontSize,
-                    baseColor = baseColor,
-                )
+                // 只有**最后一块**（= 最新流进来的那块）做淡入，对应上游 `zcode-stream-text-in`
+                // —— 上游是给"刚流进来的"元素加 `data-zcode-stream-animate`，不是给每一块都加。
+                // 若不加这个判断，进入一个长会话时整屏历史块会一起闪入。
+                // key 用块 id，所以同一块重组时不会重播；流式增长期间也只播一次。
+                val entering = index == blocks.lastIndex
+                Box(modifier = if (entering) Modifier.streamTextIn() else Modifier) {
+                    MarkdownBlockView(
+                        block = block,
+                        currentTheme = currentTheme,
+                        bodyFontSize = bodyFontSize,
+                        baseColor = baseColor,
+                    )
+                }
             }
         }
 
