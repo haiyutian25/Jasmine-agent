@@ -34,4 +34,8 @@ dependencies {
   implementation(libs.androidx.lifecycle.viewmodel.ktx)
   // 颜色与圆角一律来自设计令牌（CssVariables）；牌面不读 上游的 ColorScheme。
   implementation(project(":core:ui"))
-}
+
+  // 这个模块 37k 行、几乎全是移植来的组件，之前 0 测试。先从**不需要 Android 运行时**的
+  // 纯函数入手：令牌自洽性、内容色映射、对比度 —— 这三组能直接抓住主题层的回归。
+  testImplementation(libs.junit)
+  }

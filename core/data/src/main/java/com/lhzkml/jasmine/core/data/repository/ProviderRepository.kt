@@ -1,11 +1,13 @@
 package com.lhzkml.jasmine.core.data.repository
 
+import android.util.Log
 import com.lhzkml.jasmine.core.data.datastore.ProviderDataStore
 import com.lhzkml.jasmine.core.data.manager.dispatcher.DispatcherManager
 import com.lhzkml.jasmine.core.data.model.BuiltInProviders
 import com.lhzkml.jasmine.core.data.model.CatalogModel
 import com.lhzkml.jasmine.core.data.model.ModelList
 import com.lhzkml.jasmine.core.data.model.ProviderConfig
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
@@ -63,13 +65,31 @@ class ProviderRepositoryImpl(
 
     // Long-lived repository scope on a deterministic dispatcher. A SupervisorJob
     // keeps a failed collection from killing the scope (and the StateFlow with it).
-    private val repositoryScope = CoroutineScope(SupervisorJob() + dispatcherManager.default)
+    //
+    // 但 SupervisorJob *不接住异常*：它只保证兄弟协程不受牵连，根协程里逃出来的异常仍会走到
+    // 线程默认处理器并**杀掉进程**。这里补一个 handler，把后台失败降级成一条日志 ——
+    // 否则「存储损坏 → update 抛错 → 进程被杀 → 下次进页面原样复现」会变成无法自救的死循环。
+    private val repositoryScope = CoroutineScope(
+        SupervisorJob() +
+            dispatcherManager.default +
+            CoroutineExceptionHandler { _, error ->
+                Log.w(TAG, "provider repository background work failed", error)
+            }
+    )
 
     init {
         // 出厂清单是会变的（这次就多了一家 OpenRouter），而存下来的那份是一次快照 —— 缺哪家就补哪家。
         // 已经存在的那几家按用户改过的原样留着：这里不覆盖，也不动它们的模型。
+        //
+        // 这次补种**故意单独兜住**：`update` 在"存了但解不出来"时会拒绝写入并抛错（G1 的设计，
+        // 为的是不拿出厂种子覆盖用户含 key 的原文）。那是**保护性失败**，不该让应用起不来 ——
+        // 读失败会经由 [readFailures] 照常上报，这里只把"补种没做成"记下来。
         repositoryScope.launch {
-            providerDataStore.update { current -> current + missingBuiltIns(current) }
+            runCatching {
+                providerDataStore.update { current -> current + missingBuiltIns(current) }
+            }.onFailure { error ->
+                Log.w(TAG, "seeding missing built-in providers failed", error)
+            }
         }
     }
 
@@ -105,4 +125,9 @@ class ProviderRepositoryImpl(
 
     override suspend fun catalog(providerId: String): List<CatalogModel> =
         modelList.catalog(providerId)
+
+    private companion object {
+        /** 只用于后台失败的日志归类；不参与任何权限/行为判断。 */
+        const val TAG = "ProviderRepository"
+    }
 }

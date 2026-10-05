@@ -57,4 +57,17 @@ data class ProviderConfig(
     val apiType: ProviderApiType,
     val isBuiltIn: Boolean = false,
     val models: List<ModelConfig> = emptyList(),
-)
+) {
+    /**
+     * 日志与调试输出里**不打印密钥**。
+     *
+     * 这是 data class，生成的 `toString()` 会把主构造参数全部打出来 —— 只要有任何一处
+     * 把整个对象写进日志（例如 `Log.w(TAG, "effect $effect failed", error)`，而 effect 里
+     * 就装着这个对象），用户的 API key 就落进 logcat 了。这里覆写成脱敏版本；
+     * 其余字段照常显示，排障仍然够用。
+     */
+    override fun toString(): String =
+        "ProviderConfig(id=$id, name=$name, baseUrl=$baseUrl, " +
+            "apiKey=${if (apiKey.isEmpty()) "<empty>" else "<redacted>"}, " +
+            "apiType=$apiType, isBuiltIn=$isBuiltIn, models=$models)"
+}

@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.isContainer
@@ -103,7 +104,9 @@ fun Surface(
     modifier: Modifier = Modifier,
     shape: Shape = RectangleShape,
     color: Color = LocalCssVariables.current.card,
-    contentColor: Color = LocalCssVariables.current.contentColorFor(color),
+    contentColor: Color =
+        LocalCssVariables.current.contentColorFor(color)
+            .takeOrElse { LocalWidgetsContentColor.current },
     tonalElevation: Dp = 0.dp,
     shadowElevation: Dp = 0.dp,
     border: BorderStroke? = null,
@@ -111,7 +114,11 @@ fun Surface(
 ) {
     val absoluteElevation = LocalAbsoluteTonalElevation.current + tonalElevation
     CompositionLocalProvider(
-        LocalWidgetsContentColor provides contentColor,
+        // 兜底刻意放在**消费点**而不是只放在参数默认值里：调用方常常显式传
+        // `contentColorFor(某个派生容器色)`，而派生色匹配不到映射、结果是 Unspecified。
+        // 少了这一步，Unspecified 会一路传下去，图标就按自身颜色画（深色下即隐形）。
+        LocalWidgetsContentColor provides
+            contentColor.takeOrElse { LocalWidgetsContentColor.current },
         LocalAbsoluteTonalElevation provides absoluteElevation,
     ) {
         Box(
@@ -202,7 +209,9 @@ fun Surface(
     enabled: Boolean = true,
     shape: Shape = RectangleShape,
     color: Color = LocalCssVariables.current.card,
-    contentColor: Color = LocalCssVariables.current.contentColorFor(color),
+    contentColor: Color =
+        LocalCssVariables.current.contentColorFor(color)
+            .takeOrElse { LocalWidgetsContentColor.current },
     tonalElevation: Dp = 0.dp,
     shadowElevation: Dp = 0.dp,
     border: BorderStroke? = null,
@@ -213,7 +222,11 @@ fun Surface(
     val interactionSource = interactionSource ?: remember { MutableInteractionSource() }
     val absoluteElevation = LocalAbsoluteTonalElevation.current + tonalElevation
     CompositionLocalProvider(
-        LocalWidgetsContentColor provides contentColor,
+        // 兜底刻意放在**消费点**而不是只放在参数默认值里：调用方常常显式传
+        // `contentColorFor(某个派生容器色)`，而派生色匹配不到映射、结果是 Unspecified。
+        // 少了这一步，Unspecified 会一路传下去，图标就按自身颜色画（深色下即隐形）。
+        LocalWidgetsContentColor provides
+            contentColor.takeOrElse { LocalWidgetsContentColor.current },
         LocalAbsoluteTonalElevation provides absoluteElevation,
     ) {
         Box(
@@ -274,7 +287,9 @@ fun Surface(
     enabled: Boolean = true,
     shape: Shape = RectangleShape,
     color: Color = LocalCssVariables.current.card,
-    contentColor: Color = LocalCssVariables.current.contentColorFor(color),
+    contentColor: Color =
+        LocalCssVariables.current.contentColorFor(color)
+            .takeOrElse { LocalWidgetsContentColor.current },
     tonalElevation: Dp = 0.dp,
     shadowElevation: Dp = 0.dp,
     border: BorderStroke? = null,
@@ -285,7 +300,11 @@ fun Surface(
     val interactionSource = interactionSource ?: remember { MutableInteractionSource() }
     val absoluteElevation = LocalAbsoluteTonalElevation.current + tonalElevation
     CompositionLocalProvider(
-        LocalWidgetsContentColor provides contentColor,
+        // 兜底刻意放在**消费点**而不是只放在参数默认值里：调用方常常显式传
+        // `contentColorFor(某个派生容器色)`，而派生色匹配不到映射、结果是 Unspecified。
+        // 少了这一步，Unspecified 会一路传下去，图标就按自身颜色画（深色下即隐形）。
+        LocalWidgetsContentColor provides
+            contentColor.takeOrElse { LocalWidgetsContentColor.current },
         LocalAbsoluteTonalElevation provides absoluteElevation,
     ) {
         Box(
@@ -329,7 +348,9 @@ fun Surface(
     enabled: Boolean = true,
     shape: Shape = RectangleShape,
     color: Color = LocalCssVariables.current.card,
-    contentColor: Color = LocalCssVariables.current.contentColorFor(color),
+    contentColor: Color =
+        LocalCssVariables.current.contentColorFor(color)
+            .takeOrElse { LocalWidgetsContentColor.current },
     tonalElevation: Dp = 0.dp,
     shadowElevation: Dp = 0.dp,
     border: BorderStroke? = null,
@@ -340,7 +361,11 @@ fun Surface(
     val interactionSource = interactionSource ?: remember { MutableInteractionSource() }
     val absoluteElevation = LocalAbsoluteTonalElevation.current + tonalElevation
     CompositionLocalProvider(
-        LocalWidgetsContentColor provides contentColor,
+        // 兜底刻意放在**消费点**而不是只放在参数默认值里：调用方常常显式传
+        // `contentColorFor(某个派生容器色)`，而派生色匹配不到映射、结果是 Unspecified。
+        // 少了这一步，Unspecified 会一路传下去，图标就按自身颜色画（深色下即隐形）。
+        LocalWidgetsContentColor provides
+            contentColor.takeOrElse { LocalWidgetsContentColor.current },
         LocalAbsoluteTonalElevation provides absoluteElevation,
     ) {
         Box(

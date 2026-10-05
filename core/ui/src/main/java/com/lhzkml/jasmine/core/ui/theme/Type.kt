@@ -42,9 +42,17 @@ enum class AppTypographyChoice(
 }
 
 /**
- * 本应用的排版表 —— **自有类型**（不再拿 上游的 `Typography` 当载体，形态与 [AppShapes] 一致）。
- * 属性名与上游逐字一致，所以调用点（各组件里的 `AppTypography.labelLarge` / `titleMedium` …）不用动；
- * 取值也逐档照抄，观感与之前完全一致。
+ * 本应用的排版表 —— **自有类型**（不再拿上游的 `Typography` 当载体，形态与 [AppShapes] 一致），
+ * 也是**应用级排版的唯一生效来源**（`core:widgets` 的 `tokens/TypeScaleTokens` 只是照上游保留下来的
+ * 参考表，供组件内部少数兜底读取，不参与这里的取值）。
+ *
+ * 属性名与上游逐字一致，所以调用点（各组件里的 `AppTypography.labelLarge` / `titleMedium` …）不用动。
+ * 取值分两类：
+ *  * **项目既定取值** —— `displayLarge/Medium/Small`、`headlineMedium`、`titleMedium`、`titleLarge`、
+ *    `bodyLarge/Medium/Small`、`labelLarge`、`labelSmall`（这些是本应用自己定的字号/行高/字距，
+ *    与上游基线**不同**，改造前后一致）；
+ *  * **照上游基线** —— `headlineLarge`、`headlineSmall`、`titleSmall`、`labelMedium`
+ *    （这四档原先没有定制值，由上游 `Typography` 默认兜底，收进来时逐项照抄 `tokens/TypeScaleTokens`）。
  *
  * 只保留本库真正用到的档位（上游 `Typography` 里没被引用过的档位没有收进来）。
  */

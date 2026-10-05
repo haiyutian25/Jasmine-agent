@@ -19,8 +19,8 @@
 package com.lhzkml.jasmine.core.widgets.textfield
 
 @RequiresOptIn(
-    "This 上游 API is experimental and is likely to change or to be removed in the" +
+    "This material3 API is experimental and is likely to change or to be removed in the" +
         " future."
 )
 @Retention(AnnotationRetention.BINARY)
-internal annotation class Experimental上游ExpressiveApi
+internal annotation class ExperimentalMaterial3ExpressiveApi

@@ -253,7 +253,13 @@ class ProviderViewModel @Inject constructor(
 
     /** 失败兜底：命令连同回滚材料回流成 *Rejected（D4）。 */
     private fun effectFailed(effect: ProviderEffect, error: Throwable): ProviderAction {
-        Log.w(TAG, "effect $effect failed", error)
+        // 只打 id / 名字，不打整个 effect —— 里面装着含 apiKey 的 ProviderConfig
+        // （ProviderConfig 自身也覆写了脱敏 toString，这里是第二道保险）。
+        val describing = when (effect) {
+            is ProviderEffect.SaveProvider -> "SaveProvider(id=${effect.provider.id})"
+            is ProviderEffect.DeleteProvider -> "DeleteProvider(id=${effect.snapshot.id})"
+        }
+        Log.w(TAG, "effect $describing failed", error)
         return when (effect) {
             is ProviderEffect.DeleteProvider ->
                 ProviderAction.Internal.ProviderDeleteRejected(effect.snapshot, effect.index)

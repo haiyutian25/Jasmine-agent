@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.util.Log
+import kotlinx.coroutines.CoroutineExceptionHandler
 import android.util.LruCache
 import io.nano.tex.Graphics2D
 import io.nano.tex.LaTeX
@@ -55,7 +56,15 @@ internal object MicroTexRenderer {
         }
     }
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    // 根 scope：SupervisorJob 不接住异常，漏网的后台失败会走到线程默认处理器并杀掉进程。
+    // 预热路径自己 runCatching 了，这里补一层 handler 兜住其余（块级渲染等）的意外抛出。
+    private val scope = CoroutineScope(
+        SupervisorJob() +
+            Dispatchers.Default +
+            CoroutineExceptionHandler { _, error ->
+                Log.w(TAG, "公式渲染后台任务失败", error)
+            }
+    )
 
     /**
      * 结果缓存。

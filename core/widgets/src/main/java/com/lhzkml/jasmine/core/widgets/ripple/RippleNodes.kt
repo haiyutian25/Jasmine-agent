@@ -134,7 +134,7 @@ public fun createRippleModifierNode(
     "rememberRipple has been deprecated - it returns an old Indication " +
         "implementation that is not compatible with the new Indication APIs that provide notable " +
         "performance improvements. Instead, use the new ripple APIs provided by design system " +
-        "libraries, such as material and 上游. If you are implementing your own design " +
+        "libraries, such as material and material3. If you are implementing your own design " +
         "system library, use createRippleNode to create your own custom ripple implementation " +
         "that queries your own theme values. For a migration guide and background " +
         "information, please visit developer.android.com",

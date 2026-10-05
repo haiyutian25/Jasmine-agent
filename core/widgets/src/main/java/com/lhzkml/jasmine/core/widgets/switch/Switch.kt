@@ -30,16 +30,19 @@ import com.lhzkml.jasmine.core.widgets.tokens.value
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.SnapSpec
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.Interaction
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.selection.toggleable
+import com.lhzkml.jasmine.core.widgets.ripple.ripple
 import com.lhzkml.jasmine.core.widgets.tokens.SwitchTokens
 import com.lhzkml.jasmine.core.widgets.tokens.SwitchTokens.TrackOutlineWidth
 import androidx.compose.runtime.Composable
@@ -155,10 +158,18 @@ private fun SwitchImpl(
                 Modifier.align(Alignment.CenterStart)
                     .then(
                         ThumbElement(
+                            interactionSource = interactionSource,
                             checked = checked,
                             // TODO Load the motionScheme tokens from the component tokens file
                             animationSpec = LocalMotionScheme.current.fastSpatialSpec(),
                         )
+                    )
+                    // 按下涟漪挂在 **thumb** 上（而不是轨道）：上游同样如此 —— 轨道那层是
+                    // `toggleable(indication = null)`，反馈由拇指的无限涟漪 + 拇指被按扁来表达。
+                    .indication(
+                        interactionSource = interactionSource,
+                        indication =
+                            ripple(bounded = false, radius = SwitchTokens.StateLayerSize / 2),
                     )
                     .background(resolvedThumbColor, thumbShape),
             contentAlignment = Alignment.Center,
@@ -175,12 +186,14 @@ private fun SwitchImpl(
 }
 
 private data class ThumbElement(
+    val interactionSource: InteractionSource,
     val checked: Boolean,
     val animationSpec: FiniteAnimationSpec<Float>,
 ) : ModifierNodeElement<ThumbNode>() {
-    override fun create() = ThumbNode(checked, animationSpec)
+    override fun create() = ThumbNode(interactionSource, checked, animationSpec)
 
     override fun update(node: ThumbNode) {
+        node.interactionSource = interactionSource
         if (node.checked != checked) {
             node.invalidateMeasurement()
         }
@@ -191,12 +204,14 @@ private data class ThumbElement(
 
     override fun InspectorInfo.inspectableProperties() {
         name = "switchThumb"
+        properties["interactionSource"] = interactionSource
         properties["checked"] = checked
         properties["animationSpec"] = animationSpec
     }
 }
 
 private class ThumbNode(
+    var interactionSource: InteractionSource,
     var checked: Boolean,
     var animationSpec: FiniteAnimationSpec<Float>,
 ) : Modifier.Node(), LayoutModifierNode {
@@ -204,10 +219,33 @@ private class ThumbNode(
     override val shouldAutoInvalidate: Boolean
         get() = false
 
+    /**
+     * 是否正被按住。上游用"计数"而不是布尔：快速连按或一次按住里嵌了多个 `Press` 时，
+     * 单纯 `is Press -> true / is Release -> false` 会被后到的 `Cancel` 提前清掉。
+     */
+    private var isPressed = false
     private var offsetAnim: Animatable<Float, AnimationVector1D>? = null
     private var sizeAnim: Animatable<Float, AnimationVector1D>? = null
     private var initialOffset: Float = Float.NaN
     private var initialSize: Float = Float.NaN
+
+    override fun onAttach() {
+        coroutineScope.launch {
+            var pressCount = 0
+            interactionSource.interactions.collect { interaction ->
+                when (interaction) {
+                    is PressInteraction.Press -> pressCount++
+                    is PressInteraction.Release -> pressCount--
+                    is PressInteraction.Cancel -> pressCount--
+                }
+                val pressed = pressCount > 0
+                if (isPressed != pressed) {
+                    isPressed = pressed
+                    invalidateMeasurement()
+                }
+            }
+        }
+    }
 
     override fun MeasureScope.measure(
         measurable: Measurable,
@@ -216,8 +254,13 @@ private class ThumbNode(
         val hasContent =
             measurable.maxIntrinsicHeight(constraints.maxWidth) != 0 &&
                 measurable.maxIntrinsicWidth(constraints.maxHeight) != 0
+        // 按住时拇指会被"按扁"（变宽）：这是上游 Switch 唯一的形状级按下反馈。
         val size =
-            (if (hasContent || checked) ThumbDiameter else UncheckedThumbDiameter).toPx()
+            when {
+                isPressed -> SwitchTokens.PressedHandleWidth
+                hasContent || checked -> ThumbDiameter
+                else -> UncheckedThumbDiameter
+            }.toPx()
 
         val actualSize = (sizeAnim?.value ?: size).toInt()
         val placeable = measurable.measure(Constraints.fixed(actualSize, actualSize))
@@ -225,17 +268,26 @@ private class ThumbNode(
         val minBound = thumbPaddingStart.toPx()
         val thumbPathLength = (SwitchWidth - ThumbDiameter) - ThumbPadding
         val maxBound = thumbPathLength.toPx()
-        val offset = if (checked) maxBound else minBound
+        val offset =
+            when {
+                // 变大之后不能顶出轨道：按住时把位置往轨道里收一个描边宽度。
+                isPressed && checked -> maxBound - TrackOutlineWidth.toPx()
+                isPressed && !checked -> TrackOutlineWidth.toPx()
+                checked -> maxBound
+                else -> minBound
+            }
 
+        // 按下/抬起那一瞬用 SnapSpec（瞬时到位）：尺寸与位移都必须**立刻**跟上手指，
+        // 否则"按下去"这一下是看不到的；松开才回到常规弹簧。
         if (sizeAnim?.targetValue != size) {
             coroutineScope.launch {
-                sizeAnim?.animateTo(size, animationSpec)
+                sizeAnim?.animateTo(size, if (isPressed) SnapSpec else animationSpec)
             }
         }
 
         if (offsetAnim?.targetValue != offset) {
             coroutineScope.launch {
-                offsetAnim?.animateTo(offset, animationSpec)
+                offsetAnim?.animateTo(offset, if (isPressed) SnapSpec else animationSpec)
             }
         }
 
@@ -585,3 +637,11 @@ internal val UncheckedThumbDiameter = SwitchTokens.UnselectedHandleWidth
 private val SwitchWidth = SwitchTokens.TrackWidth
 private val SwitchHeight = SwitchTokens.TrackHeight
 private val ThumbPadding = (SwitchHeight - ThumbDiameter) / 2
+
+/**
+ * 按下/抬起时尺寸与位移用的瞬时规格。
+ *
+ * 属性名与上游一致（同名遮蔽了 `androidx.compose.animation.core.SnapSpec` 类 ——
+ * 在初始化表达式里 `SnapSpec<Float>()` 仍解析到类，这是上游的写法，照搬以免 diff 噪音）。
+ */
+private val SnapSpec = SnapSpec<Float>()

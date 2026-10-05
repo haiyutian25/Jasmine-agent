@@ -1431,7 +1431,7 @@ internal data class IndicatorLineElement(
     }
 }
 
-@OptIn(Experimental上游ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 internal class IndicatorLineNode(
     private var enabled: Boolean,
     private var isError: Boolean,

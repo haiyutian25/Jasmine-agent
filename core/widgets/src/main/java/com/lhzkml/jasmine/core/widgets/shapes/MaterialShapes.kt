@@ -16,7 +16,7 @@
 // 本项目自有的组件代码（移植自上游 1.5.0-alpha29 的 MaterialShapes.kt 后自行维护），
 // 不再跟随上游生成，可直接改。整份保留上游那 30 个形状 —— 它是「形状图库」型 API，不是可裁的令牌表；
 // 本次真正用到的是 Circle / SoftBurst / Cookie9Sided / Pentagon / Pill / Sunny / Cookie4Sided / Oval。
-// 上游的 @Experimental上游ExpressiveApi 标记已去掉（我们依赖的稳定版 上游 里它是 internal，引用不了）。
+// 上游的 @ExperimentalMaterial3ExpressiveApi 标记已去掉（我们依赖的稳定版 material3 里它是 internal，引用不了）。
 
 package com.lhzkml.jasmine.core.widgets.shapes
 

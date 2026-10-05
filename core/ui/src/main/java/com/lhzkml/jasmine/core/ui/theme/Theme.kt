@@ -51,21 +51,34 @@ val LocalWidgetsShapes = staticCompositionLocalOf { AppShapes }
 val LocalWidgetsTonalElevationEnabled = staticCompositionLocalOf { true }
 
 /**
- * 「容器色 → 该用在上面的内容色」——与上游的 `ColorScheme.contentColorFor` 同语义，但**是纯函数**：
+ * 「容器色 → 该用在上面的内容色」——与上游的 `ColorScheme.contentColorFor` 同语义，但是**纯函数**：
  * 拿我们自己的槽位比对（[accent] 配 [accentForeground]、[card] 配 [cardForeground] …），
  * 不去问主题，所以在 `remember {}` 这类**非组合上下文**里也能调用。
- * 匹配不到时返回 [Color.Unspecified]，调用方照旧回落 `LocalContentColor`。
+ *
+ * **匹配不到时返回 [Color.Unspecified]** —— 这与上游一致（上游对 `surfaceContainer*` 这类
+ * 派生容器色同样返回 null）。所以**调用方必须自己补回落**：
+ * `contentColorFor(bg).takeOrElse { LocalWidgetsContentColor.current }`。
+ * [Surface] 的四个重载与 `ProvideContentColorTextStyle` 都照此写了；**新写容器组件时别省这一步** ——
+ * 少了它，[Color.Unspecified] 会一路灌进 `LocalWidgetsContentColor`，图标按自身颜色画（Lucide 是黑），
+ * 深色主题下就成了"隐形图标"。
  *
  * 槽位对应关系与原先灌进上游角色的映射逐条一致：`primaryContainer -> accent`、
  * `surfaceVariant -> subtleSurface`、`inverseSurface -> foreground` …
  */
 fun CssVariables.contentColorFor(backgroundColor: Color): Color =
     when (backgroundColor) {
-        accent -> accentForeground
-        card -> cardForeground
+        // 与上游 ColorScheme.contentColorFor 的映射逐条对齐（用自有槽表达）
         primary -> primaryForeground
+        primaryContainer, accent -> accentForeground
+        secondary -> onSecondary
+        secondaryContainer -> onSecondaryContainer
+        tertiary -> onTertiary
+        tertiaryContainer -> onTertiaryContainer
         background -> foreground
-        subtleSurface -> mutedForeground
-        foreground -> background
+        surface, card -> cardForeground
+        surfaceVariant, subtleSurface -> mutedForeground
+        error -> onError
+        errorContainer -> onErrorContainer
+        inverseSurface, foreground -> inverseOnSurface
         else -> Color.Unspecified
     }

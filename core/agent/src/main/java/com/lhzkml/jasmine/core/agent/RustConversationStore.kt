@@ -3,6 +3,8 @@ package com.lhzkml.jasmine.core.agent
 import com.lhzkml.jasmine.core.data.model.ChatRole
 import com.lhzkml.jasmine.core.data.model.Conversation
 import com.lhzkml.jasmine.core.data.model.TranscriptMessage
+import android.util.Log
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -54,7 +56,16 @@ class RustConversationStore(
      */
     private val storeChanges = Channel<Unit>(Channel.CONFLATED)
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // 根 scope：SupervisorJob 只保证兄弟协程不受牵连，**不接住异常** —— 逃出来的异常会走到
+    // 线程默认处理器并杀掉进程。刷新循环里已有各自的兜底，这里再补一层 handler，
+    // 把"意外漏网的后台失败"降级成日志，别让它带走整个应用。
+    private val scope = CoroutineScope(
+        SupervisorJob() +
+            Dispatchers.IO +
+            CoroutineExceptionHandler { _, error ->
+                Log.w(TAG, "conversation store background work failed", error)
+            }
+    )
 
     init {
         // 回调在核心的调用线程上同步执行（回合跑着时就是跑回合那条 IO 线程）：只允许"投一条信号"
@@ -161,6 +172,9 @@ class RustConversationStore(
          * 打成密集 IO。300ms 足够让侧边栏的"最近更新"跟手，又把扫描频率压到人眼看不出的延迟。
          */
         const val STORE_CHANGE_DEBOUNCE_MS = 300L
+
+        /** 只用于后台失败的日志归类；不参与任何权限/行为判断。 */
+        const val TAG = "RustConversationStore"
     }
 }
 

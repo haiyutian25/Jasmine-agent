@@ -25,6 +25,13 @@ my-upload-key.jks
 .git_commit_msg.txt
 .tmp_frp/
 
+# Scratch space agents/tools tend to drop into the repo root: an `undefined/` path
+# appears whenever a shell variable that was meant to expand (a temp dir) is empty,
+# and stray run logs land next to the checkout. Neither belongs in a commit.
+/undefined/
+*.tmp.log
+/.tmp_*.log
+
 
 /.codebuddy/
 /.trae/

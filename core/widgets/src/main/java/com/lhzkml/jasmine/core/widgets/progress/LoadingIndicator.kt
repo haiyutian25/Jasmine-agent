@@ -16,7 +16,7 @@
 // 本项目自有的组件代码（移植自上游 1.5.0-alpha29 的 LoadingIndicator.kt 后自行维护），
 // 不再跟随上游生成，可直接改。这就是「形状变换型」加载指示器：不确定态在默认 7 个形状之间来回变形，
 // 确定态按 progress 从圆形变成软爆形；容器 48dp / CornerFull / PrimaryContainer（见 LoadingIndicatorTokens）。
-// 上游把它标为 @Experimental上游ExpressiveApi，我们依赖的稳定版 上游 里该注解是 internal
+// 上游把它标为 @ExperimentalMaterial3ExpressiveApi，我们依赖的稳定版 material3 里该注解是 internal
 // 引用不了，故未标注。
 
 package com.lhzkml.jasmine.core.widgets.progress

@@ -1,7 +1,12 @@
 // 本项目自有的设计令牌：不再跟随上游生成，可由本项目直接改。
 // 上游位置：tokens/TypeScaleTokens.kt —— **完整保留上游的全量槽位**（不裁剪）。
 // 颜色槽位写成 `(CssVariables) -> Color`，直读自有主题（与 TokenResolvers.fromToken 一一对应）；
-// 形状（ShapeKeyTokens -> LocalWidgetsShapes）、尺寸（dp）、字体（AppTypography）照上游取值。
+// 形状（ShapeKeyTokens -> LocalWidgetsShapes）、尺寸（dp）照上游取值。
+//
+// ⚠️ 这张表是**照上游保留的参考表**，不是应用级排版的生效来源：应用里真正生效的排版是
+// `core:ui/theme/AppTypography`（它的多数档位有项目自己的取值，与这里**不一致**，这是有意的）。
+// 目前生产代码里只被 `textfield/TextFieldImpl.kt` 当作 `BodySmallLineHeight` 的兜底读过一次；
+// 不要拿这里的数值去推断界面上实际的字号/行高。
 
 package com.lhzkml.jasmine.core.widgets.tokens
 

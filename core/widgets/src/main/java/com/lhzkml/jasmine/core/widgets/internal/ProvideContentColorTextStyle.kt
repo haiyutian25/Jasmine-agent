@@ -29,6 +29,7 @@ import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsTextStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.text.TextStyle
 
 /**
@@ -48,7 +49,10 @@ internal fun ProvideContentColorTextStyle(
 ) {
     val mergedStyle = LocalWidgetsTextStyle.current.merge(textStyle)
     CompositionLocalProvider(
-        LocalWidgetsContentColor provides contentColor,
+        // 调用方给的多半是 contentColorFor(...) 的结果：匹配不到容器色时它是 Unspecified，
+        // 这里必须回落到当前内容色，否则会一路传成"按图形自身颜色画"（深色下就是隐形图标）。
+        LocalWidgetsContentColor provides
+            contentColor.takeOrElse { LocalWidgetsContentColor.current },
         LocalWidgetsTextStyle provides mergedStyle,
         content = content,
     )

@@ -49,6 +49,23 @@ jasmine/
 
 **Prerequisites:** JDK 21, Android SDK (platform 37 + build-tools), and Android Studio or command-line Gradle 9.7+.
 
+A clean clone needs **more than** the above — two modules build native code as part of `preBuild`, so
+they run for *every* Android task (including `testDebugUnitTest`) and have no skip switch:
+
+| Module | Toolchain it requires | What it builds |
+|---|---|---|
+| `core:agent` | Rust toolchain (cargo) + the four Android targets | `libjasmine_ffi.so` for 4 ABIs, via UniFFI |
+| `core:markdown` | **NDK `28.2.13676358`** + **CMake `3.22.1`** (pinned in its `build.gradle.kts`) | `libtex.so` (MicroTeX) |
+
+Install those before expecting a clean clone to configure. Rust targets:
+
+```bash
+rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+```
+
+> Robolectric-based unit tests use JDK 21 (the JVM toolchain for tests is pinned separately from the
+> Android `jvmTarget`), so run `./gradlew testDebugUnitTest` with JDK 21 as `JAVA_HOME`.
+
 1. Open the project in Android Studio (or run any Gradle task from the CLI).
 2. Allow Gradle sync to finish.
 3. Run the `app` configuration on an emulator or physical device.
@@ -124,3 +141,18 @@ resolved keystore is not echoed by the build):
 "$ANDROID_HOME/build-tools/<ver>/apksigner" verify --print-certs \
   app/build/outputs/apk/release/app-release.apk
 ```
+
+## Third-Party Code & Licenses
+
+`core:widgets` (the app's own component library) is a **modified port of AndroidX Material components**:
+**80 Kotlin files** under `core/widgets/src/main/` carry the
+`Copyright (C) The Android Open Source Project` + Apache-2.0 header, and each of those files is
+annotated in place with what was changed (per Apache-2.0 §4(b)).
+
+- Full notice and scope: [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
+- Apache-2.0 license text: [`licenses/Apache-2.0.txt`](licenses/Apache-2.0.txt)
+
+Other third-party content (MicroTeX, mermaid, Lucide icons, Rust crates) is listed in the same notice.
+
+> This repository does **not** yet contain a top-level `LICENSE` for its own code — see §3 of the
+> notice. The third-party declarations above stand on their own regardless.

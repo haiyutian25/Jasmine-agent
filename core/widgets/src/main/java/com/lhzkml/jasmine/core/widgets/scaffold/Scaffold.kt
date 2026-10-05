@@ -46,6 +46,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
@@ -53,6 +54,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.offset
 import com.lhzkml.jasmine.core.ui.theme.LocalCssVariables
+import com.lhzkml.jasmine.core.ui.theme.LocalWidgetsContentColor
 import com.lhzkml.jasmine.core.ui.theme.contentColorFor
 import com.lhzkml.jasmine.core.widgets.surface.Surface
 
@@ -86,7 +88,9 @@ fun Scaffold(
     floatingActionButton: @Composable () -> Unit = {},
     floatingActionButtonPosition: FabPosition = FabPosition.End,
     containerColor: Color = LocalCssVariables.current.background,
-    contentColor: Color = LocalCssVariables.current.contentColorFor(containerColor),
+    contentColor: Color =
+        LocalCssVariables.current.contentColorFor(containerColor)
+            .takeOrElse { LocalWidgetsContentColor.current },
     contentWindowInsets: WindowInsets = ScaffoldDefaults.contentWindowInsets,
     content: @Composable (PaddingValues) -> Unit,
 ) {
