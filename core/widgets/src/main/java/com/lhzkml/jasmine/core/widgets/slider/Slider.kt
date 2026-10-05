@@ -1639,6 +1639,21 @@ class SliderState(
     val valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
 ) : DraggableState {
 
+    init {
+        // 上游把这两条校验留给了更下游的代码，于是非法入参的失败点很隐蔽：
+        // ・`steps < 0`  -> 直到算刻度时才在 `FloatArray(steps + 2)` 抛 NegativeArraySizeException
+        //   （`steps = -1` 更糟：`it / (steps + 1)` 变成 0/0，静默产生 NaN 刻度）；
+        // ・`valueRange` 反向（`1f..0f` 是合法表达式）-> 在 setter 的
+        //   `coerceIn(start, endInclusive)` 抛 IllegalArgumentException，
+        //   而基础重载是在**组合期**写 `state.value`，栈里看不出是调用方传错了范围。
+        // 放在这里挡：合法入参的行为与上游逐位一致，非法的变成"构造即失败 + 说清原因"。
+        require(steps >= 0) { "steps should be >= 0 (was $steps)" }
+        require(valueRange.start <= valueRange.endInclusive) {
+            "valueRange must be ascending: start (${valueRange.start}) must be <= " +
+                "endInclusive (${valueRange.endInclusive})"
+        }
+    }
+
     private var valueState by mutableFloatStateOf(value)
 
     /** [Float] that indicates the value that the thumb currently is in respect to the track. */

@@ -24,7 +24,7 @@ import kotlinx.coroutines.flow.Flow
 internal typealias BackEventCompat = androidx.activity.BackEventCompat
 
 @Composable
-internal fun BackHandler(enabled: Boolean, onBack: () -> Unit) {
+internal fun BackHandler(enabled: Boolean = true, onBack: () -> Unit) {
     androidx.activity.compose.BackHandler(enabled, onBack)
 }
 

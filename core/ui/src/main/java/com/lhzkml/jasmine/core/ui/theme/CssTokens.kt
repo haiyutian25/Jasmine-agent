@@ -3,6 +3,7 @@ package com.lhzkml.jasmine.core.ui.theme
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -40,6 +41,14 @@ data class CssVariables(
     val accentForeground: Color,
     val ring: Color,
     val subtleSurface: Color,
+
+    // ── 错误色组与遮罩色：与上面 13 个基础槽一样**逐套手写** ────────────────────
+    // 这三个此前写死在类体内（上游基线红），等于**绕过了调色板**：12 套主题共用同一个红，
+    // 谁想调都得改这个共用文件（Badge 直接消费 error，所以它不是纯内部色）。
+    // 收成构造参数后各套可单独覆盖；默认值保持原取值不变（深浅各一），现有 12 套观感一位不差。
+    val error: Color = if (isDark) Color(0xFFF2B8B5) else Color(0xFFB3261E),
+    val onError: Color = if (isDark) Color(0xFF601410) else Color(0xFFFFFFFF),
+    val scrim: Color = Color(0xFF000000),
 ) {
     // ── 上游 ColorSchemeKeyTokens 一一对应的容器 / 次级色槽 ──────────────────
 
@@ -115,18 +124,10 @@ data class CssVariables(
     /** 上游 `InverseOnSurface`：反色面上的前景色（= [background]）。 */
     val inverseOnSurface: Color get() = background
 
-    /**
-     * 上游 `Error`：错误色。现有 12 套调色板都还没有自己的错误色，沿用 上游基线值
-     * （深浅两套分开），与 `tokens/TokenResolvers.kt` 的既有取值完全一致。
-     */
-    val error: Color get() = if (isDark) Color(0xFFF2B8B5) else Color(0xFFB3261E)
-
     // ── 上游 ColorScheme 的其余角色（按 上游基线台阶逐槽派生，各槽取值互不重合）────
     // 说明：上游这些角色也是由 tonal palette 算出来的；这里让每条都落在**不同**的
     // 插值档上，从而既有各自的位置、又不会互相折平。
 
-    /** 上游 `OnError`：错误面上的前景色（上游基线深/浅各一，与 [error] 成对）。 */
-    val onError: Color get() = if (isDark) Color(0xFF601410) else Color(0xFFFFFFFF)
 
     /** 上游 `ErrorContainer`：错误色容器（比 [error] 淡一档）。 */
     val errorContainer: Color get() = lerp(error, card, 0.78f)
@@ -185,14 +186,32 @@ data class CssVariables(
     /** 上游 `OnTertiaryFixedVariant`：第三固定组的次深前景。 */
     val onTertiaryFixedVariant: Color get() = lerp(accent, foreground, 0.55f)
 
-    /** 上游 `Scrim`：遮罩色（上游基线浅深两套都是纯黑）。 */
-    val scrim: Color get() = Color(0xFF000000)
+    /**
+     * 上游 `SurfaceBright`：**恒比 [surface] 更亮**的一档。
+     *
+     * 上游规定 Bright 永远在基准面之上（浅色 `#FEF7FF`→`#FFFFFF`、深色 `#1C1B1F`→`#3B383E`），
+     * 而 [surface] 是 [background] 与 [card] 之间的插值，所以"更亮"就是往这两端里**更亮的那端**推。
+     * 注意别用 `isDark` 判断哪端更亮：那是"深色主题的 background 必定最暗"的假设，
+     * 12 套调色板里并不都成立（有深色套的 card 比 background 暗）。按实测亮度取向才稳。
+     *
+     * 此前无条件往 [background] 推 —— 深色下 [background] 多半是最暗的一档，于是 Bright 比基准面
+     * 还暗，语义整个反向（该槽当前无读取方，属"死且错"，所以修它零视觉影响）。
+     */
+    val surfaceBright: Color get() = lerp(surface, brighterAnchor, 0.60f)
 
-    /** 上游 `SurfaceBright`：比基准面更亮的一档（往 [background] 外侧推）。 */
-    val surfaceBright: Color get() = lerp(surface, background, 0.60f)
+    /**
+     * 上游 `SurfaceDim`：**恒比基准面更暗**的一档（与 [surfaceBright] 反向），
+     * 即往两端里更暗的那端推。
+     */
+    val surfaceDim: Color get() = lerp(surface, darkerAnchor, 0.35f)
 
-    /** 上游 `SurfaceDim`：比 [card] 更暗的一档（往 [muted] 外侧推）。 */
-    val surfaceDim: Color get() = lerp(muted, foreground, 0.12f)
+    /** [background] 与 [card] 里更亮的一端（二者相同时仍返回其一，插值结果为 [surface] 本身）。 */
+    private val brighterAnchor: Color
+        get() = if (background.luminance() >= card.luminance()) background else card
+
+    /** [background] 与 [card] 里更暗的一端。 */
+    private val darkerAnchor: Color
+        get() = if (background.luminance() >= card.luminance()) card else background
 
     /** 上游 `SurfaceTint`：面的染色源（本库取主色）。 */
     val surfaceTint: Color get() = primary

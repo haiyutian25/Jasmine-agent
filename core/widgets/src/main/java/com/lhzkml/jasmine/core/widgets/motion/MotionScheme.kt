@@ -44,7 +44,7 @@ import androidx.compose.runtime.Stable
  */
 
 @Immutable
-internal interface MotionScheme {
+interface MotionScheme {
     /**
      * A default spatial motion [FiniteAnimationSpec].
      *
@@ -122,7 +122,7 @@ internal interface MotionScheme {
          * The standard scheme is Material's basic motion scheme for utilitarian UI elements and
          * recurring interactions. It provides a linear motion feel.
          */
-        @Suppress("UNCHECKED_CAST") internal fun standard(): MotionScheme = StandardMotionSchemeImpl
+        @Suppress("UNCHECKED_CAST") fun standard(): MotionScheme = StandardMotionSchemeImpl
 
         /**
          * Returns an expressive Material motion scheme.
@@ -131,7 +131,7 @@ internal interface MotionScheme {
          * and hero interactions. It provides a visually engaging motion feel.
          */
         @Suppress("UNCHECKED_CAST")
-        internal fun expressive(): MotionScheme = ExpressiveMotionSchemeImpl
+        fun expressive(): MotionScheme = ExpressiveMotionSchemeImpl
     }
 
     @Suppress("UNCHECKED_CAST")
