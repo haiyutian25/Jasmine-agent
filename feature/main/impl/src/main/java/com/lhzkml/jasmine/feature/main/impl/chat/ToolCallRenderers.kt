@@ -170,9 +170,13 @@ private fun DiffContent(detail: String, result: String?, currentTheme: CssVariab
                     Text(
                         text = line.ifEmpty { " " },
                         fontSize = ToolDetailFontSize,
+                        // diff 行用上游 ZCode 的增删色（`--color-diff-added` / `--color-diff-removed`，
+                        // 配对的 `-foreground` 那两支是它们各自的前景，用在纯色块上）。
+                        // 原先是"增行用 primary、删行用次前景灰" —— 那既不表达增删语义，
+                        // 也在浅色主题下让 + 行和普通正文几乎同色。
                         color = when {
-                            line.startsWith("+") -> currentTheme.primary
-                            line.startsWith("-") -> currentTheme.mutedForeground
+                            line.startsWith("+") -> currentTheme.zcode.diffAdded
+                            line.startsWith("-") -> currentTheme.zcode.diffRemoved
                             else -> currentTheme.cardForeground
                         },
                         fontFamily = FontFamily.Monospace,

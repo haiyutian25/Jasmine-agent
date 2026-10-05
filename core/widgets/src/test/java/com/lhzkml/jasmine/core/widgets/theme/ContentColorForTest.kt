@@ -2,7 +2,7 @@ package com.lhzkml.jasmine.core.widgets.theme
 
 import androidx.compose.ui.graphics.Color
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
-import com.lhzkml.jasmine.core.ui.theme.ProductionPalettes
+import com.lhzkml.jasmine.core.ui.theme.ThemeResolver
 import com.lhzkml.jasmine.core.ui.theme.contentColorFor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -24,25 +24,14 @@ import org.junit.Test
  */
 class ContentColorForTest {
 
-    private val palettes: List<CssVariables> = listOf(
-        ProductionPalettes.EditorialLight,
-        ProductionPalettes.EditorialDark,
-        ProductionPalettes.GeistDark,
-        ProductionPalettes.GeistLight,
-        ProductionPalettes.LinearDark,
-        ProductionPalettes.LinearLight,
-        ProductionPalettes.ShadcnZincDark,
-        ProductionPalettes.ShadcnZincLight,
-        ProductionPalettes.NotionWarmDark,
-        ProductionPalettes.NotionWarmLight,
-        ProductionPalettes.DieterRamsDark,
-        ProductionPalettes.DieterRamsLight,
-    )
+    /** 全部出厂调色板：从 [ThemeResolver.families] 展开，新增 family 会自动纳入回归。 */
+    private val palettes: List<CssVariables> =
+        ThemeResolver.families.flatMap { listOf(it.light, it.dark) }
 
     @Test
     fun `mapped container slots resolve to their content slot`() {
         palettes.forEach { t ->
-            // ── 这些槽的值在 12 套里都**只**与自己的对应内容槽配对，可以锁死结果 ──
+            // ── 这些槽的值在每套调色板里都**只**与自己的对应内容槽配对，可以锁死结果 ──
             assertEquals("${t.themeId}: primary", t.primaryForeground, t.contentColorFor(t.primary))
             assertEquals("${t.themeId}: accent", t.accentForeground, t.contentColorFor(t.accent))
             assertEquals(
@@ -138,17 +127,22 @@ class ContentColorForTest {
                 t.secondaryContainer, t.onSecondaryContainer, t.tertiary, t.onTertiary,
                 t.tertiaryContainer, t.onTertiaryContainer, t.error, t.onError,
                 t.errorContainer, t.onErrorContainer, t.inverseSurface, t.inverseOnSurface,
+                // 这两支也是 contentColorFor 的判据（`surface, card -> …` / `surfaceVariant, … -> …`）：
+                // 派生色一旦恰好与它们同值，命中映射表就是**正确行为**，不该判为"应保持 Unspecified"。
+                // 漏收它们会误报 —— ZCode 默认浅色的 surfaceDim 就恰好等于 surface（两者只差 1 阶，
+                // Oklab 插值 + 舍入后没动），于是被误判。
+                t.surface, t.surfaceVariant,
             )
             listOf(
-                t.surfaceContainerHigh,
-                t.surfaceContainerHighest,
-                t.surfaceBright,
-                t.surfaceDim,
-                t.surfaceTint,
-                t.scrim,
-            ).filterNot { baseSlots.contains(it) }.forEach { container ->
+                "surfaceContainerHigh" to t.surfaceContainerHigh,
+                "surfaceContainerHighest" to t.surfaceContainerHighest,
+                "surfaceBright" to t.surfaceBright,
+                "surfaceDim" to t.surfaceDim,
+                "surfaceTint" to t.surfaceTint,
+                "scrim" to t.scrim,
+            ).filterNot { baseSlots.contains(it.second) }.forEach { (name, container) ->
                 assertEquals(
-                    "${t.themeId}: 派生容器色 ${container.value} 应当保持 Unspecified（回落交给消费点）",
+                    "${t.themeId}: 派生容器色 $name (${container.value}) 应当保持 Unspecified（回落交给消费点）",
                     Color.Unspecified,
                     t.contentColorFor(container),
                 )

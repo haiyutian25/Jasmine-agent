@@ -1,6 +1,8 @@
 package com.lhzkml.jasmine.feature.main.impl
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
+import com.lhzkml.jasmine.core.widgets.scrollbar.WidgetsScrollbar
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -137,11 +139,19 @@ fun AppSidebarContent(
 
         // 2. 历史对话列表：占满剩余高度（空态也在这块里），超出可滚。
         //    设置入口因此始终贴在底部。
+        // 套一层 ZCode 口径的滚动条（14dp 轨道 / 全圆角拇指 / 透明轨道 / 用该套的 border 色，
+        // 见 core:widgets 的 WidgetsScrollbar）。
+        val historyScroll = rememberScrollState()
+        WidgetsScrollbar(
+            scrollState = historyScroll,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(historyScroll)
         ) {
             if (conversations.isEmpty()) {
                 Text(
@@ -164,6 +174,7 @@ fun AppSidebarContent(
                     )
                 }
             }
+        }
         }
 
         // 3. Settings Entry (moved from the top nav bar, pinned to the bottom,
@@ -205,6 +216,10 @@ private fun SidebarConversationRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            // 选中态给整行一层底色：上游那套"选中药丸"用的就是 secondaryContainer
+            // （`--color-secondary-container`，主色向卡片靠拢的淡色调）。
+            // 原先只把标题字变成 primary —— 混在一列会话里，扫一眼分不出哪条是当前会话。
+            .background(if (isCurrent) currentTheme.secondaryContainer else Color.Transparent)
             .testTag("sidebar_conversation_${conversation.id}")
             // indication = null：去掉按下的涟漪（阴影），与删除图标/设置按钮的无涟漪观感一致。
             .clickable(

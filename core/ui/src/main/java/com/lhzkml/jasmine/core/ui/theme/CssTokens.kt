@@ -49,6 +49,29 @@ data class CssVariables(
     val error: Color = if (isDark) Color(0xFFF2B8B5) else Color(0xFFB3261E),
     val onError: Color = if (isDark) Color(0xFF601410) else Color(0xFFFFFFFF),
     val scrim: Color = Color(0xFF000000),
+
+    // ── ZCode（Z.ai）主题的完整槽表 ─────────────────────────────────────────
+    // 上游那套有 142 个颜色槽（面 / 状态 / 终端 / 图表 / Git 状态 / 图节点 …），远超本表
+    // 上面这些通用槽；它们整体收在 [ZCodeSlots] 里，由这一项挂在调色板上，
+    // 访问形如 `cssVars.zcode.terminalRed` / `cssVars.zcode.gitModified`。
+    // 默认给 [ZCodeSlots.Light]：本库目前只有 ZCode 这一套 family 用这些槽，
+    // 其余 13 套取到的是纯占位值，也就为此不必改一个字。
+    val zcode: ZCodeSlots = ZCodeSlots.ZaiLight,
+
+    /**
+     * ZCode 的**排版槽**（`--ui-font-size` 基准与 7 档字号、字距、iOS 输入下限、等宽字体栈）。
+     * 只有一套 —— 排版不随明暗/调色板变化，所以默认给 [ZCodeText] 即可，其余调色板取不到它也无碍。
+     */
+    val zcodeText: ZCodeTextSlots = ZCodeText,
+
+    /** ZCode 的**工作流图动效参数**（4 档时长、缓动曲线、心跳周期、小人脸配色/偏移/动画次数）。同样只有一套。 */
+    val zcodeWorkflow: ZCodeWorkflowSlots = ZCodeWorkflow,
+
+    /** ZCode 依赖的 **tailwind v4 色板**（55 支原始色）。只有一套。 */
+    val zcodeTailwind: ZCodeTailwindPalette = ZCodeTailwind,
+
+    /** ZCode 的 **@提及图标槽**（三个兜底值）。只有一套。 */
+    val zcodeMention: ZCodeMentionSlots = ZCodeMention,
 ) {
     // ── 上游 ColorSchemeKeyTokens 一一对应的容器 / 次级色槽 ──────────────────
 
@@ -460,6 +483,110 @@ object ProductionPalettes {
         ring = Color(0xFFFF5500),
         subtleSurface = Color(0xFFE2E2DC),
     )
+
+    // 7. ZCode（Z.ai）—— 完整照搬 ZCode 的 Zai 主题（上游：
+    //    packages/ui/src/styles.css 的 `.theme-zai-light` / `.theme-zai-dark`）。
+    //
+    // 上游那套共 142 个颜色槽，全部在 [ZCodeSlots] 里逐槽给出（每套末尾的 `zcode = ...` 那一行）；
+    // 本处这 16 个基础槽是「本库既有组件在用的通用槽」，逐个取上游最贴近那一支的**原值**：
+    //   background      <- --color-background        card           <- --color-card
+    //   foreground      <- --color-foreground        muted          <- --color-secondary（= --color-tag）
+    //   primary         <- --color-primary           accent         <- --color-accent
+    //   ring            <- --color-brand             subtleSurface  <- --color-surface
+    //   mutedForeground <- --color-foreground-subtle
+    //   accentForeground <- --color-interaction-ask-foreground
+    // ZCode 没有 cardForeground，取 foreground（那边卡片上的文字就是 --color-foreground）。
+    //
+    // ⚠️ 与"只填 16 槽、并把半透明合成为不透明"的做法不同，这里**保留上游的 alpha**：
+    // 上游的面/描边/次级文字本来就是半透明（`border = rgba(13,13,13,.1)` 等），
+    // 合成会改变叠加后的实际观感，也就不再"严格一模一样"。
+    // 代价是本套的 border / mutedForeground / subtleSurface 带 alpha，消费它们的既有组件
+    // （描边、次级文字、浅面）会按叠加渲染 —— 这与上游一致，属预期。
+    // 取值一律来自上游 CSS 的**实际求值结果**（把上游 CSS 交给浏览器、用 canvas 取像素读回 RGBA），
+    // 不是手工换算；含 oklch / color-mix 的那些槽因此也与上游逐像素一致。
+    val ZCodeLight = CssVariables(
+        themeId = "zcode-light",
+        name = "ZCode (Light)",
+        isDark = false,
+        background = Color(0xFFF8F8F8),
+        foreground = Color(0xFF262626),
+        card = Color(0xFFFFFFFF),
+        cardForeground = Color(0xFF262626),
+        border = Color(0x1A0A0A0A),
+        primary = Color(0xFF000000),
+        primaryForeground = Color(0xFFFFFFFF),
+        muted = Color(0xFFE6E6E6),
+        mutedForeground = Color(0x99262626),
+        accent = Color(0xFFEBF4FF),
+        accentForeground = Color(0xFF0066DD),
+        ring = Color(0xFF000000),
+        subtleSurface = Color(0x08000000),
+        zcode = ZCodeSlots.ZaiLight,
+    )
+
+    val ZCodeDark = CssVariables(
+        themeId = "zcode-dark",
+        name = "ZCode (Dark)",
+        isDark = true,
+        background = Color(0xFF161616),
+        foreground = Color(0xFFD4D4D4),
+        card = Color(0xFF2B2B2B),
+        cardForeground = Color(0xFFD4D4D4),
+        border = Color(0x1AFFFFFF),
+        primary = Color(0xFFFFFFFF),
+        primaryForeground = Color(0xFF000000),
+        muted = Color(0xFF363636),
+        mutedForeground = Color(0x99D4D4D4),
+        accent = Color(0xFF001D3D),
+        accentForeground = Color(0xFF80BEFF),
+        ring = Color(0xFFFFFFFF),
+        subtleSurface = Color(0x0DFFFFFF),
+        zcode = ZCodeSlots.ZaiDark,
+    )
+
+    // 8. ZCode 默认主题 —— 上游 `packages/ui/src/styles.css` 的 `@theme`（浅色）+ `.dark`（深色）。
+    //    与上面那套 Zai 是**同一个设计系统的两个变体**：这套是 ZCode 开箱外观（tailwind neutral + sky），
+    //    Zai 是品牌主题（纯黑白 brand）。两套的槽表都是 144 个槽（并集），取值各自逐槽照搬上游。
+    //    基础槽同样取上游最贴近那一支的原值，含 alpha。
+    val ZCodeDefaultLight = CssVariables(
+        themeId = "zcode-default-light",
+        name = "ZCode (Light)",
+        isDark = false,
+        background = Color(0xFFFAFAFA),
+        foreground = Color(0xFF404040),
+        card = Color(0xFFFFFFFF),
+        cardForeground = Color(0xFF404040),
+        border = Color(0x1A0A0A0A),
+        primary = Color(0xFF0A0A0A),
+        primaryForeground = Color(0xFFFAFAFA),
+        muted = Color(0xFFE5E5E5),
+        mutedForeground = Color(0x993F3F3F),
+        accent = Color(0xFFF0F9FF),
+        accentForeground = Color(0xFF0069A8),
+        ring = Color(0xFF00BCFF),
+        subtleSurface = Color(0x08000000),
+        zcode = ZCodeSlots.DefaultLight,
+    )
+
+    val ZCodeDefaultDark = CssVariables(
+        themeId = "zcode-default-dark",
+        name = "ZCode (Dark)",
+        isDark = true,
+        background = Color(0xFF171717),
+        foreground = Color(0xFFE5E5E5),
+        card = Color(0xFF262626),
+        cardForeground = Color(0xFFE5E5E5),
+        border = Color(0x1AF5F5F5),
+        primary = Color(0xFFFAFAFA),
+        primaryForeground = Color(0xFF0A0A0A),
+        muted = Color(0xFF404040),
+        mutedForeground = Color(0x99E4E4E4),
+        accent = Color(0x8006304A),
+        accentForeground = Color(0xFF74D4FF),
+        ring = Color(0xFF00A6F4),
+        subtleSurface = Color(0x0DFFFFFF),
+        zcode = ZCodeSlots.DefaultDark,
+    )
 }
 
 val LocalCssVariables = compositionLocalOf<CssVariables> {
@@ -531,6 +658,13 @@ object ThemeResolver {
         PaletteFamily("shadcn", "Shadcn", ProductionPalettes.ShadcnZincLight, ProductionPalettes.ShadcnZincDark),
         PaletteFamily("notion", "Notion", ProductionPalettes.NotionWarmLight, ProductionPalettes.NotionWarmDark),
         Braun,
+        PaletteFamily("zai", "Zai", ProductionPalettes.ZCodeLight, ProductionPalettes.ZCodeDark),
+        PaletteFamily(
+            "zcode",
+            "ZCode",
+            ProductionPalettes.ZCodeDefaultLight,
+            ProductionPalettes.ZCodeDefaultDark,
+        ),
     )
 
     /** Resolves a palette family to its light or dark variant. */

@@ -631,16 +631,18 @@ private fun heatmapLevel(tokens: Long): Int {
 }
 
 /**
- * 档位 0（没花 token）就是主题里那层"空面色"（`subtleSurface`）：不着色，但**有底**，配上格子那圈细
- * 边才看得出"这个月有几天"（GitHub 的 0 档也是这个做法：浅灰底 + 细边）。
- *
- * 1..4 档由这层空面色往主色里混，越花得多越深。
+ * 档位色直接取上游 ZCode 的 `--color-usage-heatmap-0..4` —— 那边**正好是 5 档**，
+ * 与本页的 0..4 档一一对应，不用再自己用 `lerp` 往主色里混。
+ * 档 0 是"空面色"（有底但不着色，配格子的细边才看得出这个月有几天）；1..4 由浅到深。
  */
-private fun heatmapColor(level: Int, currentTheme: CssVariables): Color {
-    if (level <= 0) return currentTheme.subtleSurface
-    val mix = UsageHeatmapMixes[(level - 1).coerceIn(0, UsageHeatmapMixes.lastIndex)]
-    return lerp(currentTheme.subtleSurface, currentTheme.primary, mix)
-}
+private fun heatmapColor(level: Int, currentTheme: CssVariables): Color =
+    when (level.coerceIn(0, 4)) {
+        0 -> currentTheme.zcode.usageHeatmap0
+        1 -> currentTheme.zcode.usageHeatmap1
+        2 -> currentTheme.zcode.usageHeatmap2
+        3 -> currentTheme.zcode.usageHeatmap3
+        else -> currentTheme.zcode.usageHeatmap4
+    }
 
 private fun shareOf(tokens: Long, total: Long): Double =
     if (total <= 0) 0.0 else tokens.toDouble() / total.toDouble()

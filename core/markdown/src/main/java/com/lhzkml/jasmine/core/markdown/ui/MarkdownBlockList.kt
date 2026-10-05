@@ -52,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -595,12 +596,19 @@ private fun ToolbarBlock(
     content: @Composable () -> Unit,
 ) {
     val shape = AppShapes.small
+    // 代码块 / mermaid 的容器底与描边，改用上游 ZCode 的「次级面」与「描边」两支
+    // （`--color-surface` / `--color-border`）。
+    // ⚠️ 上游这两支是**半透明**的（`rgba(0,0,0,.03)` / `rgba(0,0,0,.1)`），效果取决于它叠在什么上。
+    // 上游是 CSS 流式布局、上下文可控；这里是自由组合，代码块几乎总在卡片里，所以按"压在 card 上"
+    // 合成成**不透明**等效值 —— 保留上游的色相与浓度，但不让观感随父层漂。
+    val codeSurface = currentTheme.zcode.surface.compositeOver(currentTheme.card)
+    val codeBorder = currentTheme.zcode.border.compositeOver(currentTheme.card)
     Column(
         modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(currentTheme.subtleSurface)
-            .border(1.dp, currentTheme.border, shape)
+            .background(codeSurface)
+            .border(1.dp, codeBorder, shape)
     ) {
         Row(
             Modifier

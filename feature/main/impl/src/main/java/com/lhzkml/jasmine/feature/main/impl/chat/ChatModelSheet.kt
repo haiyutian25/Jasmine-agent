@@ -396,8 +396,11 @@ internal fun ContextUsageRing(
     val window = usage?.modelContextWindow ?: 0L
     val used = usage?.usedTokens ?: 0L
     val progress = if (window > 0) (used.toFloat() / window).coerceIn(0f, 1f) else 0f
-    val trackColor = currentTheme.mutedForeground.copy(alpha = 0.25f)
-    val progressColor = currentTheme.mutedForeground.copy(alpha = 0.7f)
+    // 取色改用上游 ZCode 的「上下文构成」色阶（`--color-context-breakdown-1..7`，同一蓝色系的
+    // 深浅 7 档）：进度弧取最深那档，轨道取同色的 25% —— 这样在任何调色板下都是同一色系的两级，
+    // 而不是原先那种「前景色压上 alpha」的中性灰。
+    val progressColor = currentTheme.zcode.contextBreakdown1
+    val trackColor = currentTheme.zcode.contextBreakdown1.copy(alpha = 0.25f)
 
     WidgetsButton(
         onClick = onClick,

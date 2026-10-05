@@ -11,6 +11,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -376,7 +377,11 @@ private fun SweepText(text: String, currentTheme: CssVariables) {
         ChatReasoningSweepHalfWidthPerChar.toPx() * text.length
     }
     var textWidth by remember { mutableStateOf(0f) }
-    val soft = currentTheme.foreground.copy(alpha = ChatReasoningSweepSoftAlpha)
+    // 扫光的亮带改用该套的品牌色（上游 `--color-brand`）：Zai 下是黑/白、ZCode 下是海蓝 ——
+    // "进行中"在全 app 里就跟着强调色走，而不是不管哪套都是同一个前景色。
+    // 只作用于文字（不是色块底），所以不存在前景/底配对的问题。
+    val brand = currentTheme.zcode.brand
+    val soft = brand.copy(alpha = ChatReasoningSweepSoftAlpha)
     // 亮带从左侧外面走到右侧外面：行程 = 文字宽 + 两个半宽。
     val travel = textWidth + 2f * halfBand
     val center = -halfBand + travel * shift
@@ -384,7 +389,7 @@ private fun SweepText(text: String, currentTheme: CssVariables) {
         text = text,
         style = TextStyle(
             brush = androidx.compose.ui.graphics.Brush.linearGradient(
-                colors = listOf(soft, currentTheme.foreground, soft),
+                colors = listOf(soft, brand, soft),
                 start = Offset(center - halfBand, 0f),
                 end = Offset(center + halfBand, 0f)
             ),
@@ -597,6 +602,25 @@ private fun toolCallIconOf(name: String, resultOnly: Boolean): ImageVector =
         ToolCallKind.PLAIN -> if (resultOnly) LucideIcons.Check else LucideIcons.Wrench
     }
 
+/**
+ * 卡头图标的着色按同一套工具分类走 —— 取上游 ZCode 的「图节点」前景色
+ * （`--color-file-node-foreground` / `--color-command-node-foreground` 等）：那边用一套颜色区分
+ * 文件 / 命令 / 子代理 / 会话 / 插件这几类节点，语义与这里的工具类型一一对得上。
+ *
+ * 之前一律是 `mutedForeground`，跑起来一屏工具行全是同一个灰，看不出哪几行在改文件、哪几行在跑命令。
+ */
+private fun toolCallTintOf(name: String, resultOnly: Boolean, theme: CssVariables): Color =
+    when (toolCallKindOf(name)) {
+        // 改文件 —— 上游「文件节点」色。
+        ToolCallKind.DIFF -> theme.zcode.fileNodeForeground
+        // 待办清单 —— 上游「空闲任务」色（violet 系，与文件/命令都分得开）。
+        ToolCallKind.TODO -> theme.zcode.idleTask
+        // 跑命令 —— 上游「命令节点」色。
+        ToolCallKind.TERMINAL -> theme.zcode.commandNodeForeground
+        // 其余（读文件、搜索、MCP 调用等）：完成态仍是安静的前景色，进行中给一点强调。
+        ToolCallKind.PLAIN -> if (resultOnly) theme.mutedForeground else theme.zcode.brand
+    }
+
 @Composable
 internal fun ToolActivityRow(
     activity: ChatToolActivity,
@@ -625,7 +649,7 @@ internal fun ToolActivityRow(
             Icon(
                 imageVector = toolCallIconOf(activity.name, resultOnly),
                 contentDescription = null,
-                tint = currentTheme.mutedForeground,
+                tint = toolCallTintOf(activity.name, resultOnly, currentTheme),
                 modifier = Modifier.size(ChatToolIconSize)
             )
             Spacer(modifier = Modifier.width(8.dp))

@@ -1,9 +1,10 @@
 package com.lhzkml.jasmine.core.widgets.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.luminance
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
-import com.lhzkml.jasmine.core.ui.theme.ProductionPalettes
+import com.lhzkml.jasmine.core.ui.theme.ThemeResolver
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -12,7 +13,7 @@ import org.junit.Test
  * 调色板的**自洽性**与**可读性**回归（纯 JVM，不需要 Android 运行时）。
  *
  * 这个模块 37k 行、几乎全是移植来的组件，此前 0 测试。先补上不需要设备就能跑的三件事：
- *  1. 12 套调色板的标识唯一、名字非空；
+ *  1. 每套出厂调色板的标识唯一、名字非空；
  *  2. 同一套调色板里，**语义不同的槽不该取同一个颜色**（下面有一条已知例外，见测试内注释）；
  *  3. 关键前景/背景对的对比度不低于可用下限（已知低于 AA 的组合单独列在测试里，见注释）。
  *
@@ -20,20 +21,9 @@ import org.junit.Test
  */
 class PaletteConsistencyTest {
 
-    private val palettes: List<CssVariables> = listOf(
-        ProductionPalettes.EditorialLight,
-        ProductionPalettes.EditorialDark,
-        ProductionPalettes.GeistDark,
-        ProductionPalettes.GeistLight,
-        ProductionPalettes.LinearDark,
-        ProductionPalettes.LinearLight,
-        ProductionPalettes.ShadcnZincDark,
-        ProductionPalettes.ShadcnZincLight,
-        ProductionPalettes.NotionWarmDark,
-        ProductionPalettes.NotionWarmLight,
-        ProductionPalettes.DieterRamsDark,
-        ProductionPalettes.DieterRamsLight,
-    )
+    /** 全部出厂调色板：从 [ThemeResolver.families] 展开，而不是手抄一份清单 —— 新增 family 会自动纳入回归。 */
+    private val palettes: List<CssVariables> =
+        ThemeResolver.families.flatMap { listOf(it.light, it.dark) }
 
     @Test
     fun `theme ids are unique and names are set`() {
@@ -118,7 +108,9 @@ class PaletteConsistencyTest {
                 Triple("mutedForeground on background", t.mutedForeground, t.background),
             )
             pairs.forEach { (label, fg, bg) ->
-                val ratio = contrastRatio(fg, bg)
+                // 半透明色（如 ZCode 那套的 border / 次级文字 / 浅面）按"压在该套背景上"折算后再比 ——
+                // 用户看到的就是叠加后的色，直接拿 alpha 色算亮度会得出无意义的数。
+                val ratio = contrastRatio(t.flatten(fg), t.flatten(bg))
                 assertTrue(
                     "${t.themeId}: $label 的对比度只有 ${"%.2f".format(ratio)}:1（下限 $minimumRatio）",
                     ratio >= minimumRatio,
@@ -126,6 +118,10 @@ class PaletteConsistencyTest {
             }
         }
     }
+
+    /** 把带 alpha 的色按"压在该套 [CssVariables.background] 上"折算成不透明色。 */
+    private fun CssVariables.flatten(c: Color): Color =
+        if (c.alpha >= 1f) c else c.compositeOver(background)
 
     /** WCAG 2.x 对比度：(L1 + 0.05) / (L2 + 0.05)，L 为相对亮度。 */
     private fun contrastRatio(a: Color, b: Color): Double {

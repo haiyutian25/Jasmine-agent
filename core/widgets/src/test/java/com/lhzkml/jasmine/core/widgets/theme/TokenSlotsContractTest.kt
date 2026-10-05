@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
 import com.lhzkml.jasmine.core.ui.theme.ProductionPalettes
+import com.lhzkml.jasmine.core.ui.theme.ThemeResolver
 import com.lhzkml.jasmine.core.widgets.slider.SliderState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -12,26 +13,15 @@ import org.junit.Test
 /**
  * 令牌槽的**语义契约**回归（纯 JVM）。
  *
- * 与 [PaletteConsistencyTest] 的分工：那边管"12 套调色板自身是否自洽"，
+ * 与 [PaletteConsistencyTest] 的分工：那边管"每套调色板自身是否自洽"，
  * 这边管"某些槽的**方向/可覆盖性**这些不明显、但改错了会静默走偏的约定"。
  * 三条断言各自对应一个真实修过的缺陷，注释里写明了原来错在哪。
  */
 class TokenSlotsContractTest {
 
-    private val palettes: List<CssVariables> = listOf(
-        ProductionPalettes.EditorialLight,
-        ProductionPalettes.EditorialDark,
-        ProductionPalettes.GeistDark,
-        ProductionPalettes.GeistLight,
-        ProductionPalettes.LinearDark,
-        ProductionPalettes.LinearLight,
-        ProductionPalettes.ShadcnZincDark,
-        ProductionPalettes.ShadcnZincLight,
-        ProductionPalettes.NotionWarmDark,
-        ProductionPalettes.NotionWarmLight,
-        ProductionPalettes.DieterRamsDark,
-        ProductionPalettes.DieterRamsLight,
-    )
+    /** 全部出厂调色板：从 [ThemeResolver.families] 展开，新增 family 会自动纳入回归。 */
+    private val palettes: List<CssVariables> =
+        ThemeResolver.families.flatMap { listOf(it.light, it.dark) }
 
     /**
      * 上游规定 `SurfaceBright` **恒在基准面之上**、`SurfaceDim` **恒在其下**
@@ -61,7 +51,7 @@ class TokenSlotsContractTest {
 
     /**
      * `error` / `onError` / `scrim` 曾经写死在 [CssVariables] 类体内，等于**绕过调色板**：
-     * 12 套主题共用一个红，谁想调都得改共用文件。现在是构造参数 —— 这条锁住"真的能按套覆盖"，
+     * 各套主题曾共用一个红，谁想调都得改共用文件。现在是构造参数 —— 这条锁住"真的能按套覆盖"，
      * 并顺带锁住"派生槽跟着走"（`errorContainer` 是由 `error` 推的）。
      */
     @Test

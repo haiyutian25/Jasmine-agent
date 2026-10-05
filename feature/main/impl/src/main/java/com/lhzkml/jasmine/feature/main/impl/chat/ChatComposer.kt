@@ -386,7 +386,10 @@ internal fun PromptPanel(
             )
             .clip(shape)
             .background(currentTheme.card)
-            .border(ChatDividerHeight, currentTheme.primary, shape)
+            // 描边用 ring（上游 `--color-ring` = 聚焦/强调描边），原先借的是 primary。
+            // 这里是**描边**不是色块底，所以不存在前景配对问题 —— 这正是 ring 该在的位置
+            // （此前全仓除了测试没有任何地方读它）。
+            .border(ChatDividerHeight, currentTheme.ring, shape)
             .padding(ChatBubblePaddingHorizontal, ChatBubblePaddingVertical)
     ) {
         Text(
