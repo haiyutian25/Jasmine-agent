@@ -28,6 +28,17 @@ interface UserPreferencesRepository {
 
     /** 模型回复语言（见 [com.lhzkml.jasmine.core.data.model.AgentOutputLanguage]）；全局一个值。 */
     suspend fun updateAgentOutputLanguage(value: String)
+
+    /**
+     * 自动压缩的全局默认触发线（token）；`0` = 未设置。
+     *
+     * 与 [UserPreferences.autoCompactTokenLimit] 同一口径 —— 它是**默认值**，
+     * 模型自己填了就用自己的。
+     */
+    suspend fun updateAutoCompactTokenLimit(value: Int)
+
+    /** 自动压缩的全局默认窗口百分比；`0` = 未设置（核心按上游默认的 95 走）。 */
+    suspend fun updateEffectiveContextWindowPercent(value: Int)
 }
 
 /**
@@ -84,6 +95,12 @@ class UserPreferencesRepositoryImpl(
 
     override suspend fun updateAgentOutputLanguage(value: String) =
         userPreferencesDataStore.update { it.copy(agentOutputLanguage = value) }
+
+    override suspend fun updateAutoCompactTokenLimit(value: Int) =
+        userPreferencesDataStore.update { it.copy(autoCompactTokenLimit = value) }
+
+    override suspend fun updateEffectiveContextWindowPercent(value: Int) =
+        userPreferencesDataStore.update { it.copy(effectiveContextWindowPercent = value) }
 
     private companion object {
         /** 只用于后台失败的日志归类；不参与任何权限/行为判断。 */

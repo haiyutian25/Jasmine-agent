@@ -1440,6 +1440,9 @@ private class FakeMarkdownParser : MarkdownParser {
 private class FakeUserPreferencesRepository(initial: UserPreferences) : UserPreferencesRepository {
     override val preferencesStateFlow = MutableStateFlow(initial)
     val activeModelUpdates = mutableListOf<Pair<String, String>>()
+    /** 压缩的两个默认值每次落盘的记录（顺序即调用顺序）。 */
+    val autoCompactLimitUpdates = mutableListOf<Int>()
+    val effectiveContextWindowPercentUpdates = mutableListOf<Int>()
 
     override suspend fun updateTheme(themeId: String) = Unit
     override suspend fun updateTypography(typographyChoice: String) = Unit
@@ -1451,6 +1454,14 @@ private class FakeUserPreferencesRepository(initial: UserPreferences) : UserPref
     }
 
     override suspend fun updateAgentOutputLanguage(value: String) = Unit
+
+    override suspend fun updateAutoCompactTokenLimit(value: Int) {
+        autoCompactLimitUpdates += value
+    }
+
+    override suspend fun updateEffectiveContextWindowPercent(value: Int) {
+        effectiveContextWindowPercentUpdates += value
+    }
 }
 
 private class FakeConversationStore : ConversationStore {

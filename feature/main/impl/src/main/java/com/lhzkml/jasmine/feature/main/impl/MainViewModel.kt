@@ -67,6 +67,16 @@ data class MainState(
     // Agent（模型侧行为控制）
     /** 模型回复语言的设置值；见 [AgentOutputLanguage]。 */
     val agentOutputLanguage: String = AgentOutputLanguage.FOLLOW_INPUT,
+    /**
+     * 自动压缩的**全局默认**触发线（token）；`0` = 不设置。
+     *
+     * 口径见 [com.lhzkml.jasmine.core.data.model.ModelConfig.autoCompactTokenLimit]：
+     * 它是**默认值**，模型自己填了就用模型的（合并发生在送进核心之前，
+     * 见 `ChatViewModel.withCompactionDefaults`）。
+     */
+    val autoCompactTokenLimit: Int = 0,
+    /** 自动压缩的**全局默认**窗口百分比；`0` = 不设置（核心按 95 走）。 */
+    val effectiveContextWindowPercent: Int = 0,
 )
 
 /**
@@ -101,6 +111,16 @@ sealed interface MainAction {
     data class AgentOutputLanguageSelected(val value: String) : MainAction
 
     /**
+     * Agent 设置页改了**上下文压缩**的两个全局默认（任一项为 0 = 不设置）。
+     *
+     * 两个值一起送：它们是同一栏里的两条线，用户改哪条都该把当前这一对整体落笔。
+     */
+    data class CompactionSettingsChanged(
+        val autoCompactTokenLimit: Int,
+        val effectiveContextWindowPercent: Int,
+    ) : MainAction
+
+    /**
      * Internal actions: results of asynchronous work posted back onto the action
      * channel so that all state mutations stay synchronous inside [handleAction].
      */
@@ -126,6 +146,12 @@ sealed interface MainAction {
         data class FontScalePersistRejected(val optimistic: Float, val fallback: Float) : Internal
         data class AgentOutputLanguagePersistRejected(val optimistic: String, val fallback: String) : Internal
 
+        /** 压缩默认值落盘失败：把界面上的两条线退回 [fallback]（先比 [optimistic]，别覆盖用户后来的改动）。 */
+        data class CompactionPersistRejected(
+            val optimistic: Pair<Int, Int>,
+            val fallback: Pair<Int, Int>,
+        ) : Internal
+
         /** 字体删除完成（成功/失败）；列表本身由 installedVersion 回灌，无需回滚。 */
         data class FontDeleteCompleted(val success: Boolean) : Internal
     }
@@ -149,6 +175,12 @@ private sealed interface MainEffect {
     data class PersistCustomFont(val optimistic: String, val fallback: String) : MainEffect
     data class PersistFontScale(val optimistic: Float, val fallback: Float) : MainEffect
     data class PersistAgentOutputLanguage(val optimistic: String, val fallback: String) : MainEffect
+
+    /** 把压缩的两个全局默认落进偏好仓库（失败经 `CompactionPersistRejected` 回流）。 */
+    data class PersistCompactionSettings(
+        val optimistic: Pair<Int, Int>,
+        val fallback: Pair<Int, Int>,
+    ) : MainEffect
 
     /** 删字体：缓存驱逐与删文件是同一事务的两半步，一起成功才算成功。 */
     data class DeleteFont(val fontId: String) : MainEffect
@@ -205,6 +237,8 @@ class MainViewModel @Inject constructor(
             fontScale = UserPreferences.DEFAULT.fontScale,
             activeCustomFontId = UserPreferences.DEFAULT.activeCustomFontId,
             agentOutputLanguage = UserPreferences.DEFAULT.agentOutputLanguage,
+            autoCompactTokenLimit = UserPreferences.DEFAULT.autoCompactTokenLimit,
+            effectiveContextWindowPercent = UserPreferences.DEFAULT.effectiveContextWindowPercent,
             installedFonts = emptyList(),
             downloadProgress = emptyMap(),
         )
@@ -236,6 +270,11 @@ class MainViewModel @Inject constructor(
             userPreferencesRepository.updateFontScale(effect.optimistic).let { null }
         is MainEffect.PersistAgentOutputLanguage ->
             userPreferencesRepository.updateAgentOutputLanguage(effect.optimistic).let { null }
+        is MainEffect.PersistCompactionSettings -> {
+            userPreferencesRepository.updateAutoCompactTokenLimit(effect.optimistic.first)
+            userPreferencesRepository.updateEffectiveContextWindowPercent(effect.optimistic.second)
+            null
+        }
         is MainEffect.DeleteFont -> {
             customFontFamilyCache.evict(effect.fontId)
             customFontRepository.deleteFont(effect.fontId)
@@ -263,6 +302,8 @@ class MainViewModel @Inject constructor(
                 MainAction.Internal.FontScalePersistRejected(effect.optimistic, effect.fallback)
             is MainEffect.PersistAgentOutputLanguage ->
                 MainAction.Internal.AgentOutputLanguagePersistRejected(effect.optimistic, effect.fallback)
+            is MainEffect.PersistCompactionSettings ->
+                MainAction.Internal.CompactionPersistRejected(effect.optimistic, effect.fallback)
             is MainEffect.DeleteFont -> MainAction.Internal.FontDeleteCompleted(false)
         }
     }
@@ -332,6 +373,19 @@ class MainViewModel @Inject constructor(
 
             is MainAction.AgentOutputLanguageSelected ->
                 handleAgentOutputLanguageSelected(action)
+            is MainAction.CompactionSettingsChanged ->
+                handleCompactionSettingsChanged(action)
+            is MainAction.Internal.CompactionPersistRejected ->
+                if (state.autoCompactTokenLimit to state.effectiveContextWindowPercent ==
+                    action.optimistic
+                ) {
+                    updateState {
+                        copy(
+                            autoCompactTokenLimit = action.fallback.first,
+                            effectiveContextWindowPercent = action.fallback.second,
+                        )
+                    }
+                }
         }
     }
 
@@ -405,6 +459,25 @@ class MainViewModel @Inject constructor(
         effects.send(MainEffect.PersistAgentOutputLanguage(optimistic = action.value, fallback = fallback))
     }
 
+    /**
+     * 压缩的两个全局默认。
+     *
+     * 与语言那条同一条路子：先乐观落笔（界面立刻跟手），落盘走出站命令，
+     * 失败经 [MainAction.Internal.CompactionPersistRejected] 回滚（D4）。
+     */
+    private fun handleCompactionSettingsChanged(action: MainAction.CompactionSettingsChanged) {
+        val fallback = state.autoCompactTokenLimit to state.effectiveContextWindowPercent
+        val optimistic = action.autoCompactTokenLimit to action.effectiveContextWindowPercent
+        if (optimistic == fallback) return
+        updateState {
+            copy(
+                autoCompactTokenLimit = action.autoCompactTokenLimit,
+                effectiveContextWindowPercent = action.effectiveContextWindowPercent,
+            )
+        }
+        effects.send(MainEffect.PersistCompactionSettings(optimistic = optimistic, fallback = fallback))
+    }
+
     // endregion
 
     // region Internal action handlers
@@ -421,6 +494,8 @@ class MainViewModel @Inject constructor(
                 fontScale = prefs.fontScale,
                 activeCustomFontId = prefs.activeCustomFontId,
                 agentOutputLanguage = prefs.agentOutputLanguage,
+                autoCompactTokenLimit = prefs.autoCompactTokenLimit,
+                effectiveContextWindowPercent = prefs.effectiveContextWindowPercent,
                 // Sidebar-open state is intentionally NOT restored here — it is
                 // session-transient and always starts closed after process death.
             )

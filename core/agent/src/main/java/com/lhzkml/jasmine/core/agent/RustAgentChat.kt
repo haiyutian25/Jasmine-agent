@@ -246,6 +246,8 @@ internal fun ProviderConfig.toProviderInput(): ProviderInput = ProviderInput(
             contextLength = model.contextLength.toUInt(),
             maxOutputLength = model.maxOutputLength.toUInt(),
             reasoningEffort = model.reasoningEffort,
+            autoCompactTokenLimit = model.autoCompactTokenLimit.toUInt(),
+            effectiveContextWindowPercent = model.effectiveContextWindowPercent.toUInt(),
         )
     },
 )

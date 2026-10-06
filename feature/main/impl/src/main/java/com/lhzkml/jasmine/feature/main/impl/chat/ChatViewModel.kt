@@ -1071,7 +1071,7 @@ class ChatViewModel @Inject constructor(
                 // 重启之后（或者换过模型之后）这一步是必须的。
                 agentChat.startConversation(
                     sessionId = id,
-                    provider = provider,
+                    provider = withCompactionDefaults(provider),
                     modelId = model.modelId,
                     instruction = CHAT_PERSONA,
                     settings = agentSettings(),
@@ -1346,7 +1346,7 @@ class ChatViewModel @Inject constructor(
                 // resumed conversation is loaded rather than rebuilt.
                 agentChat.startConversation(
                     sessionId = id,
-                    provider = provider,
+                    provider = withCompactionDefaults(provider),
                     modelId = model.modelId,
                     instruction = CHAT_PERSONA,
                     settings = agentSettings(),
@@ -2010,6 +2010,30 @@ class ChatViewModel @Inject constructor(
         outputLanguage = userPreferencesRepository.preferencesStateFlow.value.agentOutputLanguage,
         appLanguage = Locale.getDefault().toLanguageTag(),
     )
+
+    /**
+     * 把**全局默认**的压缩配置合并进 provider 的模型（口径 A：模型自己填了就用它的）。
+     *
+     * 只填那些为 `0` 的 —— `0` 在这套配置里就是"没设置"，与 `contextLength` / `maxOutputLength`
+     * 完全同一个约定。合并**发生在送进核心之前**，所以设置页改了值，对**下一次附着**生效，
+     * 不必回头去改每个模型自己的配置。两项都是 0（= 设置页也没填）时原样返回，不做无谓的复制。
+     */
+    private suspend fun withCompactionDefaults(provider: ProviderConfig): ProviderConfig {
+        val preferences = userPreferencesRepository.preferencesStateFlow.value
+        if (preferences.autoCompactTokenLimit <= 0 && preferences.effectiveContextWindowPercent <= 0) {
+            return provider
+        }
+        return provider.copy(
+            models = provider.models.map { model ->
+                model.copy(
+                    autoCompactTokenLimit = model.autoCompactTokenLimit
+                        .takeIf { it > 0 } ?: preferences.autoCompactTokenLimit,
+                    effectiveContextWindowPercent = model.effectiveContextWindowPercent
+                        .takeIf { it > 0 } ?: preferences.effectiveContextWindowPercent,
+                )
+            },
+        )
+    }
 
     /**
      * 用户拨过的那一行工具卡。

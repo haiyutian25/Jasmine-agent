@@ -255,4 +255,10 @@
     <string name="debug_tabs_hint">点标签切换；主要与次要两档的最后一个标签是禁用的。</string>
     <string name="debug_tabs_label">标签 %1$d</string>
     <string name="debug_tabs_content">第 %1$d 个标签的内容</string>
+    <string name="agent_compaction_section">上下文压缩</string>
+    <string name="agent_compact_token_limit_label">压缩触发线（tokens）</string>
+    <string name="agent_compact_token_limit_hint">0 = 不设置</string>
+    <string name="agent_compact_percent_label">窗口占用率（%）</string>
+    <string name="agent_compact_percent_hint">0 = 不设置（按 95% 走）</string>
+    <string name="agent_compaction_hint">历史超过其中任一条线就会把较早的对话整理成摘要（哪条先到算哪条）。这里是默认值：模型自己填了就用模型自己的。填 0 表示不设置。</string>
 </resources>

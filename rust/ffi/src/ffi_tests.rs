@@ -52,6 +52,8 @@ fn provider_input() -> ProviderInput {
             context_length: 128_000,
             max_output_length: 0,
             reasoning_effort: String::new(),
+            auto_compact_token_limit: 0,
+            effective_context_window_percent: 0,
         }],
     }
 }

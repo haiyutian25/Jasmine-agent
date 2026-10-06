@@ -38,6 +38,16 @@ data class ModelConfig(
      * 删了它就变成必填字段，少一个键的配置直接解不出来，而这不是这个字段要表达的意思。
      */
     val reasoningEffort: String = "",
+    /**
+     * 自动压缩的触发线（token 数）；`0` = 未设置。
+     *
+     * 与核心的 `ModelConfig::auto_compact_token_limit` 一一对应。`0` 表示"这个模型没填" ——
+     * 这时落回**全局默认**（`UserPreferences.autoCompactTokenLimit`，在设置页的「行为与权限」里），
+     * `0` 的语义与 [contextLength] / [maxOutputLength] 完全一致。
+     */
+    val autoCompactTokenLimit: Int = 0,
+    /** 自动压缩的窗口百分比；`0` = 未设置（落回全局默认，再落回核心的 95）。 */
+    val effectiveContextWindowPercent: Int = 0,
     )
 
 /**

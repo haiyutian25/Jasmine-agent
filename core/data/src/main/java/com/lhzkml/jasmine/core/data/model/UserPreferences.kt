@@ -26,6 +26,20 @@ data class UserPreferences(
      * 所以在下一次附着会话时生效。
      */
     val agentOutputLanguage: String = AgentOutputLanguage.FOLLOW_INPUT,
+    /**
+     * 自动压缩的**全局默认**触发线（token 数）；`0` = 未设置。
+     *
+     * 口径与 core 的 `ModelConfig` 上那两个字段一致，但这里是**默认值**：
+     * 模型自己填了就用自己的（见 [com.lhzkml.jasmine.core.data.model.ModelConfig] 或核心的同名字段），
+     * 没填才落回这里 —— 与 `context_length` 的"模型级 + 有默认"是同一个语义。
+     */
+    val autoCompactTokenLimit: Int = 0,
+    /**
+     * 自动压缩的**全局默认**窗口百分比；`0` = 未设置（核心按上游默认的 95 走）。
+     *
+     * 同上：模型级填了就用模型级的。
+     */
+    val effectiveContextWindowPercent: Int = 0,
 ) {
     companion object {
         val DEFAULT = UserPreferences(

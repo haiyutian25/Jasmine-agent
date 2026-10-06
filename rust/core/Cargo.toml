@@ -29,6 +29,11 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
+# 压缩的测试要造一段假的 SSE 字节流（假 transport 的响应体），所以需要一个 Bytes 构造器。
+# `jasmine-client` 把 http-client 的类型都转出来了，但 `bytes::Bytes` 不在其中。
+bytes = { workspace = true }
+# 假 transport 要回一个 HTTP 状态码（`StreamResponse.status`），同样不在转出来的集合里。
+http = { workspace = true }
 
 [lints]
 workspace = true

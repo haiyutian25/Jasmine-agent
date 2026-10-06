@@ -39,6 +39,18 @@ import com.lhzkml.jasmine.core.widgets.button.Button as WidgetsButton
 import com.lhzkml.jasmine.core.widgets.button.ButtonDefaults
 import com.lhzkml.jasmine.core.ui.icons.LucideIcons
 import com.lhzkml.jasmine.core.ui.theme.CssVariables
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.SolidColor
 import com.lhzkml.jasmine.feature.settings.impl.R
 
 /**
@@ -53,6 +65,11 @@ fun BehaviourAndPermissionsScreen(
     currentTheme: CssVariables,
     selected: String,
     onSelect: (String) -> Unit,
+    /** 自动压缩的两个**全局默认**（0 = 不设置）；口径见 `UserPreferences` 里的同名字段。 */
+    autoCompactTokenLimit: Int,
+    effectiveContextWindowPercent: Int,
+    /** 用户改完任一条线（失焦 / 回车时提交一次），两个值一起回。 */
+    onCompactionChanged: (Int, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -109,6 +126,128 @@ fun BehaviourAndPermissionsScreen(
         )
 
         Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = stringResource(R.string.agent_compaction_section),
+            fontSize = 10.5.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.5.sp,
+            color = currentTheme.mutedForeground,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp)
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(AppShapes.large)
+                .background(currentTheme.card)
+                .border(1.dp, currentTheme.border, AppShapes.large)
+        ) {
+            CompactionNumberRow(
+                label = stringResource(R.string.agent_compact_token_limit_label),
+                hint = stringResource(R.string.agent_compact_token_limit_hint),
+                value = autoCompactTokenLimit,
+                currentTheme = currentTheme,
+                testTag = "behaviour_compact_token_limit",
+                onCommit = { onCompactionChanged(it, effectiveContextWindowPercent) }
+            )
+            OptionDivider(currentTheme)
+            CompactionNumberRow(
+                label = stringResource(R.string.agent_compact_percent_label),
+                hint = stringResource(R.string.agent_compact_percent_hint),
+                value = effectiveContextWindowPercent,
+                currentTheme = currentTheme,
+                testTag = "behaviour_compact_percent",
+                onCommit = { onCompactionChanged(autoCompactTokenLimit, it) }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Text(
+            text = stringResource(R.string.agent_compaction_hint),
+            fontSize = 11.sp,
+            color = currentTheme.mutedForeground,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp)
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+/**
+ * 一行「标签 + 数字输入」。
+ *
+ * 提交时机是**失焦或回车**（不是每一次按键）—— 半途中的 "1" 不该被当成用户的选择写进偏好，
+ * 那会让压缩线在一瞬间掉到几百 token 上、把好好的对话压掉。
+ *
+ * 输入非法（非数字）时退回当前值；空串按 0（= 不设置）处理，这正是这个字段的表达法。
+ */
+@Composable
+private fun CompactionNumberRow(
+    label: String,
+    hint: String,
+    value: Int,
+    currentTheme: CssVariables,
+    testTag: String,
+    onCommit: (Int) -> Unit,
+) {
+    // 输入中的文本：外部值变了（比如落盘失败回滚）要跟着回到权威值。
+    var text by remember(value) { mutableStateOf(if (value > 0) value.toString() else "") }
+    fun commit() {
+        val parsed = text.trim().toIntOrNull() ?: 0
+        val normalized = parsed.coerceAtLeast(0)
+        text = if (normalized > 0) normalized.toString() else ""
+        if (normalized != value) onCommit(normalized)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+    ) {
+        Text(
+            text = label,
+            fontSize = 13.5.sp,
+            color = currentTheme.foreground,
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        BasicTextField(
+            value = text,
+            onValueChange = { text = it.filter(Char::isDigit).take(9) },
+            singleLine = true,
+            textStyle = TextStyle(
+                fontSize = 14.sp,
+                color = currentTheme.foreground,
+            ),
+            cursorBrush = SolidColor(currentTheme.primary),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Number,
+                imeAction = ImeAction.Done,
+            ),
+            keyboardActions = KeyboardActions(onDone = { commit() }),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { if (!it.isFocused) commit() }
+                .testTag(testTag)
+                .padding(vertical = 2.dp),
+            decorationBox = { inner ->
+                if (text.isEmpty()) {
+                    Text(
+                        text = hint,
+                        fontSize = 14.sp,
+                        color = currentTheme.mutedForeground,
+                    )
+                }
+                inner()
+            }
+        )
     }
 }
 

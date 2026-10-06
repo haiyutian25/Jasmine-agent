@@ -158,7 +158,7 @@ pub struct AgentSettings {
 
 /// 平台侧配置进来的一个模型。
 ///
-/// 只带核心用得上的数：名字（出厂目录给的，空 = 显示 model_id）、界面上那两栏 token 预算（0 表示
+/// 只带核心用得上的数：名字（出厂目录给的，空 = 显示 model_id）、界面上那几栏 token 预算（0 表示
 /// "没设置"），以及**默认推理档**（目录外的模型才用得上）。档位**表**不在这里 —— 那由核心的模型
 /// 目录说了算（见 [`provider_catalog`]），会话的起点档也是先问目录。
 #[derive(Debug, Clone, uniffi::Record)]
@@ -170,6 +170,12 @@ pub struct ModelInput {
     pub max_output_length: u32,
     /// 这个模型的默认推理档（线上取值）；空 = 未设置。
     pub reasoning_effort: String,
+    /// 自动压缩的触发线（token）；`0` = 这个模型没填（核心按默认口径走）。
+    ///
+    /// 界面侧会把"全局默认"在送进来之前合并好，所以到这里为 `0` 就真的是没设置。
+    pub auto_compact_token_limit: u32,
+    /// 自动压缩的窗口百分比；`0` = 这个模型没填。
+    pub effective_context_window_percent: u32,
 }
 
 impl ProviderInput {
@@ -190,6 +196,8 @@ impl ProviderInput {
                     context_length: model.context_length,
                     max_output_length: model.max_output_length,
                     reasoning_effort: model.reasoning_effort,
+                    auto_compact_token_limit: model.auto_compact_token_limit,
+                    effective_context_window_percent: model.effective_context_window_percent,
                     ..Default::default()
                 })
                 .collect(),
@@ -677,6 +685,8 @@ pub fn built_in_providers() -> Vec<ProviderInput> {
                     context_length: model.context_length,
                     max_output_length: model.max_output_length,
                     reasoning_effort: model.reasoning_effort,
+                    auto_compact_token_limit: model.auto_compact_token_limit,
+                    effective_context_window_percent: model.effective_context_window_percent,
                 })
                 .collect(),
         })

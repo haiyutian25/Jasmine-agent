@@ -301,6 +301,236 @@ async fn maybe_compact<T: HttpTransport>(
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
+
+    use super::*;
+    use crate::thread::ChatThread;
+    use bytes::Bytes;
+    use http::StatusCode;
+    use jasmine_api::ChatCompletionsClient;
+    use jasmine_api::SharedAuthProvider;
+    use jasmine_client::HttpTransport;
+    use jasmine_client::Provider;
+    use jasmine_client::RetryConfig;
+    use jasmine_client::StreamResponse;
+    use jasmine_client::TransportError;
+    use jasmine_model_provider::BearerAuthProvider;
+    use std::collections::VecDeque;
+    use std::sync::Arc;
+    use std::sync::Mutex;
+    use std::time::Duration;
+
+    /// 只回答**预先排好**的 SSE 的 transport。
+    ///
+    /// 把"模型会说什么"变成一段可以逐字检查的输入 —— 于是"压缩确实多打了一次请求"
+    /// 这件事能被断言，而不是只靠类型系统保证。
+    struct FakeTransport {
+        /// 每次 `stream` 按顺序弹一段；弹不出来就 panic，把"多打了一次请求"暴露成失败。
+        replies: Mutex<VecDeque<String>>,
+    }
+
+    impl FakeTransport {
+        fn new(replies: Vec<String>) -> Self {
+            Self {
+                replies: Mutex::new(replies.into()),
+            }
+        }
+    }
+
+    impl HttpTransport for FakeTransport {
+        async fn execute(
+            &self,
+            _request: jasmine_client::Request,
+        ) -> Result<jasmine_client::Response, TransportError> {
+            unreachable!("压缩只走流式接口")
+        }
+
+        async fn stream(
+            &self,
+            _request: jasmine_client::Request,
+        ) -> Result<StreamResponse, TransportError> {
+            let body = self
+                .replies
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("transport 收到的请求比排好的回复多 —— 是不是多打了一次？");
+            Ok(StreamResponse {
+                status: StatusCode::OK,
+                headers: Default::default(),
+                bytes: futures::stream::iter(vec![Ok(Bytes::from(body))]).boxed(),
+            })
+        }
+    }
+
+    /// 一段最小的 Chat Completions SSE：一个正文分片 + 一个收尾帧 + `[DONE]`。
+    ///
+    /// 形状取自 `api/src/sse/chat_completions.rs` 的解析：它读 `choices[].delta.content`，
+    /// 以 `finish_reason` 定义收尾，以 `[DONE]` 结束整条流。
+    fn sse_with_text(text: &str) -> String {
+        format!(
+            "data: {{\"choices\":[{{\"delta\":{{\"content\":{text:?}}},\"finish_reason\":null}}]}}\n\n\
+             data: {{\"choices\":[{{\"delta\":{{}},\"finish_reason\":\"stop\"}}]}}\n\n\
+             data: [DONE]\n\n"
+        )
+    }
+
+    fn model_client(transport: FakeTransport) -> ModelClient<FakeTransport> {
+        let provider = Provider {
+            name: "fake".to_string(),
+            base_url: "https://example.invalid/v1".to_string(),
+            query_params: None,
+            headers: Default::default(),
+            // 不重试：这个 transport 的回复是**排好队**的，重试会把后面那句吃掉，
+            // 让失败看起来像"少了一句回复"。
+            retry: RetryConfig {
+                max_attempts: 1,
+                base_delay: Duration::from_millis(0),
+                retry_429: false,
+                retry_5xx: false,
+                retry_transport: false,
+            },
+            stream_idle_timeout: Duration::from_secs(30),
+        };
+        let auth: SharedAuthProvider = Arc::new(BearerAuthProvider::new("test-key".to_string()));
+        ModelClient::chat_completions(
+            ChatCompletionsClient::new(transport, provider, auth),
+            "fake-model",
+        )
+    }
+
+    fn user_message(text: &str) -> ResponseItem {
+        ResponseItem::Message {
+            id: None,
+            role: "user".to_string(),
+            content: vec![ContentItem::InputText {
+                text: text.to_string(),
+            }],
+        }
+    }
+
+    fn text_of(item: &ResponseItem) -> String {
+        match item {
+            ResponseItem::Message { content, .. } => content
+                .iter()
+                .map(|part| match part {
+                    ContentItem::InputText { text } | ContentItem::OutputText { text } => text.clone(),
+                    _ => String::new(),
+                })
+                .collect(),
+            other => panic!("expected a message, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn compaction_replaces_history_and_hands_the_record_back() {
+        // 窗口设得很小（100），于是一段两千字符的历史（约 500 token）就超过了窗口的 95% 线，
+        // 判定必然触发 —— 这样测试不依赖真实模型的窗口大小。
+        let transport = FakeTransport::new(vec![sse_with_text("the summary")]);
+        let client = model_client(transport);
+        let mut thread = ChatThread::new();
+        thread.note_context_window(100);
+
+        let mut history = vec![
+            user_message(&"x".repeat(2_000)),
+            ResponseItem::Message {
+                id: None,
+                role: "assistant".to_string(),
+                content: vec![ContentItem::OutputText {
+                    text: "old answer".to_string(),
+                }],
+            },
+        ];
+        let before_len = history.len();
+        let before = history.clone();
+        let mut record = None;
+        let mut events = Vec::new();
+
+        maybe_compact(
+            &client,
+            &mut history,
+            &mut thread,
+            None,
+            &mut record,
+            0,
+            0,
+            &mut |event| events.push(event),
+        )
+        .await
+        .expect("compact");
+
+        // ① 界面先被通知了一次，并带着触发时的两个数。
+        match events.as_slice() {
+            [ChatEvent::Compacting {
+                tokens,
+                context_window,
+            }] => {
+                assert_eq!(100, *context_window);
+                assert!(*tokens > 0, "触发时的活跃 token 应当是正数");
+            }
+            other => panic!("期望恰好一条 Compacting 事件，实际是 {other:?}"),
+        }
+
+        // ② 历史被**换掉**了，摘要落在最后一条（`build_compacted_history` 的口径）。
+        //    注意别断言"变短"：它会保留最近若干条用户消息，所以本来就很短的历史
+        //    压完可能等长（这里 2 -> 2），"变短"并不是这个函数的承诺。
+        assert_ne!(before, history, "压缩应当替换历史");
+        assert!(
+            !history
+                .iter()
+                .any(|item| text_of(item).contains("old answer")),
+            "压缩前的助手消息不该留下：{history:?}"
+        );
+        let last = history.last().expect("压缩后不该是空的");
+        assert!(
+            compact::is_summary_message(&text_of(last)),
+            "最后一条应当是摘要，实际是 {:?}",
+            text_of(last)
+        );
+
+        // ③ 记录交回给调用侧 —— 落盘那一环就靠它。
+        let record = record.expect("压缩成功就应当交回记录");
+        assert_eq!(history, record.replacement_history);
+        assert_eq!(before_len, record.items_before);
+        assert_eq!(history.len(), record.items_after);
+        assert_eq!("the summary", record.summary);
+    }
+
+    #[tokio::test]
+    async fn below_the_threshold_nothing_is_requested_and_nothing_is_recorded() {
+        // 窗口很大，历史很小：不该打任何请求（FakeTransport 的回复队列是空的 ——
+        // 真打了一次就会在 `pop_front` 上 panic）。
+        let transport = FakeTransport::new(Vec::new());
+        let client = model_client(transport);
+        let mut thread = ChatThread::new();
+        thread.note_context_window(1_000_000);
+
+        let mut history = vec![user_message("hello")];
+        let before = history.clone();
+        let mut record = None;
+        let mut events = Vec::new();
+
+        maybe_compact(
+            &client,
+            &mut history,
+            &mut thread,
+            None,
+            &mut record,
+            0,
+            0,
+            &mut |event| events.push(event),
+        )
+        .await
+        .expect("compact");
+
+        assert_eq!(before, history, "没到阈值就不该动历史");
+        assert!(record.is_none(), "没压缩就不该有记录");
+        assert!(events.is_empty(), "没压缩就不该报事件");
+    }
+}
+
 /// Reads one streaming answer, forwarding events and collecting what the turn needs.
 async fn drain_stream(
     mut stream: ResponseStream,

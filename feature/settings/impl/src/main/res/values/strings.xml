@@ -255,4 +255,10 @@
     <string name="debug_tabs_hint">Tap a tab to switch; the last tab of the primary and secondary variants is disabled.</string>
     <string name="debug_tabs_label">Tab %1$d</string>
     <string name="debug_tabs_content">Content of tab %1$d</string>
+    <string name="agent_compaction_section">Context compaction</string>
+    <string name="agent_compact_token_limit_label">Compact above (tokens)</string>
+    <string name="agent_compact_token_limit_hint">0 = not set</string>
+    <string name="agent_compact_percent_label">Window usage (%)</string>
+    <string name="agent_compact_percent_hint">0 = not set (95% is used)</string>
+    <string name="agent_compaction_hint">Earlier turns are summarized once the history passes either line — whichever comes first. These are defaults: a model that sets its own value keeps it. 0 means “not set”.</string>
 </resources>

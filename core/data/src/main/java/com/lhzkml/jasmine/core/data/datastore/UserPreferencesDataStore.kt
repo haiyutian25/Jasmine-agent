@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.lhzkml.jasmine.core.data.model.UserPreferences
@@ -46,6 +47,8 @@ class UserPreferencesDataStore @Inject constructor(
             prefs[KEY_ACTIVE_PROVIDER] = updated.activeProviderId
             prefs[KEY_ACTIVE_MODEL] = updated.activeModelId
             prefs[KEY_AGENT_OUTPUT_LANGUAGE] = updated.agentOutputLanguage
+            prefs[KEY_AUTO_COMPACT_TOKEN_LIMIT] = updated.autoCompactTokenLimit
+            prefs[KEY_EFFECTIVE_CONTEXT_WINDOW_PERCENT] = updated.effectiveContextWindowPercent
         }
     }
 
@@ -59,6 +62,10 @@ class UserPreferencesDataStore @Inject constructor(
         activeModelId = this[KEY_ACTIVE_MODEL] ?: UserPreferences.DEFAULT.activeModelId,
         agentOutputLanguage = this[KEY_AGENT_OUTPUT_LANGUAGE]
             ?: UserPreferences.DEFAULT.agentOutputLanguage,
+        autoCompactTokenLimit = this[KEY_AUTO_COMPACT_TOKEN_LIMIT]
+            ?: UserPreferences.DEFAULT.autoCompactTokenLimit,
+        effectiveContextWindowPercent = this[KEY_EFFECTIVE_CONTEXT_WINDOW_PERCENT]
+            ?: UserPreferences.DEFAULT.effectiveContextWindowPercent,
     )
 
     private companion object {
@@ -70,6 +77,9 @@ class UserPreferencesDataStore @Inject constructor(
         val KEY_ACTIVE_PROVIDER = stringPreferencesKey("activeProviderId")
         val KEY_ACTIVE_MODEL = stringPreferencesKey("activeModelId")
         val KEY_AGENT_OUTPUT_LANGUAGE = stringPreferencesKey("agentOutputLanguage")
+        val KEY_AUTO_COMPACT_TOKEN_LIMIT = intPreferencesKey("autoCompactTokenLimit")
+        val KEY_EFFECTIVE_CONTEXT_WINDOW_PERCENT =
+            intPreferencesKey("effectiveContextWindowPercent")
     }
 }
 

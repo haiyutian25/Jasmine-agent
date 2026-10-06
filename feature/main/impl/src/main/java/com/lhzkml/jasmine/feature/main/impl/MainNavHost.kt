@@ -163,6 +163,13 @@ fun MainNavHost(
                             onSelect = {
                                 viewModel.trySendAction(MainAction.AgentOutputLanguageSelected(it))
                             },
+                            autoCompactTokenLimit = state.autoCompactTokenLimit,
+                            effectiveContextWindowPercent = state.effectiveContextWindowPercent,
+                            onCompactionChanged = { limit, percent ->
+                                viewModel.trySendAction(
+                                    MainAction.CompactionSettingsChanged(limit, percent),
+                                )
+                            },
                             modifier = contentModifier,
                         )
                     }
