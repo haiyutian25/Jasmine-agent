@@ -69,6 +69,28 @@ pub enum RolloutItem {
         info: TokenUsageInfo,
         breakdown: Vec<ContextUsageBreakdownItem>,
     },
+    /// 一次上下文压缩：此前的历史被换成了什么。
+    ///
+    /// **追加式，最后一条生效** —— 与 [`RolloutItem::ContextWindow`] / [`RolloutItem::ReasoningEffort`]
+    /// 同一个模式：旧记录一条都不删，所以文件里**压缩前的原始条目仍然在前面躺着**，
+    /// 恢复时取最后一条的 `replacement_history` 为准。
+    ///
+    /// 这正是上游的做法（codex 把 `CompactedItem` 追加进 rollout，恢复时读最后一条），
+    /// 好处很实在：万一压缩出了问题，原始对话还在文件里，能人工回溯；
+    /// 而"改写文件"的做法一旦压错就把上下文永久弄丢了。
+    Compacted {
+        /// 压缩后的历史（最近若干用户消息 + 一条摘要消息），替换掉此前的全部条目。
+        replacement_history: Vec<ResponseItem>,
+        /// 摘要正文本身（不含 `SUMMARY_PREFIX`），便于列表/诊断直接看压成了什么。
+        summary: String,
+        /// 触发时的活跃 token 估算，事后能判断阈值是否合理。
+        active_context_tokens: i64,
+        /// 触发时该会话的上下文窗口，一并留下（两者相除就是当时的占用率）。
+        context_window: i64,
+        /// 压掉了多少条 —— `before` 是压缩前的条目数，`after` 是保留下的条目数。
+        items_before: usize,
+        items_after: usize,
+    },
     /// The turn stopped before finishing.
     TurnAborted {
         turn_id: String,

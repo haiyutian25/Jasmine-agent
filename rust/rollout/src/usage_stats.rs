@@ -90,6 +90,8 @@ fn snapshot_of(path: &Path) -> Option<crate::usage_archive::SessionUsageSnapshot
 
     for (timestamp, item) in lines {
         match item {
+            // 压缩记录不是"花费"，不进用量统计。
+            RolloutItem::Compacted { .. } => {}
             RolloutItem::SessionMeta(meta) => {
                 snapshot.session_id = meta.session_id;
                 model_id = meta.model_id;

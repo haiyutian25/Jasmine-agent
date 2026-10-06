@@ -92,6 +92,18 @@ sealed interface ChatAction {
         data class TurnInterrupted(val turnId: String, val durationMs: Long) : Internal
         data class UsageReceived(val turnId: String, val usage: ContextUsage) : Internal
 
+    /**
+     * 这一轮触发了上下文自动压缩（历史超过窗口阈值，正在让模型把它压成摘要）。
+     *
+     * 带 `tokens` / `contextWindow` 是因为界面要能说清"多大压成多小"，而不是只转个圈。
+     * 它**不结束回合**（见 `ChatEvent.Compacting` 与 `endsTurn()`）。
+     */
+    data class CompactingStarted(
+        val turnId: String,
+        val tokens: Long,
+        val contextWindow: Long,
+    ) : Internal
+
         // ── 异步结果的回流口（修复方案 §2.3）：每一类异步工作都有自己的一条 action ──
 
         /** 这条会话是不是有一个没写完的回合（读会话文件之后回流；见 [handleTranscriptRestored]）。 */

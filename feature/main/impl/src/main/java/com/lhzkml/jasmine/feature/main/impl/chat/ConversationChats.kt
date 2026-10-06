@@ -13,6 +13,17 @@ import kotlinx.coroutines.flow.update
  * 的东西各自一份，不共用一个全局的"当前消息列表"。切换会话只是换显示哪一份，正在跑的那一轮照旧往
  * 它自己那份里写 —— 切回来看到的还是它，接着渲染。
  */
+/**
+ * 「正在压缩」对话框要显示的内容。
+ *
+ * 带两个数是为了说清 **多大压成多小**，而不是只转个圈：`tokens` 是触发时的活跃 token，
+ * `contextWindow` 是这条会话的窗口（两者相除就是当时的占用率）。
+ */
+data class CompactionNotice(
+    val tokens: Long,
+    val contextWindow: Long,
+)
+
 data class ConversationChatState(
     val messages: List<ChatMessage> = emptyList(),
 
@@ -54,6 +65,13 @@ data class ConversationChatState(
      * 只在一轮的收尾（`TurnCompleted` / `TurnInterrupted`）或中断命令失败时清掉。
      */
     val isInterruptRequested: Boolean = false,
+    /**
+     * 正在进行的上下文自动压缩；`null` = 没有。
+     *
+     * 压缩要额外打一次模型请求，界面会实打实停一下 —— 这段时间弹个对话框说清楚，**压完立刻撤掉**。
+     * 撤的时机见 `ChatViewModel.reduce`：压缩完成后的第一个分片（或这一轮收尾）就把它清掉。
+     */
+    val compactionNotice: CompactionNotice? = null,
 ) {
     /** Set while the agent is blocked on a question; see [ChatUserPrompt]. */
     val pendingPrompt: ChatUserPrompt? get() = pendingPrompts.firstOrNull()

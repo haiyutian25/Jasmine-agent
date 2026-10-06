@@ -36,6 +36,8 @@ class RustAgentChatMappingTest {
             CoreChatEvent.Failed("boom") to ChatEvent.Failed("boom"),
             CoreChatEvent.Completed to ChatEvent.Completed,
             CoreChatEvent.Aborted(1_234u) to ChatEvent.Aborted(1_234L),
+        // 压缩：两个数字都要带过来（界面要靠它们说清"多大压成多小"）。
+        CoreChatEvent.Compacting(190_000L, 200_000L) to ChatEvent.Compacting(190_000L, 200_000L),
         )
 
         pairs.forEach { (core, expected) ->

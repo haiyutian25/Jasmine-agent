@@ -91,6 +91,16 @@ sealed interface ChatEvent {
      * One request's context window: what it cost, how big the window is, and where the tokens
      * went. 它是请求的元信息而不是回复的一步，但和回复一样，要等模型答完才到。
      */
+    /**
+     * 上下文自动压缩**开始**了：历史超过窗口阈值，正在让模型把它压成摘要。
+     *
+     * 压缩要额外打一次模型请求（在已经跑着的这一轮里），用户会实打实看到一段停顿 —— 界面上得有提示，
+     * 否则只像是"卡住了"。
+     *
+     * 它**不结束回合**：压完这一轮照常往下跑（下一次请求带的是压缩后的历史）。
+     */
+    data class Compacting(val tokens: Long, val contextWindow: Long) : ChatEvent
+
     data class Usage(val usage: ContextUsage) : ChatEvent
 }
 

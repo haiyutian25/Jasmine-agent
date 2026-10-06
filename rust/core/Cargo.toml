@@ -14,6 +14,8 @@ jasmine-model-provider-info = { workspace = true }
 jasmine-rollout = { workspace = true }
 jasmine-tools = { workspace = true }
 jasmine-utils-string = { workspace = true }
+# 上下文压缩要用它的 approx_token_count / truncate_text（与 tools/src/response_history.rs 同一套口径）。
+jasmine-utils-output-truncation = { workspace = true }
 chrono = { workspace = true }
 futures = { workspace = true }
 serde_json = { workspace = true }
@@ -24,6 +26,9 @@ tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync
 tokio-util = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
 tracing = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
 
 [lints]
 workspace = true

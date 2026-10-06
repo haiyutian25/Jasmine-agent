@@ -98,14 +98,26 @@ pub fn read_timed_items(path: &Path) -> std::io::Result<Vec<(String, RolloutItem
 }
 
 /// The model-visible items of one conversation, in order.
+///
+/// **上下文压缩在这里生效**：文件是追加式的，一条 `RolloutItem::Compacted` 表示"在它之前的对话
+/// 已经被换成了 `replacement_history` 那一份"。所以走到它就**丢掉此前收集到的一切**、换成它带的那份，
+/// 然后继续往下走 —— 压缩之后新产生的条目照旧追加在后头。
+///
+/// 最后一条 `Compacted` 自然覆盖前面的（因为每次都整份替换），与 `context_window_tokens` /
+/// `reasoning_effort_value` 的"最后一条生效"是同一个口径。压缩前的原始条目仍留在文件里，
+/// 只是读取时被跳过 —— 想人工回溯随时能看。
 pub fn read_response_items(path: &Path) -> std::io::Result<Vec<ResponseItem>> {
-    Ok(read_lines(path)?
-        .into_iter()
-        .filter_map(|line| match line.item {
-            RolloutItem::ResponseItem(item) => Some(item),
-            _ => None,
-        })
-        .collect())
+    let mut items: Vec<ResponseItem> = Vec::new();
+    for line in read_lines(path)? {
+        match line.item {
+            RolloutItem::ResponseItem(item) => items.push(item),
+            RolloutItem::Compacted {
+                replacement_history, ..
+            } => items = replacement_history,
+            _ => {}
+        }
+    }
+    Ok(items)
 }
 
 /// The context window the conversation was last set to, if it was ever set at all.
@@ -170,6 +182,7 @@ pub fn interrupted_turn(path: &Path) -> Option<String> {
             | RolloutItem::ContextWindow { .. }
             | RolloutItem::ReasoningEffort { .. }
             | RolloutItem::TokenUsageRecord { .. }
+            | RolloutItem::Compacted { .. }
             | RolloutItem::InterruptedReply { .. }
             | RolloutItem::InterruptedReasoning { .. } => {}
         }
@@ -206,6 +219,7 @@ pub fn interrupted_turn_items(path: &Path) -> Vec<RolloutItem> {
             | RolloutItem::ContextWindow { .. }
             | RolloutItem::ReasoningEffort { .. }
             | RolloutItem::TokenUsageRecord { .. }
+            | RolloutItem::Compacted { .. }
             | RolloutItem::InterruptedReasoning { .. } => {}
         }
     }

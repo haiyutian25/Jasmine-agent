@@ -118,4 +118,6 @@
     <string name="chat_tool_expand_cd">展开工具调用详情</string>
     <string name="chat_prompt_title">智能体正在等待你的回答</string>
     <string name="chat_prompt_hint">输入回答…</string>
+    <string name="chat_compacting_title">正在压缩上下文</string>
+    <string name="chat_compacting_body">已用 %1$d / %2$d tokens，正在把较早的对话整理成摘要，整理完这一轮继续。</string>
 </resources>

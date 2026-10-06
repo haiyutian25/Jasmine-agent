@@ -265,6 +265,7 @@ internal fun CoreChatEvent.toChatEvent(): ChatEvent = when (this) {
     is CoreChatEvent.Failed -> ChatEvent.Failed(v1)
     CoreChatEvent.Completed -> ChatEvent.Completed
     is CoreChatEvent.Aborted -> ChatEvent.Aborted(this.durationMs.toLong())
+    is CoreChatEvent.Compacting -> ChatEvent.Compacting(tokens, contextWindow)
     is CoreChatEvent.Usage -> ChatEvent.Usage(coreContextUsage(info, breakdown))
 }
 
@@ -341,6 +342,8 @@ internal fun ChatEvent.endsTurn(): Boolean = when (this) {
     -> false
     // 用量随每个采样轮一起到，不是回合的结束。
     is ChatEvent.Usage -> false
+    // 压缩是这一轮**中途**的一次停顿，压完照常往下跑。
+    is ChatEvent.Compacting -> false
 }
 
 /**

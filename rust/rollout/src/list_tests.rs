@@ -45,6 +45,50 @@ fn sessions_dir(name: &str) -> std::path::PathBuf {
 }
 
 #[test]
+fn a_compaction_record_replaces_everything_before_it() {
+    let dir = sessions_dir("compacted-history");
+    let mut recorder = RolloutRecorder::create(&dir, &meta("s1", "compacted")).expect("create");
+    recorder
+        .record_items(&[
+            RolloutItem::ResponseItem(message("user", "old question")),
+            RolloutItem::ResponseItem(message("assistant", "old answer")),
+            // 压缩：以上两条被换成「保留的用户消息 + 摘要」，摘要永远在末尾。
+            RolloutItem::Compacted {
+                replacement_history: vec![
+                    message("user", "kept question"),
+                    message("user", "SUMMARY"),
+                ],
+                summary: "SUMMARY".to_string(),
+                active_context_tokens: 180_000,
+                context_window: 200_000,
+                items_before: 2,
+                items_after: 2,
+            },
+            // 压缩之后新产生的内容照旧追加在后头。
+            RolloutItem::ResponseItem(message("assistant", "new answer")),
+        ])
+        .expect("record");
+    let path = recorder.rollout_path().to_path_buf();
+
+    let items = read_response_items(&path).expect("read");
+    assert_eq!(
+        vec![
+            message("user", "kept question"),
+            message("user", "SUMMARY"),
+            message("assistant", "new answer"),
+        ],
+        items,
+    );
+
+    // 压缩前的原始条目一条没删 —— 追加式写入，随时能人工回溯。
+    let raw = std::fs::read_to_string(&path).expect("read raw");
+    assert!(raw.contains("old question"));
+    assert!(raw.contains("old answer"));
+    // 用 serde 的 tag 精确匹配（`title` 之类的字段里也可能出现同样的字样）。
+    assert_eq!(1, raw.matches("\"type\":\"compacted\"").count());
+}
+
+#[test]
 fn a_conversation_records_what_happened_and_reads_it_back() {
     let dir = sessions_dir("round-trip");
     let mut recorder = RolloutRecorder::create(&dir, &meta("s1", "first")).expect("create");

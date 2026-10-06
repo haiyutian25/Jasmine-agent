@@ -53,6 +53,10 @@ pub fn preset_model(entry: &ModelCatalogEntry) -> ModelConfig {
         input_modalities: default_input_modalities(),
         // 目录模型的起点档不写在配置里 —— 它在目录里（`default_level`），核心附着会话时直接问目录。
         reasoning_effort: String::new(),
+        // 压缩口径目录里也没有：`0` = 用核心的默认（全窗口 95% 那条线）。
+        // 想按模型收紧（比如小窗口模型提前压），在配置里给这两个字段即可。
+        auto_compact_token_limit: 0,
+        effective_context_window_percent: 0,
     }
 }
 

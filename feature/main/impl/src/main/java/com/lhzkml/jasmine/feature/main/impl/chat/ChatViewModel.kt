@@ -421,6 +421,13 @@ class ChatViewModel @Inject constructor(
     }
 
     override fun handleAction(action: ChatAction) {
+        // 「正在压缩」是个**瞬时**提示：它只在压缩那一小段时间为真。
+        // 除了设置它的那一条，任何后续事件都说明压缩已经过去（压完必然继续跑这一轮：
+        // 要么开始出正文，要么这一轮收尾），所以在这里统一撤掉 —— 不必给每个分支都加一句。
+        if (action !is ChatAction.Internal.CompactingStarted && state.compactionNotice != null) {
+            updateConversation { copy(compactionNotice = null) }
+        }
+
         when (action) {
             is ChatAction.InputChanged -> updateConversation { copy(input = action.value) }
             ChatAction.SendClicked -> handleSendClicked()
@@ -534,6 +541,17 @@ class ChatViewModel @Inject constructor(
                 turnOf(action.turnId)?.let { turn ->
                     updateTurn(turn) { copy(contextUsage = action.usage) }
                 }
+
+            // 上下文压缩开始：挂上提示，界面据此弹对话框。撤的时机不在这里 ——
+            // 由 `handleAction` 入口统一处理（见那里的注释）。
+            is ChatAction.Internal.CompactingStarted -> updateConversation {
+                copy(
+                    compactionNotice = CompactionNotice(
+                        tokens = action.tokens,
+                        contextWindow = action.contextWindow,
+                    ),
+                )
+            }
 
             // ── 异步结果的落点：读-判-写**全在这一帧里**（守卫按身份键丢弃过期结果）──
 
@@ -1379,6 +1397,7 @@ class ChatViewModel @Inject constructor(
                     ChatEvent.Completed -> ChatAction.Internal.TurnCompleted(id)
                     is ChatEvent.Aborted -> ChatAction.Internal.TurnInterrupted(id, event.durationMs)
                     is ChatEvent.Usage -> ChatAction.Internal.UsageReceived(id, event.usage)
+    is ChatEvent.Compacting -> ChatAction.Internal.CompactingStarted(id, event.tokens, event.contextWindow)
                 }
             )
         }

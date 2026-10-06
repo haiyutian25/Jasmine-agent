@@ -32,6 +32,18 @@ pub enum ChatEvent {
     /// The turn stopped because the platform asked it to; whatever it had produced so far is
     /// already in the transcript.
     Aborted { duration_ms: u64 },
+    /// 上下文自动压缩**开始时**报一次：历史已经超过窗口的阈值，正在让模型把它压成摘要。
+    ///
+    /// 压缩要**额外打一次模型请求**（在已经跑着的这一轮里），所以这里是个真实可见的停顿 ——
+    /// 界面上得有个提示，否则用户只看到"卡住了"。
+    ///
+    /// 它不是回合的一步，也不结束回合：压缩完成后这一轮照常往下跑（下一次请求带的是压缩后的历史）。
+    Compacting {
+        /// 触发压缩时的活跃 token 估算（也就是"压之前有多大"）。
+        tokens: i64,
+        /// 该会话的上下文窗口。
+        context_window: i64,
+    },
     /// What the conversation's context window looks like after one request: what it cost, how
     /// big the window is, and which part of the request the tokens went to.
     ///

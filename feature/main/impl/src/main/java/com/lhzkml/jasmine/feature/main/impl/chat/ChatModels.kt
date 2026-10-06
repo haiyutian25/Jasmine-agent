@@ -194,6 +194,9 @@ data class ChatState(
     val pendingPrompt: ChatUserPrompt? get() = conversation.pendingPrompt
     val isInterruptRequested: Boolean get() = conversation.isInterruptRequested
 
+    /** 正在进行的上下文压缩；`null` = 没有（界面据此决定要不要弹那个对话框）。 */
+    val compactionNotice: CompactionNotice? get() = conversation.compactionNotice
+
     val activeProvider: ProviderConfig?
         get() = providers.firstOrNull { it.id == activeProviderId }
 

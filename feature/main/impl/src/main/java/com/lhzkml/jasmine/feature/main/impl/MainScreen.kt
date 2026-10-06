@@ -13,7 +13,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.res.stringResource
+import com.lhzkml.jasmine.core.widgets.dialog.AlertDialog
 import com.lhzkml.jasmine.core.widgets.scaffold.Scaffold
+import com.lhzkml.jasmine.core.widgets.text.Text
+import com.lhzkml.jasmine.feature.main.impl.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -206,6 +210,30 @@ fun MainScreen(
                         onAction = chatViewModel::trySendAction,
                         currentTheme = state.theme,
                     )
+
+                    // 「正在压缩」：历史超过窗口阈值时，核心要**额外打一次模型请求**把旧对话做成摘要，
+                    // 界面会实打实停一下 —— 用这个对话框说清它在干什么，别让人以为卡死了。
+                    //
+                    // 它挂在**那条会话**的状态上（跟着 `chatState` 走），压完自动消失：见
+                    // `ChatViewModel.handleAction` 入口那一段。
+                    chatState.compactionNotice?.let { notice ->
+                        AlertDialog(
+                            // 压缩不可取消：关掉提示并不会让这一轮停下，所以不给任何可点的出口
+                            //（`onDismissRequest` 空着 = 点遮罩/返回键也关不掉，提示会一直留到压完）。
+                            onDismissRequest = {},
+                            confirmButton = {},
+                            title = { Text(stringResource(R.string.chat_compacting_title)) },
+                            text = {
+                                Text(
+                                    stringResource(
+                                        R.string.chat_compacting_body,
+                                        notice.tokens,
+                                        notice.contextWindow,
+                                    ),
+                                )
+                            },
+                        )
+                    }
                 }
             }
         }

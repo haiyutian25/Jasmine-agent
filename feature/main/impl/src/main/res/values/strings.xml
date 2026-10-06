@@ -118,4 +118,6 @@
     <string name="chat_reasoning_expand_cd">Show or hide the thinking</string>
     <string name="chat_prompt_title">The agent is waiting for you</string>
     <string name="chat_prompt_hint">Your answer…</string>
+    <string name="chat_compacting_title">Compacting context</string>
+    <string name="chat_compacting_body">%1$d of %2$d tokens used — earlier turns are being summarized so this conversation can continue.</string>
 </resources>

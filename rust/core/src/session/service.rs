@@ -36,6 +36,7 @@ use jasmine_protocol::protocol::AppUsageStats;
 use jasmine_protocol::protocol::ContextUsageBreakdownItem;
 use jasmine_protocol::protocol::TokenUsageInfo;
 use jasmine_rollout::RolloutItem;
+use crate::context_manager::compact;
 use jasmine_rollout::RolloutRecorder;
 use jasmine_rollout::SessionMeta;
 use jasmine_rollout::delete_session;
@@ -680,8 +681,11 @@ impl AgentChatService {
                 &|| self.notify_store_changed(),
             )?;
 
+            let mut compaction_out = None;
+
             let outcome = self.block_on(send_text(
                 Turn {
+                    compaction_out: &mut compaction_out,
                     client,
                     thread,
                     registry,
@@ -689,6 +693,8 @@ impl AgentChatService {
                     history,
                     instruction,
                     input_modalities: &model.input_modalities,
+                    auto_compact_token_limit: model.auto_compact_token_limit,
+                    effective_context_window_percent: model.effective_context_window_percent,
                     cancellation,
                 },
                 text.to_string(),
@@ -706,6 +712,10 @@ impl AgentChatService {
                     self.notify_store_changed()
                 })?;
                 history.push(interrupted_turn_marker());
+            }
+            if let Some(record) = compaction_out.take() {
+                record_compaction(rollout, record, &|| self.notify_store_changed())?;
+                recorded = history.len();
             }
             record_turn(rollout, history, recorded, &|| self.notify_store_changed())?;
             record_usage(rollout, thread, &|| self.notify_store_changed())?;
@@ -775,8 +785,11 @@ impl AgentChatService {
                 &|| self.notify_store_changed(),
             )?;
 
+            let mut compaction_out = None;
+
             let outcome = self.block_on(continue_turn(
                 Turn {
+                    compaction_out: &mut compaction_out,
                     client,
                     thread,
                     registry,
@@ -784,6 +797,8 @@ impl AgentChatService {
                     history,
                     instruction,
                     input_modalities: &model.input_modalities,
+                    auto_compact_token_limit: model.auto_compact_token_limit,
+                    effective_context_window_percent: model.effective_context_window_percent,
                     cancellation,
                 },
                 answers,
@@ -801,6 +816,10 @@ impl AgentChatService {
                     self.notify_store_changed()
                 })?;
                 history.push(interrupted_turn_marker());
+            }
+            if let Some(record) = compaction_out.take() {
+                record_compaction(rollout, record, &|| self.notify_store_changed())?;
+                recorded = history.len();
             }
             record_turn(rollout, history, recorded, &|| self.notify_store_changed())?;
             record_usage(rollout, thread, &|| self.notify_store_changed())?;
@@ -888,8 +907,11 @@ impl AgentChatService {
                 &|| self.notify_store_changed(),
             )?;
 
+            let mut compaction_out = None;
+
             let outcome = self.block_on(crate::session::run_turn(
                 Turn {
+                    compaction_out: &mut compaction_out,
                     client,
                     thread,
                     registry,
@@ -897,6 +919,8 @@ impl AgentChatService {
                     history,
                     instruction,
                     input_modalities: &model.input_modalities,
+                    auto_compact_token_limit: model.auto_compact_token_limit,
+                    effective_context_window_percent: model.effective_context_window_percent,
                     cancellation,
                 },
                 &mut emit,
@@ -913,6 +937,10 @@ impl AgentChatService {
                     self.notify_store_changed()
                 })?;
                 history.push(interrupted_turn_marker());
+            }
+            if let Some(record) = compaction_out.take() {
+                record_compaction(rollout, record, &|| self.notify_store_changed())?;
+                recorded = history.len();
             }
             record_turn(rollout, history, recorded, &|| self.notify_store_changed())?;
             record_usage(rollout, thread, &|| self.notify_store_changed())?;
@@ -1063,6 +1091,8 @@ impl AgentChatService {
         for (timestamp, item) in items.iter() {
             let at = millis(timestamp);
             match item {
+                // 压缩记录记的是「历史被换成了什么」，不是界面上的一条内容，所以不进展示历史。
+                RolloutItem::Compacted { .. } => {}
                 RolloutItem::TurnStarted { model_id, .. } => model_label = Some(model_id.clone()),
                 RolloutItem::ResponseItem(ResponseItem::FunctionCall {
                     name,
@@ -1482,6 +1512,30 @@ fn starting_context_window(model: &ModelConfig) -> u64 {
 /// A window the thread can carry: token counts stay well inside `i64`.
 fn to_tokens(context_window: u64) -> i64 {
     i64::try_from(context_window).unwrap_or(i64::MAX)
+}
+
+/// 把一次上下文压缩写进 rollout。
+///
+/// **追加式写入** —— 压缩**前**的条目一条都不删，仍留在文件前面；恢复时取最后一条的
+/// `replacement_history` 为准。这是上游的做法（codex 把 `CompactedItem` 追加进 rollout），
+/// 好处很实在：压得不合适时原始对话还在文件里，能人工回溯；而"改写文件"一旦压错就永久丢了。
+fn record_compaction(
+    rollout: &mut RolloutRecorder,
+    record: compact::CompactRecord,
+    notify: &dyn Fn(),
+) -> Result<(), AgentError> {
+    record_boundary(
+        rollout,
+        RolloutItem::Compacted {
+            replacement_history: record.replacement_history,
+            summary: record.summary,
+            active_context_tokens: record.active_context_tokens,
+            context_window: record.context_window,
+            items_before: record.items_before,
+            items_after: record.items_after,
+        },
+        notify,
+    )
 }
 
 /// Writes down what the turn cost, so a conversation reopened later still has something to show.

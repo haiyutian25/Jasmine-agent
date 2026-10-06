@@ -47,8 +47,8 @@ impl fmt::Display for WireApi {
 /// One model configured under a provider.
 ///
 /// `model_id` is the wire identifier, picked from the fetched model list or typed in as a
-/// custom id — no model id is ever hardcoded. The two lengths are token budgets; `0` means
-/// "not set", and the caller decides a default at request time.
+/// custom id — no model id is ever hardcoded. The token budgets all use `0` as "not set",
+/// and the caller decides a default at request time.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ModelConfig {
     pub id: String,
@@ -74,6 +74,19 @@ pub struct ModelConfig {
     /// 少一个键的配置会直接反序列化失败，而那不是这个字段要表达的意思。
     #[serde(default)]
     pub reasoning_effort: String,
+    /// 自动压缩的触发线（token 数）；`0` = 未设置。
+    ///
+    /// 上游 `model_auto_compact_token_limit` 的对应物：设了就按这个**绝对值**触发压缩。
+    /// 与 [Self::effective_context_window_percent] 是"**或**"的关系 —— 哪个线先到算哪个
+    /// （判定见核心的 `compact::token_limit_reached`）。
+    #[serde(default)]
+    pub auto_compact_token_limit: u32,
+    /// 触发压缩时"还算整个窗口的百分之几"；`0` = 未设置，用默认的 95。
+    ///
+    /// 上游 `effective_context_window_percent` 的对应物。它乘的是**当时的**上下文窗口，
+    /// 而窗口是可变的（界面能改），所以这个百分比天然跟着走，不用另算。
+    #[serde(default)]
+    pub effective_context_window_percent: u32,
 }
 
 impl Default for ModelConfig {
@@ -88,6 +101,8 @@ impl Default for ModelConfig {
             max_output_length: 0,
             input_modalities: default_input_modalities(),
             reasoning_effort: String::new(),
+            auto_compact_token_limit: 0,
+            effective_context_window_percent: 0,
         }
     }
 }
